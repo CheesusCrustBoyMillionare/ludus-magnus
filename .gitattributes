@@ -1,0 +1,4 @@
+# Keep line endings exactly as written; the game scripts use LF
+* -text
+*.dll binary
+*.ico binary

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ludus Magnus</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar"></header>
+  <nav id="tabs"></nav>
+  <main id="view"></main>
+</div>
+
+<div id="arena" hidden>
+  <div id="arenaHead"></div>
+  <canvas id="arenaCanvas" width="1280" height="720"></canvas>
+  <div id="arenaCtl">
+    <button data-act="speed" data-v="1">1x</button>
+    <button data-act="speed" data-v="2">2x</button>
+    <button data-act="speed" data-v="4">4x</button>
+    <button data-act="skip">Skip to result</button>
+    <button data-act="mute" id="muteBtn">Sound on</button>
+  </div>
+</div>
+
+<div id="tutor" hidden></div>
+<div id="tip" hidden></div>
+
+<div id="modal" hidden><div id="modalBox"></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

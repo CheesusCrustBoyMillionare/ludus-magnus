@@ -1,0 +1,8 @@
+# Build output: dist\LudusMagnus.exe is produced by desktop\build.ps1
+dist/
+
+# Editor and OS clutter
+Thumbs.db
+desktop.ini
+.vscode/
+*.swp
