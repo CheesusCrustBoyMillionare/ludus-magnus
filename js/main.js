@@ -18,7 +18,6 @@ const TIPS = {
   health: 'Carried into the arena as it stands. Resting restores far more than training does.',
   fatigue: 'Rises with training and with every bout. A tired man enters the arena short of stamina; above three quarters he is exhausted and risks injury if he trains.',
   morale: 'Men in good spirits train faster and hit harder; broken men yield sooner. Raised by better rations, a cook, the Temple and victories. Lowered by defeats and by comrades dying.',
-  activity: 'What he does each day. Training raises one stat. Sparring raises all four a little but needs a doctore.',
   autorest: 'When ticked, a fighter who is exhausted rests for the day instead of training into an injury. His assignment is kept.',
   str: 'Strength: harder blows, and a little more health.',
   agi: 'Agility: faster attacks, faster feet and more dodges. Heavy armour dulls it slightly.',
@@ -48,6 +47,15 @@ const TIPS = {
   vow: 'He has sworn to face this rival. When that man appears on a card he fights him with extra fury; winning lifts him greatly.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
+// The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
+const ACT_BUTTONS = [
+  ['rest', 'Rest', 'Rest: recovers health and sheds fatigue. Raises no stats.'],
+  ['str', 'Str', 'Train strength: harder blows, and a little more health.'],
+  ['agi', 'Agi', 'Train agility: faster attacks, faster feet and more dodges.'],
+  ['end', 'End', 'Train endurance: more health and stamina, and training tires him less.'],
+  ['skl', 'Skl', 'Train skill: more blows land, more are blocked, more are telling.'],
+  ['spar', 'Spar', 'Spar: raises all four stats a little at once, and tires him less than drilling one.'],
+];
 const esc = t => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
 
@@ -75,8 +83,8 @@ document.addEventListener('mousemove', e => { if (tipTarget) placeTip(e); });
 
 const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', market: 'Market', facilities: 'Household' };
 const TUTORIAL = [
-  { tab: 'ludus', target: '[data-chg=activity]', until: () => G.roster.some(g => g.activity !== 'rest'),
-    text: 'These are your fighters. Each trains one stat a day, or rests. <b>Set one of them to train</b> using the list on his card.' },
+  { tab: 'ludus', target: '.acts', until: () => G.roster.some(g => g.activity !== 'rest'),
+    text: 'These are your fighters. Each trains one stat a day, or rests. <b>Set one of them to train</b> using the buttons on his card.' },
   { tab: 'ludus', target: '.statrow',
     text: 'Click a fighter to open his dossier. Four stats decide how he fights, and the stars show his talent for each: more stars, faster gains. Hover over anything on the screen for an explanation.' },
   { target: '[data-act=endday]', until: () => G.day >= 2,
@@ -178,7 +186,11 @@ function statusChips(g) {
 }
 
 function gladCard(g) {
-  const acts = Object.entries(ACTIVITIES).map(([k, n]) => `<option value="${k}" ${g.activity === k ? 'selected' : ''} ${k === 'spar' && !staffLvl('doctore') ? 'disabled' : ''}>${n}</option>`).join('');
+  // one button per activity; a button that cannot be used stays hoverable so its tooltip can say why
+  const acts = ACT_BUTTONS.map(([k, label, what]) => {
+    const why = g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one under Household.' : '';
+    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || what)}>${label}</button>`;
+  }).join('');
   return `<div class="panel gcard ${ui.sel === g.id ? 'sel' : ''}" data-act="sel" data-v="${g.id}">
     <canvas width="72" height="84" data-portrait="${g.id}"></canvas>
     <div>
@@ -188,7 +200,7 @@ function gladCard(g) {
       <div class="barrow"${tip('health')}>Health ${bar('hp', g.hp, maxHp(g))}</div>
       <div class="barrow"${tip('fatigue')}>Fatigue ${bar('fat', g.fatigue, 100)}</div>
       <div class="barrow"${tip('morale')}>Morale ${bar('mor', g.morale, 100)}</div>
-      <select${tip('activity')} data-chg="activity" data-v="${g.id}" ${g.injury > 0 ? 'disabled' : ''} style="margin-top:6px;width:100%">${acts}</select>
+      <div class="acts">${acts}</div>
     </div>
   </div>`;
 }
@@ -634,6 +646,11 @@ function finishFight() {
 
 const ACTIONS = {
   tab(v) { ui.tab = v; render(); },
+  activity(v, w, el) {
+    const g = byId(v);
+    if (!g || el.classList.contains('off')) return;
+    g.activity = w; ui.sel = g.id; save(); render();
+  },
   sel(v, w, el, e) { if (e.target.closest('select')) return; ui.sel = +v; render(); },
   close() { closeModal(); checkEnd(); },
   endday() {
@@ -816,7 +833,6 @@ const ACTIONS = {
 };
 
 const CHANGES = {
-  activity(v, val) { const g = byId(v); if (g) { g.activity = val; save(); } },
   tactic(v, val) { const g = byId(v); if (g) { g.tactic = val; save(); render(); } },
   wager(v, val) { ui.wagers[v] = +val; },
   autorest(v, val, el) { G.autoRest = el.checked; save(); },
