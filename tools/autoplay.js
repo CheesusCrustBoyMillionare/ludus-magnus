@@ -130,6 +130,7 @@ function botEvent() {
   const pe = G.pendingEvent, E = EVENTS[pe.id];
   let i = 0;
   if (pe.id === 'fix' || pe.id === 'merchant') i = pe.id === 'fix' ? 1 : 0;
+  if (pe.id === 'freedom' || pe.id === 'promiseDue') i = 1;      // the bot never gives a fighter away
   if (pe.id === 'trainer' && !good) i = 1;
   const o = E.opts[i];
   if (!o.ok || o.ok(pe.c)) o.run(pe.c); else E.opts[E.opts.length - 1].run(pe.c);

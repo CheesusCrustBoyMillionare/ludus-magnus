@@ -49,6 +49,7 @@ function makeFighter(g, team, i, n) {
   if (has('nervous')) acc -= 0.05;
   if (has('showy')) show *= 1.4;
   if (has('laureate')) show *= 1.5;
+  if (has('embittered')) dmg *= 0.92;
   if (has('guarded')) { dodge += 0.05; if (c.shield) block += 0.05; }
   const lungs = has('ironlungs') ? 1.3 : 1;
   dmg *= 0.94 + g.morale / 1000;
@@ -71,7 +72,7 @@ function makeFighter(g, team, i, n) {
     facing: team === 0 ? 1 : -1, snare: 0, stun: 0, kx: 0, flash: 0, atkAnim: 0, slash: 0,
     walk: Math.random() * 10, moving: false,
     bleed: 0, bleedT: 0, bleedBy: null, drip: 0, hamstrung: false, armWound: false,
-    fallT: 0, guard: 0, down: false, yielded: false, fate: null, dmgDealt: 0, downedBy: null,
+    fallT: 0, guard: 0, hate: null, down: false, yielded: false, fate: null, dmgDealt: 0, downedBy: null,
   };
 }
 
@@ -100,6 +101,8 @@ function createBattle(teamA, teamB, opts) {
     }
   }
   for (let i = 0; i < 420; i++) B.specks.push({ x: rint(0, 426), y: rint(92, 239), w: rint(1, 3), c: chance(0.5) ? 0 : 1 });
+  // friendships, rivalries and vows in the player's ludus change how his men fight (see sim.js)
+  if (typeof applyStories === 'function' && typeof G !== 'undefined' && G && G.bonds) applyStories(B);
   return B;
 }
 
@@ -159,6 +162,7 @@ function resolveAttack(B, a, d, o) {
   }
   let dmg = a.dmg * (a.armWound ? 0.8 : 1) * (0.8 + Math.random() * 0.4) * (o.mult || 1);
   if (d.snare > 0) dmg *= 1.1;
+  if (a.hate === d) dmg *= 1.15;        // a man facing the rival he has sworn to beat
   if (a.g.traits.includes('bloodthirsty') && d.hp < d.maxHp * 0.5) dmg *= 1.15;
   if (a.g.traits.includes('lionheart') && a.hp < a.maxHp * 0.35) dmg *= 1.2;
   const crit = !o.nocrit && Math.random() < a.crit;

@@ -72,6 +72,7 @@ const TRAITS = {
   killer:      { name: 'Killer instinct', good: true, desc: 'Telling blows hit far harder.' },
   steady:      { name: 'Steady',      good: true,  desc: 'Morale never falls below half.' },
   laureate:    { name: 'Laureate',    good: true,  special: true, desc: 'A tournament champion. The crowd roars at everything he does.' },
+  embittered:  { name: 'Embittered',  good: false, special: true, desc: 'Was promised his freedom and denied it. Trains 30% slower and hits without heart.' },
 };
 
 const WEAPON_TIERS = ['Worn', 'Iron', 'Steel', 'Masterwork'];

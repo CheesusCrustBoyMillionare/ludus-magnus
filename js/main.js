@@ -43,6 +43,10 @@ const TIPS = {
   favour: 'Rises with gifts and with the deeds each patron cares about. Fades a little every games day.',
   feud: 'Deepens when you kill their fighters or they kill yours. At 40 their champion calls you out; refusing costs you.',
   rations: 'Paid per fighter per day. Better food means higher morale.',
+  friend: 'Friends hit harder when they fight on the same side. If one dies, the other grieves, and may swear to kill the man who did it.',
+  rivalbond: 'Rivals inside your own ludus train harder to outdo each other, but fight worse on the same side.',
+  vow: 'He has sworn to face this rival. When that man appears on a card he fights him with extra fury; winning lifts him greatly.',
+  promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
 const esc = t => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
@@ -164,6 +168,7 @@ function renderView() {
 
 function statusChips(g) {
   let s = '';
+  if (g.wish) s += `<span class="chip red"${tip('vow')}>Vow</span>`;
   if (g.perkPending > 0) s += `<span class="chip gold"${tip('perk')}>Perk to choose</span>`;
   if (g.injury > 0) s += `<span class="chip red"${tip('injured')}>Injured ${g.injury}d</span>`;
   if (g.fatigue > 75) s += `<span class="chip red"${tip('exhausted')}>Exhausted</span>`;
@@ -229,6 +234,7 @@ function gladDetail(g) {
     ${statRows(g)}
     <hr class="sep">
     ${traitList(g)}
+    ${storyBlock(g)}
     <hr class="sep">
     <div class="kv">${gear('weapon', WEAPON_TIERS)}${gear('armor', ARMOR_TIERS)}
       <span${tip('orders')}>Orders in the arena<br><small>${TACTICS[g.tactic].desc}</small></span>
@@ -255,7 +261,7 @@ function viewLudus() {
 function boutCard(b) {
   const D = DIFF[b.diff];
   const kind = ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1];
-  const foes = boutEnemies(b).map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}</div>`).join('');
+  const foes = boutEnemies(b).map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}${vowNote(e)}</div>`).join('');
   let body;
   if (b.done) body = '<div class="dim">This bout has been fought.</div>';
   else {
@@ -279,7 +285,7 @@ function boutCard(b) {
       </div>`;
   }
   return `<div class="panel bout ${b.done ? 'done' : ''}">
-    <h3${tip('bout')}>${b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.hunt ? 'Beast hunt &middot; ' + D.name : b.melee ? 'The great melee' : kind + ' &middot; ' + D.name} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
+    <h3${tip('bout')}>${b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + D.name : b.melee ? 'The great melee' : kind + ' &middot; ' + D.name} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
     ${b.death ? `<div class="death">${b.funeral ? 'Funeral games: ' : ''}Sine missione &mdash; to the death</div>` : ''}
     ${b.hunt ? '<div class="death">Beasts give no quarter</div>' : ''}
     <div class="foes">${foes}</div>
@@ -504,9 +510,25 @@ function confirmSlot(key) {
   ui.confirmSlot = key; refreshSaves(); return false;
 }
 
+function vowNote(e) {
+  const g = G.roster.find(x => x.wish && x.wish.gid === e.id);
+  return g ? ` <span class="gold">${g.name} has sworn to ${g.wish.type === 'avenge' ? 'kill' : 'beat'} him</span>` : '';
+}
+
+// Bonds, vows, promises and the last few lines of a fighter's history, for the dossier.
+function storyBlock(g) {
+  const chips = [];
+  for (const b of bondsOf(g)) chips.push(`<span class="chip ${b.type === 'friend' ? 'gold' : 'red'}"${tip(b.type === 'friend' ? 'friend' : 'rivalbond')}>${b.type === 'friend' ? 'Friend of' : 'Rival of'} ${b.other.name}</span>`);
+  if (g.wish) chips.push(`<span class="chip red"${tip('vow')}>${g.wish.type === 'avenge' ? 'Sworn to kill' : 'Wants a rematch with'} ${g.wish.name}</span>`);
+  if (g.promise) { const left = Math.max(0, g.promise.at - g.wins); chips.push(`<span class="chip gold"${tip('promise')}>Promised freedom: ${left} more ${left === 1 ? 'victory' : 'victories'}</span>`); }
+  const lines = (g.story || []).slice(-6).reverse().map(s => `<div><span class="d">Day ${s.d}</span>${s.t}</div>`).join('');
+  if (!chips.length && !lines) return '';
+  return `<hr class="sep">${chips.length ? `<div style="margin-bottom:4px">${chips.join('')}</div>` : ''}${lines ? `<div class="log" style="font-size:13px;max-height:none">${lines}</div>` : ''}`;
+}
+
 function viewChronicle() {
   const rows = G.log.slice().reverse().map(e => `<div class="${e.k}"><span class="d">Day ${e.d}</span>${e.t}</div>`).join('');
-  const fallen = G.fallen.length ? `<h2 style="margin-top:20px">The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}</div>`).join('')}</div>` : '';
+  const fallen = G.fallen.length ? `<h2 style="margin-top:20px">The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
   return `<h2>Chronicle</h2><div class="panel log">${rows}</div>${fallen}
     <p style="margin-top:20px" class="row"><button data-act="tuton">Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p>`;
 }
@@ -646,14 +668,14 @@ const ACTIONS = {
   sell(v) {
     const g = byId(v); if (!g) return;
     const p = Math.round(value(g) / 2);
-    G.denarii += p; G.roster = G.roster.filter(x => x !== g);
+    G.denarii += p; G.roster = G.roster.filter(x => x !== g); departed(g, 'sold');
     log(`${g.name} is sold for ${p} denarii.`);
     save(); render();
   },
   free(v) {
     const g = byId(v); if (!g || g.wins < 8) return;
     const gain = 40 + g.wins * 5;
-    G.roster = G.roster.filter(x => x !== g);
+    G.roster = G.roster.filter(x => x !== g); departed(g, 'freed');
     G.fame += gain;
     G.roster.forEach(x => { x.morale = clamp(x.morale + 20, 0, 100); });
     log(`${g.name} is given the wooden sword and walks free. The city talks of little else. +${gain} fame.`, 'gold');
@@ -663,7 +685,7 @@ const ACTIONS = {
   buy(v) {
     const g = G.market.find(m => m.id === +v);
     if (!g || G.denarii < g.price || G.roster.length >= capacity()) return;
-    G.denarii -= g.price; delete g.price;
+    G.denarii -= g.price; addStory(g, `Bought at market for ${g.price} denarii.`); delete g.price;
     G.market = G.market.filter(m => m !== g); G.roster.push(g);
     log(`${g.name} the ${CLASSES[g.cls].name} is bought at market.`);
     ui.sel = g.id; save(); render();
@@ -781,7 +803,7 @@ const ACTIONS = {
   mute() { SFX.toggle(); paintSpeed(); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   skip() { finishFight(); },
-  leavearena() { SFX.stop(); $('#arena').hidden = true; fight = null; closeModal(); render(); checkEnd(); },
+  leavearena() { SFX.stop(); $('#arena').hidden = true; fight = null; closeModal(); render(); if (G.pendingEvent) showEvent(); checkEnd(); },
   askreset() {
     showModal(`<h2>Abandon the ludus?</h2><p>Your current game will be lost.</p>
       <div class="row"><button data-act="close">Keep playing</button><button class="primary" data-act="reset">Start anew</button></div>`);

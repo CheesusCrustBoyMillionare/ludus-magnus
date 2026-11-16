@@ -125,7 +125,10 @@ test('every event and every choice runs', () => game()(function () {
       newGame();
       G.denarii = 5000; G.day = 2; G.fac.barracks = 1; G.patrons.magistrate = 50;
       G.roster.push(makeGladiator(25));
-      G.roster.forEach(g => { g.wins = 3; });
+      G.roster.forEach(g => { g.wins = 6; g.rank = 2; });
+      const rival = G.houses[0].roster[0];
+      G.roster[0].lostTo = { hid: G.houses[0].id, gid: rival.id, name: rival.name };
+      if (id === 'promiseDue') G.roster[1].promise = { at: 1 };
       G.houses.forEach(h => { h.grudge = 50; });
       assert(EVENTS[id].can(), id + ' should be possible in the test setup');
       G.pendingEvent = { id, c: EVENTS[id].make() };
@@ -135,7 +138,7 @@ test('every event and every choice runs', () => game()(function () {
       n++;
     }
   }
-  assert(n >= 29, 'expected at least 29 event choices, ran ' + n);
+  assert(n >= 41, 'expected at least 41 event choices, ran ' + n);
 }));
 
 test('every style can fight every other, and every fallen fighter gets a verdict', () => game()(function () {
@@ -225,15 +228,52 @@ test('ranks and perks', () => game()(function () {
   }
 }));
 
+test('fighter stories: bonds, grief, vows and promises', () => game()(function () {
+  newGame();
+  while (G.roster.length < 4) G.roster.push(makeGladiator(25));
+  const [a, b, c, d] = G.roster;
+  assert(makeBond(a, b, 'friend') && !makeBond(a, b, 'rival') && makeBond(a, c, 'rival') && !makeBond(a, d, 'friend'), 'bonds form once, two per fighter at most');
+  assert(bondsOf(a).length === 2 && bondsOf(b)[0].other === a && a.story.some(s => s.t.includes(b.name)), 'bonds are recorded on both men');
+  // friends hit harder together; rivals fight worse together
+  const solo = createBattle([a], [makeGladiator(25)], { noIntro: true }).fighters[0].dmg;
+  const B2 = createBattle([a, b], [makeGladiator(25), makeGladiator(25)], { noIntro: true });
+  assert(B2.fighters[0].dmg > solo * 1.05, 'a friend at his side makes him hit harder');
+  // a friend's death: grief and a vow against the killer
+  const killer = G.houses[0].roster[0], m0 = b.morale;
+  G.roster = G.roster.filter(x => x !== a); departed(a, 'dead', killer);
+  assert(b.morale === m0 - 20 && b.wish && b.wish.type === 'avenge' && b.wish.gid === killer.id && wishTarget(b) === killer, 'the survivor swears vengeance');
+  assert(!G.bonds.some(x => x.a === a.id || x.b === a.id) && isWanted(killer), 'the dead man leaves no bonds, and his killer is marked');
+  // the wanted rival is never dropped or killed off-stage, and turns up on a card
+  let offered = 0;
+  for (let i = 0; i < 40; i++) { G.day = 5; genBouts(); assert(wishTarget(b) === killer, 'the wanted rival must survive between games'); if (G.bouts.some(x => x.vow === b.id)) offered++; }
+  assert(offered > 10 && offered < 38, 'the vow should often but not always reach a card, got ' + offered + ' of 40');
+  // settling the vow
+  const vb = createBattle([b], [killer], { noIntro: true });
+  assert(vb.fighters[0].hate === vb.fighters[1], 'he knows his enemy in the arena');
+  vb.fighters[1].down = true; vb.fighters[1].hp = 0; vb.fighters[1].downedBy = vb.fighters[0]; vb.fighters[1].fate = 'dead'; vb.over = true; vb.winner = 0; vb.time = 10;
+  const r = applyBoutResult({ id: 1, size: 1, death: true, house: 'X', houseId: G.houses[0].id, purse: 10, fame: 5 }, vb, 0, 1);
+  assert(r.win && !b.wish && r.lines.some(l => l.includes('avenged')) && b.story.some(s => s.t.includes('Avenged')), 'the vow is settled and remembered');
+  // a promise of freedom falls due after the victories
+  c.promise = { at: c.wins + 1 }; G.pendingEvent = null;
+  const pb = createBattle([c], [makeGladiator(20)], { noIntro: true });
+  pb.fighters[1].down = true; pb.fighters[1].hp = 0; pb.fighters[1].fate = 'spared'; pb.over = true; pb.winner = 0; pb.time = 10;
+  applyBoutResult({ id: 2, size: 1, death: false, house: 'X', purse: 10, fame: 5 }, pb, 0, 1);
+  assert(G.pendingEvent && G.pendingEvent.id === 'promiseDue' && G.pendingEvent.c.g === c.id, 'the promise comes due');
+  const fame = G.fame, n = G.roster.length;
+  EVENTS.promiseDue.opts[0].run(G.pendingEvent.c);
+  assert(G.roster.length === n - 1 && G.fame > fame && !G.roster.includes(c), 'keeping your word frees him and earns fame');
+  assert(!Object.keys(EVENTS).some(id => EVENTS[id].auto && id !== 'promiseDue') && !badNumber(G), 'only the promise is raised automatically');
+}));
+
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {
   assert(load() === false, 'nothing to load at first');
   newGame(); const legacy = JSON.parse(JSON.stringify(G));
-  for (const k of ['staff', 'hires', 'patrons', 'gifts', 'autoRest', 'fix', 'houses', 'festival', 'tourney', 'tut']) delete legacy[k];
-  legacy.roster.forEach(g => { delete g.xp; delete g.rank; delete g.perkPending; delete g.perkOffer; g.wins = 4; });
+  for (const k of ['staff', 'hires', 'patrons', 'gifts', 'autoRest', 'fix', 'houses', 'festival', 'tourney', 'tut', 'bonds']) delete legacy[k];
+  legacy.roster.forEach(g => { delete g.xp; delete g.rank; delete g.perkPending; delete g.perkOffer; delete g.story; delete g.wish; g.wins = 4; });
   for (const k in mem) delete mem[k];
   mem['ludus-magnus-save-v1'] = JSON.stringify(legacy); G = null;
   assert(load() && slot === 1 && !('ludus-magnus-save-v1' in mem) && mem['ludus-magnus-slot-1'], 'old single save moves to slot 1');
-  assert(G.houses.length === 5 && G.festival && G.patrons && G.tut && G.roster.every(g => g.rank > 0 && g.perkPending > 0), 'old save gains the newer systems');
+  assert(G.houses.length === 5 && G.festival && G.patrons && G.tut && Array.isArray(G.bonds) && G.roster.every(g => Array.isArray(g.story)) && G.roster.every(g => g.rank > 0 && g.perkPending > 0), 'old save gains the newer systems');
   for (let i = 0; i < 7; i++) { endDay(); G.pendingEvent = null; }
   assert(slotInfo(1).day === 8 && slotInfo(1, true).day === 5, 'autosave and games-day backup');
   assert(copyToSlot(3) && slotInfo(3).day === 8, 'copy to another slot');
