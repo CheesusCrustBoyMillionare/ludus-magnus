@@ -50,11 +50,11 @@ const TIPS = {
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
 const ACT_BUTTONS = [
   ['rest', 'Rest', 'Rest: recovers health and sheds fatigue. Raises no stats.'],
-  ['str', 'Str', 'Train strength: harder blows, and a little more health.'],
-  ['agi', 'Agi', 'Train agility: faster attacks, faster feet and more dodges.'],
-  ['end', 'End', 'Train endurance: more health and stamina, and training tires him less.'],
-  ['skl', 'Skl', 'Train skill: more blows land, more are blocked, more are telling.'],
-  ['spar', 'Spar', 'Spar: raises all four stats a little at once, and tires him less than drilling one.'],
+  ['str', 'Strength', 'Train strength: harder blows, and a little more health.'],
+  ['agi', 'Agility', 'Train agility: faster attacks, faster feet and more dodges.'],
+  ['end', 'Endurance', 'Train endurance: more health and stamina, and training tires him less.'],
+  ['skl', 'Skill', 'Train skill: more blows land, more are blocked, more are telling.'],
+  ['spar', 'All (spar)', 'Spar: raises all four stats a little at once, and tires him less than drilling one.'],
 ];
 const esc = t => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
@@ -187,10 +187,15 @@ function statusChips(g) {
 
 function gladCard(g) {
   // one button per activity; a button that cannot be used stays hoverable so its tooltip can say why
-  const acts = ACT_BUTTONS.map(([k, label, what]) => {
+  const actBtn = ([k, label, what]) => {
     const why = g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one under Household.' : '';
     return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || what)}>${label}</button>`;
-  }).join('');
+  };
+  // a plain sentence saying what he is doing today, then Rest on its own and the training choices under a label
+  const doing = g.injury > 0 ? 'recovering from injury' : g.activity === 'rest' ? 'resting' : g.activity === 'spar' ? 'sparring (all four stats)' : 'training ' + STAT_NAMES[g.activity].toLowerCase();
+  const acts = `<div class="today">Today he is <b>${doing}</b></div>
+      <div class="acts"><span class="lbl">Rest</span><div>${actBtn(ACT_BUTTONS[0])}</div>
+      <span class="lbl">Train</span><div>${ACT_BUTTONS.slice(1).map(actBtn).join('')}</div></div>`;
   return `<div class="panel gcard ${ui.sel === g.id ? 'sel' : ''}" data-act="sel" data-v="${g.id}">
     <canvas width="72" height="84" data-portrait="${g.id}"></canvas>
     <div>
@@ -200,14 +205,17 @@ function gladCard(g) {
       <div class="barrow"${tip('health')}>Health ${bar('hp', g.hp, maxHp(g))}</div>
       <div class="barrow"${tip('fatigue')}>Fatigue ${bar('fat', g.fatigue, 100)}</div>
       <div class="barrow"${tip('morale')}>Morale ${bar('mor', g.morale, 100)}</div>
-      <div class="acts">${acts}</div>
+      ${acts}
     </div>
   </div>`;
 }
 
+// Is this one of your fighters, currently set to train this stat?
+function trains(g, s) { return G.roster.includes(g) && g.injury <= 0 && (g.activity === s || g.activity === 'spar'); }
+
 function statRows(g, hide) {
   return STATS.map(s => `<div class="statrow"${tip(s)}>
-      <span>${STAT_NAMES[s]}</span><b class="num">${g.stats[s]}</b>
+      <span class="${trains(g, s) ? 'gold' : ''}">${STAT_NAMES[s]}${trains(g, s) ? '<br><small class="gold">&#9650; training</small>' : ''}</span><b class="num">${g.stats[s]}</b>
       ${bar('prog', g.prog[s], needProg(g.stats[s]))}
       <span class="stars"${tip(hide ? 'hidden' : 'talent')}>${hide ? '? ? ?' : '★'.repeat(stars(g.pot[s])) + '☆'.repeat(5 - stars(g.pot[s]))}</span>
     </div>`).join('');
