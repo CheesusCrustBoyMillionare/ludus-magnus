@@ -238,7 +238,8 @@ function newGame() {
     staff: {}, hires: [], autoRest: true, fix: null, tourney: null, festival: null, tut: { step: 0, on: false },
     patrons: { magistrate: 20, guild: 10, temple: 10 }, gifts: { magistrate: 0, guild: 0, temple: 0 },
   };
-  G.roster.push(makeGladiator(23), makeGladiator(21));
+  G.roster.push(makeGladiator(23));
+  G.roster.push(makeGladiator(21));   // made second so he cannot share the first man's name
   initHouses(); genMarket(); genHires(); scheduleFestival();
   log('You inherit a crumbling ludus, two fighters and a purse of 250 denarii.', 'gold');
   save();
