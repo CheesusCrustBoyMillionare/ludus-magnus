@@ -77,7 +77,7 @@ test('page is stamped: every script and stylesheet address carries its current f
   assert(r.status === 0, (r.stderr || r.stdout).trim());
   const html = read('index.html');
   assert(/<meta name="build" content="[0-9a-f]{8}">/.test(html), 'index.html has no build mark');
-  assert((html.match(/\?v=[0-9a-f]{8}"/g) || []).length >= 8, 'expected a fingerprint on the stylesheet and all seven scripts');
+  assert((html.match(/\?v=[0-9a-f]{8}"/g) || []).length >= 9, 'expected a fingerprint on the stylesheet and all eight scripts');
   return (r.stdout.match(/build \w+/) || [''])[0];
 });
 
@@ -91,7 +91,7 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   const tips = main.slice(main.indexOf('const TIPS = {'), main.indexOf('const esc ='));
   for (const k of tipKeys) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
   for (const k of ['str', 'agi', 'end', 'skl'].concat(['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'])) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
-  for (const s of ['data.js', 'sim.js', 'combat.js', 'sfx.js', 'yard.js', 'art.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
+  for (const s of ['data.js', 'sim.js', 'combat.js', 'show.js', 'sfx.js', 'yard.js', 'art.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
   return acts.length + ' actions, ' + tipKeys.length + ' tooltips';
 });
 

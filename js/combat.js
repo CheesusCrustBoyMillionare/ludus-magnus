@@ -99,7 +99,7 @@ function createBattle(teamA, teamB, opts) {
   for (let y = 22, r = 0; y <= 64; y += 9, r++) {
     for (let x = 2 + (r % 2) * 3; x < 424; x += 6) {
       if (Math.random() >= B.theme.crowd) continue;
-      if (B.theme.box && x > 164 && x < 258 && y > 20) continue;
+      if (B.theme.box ? x > 164 && x < 258 && y > 20 : x > 184 && x < 240 && y > 31) continue;      // the editor's box
       const col = pick(cols);
       B.crowd.push({ x: x + rint(-1, 1), y, col, colD: shade(col, 0.7), skin: pick(ORIGINS).skin, hair: pick(hairs), ph: rand(0, 6.28), sp: rand(3, 9), arms: chance(0.5) });
     }
@@ -135,7 +135,7 @@ function knockDown(B, d, a, how) {
   B.hitstop = 0.12; B.shake = 3; B.flashT = 0.12;
   fxBlood(B, d, 16, a ? a.facing : 1);
   fxDust(B, d.x, d.y, 8);
-  for (let i = 0; i < 10; i++) B.stains.push({ x: d.x + rand(-7, 7), y: d.y + rand(-2, 3), w: rint(1, 3) });
+  for (let i = 0; i < 10; i++) B.stains.push({ x: d.x + rand(-7, 7), y: d.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
   feed(B, how || `${d.g.name} is struck down${a ? ' by ' + a.g.name : ''}`, d.team);
 }
 
@@ -363,7 +363,7 @@ function fighterAct(B, f, dt) {
 function stepFx(B, dt) {
   for (const p of B.parts) {
     p.x += p.vx * dt; p.h += p.vh * dt; p.vh -= 160 * dt;
-    if (p.h <= 0) { p.dead = true; if (!p.spark && B.stains.length < 600) B.stains.push({ x: p.x, y: p.y, w: 1 }); }
+    if (p.h <= 0) { p.dead = true; if (!p.spark && B.stains.length < 600) B.stains.push({ x: p.x, y: p.y, w: 1, t: B.clock }); }
   }
   B.parts = B.parts.filter(p => !p.dead);
   for (const t of B.texts) { t.y -= (t.big ? 7 : 14) * dt; t.life -= dt; }
@@ -404,7 +404,7 @@ function stepOutro(B, dt) {
       feed(B, B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
       f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
       fxBlood(B, f, 14, -f.facing);
-      for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3) });
+      for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
     }
   }
 }
@@ -860,8 +860,14 @@ function renderBackdrop(B) {
     R(174, 27, 80, 39, '#e8b545'); R(177, 29, 74, 37, '#5a2a6a');
     for (let x = 184; x < 250; x += 9) R(x, 29, 2, 37, '#43204f');
     R(174, 27, 5, 39, '#f0e8d6'); R(249, 27, 5, 39, '#f0e8d6'); R(174, 27, 2, 39, '#c9c0aa'); R(249, 27, 2, 39, '#c9c0aa');
-    R(207, 47, 14, 19, '#f2ecd8'); R(212, 47, 4, 19, '#7a3a8e'); R(207, 47, 2, 19, '#cfc8b2');
-    R(211, 39, 6, 8, '#d9a57c'); R(210, 38, 8, 2, '#e8b545'); R(211, 40, 1, 4, '#4a3320');
+  } else if (th.planks) {      // a plank stand with a cloth roof
+    R(192, 38, 44, 28, '#2a1d16'); R(190, 34, 2, 32, '#5e4426'); R(236, 34, 2, 32, '#5e4426');
+    R(188, 32, 52, 3, '#8a6a4a'); R(188, 32, 52, 1, '#a8855e');
+    for (let x = 190; x < 238; x += 8) { R(x, 35, 8, 3, (x / 8) % 2 ? '#a8452e' : '#e8d7b0'); R(x + 2, 38, 4, 1, (x / 8) % 2 ? '#a8452e' : '#e8d7b0'); }
+  } else {                     // a stone box hung with red
+    R(190, 34, 48, 32, '#5a1f1a'); for (let x = 196; x < 236; x += 8) R(x, 36, 2, 30, '#461612');
+    R(187, 30, 54, 4, th.wallTop); R(187, 34, 54, 1, '#e8b545');
+    R(188, 35, 4, 31, th.wallTop); R(236, 35, 4, 31, th.wallTop); R(188, 35, 1, 31, th.wallLine); R(236, 35, 1, 31, th.wallLine);
   }
   // wall
   R(0, 66, 428, 3, th.wallTop); R(0, 69, 428, 17, th.wall);
@@ -885,12 +891,7 @@ function renderBackdrop(B) {
   for (let x = 196; x < 234; x += 6) R(x, 69, 2, 17, '#4a3323');
   R(193, 74, 42, 2, '#4a3323'); R(193, 80, 42, 2, '#4a3323');
   // banners: each side's colours, and gold ones in the grander arenas
-  const banner = (x, c, cD) => {
-    R(x - 1, 68, 14, 2, '#3a2a1c'); R(x, 70, 12, 10, c); R(x, 70, 2, 10, cD);
-    R(x, 80, 4, 3, c); R(x + 8, 80, 4, 3, c); R(x + 5, 72, 2, 5, 'rgba(255,255,255,.35)');
-  };
-  banner(48, B.col[0], B.colD[0]); banner(368, B.col[1], B.colD[1]);
-  if (th.banners) for (const x of [108, 150, 266, 308]) banner(x, '#d9a441', '#a87a26');
+  // (the banners hang here; they move, so show.js draws them live)
   // sand
   R(0, 86, 428, 154, th.sand);
   const sd = shade(th.sand, 0.9), sl = shade(th.sand, 1.12);
@@ -915,12 +916,7 @@ function drawBattle(ctx, B) {
   ctx.setTransform(FINE, 0, 0, FINE, shx, shy);
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
-  const cheer = 0.15 + clamp(B.exc, 0, 1) * 0.85 + (B.over ? 0.5 : 0);
-  for (const p of B.crowd) {
-    if (Math.sin(T * p.sp + p.ph) > 1 - cheer * 1.4) drawSpectator(ctx, p, 2);
-  }
-  ctx.fillStyle = '#8e1b14';
-  for (const s of B.stains) ctx.fillRect(Math.round(s.x * 2), Math.round(s.y * 2), s.w * 2, 2);
+  showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
 
   const dusk = B.light === 'dusk';
   const shadow = dusk ? { len: 16, a: 0.3 } : { len: 5, a: 0.22 };
@@ -938,6 +934,7 @@ function drawBattle(ctx, B) {
     });
   }
   for (const p of B.parts) { ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 2, 2); }
+  showFront(ctx, B, T);       // dust, things thrown from the stands
 
   // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
   if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }

@@ -8,12 +8,50 @@ const YARD = { W: 590, H: 190, S: 2, GY: 128 };
 let yardRaf = 0, yardLast = 0;
 let yardLayer = null, yardMask = null;      // off-screen canvases: the scene without its sky, and the shape of it
 let yardHits = [];          // click targets: { x0, x1, y0, y1, fighter | tab }
+let yardPrev = 0;           // when the yard was last drawn, to step the people in it
+const yardAgents = {};      // staff and resting fighters who move about: where they are and what they are doing
+let yardBirds = null;
+let yardForce = null;       // for testing from the console: { weather: 'rain', u: 0.8 } pins the weather and the hour
+
+// Anyone who walks about the yard. He heads for (tx, ty), then waits there.
+function yardAgent(key, x, y) {
+  return yardAgents[key] || (yardAgents[key] = { gid: +String(key).slice(1) || 0, x, y, tx: x, ty: y, wait: rand(0.5, 3), face: 1, walk: 0, moving: false, act: 'idle', n: 0 });
+}
+// Returns true once he has arrived and finished waiting, and so needs something new to do.
+function agentMove(a, dt, speed) {
+  const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
+  if (d > 0.8) {
+    const s = Math.min(d, speed * dt);
+    a.x += dx / d * s; a.y += dy / d * s; if (Math.abs(dx) > 0.5) a.face = dx > 0 ? 1 : -1;
+    a.walk += dt * 9; a.moving = true;
+    return false;
+  }
+  a.moving = false; a.wait -= dt;
+  return a.wait <= 0;
+}
+
+// The weather changes every 75 seconds: mostly fair, sometimes overcast, rain or wind. Like the hour,
+// it is only for show. It fades in and out at each change, and rain leaves the ground wet for a while.
+function yardWeather(T) {
+  const SLOT = 75, i = Math.floor(T / SLOT), p = (T / SLOT) % 1;
+  const kind = n => {
+    if (n <= 0) return 'clear';
+    const h = Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453) % 1;
+    return h < 0.5 ? 'clear' : h < 0.7 ? 'cloud' : h < 0.87 ? 'rain' : 'wind';
+  };
+  let k = kind(i), prev = kind(i - 1), amt = k === 'clear' ? 0 : Math.min(1, p / 0.12, (1 - p) / 0.12);
+  let wet = Math.max(k === 'rain' ? Math.min(1, p / 0.3) : 0, prev === 'rain' && k !== 'rain' ? Math.max(0, 1 - p / 0.6) : 0);
+  if (yardForce && yardForce.weather) { k = yardForce.weather; amt = k === 'clear' ? 0 : 1; wet = k === 'rain' ? 1 : 0; }
+  return { kind: k, rain: k === 'rain' ? amt : 0, gust: k === 'wind' ? amt : 0, over: amt * ({ cloud: 0.75, rain: 1, wind: 0.3 }[k] || 0), wet };
+}
 
 function yardPerson(ctx, X, Y, d, o) {
   const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
   const skin = o.skin || '#d9a57c', skinD = shade(skin, 0.76), tunicD = shade(o.tunic, 0.72), wood = '#7a5a2a';
   ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3);
-  P(-3, -12, 3, 12, skinD); P(0, -12, 3, 12, skin); P(-3, -2, 4, 2, '#6b4526'); P(0, -2, 5, 2, '#6b4526');
+  const st = o.moving ? (Math.sin(o.walk) > 0 ? 1 : -1) : 0;      // stride
+  P(-3 - st, -12, 3, 12 - (st > 0 ? 1 : 0), skinD); P(st, -12, 3, 12 - (st < 0 ? 1 : 0), skin);
+  P(-3 - st, -2 - (st > 0 ? 1 : 0), 4, 2, '#6b4526'); P(st, -2 - (st < 0 ? 1 : 0), 5, 2, '#6b4526');
   P(-4, -27, 8, 17, o.tunic); P(-4, -27, 2, 17, tunicD); P(-4, -18, 8, 1, '#6b4526');
   if (o.apron) { P(-1, -26, 5, 15, o.apron); P(-1, -26, 1, 15, shade(o.apron, 0.8)); }
   P(-1, -28, 3, 1, skinD);
@@ -29,6 +67,10 @@ function yardPerson(ctx, X, Y, d, o) {
     if (o.item === 'ladle') { P(4, -20, 7, 1, wood); P(10, -20, 2, 2, '#8d9094'); }
     if (o.item === 'bag') { P(-6, -24, 3, 8, '#f2ecd8'); P(-6, -24, 3, 1, '#c9c0aa'); }
     if (o.item === 'scroll') { P(4, -21, 4, 2, '#f2ecd8'); }
+    if (o.item === 'bucket') { P(3, -18, 1, 4, '#3a2a1c'); P(1, -14, 6, 5, '#7a5a2a'); P(1, -14, 6, 1, '#5aa0d0'); P(1, -11, 6, 1, '#5e4426'); }
+    if (o.item === 'pot') { P(3, -22, 7, 5, '#2e2a28'); P(2, -23, 9, 1, '#4a4440'); P(4, -24, 5, 1, '#e8e0d0'); }
+    if (o.item === 'sword') { P(5, -36, 1, 15, '#c1c7cc'); P(4, -22, 3, 1, '#8a6230'); }
+    if (o.item === 'broom') { const b = o.sweep ? 2 : 0; P(5 + (b >> 1), -24, 1, 22, wood); P(3 + b, -3, 6, 3, '#c9a763'); P(3 + b, -1, 6, 1, '#a88a4a'); }
   }
 }
 
@@ -49,7 +91,8 @@ function mixHex(a, b, t) {
   return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
 function yardSky(T) {
-  const u = ((T / YARD_DAY) + 0.2) % 1;                       // begin in mid-morning
+  let u = ((T / YARD_DAY) + 0.2) % 1;                         // begin in mid-morning
+  if (yardForce && yardForce.u != null) u = yardForce.u;
   let i = 0; while (i < YARD_KEYS.length - 2 && u >= YARD_KEYS[i + 1].at) i++;
   const a = YARD_KEYS[i], b = YARD_KEYS[i + 1], t = (u - a.at) / (b.at - a.at);
   const sunP = u < 0.70 ? u / 0.70 : -1, moonP = u >= 0.70 ? (u - 0.70) / 0.30 : -1;
@@ -83,14 +126,22 @@ function drawYard(cv, T) {
     R(x - w / 2 - 1, y - 8, w + 2, 11, '#e0aa3e'); R(x - w / 2, y - 7, w, 9, '#241812');
     ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
   });
-  const sky = yardSky(T), lights = [], fires = [];
+  const sky = yardSky(T), lights = [], fires = [], perches = [];
+  const wx = yardWeather(T);
+  if (wx.over > 0) {                            // cloud takes the colour out of the sky and the light off the yard
+    const grey = mixHex('#8d98a3', '#1a2030', sky.night);
+    sky.bands = sky.bands.map(c => mixHex(c, grey, wx.over * 0.8));
+    sky.cloud = mixHex(sky.cloud, mixHex('#7f8894', '#2a3248', sky.night), wx.over * 0.7);
+    sky.tint = mixHex(sky.tint, mixHex('#aab2c0', '#59669c', sky.night), wx.over * 0.75);
+    sky.shadow = { len: sky.shadow.len, a: 0.2 * (1 - wx.over * 0.6) };
+  }
   const OUT = '#2a1c14', SHADOW = 'rgba(0,0,0,.3)';
   const pips = (n, max) => '●'.repeat(n) + '○'.repeat(max - n);
   const smoke = (x, y, n, col) => {            // puffs drifting up and to the right
     for (let i = 0; i < n; i++) {
       const p = (T * 0.25 + i / n) % 1;
       ctx.globalAlpha = 0.55 * (1 - p);
-      R(x + p * 10 + Math.sin(p * 6 + i) * 2, y - p * 34, 3 + Math.round(p * 4), 3 + Math.round(p * 3), col);
+      R(x + p * (10 + wx.gust * 34 + wx.rain * 8) + Math.sin(p * 6 + i) * 2, y - p * (34 - wx.gust * 12), 3 + Math.round(p * 4), 3 + Math.round(p * 3), col);
     }
     ctx.globalAlpha = 1;
   };
@@ -103,9 +154,24 @@ function drawYard(cv, T) {
     for (let i = 0; i < 46; i++) { ctx.globalAlpha = sky.night * (0.5 + 0.5 * Math.sin(T * 1.7 + i * 2.1)); R((i * 131) % 588, (i * 47) % 58, 1, 1, '#f4f6ff'); }
     ctx.globalAlpha = 1;
   }
+  ctx.globalAlpha = 1 - wx.over * 0.9;
   if (sky.sun) { const [sx, sy] = sky.sun; R(sx - 7, sy - 7, 14, 14, sky.sunCol); R(sx - 10, sy - 4, 20, 8, sky.sunCol); R(sx - 4, sy - 10, 8, 20, sky.sunCol); }
   if (sky.moon) { const [mx, my] = sky.moon; R(mx - 6, my - 6, 12, 12, '#eef0f8'); R(mx - 8, my - 3, 16, 6, '#eef0f8'); R(mx - 3, my - 8, 6, 16, '#eef0f8'); R(mx + 1, my - 5, 6, 9, sky.bands[0]); R(mx - 3, my + 2, 2, 2, '#cfd4e6'); }
-  for (let i = 0; i < 3; i++) { const cx = (T * (3 + i) + i * 210) % 680 - 60, cy = 14 + i * 9; R(cx, cy, 34, 5, sky.cloud); R(cx + 6, cy - 3, 20, 4, sky.cloud); }
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 10; i++) {                 // three clouds in fair weather, a sky full of them in foul
+    const a = i < 3 ? 1 : clamp(wx.over * 8 - (i - 3), 0, 1);
+    if (a <= 0) continue;
+    const cx = (T * (3 + i % 4) + i * 210) % 760 - 100, cy = 8 + (i * 13) % 44, big = i >= 3 ? 2 : 1;
+    ctx.globalAlpha = a; R(cx, cy, 34 * big, 5 + big, sky.cloud); R(cx + 6, cy - 3, 20 * big, 4, sky.cloud); if (big > 1) R(cx + 14, cy + 6, 40, 3, sky.cloud);
+  }
+  ctx.globalAlpha = 1;
+  if (sky.night < 0.3 && wx.rain < 0.2) {        // now and then a skein of birds crosses the sky
+    const q = (T % 48) / 10;
+    if (q < 1) for (let i = 0; i < 5; i++) {
+      const bx = -20 + q * 640 - Math.abs(i - 2) * 7, by = 20 + Math.sin(q * 5) * 6 + (i - 2) * 4, f = Math.floor(T * 7 + i) % 2 ? -1 : 1;
+      R(bx, by, 2, 1, '#2a2a33'); R(bx - 2, by + f, 2, 1, '#2a2a33'); R(bx + 2, by + f, 2, 1, '#2a2a33');
+    }
+  }
 
   // Everything under the sky is drawn on its own layer, so the light of the hour can be laid over
   // exactly what is there (roofs and chimneys included) without staining the sky behind it.
@@ -159,6 +225,7 @@ function drawYard(cv, T) {
     if (lv >= 2) { R(x, GY - 46, w, 2, '#a8905e'); for (let i = 0; i < n; i++) win(x + 12 + i * ((w - 30) / Math.max(1, n - 1)), GY - 74); }
     if (lv >= 3) { for (let xx = x - 2; xx <= x + w - 3; xx += 24) column(xx, GY - 46, 46); R(x - 3, GY - 49, w + 6, 4, '#f0e8d6'); }
     sign(x + w / 2, y - 17, 'BARRACKS ' + pips(lv, 3));
+    perches.push([x + 22, y - (lv >= 2 ? 12 : 9)], [x + w - 24, y - (lv >= 2 ? 12 : 9)]);
     hit(x, y - 12, x + w, GY, { tab: 'facilities' });
   }
   // ---- infirmary: a cot under an awning, then a hut, then stone, then columns ----
@@ -214,7 +281,7 @@ function drawYard(cv, T) {
       R(kx + kw + 1, ky + 6, 6, kh - 6, SHADOW); R(kx - 1, ky - 1, kw + 2, kh + 1, OUT);
       R(kx, ky, kw, kh, '#ecdcb8'); R(kx, ky, 3, kh, '#cdbb92'); R(kx + kw - 3, ky, 3, kh, '#cdbb92'); R(kx, GY - 3, kw, 3, '#cdbb92');
       R(kx + 2, ky + 2, kw - 4, 3, '#c2552e');
-      roof(kx, ky, kw, 'tile');
+      roof(kx, ky, kw, 'tile'); perches.push([kx + 22, ky - 12]);
       R(x - 2, GY - 36, 32, 36, OUT); R(x - 1, GY - 35, 30, 35, '#3a2a22');
       R(kx + kw - 16, GY - 31, 12, 1, '#7a5a2a'); R(kx + kw - 15, GY - 35, 3, 4, '#b0603a'); R(kx + kw - 10, GY - 34, 4, 3, '#8d9094'); }
     R(x, GY - 6, 26, 6, '#6a6058'); R(x + 2, GY - 8, 22, 3, '#7c7268');
@@ -229,7 +296,6 @@ function drawYard(cv, T) {
     fires.push([x + 13, GY - 12, 26]);
     sign(x + 18, GY - 63, 'KITCHEN: ' + RATIONS[r].name.toUpperCase());
     hit(x - 12, GY - 60, x + 48, GY, { tab: 'facilities' });
-    if (G.staff.cook) yardPerson(ctx, x - 12 + Math.round(Math.sin(T * 0.8) * 2), GY + 6, 1, { tunic: '#b9b09a', apron: '#f2ecd8', hair: '#5a3a22', item: 'ladle' });
   }
   // ---- forge: an anvil under a lean-to grows into an armourer's workshop ----
   {
@@ -253,9 +319,6 @@ function drawYard(cv, T) {
     R(x + 7, GY - 14, 12, 14, '#4a3a34'); R(x + 9, GY - 18, 8, 6, '#e2702a'); ctx.globalAlpha = glow; R(x + 10, GY - 20, 6, 5, '#f5c04a'); ctx.globalAlpha = 1;
     R(x + 24, GY - 9, 10, 3, '#55565c'); R(x + 26, GY - 6, 6, 6, '#3c3d42'); R(x + 22, GY - 10, 14, 2, '#6c6d74');   // anvil
     fires.push([x + 13, GY - 16, 24]);
-    const sw = (T * 1.1) % 1;
-    yardPerson(ctx, x + 16, GY + 3, 1, { tunic: '#6b5a48', apron: '#4a3323', hair: '#1e1612', skin: '#c9966c', item: 'hammer', swing: sw });
-    if (sw > 0.5 && sw < 0.62) { R(x + 27, GY - 14, 1, 1, '#fff0b0'); R(x + 31, GY - 16, 1, 1, '#f5c04a'); R(x + 24, GY - 17, 1, 1, '#f5c04a'); R(x + 33, GY - 12, 1, 1, '#fff0b0'); }
     sign(x + w / 2, y - (lv ? (lv >= 3 ? 34 : 32) : 7), 'FORGE ' + pips(lv, 4));
     hit(x, y - 12, x + w, GY + 4, { tab: 'smith' });
   }
@@ -269,16 +332,24 @@ function drawYard(cv, T) {
     fires.push([x + 6, GY - 40, 14], [x + 56, GY - 40, 14]);       // torches either side of the gate
     const banner = (bx) => { R(bx, GY - 60, 8, 12, '#c23b2e'); R(bx, GY - 60, 2, 12, '#7e241c'); R(bx, GY - 48, 3, 3, '#c23b2e'); R(bx + 5, GY - 48, 3, 3, '#c23b2e'); R(bx + 3, GY - 57, 2, 4, '#e8b545'); };
     banner(x + 3); banner(x + 51);
-    if (t >= 2) { R(x + 27, GY - 78, 2, 14, '#5a4334'); R(x + 29, GY - 78, 12 + Math.round(Math.sin(T * 3)), 7, '#c23b2e'); }
+    if (t >= 2) { R(x + 27, GY - 78, 2, 14, '#5a4334'); R(x + 29, GY - 78, 12 + Math.round(Math.sin(T * (3 + wx.gust * 7)) * (1 + wx.gust)), 7, '#c23b2e'); }
     if (t >= 3) { R(x + 26, GY - 61, 10, 9, '#e8b545'); R(x + 28, GY - 59, 6, 5, '#f8dc88'); }
     sign(x + 31, GY - 84 + (t >= 2 ? 0 : 10), TIERS[t].name.toUpperCase());
     hit(x, GY - 70, x + 62, GY, { tab: 'arena' });
-    if (G.staff.scout) yardPerson(ctx, x - 8, GY + 8, -1, { tunic: '#4a6a3a', hair: '#2a1c14', item: 'scroll' });
+    perches.push([x + 20, GY - 66], [150, t === 0 ? 68 : t >= 2 ? 69 : 74], [470, t === 0 ? 68 : t >= 2 ? 69 : 74], [300, GY + 12, 1], [356, GY + 17, 1], [132, GY + 18, 1]);
   }
 
   // ---- the yard ----
   R(0, GY, 590, YARD.H - GY, '#d9b877'); R(0, GY, 590, 3, 'rgba(60,35,10,.3)'); R(0, GY + 3, 590, 3, 'rgba(60,35,10,.12)');
   for (let i = 0; i < 90; i++) { const sx = (i * 97) % 588, sy = GY + 6 + (i * 53) % (YARD.H - GY - 8); R(sx, sy, 1 + (i % 3), 1, i % 2 ? '#c9a763' : '#e6c98a'); }
+  if (wx.wet > 0) {
+    R(0, GY, 590, YARD.H - GY, `rgba(70,45,20,${(0.22 * wx.wet).toFixed(3)})`);
+    const pc = mixHex('#a88a58', sky.bands[2], 0.55), pl = mixHex('#c8b078', sky.bands[1], 0.7);
+    for (const [px, py, pw] of [[70, 172, 26], [180, 183, 34], [300, 174, 30], [412, 181, 28], [522, 169, 24], [244, 151, 18], [470, 186, 22]]) {
+      const w = Math.round(pw * wx.wet); if (w < 4) continue;
+      R(px - w / 2, py, w, 2, pc); R(px - w / 2 + 2, py + 2, w - 4, 1, pc); R(px - w / 4, py, Math.round(w / 4), 1, pl);
+    }
+  }
   const gl = F.ground;
   if (gl >= 2) { for (let i = 0; i < 44; i++) { const a = i / 44 * Math.PI * 2; R(300 + Math.cos(a) * 130, 160 + Math.sin(a) * 20, 3, 1, '#f0dca8'); } }
   const posts = [[214, 150], [274, 152], [334, 150], [394, 153]].slice(0, gl + 1);
@@ -301,10 +372,10 @@ function drawYard(cv, T) {
     } });
     hit(x - 10, y - 46, x + 10, y + 10, { fighter: g.id });
   };
-  const strike = (off, every) => { const p = ((T + off) / every) % 1; return { windup: p < 0.22, windP: Math.min(1, p / 0.22), atkAnim: p >= 0.22 && p < 0.6 ? 1 - (p - 0.22) / 0.38 : 0 }; };
+  const strike = (off, every) => { if ((T + off * 3) % 9 > 7.5) return {};      // a breather
+    const p = ((T + off) / every) % 1; return { windup: p < 0.22, windP: Math.min(1, p / 0.22), atkAnim: p >= 0.22 && p < 0.6 ? 1 - (p - 0.22) / 0.38 : 0 }; };
   const by = k => G.roster.filter(g => (g.injury > 0 ? 'hurt' : g.activity) === k);
   by('hurt').forEach((g, i) => place(g, 186 + i * 20, 141 + (i % 2) * 5, { falling: true, down: true }));
-  by('rest').forEach((g, i) => place(g, 24 + i * 22, 140 + (i % 2) * 7, {}));
   by('str').concat(by('skl')).forEach((g, i) => {
     const p = posts[i % posts.length], right = Math.floor(i / posts.length) % 2;
     place(g, p[0] + (right ? 13 : -13), p[1] + 1, Object.assign({ facing: right ? -1 : 1 }, strike(g.id * 0.37, g.activity === 'str' ? 1.5 : 1.0)));
@@ -319,8 +390,123 @@ function drawYard(cv, T) {
     const pair = Math.floor(i / 2), left = i % 2 === 0, cx = 250 + pair * 84, alone = left && i === sp.length - 1;
     place(g, cx + (left ? -12 : 12), 170 + (pair % 2) * 6, Object.assign({ facing: left ? 1 : -1 }, alone ? strike(g.id, 1.4) : strike(pair * 0.5 + (left ? 0 : 0.6), 1.2)));
   });
-  if (G.staff.doctore) things.push({ y: 149, draw: () => { const dx = Math.sin(T * 0.35) * 30; yardPerson(ctx, 152 + dx, 149, Math.cos(T * 0.35) >= 0 ? 1 : -1, { tunic: '#8a3a2a', hair: '#c9c2b2', item: 'staff' }); } });
-  if (G.staff.medicus) things.push({ y: GY + 4, draw: () => yardPerson(ctx, 168, GY + 5, 1, { tunic: '#f2ecd8', hair: '#3a2a1c', item: 'bag' }) });
+
+  // ---- people going about their day ----
+  const dt = clamp(T - yardPrev, 0, 0.1); yardPrev = T;
+  const night = sky.night > 0.6, wetDay = wx.rain > 0.3, folk = [];
+  // staff walk a round of stops; at night they keep to the first of them
+  const staffer = (key, look, route, speed) => {
+    const a = yardAgent(key, route[0].x, route[0].y);
+    if (a.n >= route.length) a.n = 0;
+    if (agentMove(a, dt, speed || 16)) {
+      a.n = night ? 0 : (a.n + 1) % route.length;
+      const s = route[a.n]; a.tx = s.x + (a.n ? rand(-3, 3) : 0); a.ty = s.y; a.wait = night ? 4 : rand(s.wait * 0.7, s.wait * 1.3);
+    }
+    const s = route[a.n];
+    if (s.gone && !a.moving) return a;                 // out of the gate on an errand
+    folk.push(a);
+    things.push({ y: a.y, draw: () => yardPerson(ctx, Math.round(a.x), Math.round(a.y), a.moving ? a.face : (s.face || a.face),
+      Object.assign({ moving: a.moving, walk: a.walk, item: s.item }, look, s.pose ? s.pose(a) : null)) });
+    return a;
+  };
+  const hurtMen = by('hurt'), forgeX = 392;
+  if (G.staff.cook) staffer('cook', { tunic: '#b9b09a', apron: '#f2ecd8', hair: '#5a3a22' }, [
+    { x: 316, y: GY + 6, wait: 9, item: 'ladle', face: 1 }, { x: 72, y: GY + 9, wait: 2.5, item: 'pot' },
+    { x: 316, y: GY + 6, wait: 7, item: 'ladle', face: 1 }, { x: 264, y: GY + 9, wait: 2.5, item: 'bucket' }]);
+  if (G.staff.medicus) staffer('medicus', { tunic: '#f2ecd8', hair: '#3a2a1c' }, [
+    { x: 168, y: GY + 5, wait: 7, item: 'bag', face: 1 },
+    hurtMen.length ? { x: 176, y: 144, wait: 4, item: 'bag', face: 1 } : { x: 96, y: GY + 9, wait: 3, item: 'bag' }]);
+  if (G.staff.scout) staffer('scout', { tunic: '#4a6a3a', hair: '#2a1c14' }, [
+    { x: 498, y: GY + 8, wait: 7, item: 'scroll', face: -1 }, { x: 537, y: GY + 2, wait: 9, gone: true },
+    { x: 498, y: GY + 8, wait: 3, item: 'scroll', face: -1 }, { x: 112, y: GY + 10, wait: 4, item: 'scroll' }]);
+  if (G.staff.doctore) staffer('doctore', { tunic: '#8a3a2a', hair: '#c9c2b2' },
+    [{ x: 152, y: 149, wait: 4, item: 'staff', face: 1 }].concat(posts.map((p, i) => ({ x: p[0] + (i % 2 ? 30 : -30), y: p[1] + 4, wait: 5, item: 'staff', face: i % 2 ? -1 : 1 }))), 13);
+  {
+    const a = staffer('smith', { tunic: '#6b5a48', apron: '#4a3323', hair: '#1e1612', skin: '#c9966c' }, [
+      { x: forgeX + 16, y: GY + 3, wait: 16, item: 'hammer', face: 1, pose: m => ({ swing: m.moving ? 0.9 : (T * 1.1) % 1 }) },
+      gl >= 1 ? { x: 444, y: 154, wait: 2.5, item: 'sword', face: 1 } : { x: 272, y: GY + 9, wait: 2.5, item: 'sword' }]);
+    const sw = (T * 1.1) % 1;                            // sparks off the anvil
+    if (!a.moving && a.n === 0 && sw > 0.5 && sw < 0.62) things.push({ y: GY + 4, draw: () => { R(forgeX + 27, GY - 14, 1, 1, '#fff0b0'); R(forgeX + 31, GY - 16, 1, 1, '#f5c04a'); R(forgeX + 24, GY - 17, 1, 1, '#f5c04a'); R(forgeX + 33, GY - 12, 1, 1, '#fff0b0'); } });
+  }
+  if (sky.night < 0.8) staffer('sweeper', { tunic: '#8a7a5a', hair: '#3a2a1c' }, [
+    { x: 40, y: GY + 14, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) }, { x: 112, y: GY + 15, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) },
+    { x: 164, y: GY + 13, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) }, { x: 84, y: GY + 16, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) }], 9);
+
+  // resting fighters fill their day: a nap in the shade, a drink at the baths, a word with a friend,
+  // a look at the men training. At night they sleep by the brazier; in rain they keep under the eaves.
+  const seen = {}, resters = by('rest');
+  resters.forEach((g, i) => {
+    const hx = 24 + i * 22, hy = 140 + (i % 2) * 7, key = 'g' + g.id, a = yardAgent(key, hx, hy);
+    seen[key] = 1; a.home = [hx, hy]; if (a.mate && !seen['g' + a.mate.gid] && !yardAgents['g' + a.mate.gid]) a.mate = null;
+    if (agentMove(a, dt, 14)) {
+      if (a.next) { a.act = a.next; a.next = null; a.wait = a.hold; }             // arrived: do what he came for
+      else {
+        const go = (x, y, act, hold) => { a.tx = x; a.ty = y; a.next = act; a.hold = hold; a.act = 'walk'; a.wait = 0; a.mate = null; };
+        // no more than two wander off at once, so the yard never knots up
+        const away = resters.filter(o => { const b = yardAgents['g' + o.id]; return b && b !== a && Math.hypot(b.tx - b.home[0], b.ty - b.home[1]) > 4; }).length;
+        const r = away >= 2 ? Math.random() * 0.46 : Math.random();
+        if (night) go(hx, hy, 'nap', 6);
+        else if (wetDay || r < 0.28) go(hx, hy, 'idle', rand(3, 7));
+        else if (r < 0.46) go(hx, hy, 'nap', rand(8, 14));
+        else if (r < 0.66) go(238 + rand(0, 46), GY + 8 + rand(0, 5), 'drink', rand(3, 5));
+        else if (r < 0.84) go(146 + (i % 4) * 15 + rand(0, 5), 160 + (i % 3) * 6, 'watch', rand(4, 8));
+        else {
+          const mate = resters.map(o => yardAgents['g' + o.id]).find(b => b && b !== a && b.act === 'idle' && !b.moving);
+          if (mate) { go(mate.x + 13, mate.y, 'chat', 6); a.mate = mate; mate.act = 'chat'; mate.mate = a; mate.wait = 11; }
+          else go(hx, hy, 'idle', rand(2, 4));
+        }
+      }
+    }
+    folk.push(a);
+    const x = Math.round(a.x), y = Math.round(a.y), toMate = a.mate ? (a.mate.x > a.x ? 1 : -1) : 1;
+    const o = a.moving ? { facing: a.face, moving: true, walk: a.walk } : a.act === 'nap' ? { falling: true, down: true }
+      : a.act === 'watch' ? { cheer: Math.sin(T * 1.3 + g.id) > 0.6 ? T + g.id : 0 } : a.act === 'chat' ? { facing: toMate } : {};
+    place(g, x, y, o);
+    if (!a.moving && a.act === 'nap') late.push(() => { ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#f2e6cc'; const p = (T * 0.7 + g.id * 0.3) % 1; ctx.globalAlpha = 1 - p; ctx.fillText('z', x + 12 + p * 5, y - 12 - p * 12); ctx.globalAlpha = 1; });
+    if (!a.moving && a.act === 'chat' && (Math.floor(T * 0.8) + (a.mate && a.mate.x > a.x ? 1 : 0)) % 2) things.push({ y: y + 1, draw: () => { R(x + toMate * 3 - 4, y - 53, 9, 6, '#1c1310'); R(x + toMate * 3 - 3, y - 52, 7, 4, '#f2e6cc'); R(x + toMate * 3, y - 47, 1, 2, '#f2e6cc'); for (let k = 0; k < 3; k++) R(x + toMate * 3 - 2 + k * 2, y - 51, 1, 1, '#5a4334'); } });
+    if (!a.moving && a.act === 'drink') things.push({ y: y + 1, draw: () => { R(x + 5, y - 34, 3, 3, '#7a5a2a'); R(x + 5, y - 34, 3, 1, '#5aa0d0'); } });
+  });
+  for (const k of Object.keys(yardAgents)) if (k[0] === 'g' && !seen[k]) delete yardAgents[k];
+
+  // a brazier by the barracks, lit when the light goes
+  things.push({ y: 151, draw: () => {
+    const bx = 136, by = 151;
+    R(bx - 5, by - 1, 10, 2, 'rgba(0,0,0,.2)'); R(bx - 4, by - 9, 1, 9, '#3a2a1c'); R(bx + 3, by - 9, 1, 9, '#3a2a1c'); R(bx - 5, by - 12, 10, 4, '#4a3a34'); R(bx - 5, by - 12, 10, 1, '#6a5a50');
+    if (sky.night > 0.25) { const fl = Math.sin(T * 10) > 0 ? 1 : 0; R(bx - 3, by - 17 - fl, 6, 5 + fl, '#e2702a'); R(bx - 2, by - 19 - fl, 4, 4, '#f5c04a'); R(bx - 1, by - 20, 2, 2, '#fff0b0'); fires.push([bx, by - 14, 24]); }
+    else R(bx - 3, by - 13, 6, 1, '#2a1c14');
+  } });
+
+  // birds: on the roofs and pecking in the yard by day, gone in rain and darkness
+  if (!yardBirds) yardBirds = [0, 1, 2, 3].map(i => ({ x: -20, y: -20, state: 'away', wait: 1 + i * 2.5, p: -1 }));
+  const badSky = sky.night > 0.5 || wx.rain > 0.2;
+  yardBirds.forEach((b, i) => {
+    const freeP = () => { const used = yardBirds.map(o => o.p), c = perches.map((_, k) => k).filter(k => !used.includes(k)); return c.length ? pick(c) : -1; };
+    const fly = (tx, ty, p) => { b.fx = b.x; b.fy = b.y; b.tx = tx; b.ty = ty; b.t = 0; b.dur = Math.max(0.5, Math.hypot(tx - b.x, ty - b.y) / 70); b.state = 'fly'; b.p = p; };
+    if (b.state === 'sit') {
+      b.wait -= dt;
+      const pr = perches[b.p];
+      if (pr) { b.x = pr[0]; b.y = pr[1]; if (pr[2] && folk.some(a => Math.hypot(a.x - b.x, a.y - b.y) < 20)) b.wait = 0; }
+      if (badSky || !pr) fly(b.x + 120, -12, -1);
+      else if (b.wait <= 0) { const p = freeP(); if (p >= 0) fly(perches[p][0], perches[p][1], p); else b.wait = 2; }
+    } else if (b.state === 'away') {
+      b.wait -= dt;
+      if (!badSky && b.wait <= 0) { const p = freeP(); if (p >= 0) { b.x = -10 - i * 12; b.y = 20 + i * 6; fly(perches[p][0], perches[p][1], p); } }
+    } else {
+      b.t += dt / b.dur;
+      const k = Math.min(1, b.t); b.x = b.fx + (b.tx - b.fx) * k; b.y = b.fy + (b.ty - b.fy) * k - Math.sin(k * Math.PI) * 12;
+      if (k >= 1) { if (b.p < 0) { b.state = 'away'; b.wait = rand(3, 8); } else { b.state = 'sit'; b.wait = rand(4, 11); } }
+    }
+    if (b.state === 'away') return;
+    things.push({ y: b.state === 'fly' ? 999 : b.y, draw: () => {
+      const x = Math.round(b.x), y = Math.round(b.y), c = '#3a3a44';
+      if (b.state === 'fly') { R(x - 2, y - 1, 4, 2, c); R(x + 2, y - 1, 1, 1, '#e8b545'); if (Math.floor(T * 10 + i) % 2) R(x - 1, y - 4, 2, 3, c); else R(x - 1, y + 1, 2, 2, c); }
+      else {
+        const peck = perches[b.p] && perches[b.p][2] && Math.sin(T * 5 + i * 2) > 0.5;
+        R(x - 2, y - 3, 4, 3, c); R(x - 3, y - 3, 1, 1, c); R(x - 1, y - 1, 2, 1, '#8a8a92');
+        if (peck) { R(x + 2, y - 2, 2, 2, c); R(x + 3, y, 1, 1, '#e8b545'); } else { R(x + 1, y - 5, 2, 2, c); R(x + 3, y - 4, 1, 1, '#e8b545'); }
+      }
+    } });
+  });
   things.sort((a, b) => a.y - b.y).forEach(o => o.draw());
 
   // ---- the light of the hour over everything below the sky, then what glows in the dark ----
@@ -347,6 +533,23 @@ function drawYard(cv, T) {
       for (let i = 0; i < 5; i++) { const w = r * (1.9 - i * 0.3); ctx.fillStyle = `rgba(255,170,80,${(0.022 * k).toFixed(3)})`; ctx.fillRect(fx - w / 2, GY + 1 + i, w, 14 - i * 2); }
     }
     ctx.globalCompositeOperation = 'source-over';
+  }
+  if (wx.rain > 0) {
+    ctx.fillStyle = 'rgba(205,222,240,.5)';
+    for (let i = 0, n = Math.round(130 * wx.rain); i < n; i++) {
+      const x = Math.floor(((i * 97.3 - T * 70) % 620 + 620) % 620 - 15), yy = Math.floor((i * 61.7 + T * 340 + (i % 7) * 13) % 200 - 5);
+      ctx.fillRect(x, yy, 1, 4); ctx.fillRect(x - 1, yy + 4, 1, 3);
+    }
+    ctx.fillStyle = 'rgba(225,238,250,.6)';
+    for (let i = 0, n = Math.round(30 * wx.rain); i < n; i++) { const k = Math.floor(T * 10) + i * 17, sx = (k * 73) % 588, sy = GY + 4 + (k * 29) % (YARD.H - GY - 6); ctx.fillRect(sx, sy, 3, 1); ctx.fillRect(sx + 1, sy - 1, 1, 1); }
+    if (wx.rain > 0.8 && T % 13 < 0.1) { ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(0, 0, 590, 190); }
+  }
+  if (wx.gust > 0) {                             // sand and leaves on the wind
+    ctx.fillStyle = `rgba(245,228,185,${(0.45 * wx.gust).toFixed(3)})`;
+    for (let i = 0; i < 16; i++) ctx.fillRect(Math.floor((i * 83 + T * 170) % 660 - 40), GY + 6 + (i * 37) % 54, 10 + (i % 3) * 5, 1);
+    ctx.globalAlpha = wx.gust;
+    for (let i = 0; i < 5; i++) R((i * 211 + T * 120) % 640 - 20, GY + 22 + (i * 23) % 30 - Math.abs(Math.sin(T * 5 + i)) * 8, 2, 1, i % 2 ? '#6f8a3a' : '#a8722e');
+    ctx.globalAlpha = 1;
   }
   late.forEach(f => f());
 }
