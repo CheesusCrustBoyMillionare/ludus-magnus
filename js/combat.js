@@ -987,7 +987,7 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = f.team ? '#bcd6ff' : '#ffd9d2'; ctx.fillText(f.g.name, fx, ny);
   }
   for (const t of B.texts) {
-    ctx.font = t.big ? 'bold 8px Georgia, serif' : 'bold 6px Consolas, monospace';
+    ctx.font = t.big ? 'bold 8px Cinzel, Georgia, serif' : 'bold 6px Consolas, monospace';
     ctx.globalAlpha = Math.min(1, t.life * 2.5);
     ctx.fillStyle = '#000'; ctx.fillText(t.str, t.x * Z + 0.5, t.y * Z + 0.5);
     ctx.fillStyle = t.col; ctx.fillText(t.str, t.x * Z, t.y * Z);
@@ -1022,10 +1022,10 @@ function drawBattle(ctx, B) {
     ctx.globalAlpha = Math.min(1, B.intro / 0.4);
     ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 66, 320, 22);
     ctx.fillStyle = '#e0aa3e'; ctx.fillRect(0, 66, 320, 1); ctx.fillRect(0, 87, 320, 1);
-    ctx.font = 'bold 8px Georgia, serif';
+    ctx.font = 'bold 8px Cinzel, Georgia, serif';
     ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a8a'; ctx.fillText(label(0), 148, 80);
     ctx.textAlign = 'left'; ctx.fillStyle = '#9cc4ff'; ctx.fillText(label(1), 172, 80);
-    ctx.textAlign = 'center'; ctx.font = 'bold 6px Georgia, serif';
+    ctx.textAlign = 'center'; ctx.font = 'bold 6px Cinzel, Georgia, serif';
     ctx.fillStyle = '#e0aa3e'; ctx.fillText('VS', 160, 80);
     ctx.globalAlpha = 1;
   }
@@ -1040,7 +1040,7 @@ function drawBattle(ctx, B) {
   if (B.death && B.intro <= 0) { ctx.fillStyle = '#8e1b14'; ctx.fillText('SINE MISSIONE', 160, 72); }
 
   if (B.over) {
-    ctx.font = 'bold 16px Georgia, serif';
+    ctx.font = 'bold 16px Cinzel, Georgia, serif';
     const msg = B.winner === 0 ? 'VICTORY' : 'DEFEAT';
     ctx.fillStyle = '#000'; ctx.fillText(msg, 161, 83);
     ctx.fillStyle = B.winner === 0 ? '#ffd24a' : '#e2695c'; ctx.fillText(msg, 160, 82);

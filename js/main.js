@@ -26,7 +26,7 @@ const TIPS = {
   talent: 'Talent: how quickly this stat improves with training. One star is slow, five is exceptional.',
   hidden: 'You cannot judge a recruit\'s talent by looking at him. Employ a scout to see it before you buy.',
   rank: 'Fighters earn rank from bouts, wins and kills. Each new rank lets you choose a perk for him.',
-  weapon: 'Adds damage to every blow. A weapon fits only the fighting style it was made for.',
+  weapon: 'Weapon: adds damage to every blow. A weapon fits only the fighting style it was made for.',
   head: 'Helm: some protection, shorter stuns, and fewer telling blows land on him.',
   chest: 'Cuirass: by far the most protection of any piece.',
   legs: 'Greaves: some protection, quicker feet, and a chance to shrug off a hamstring.',
@@ -164,10 +164,10 @@ function renderTop() {
   const dg = daysToGames(), net = stipend() - upkeep();
   $('#topbar').innerHTML = `
     <div class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</div>
-    <div class="stat"${tip('day')}><b>${G.day}</b><span>Day</span></div>
-    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${G.denarii}</b><span>Denarii (${net >= 0 ? '+' : ''}${net}/day)</span></div>
-    <div class="stat"${tip('fame')}><b>${G.fame}<small> / ${next}</small></b><span>Fame &middot; ${TIERS[t].name}</span></div>
-    <div class="stat games"${tip('games')}><b>${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>Next games</span></div>
+    <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day</span></div>
+    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>Denarii (${net >= 0 ? '+' : ''}${net}/day)</span></div>
+    <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small> / ${next}</small></b><span>Fame &middot; ${TIERS[t].name}</span></div>
+    <div class="stat games"${tip('games')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>Next games</span></div>
     ${dg > 1 ? `<button data-act="skipdays"${tip('skip')}>To the games &raquo;&raquo;</button>` : ''}
     <button class="primary" data-act="endday">End day &raquo;</button>
     <button data-act="saves"${tip('saves')}>Saves</button>`;
@@ -213,9 +213,9 @@ function gladCard(g) {
       <div class="name">${g.name}</div>
       <div class="sub">${RANKS[g.rank].name} &middot; ${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</div>
       <div>${statusChips(g)}</div>
-      <div class="barrow"${tip('health')}>Health ${bar('hp', g.hp, maxHp(g))}</div>
-      <div class="barrow"${tip('fatigue')}>Fatigue ${bar('fat', g.fatigue, 100)}</div>
-      <div class="barrow"${tip('morale')}>Morale ${bar('mor', g.morale, 100)}</div>
+      <div class="barrow icrow"${tip('health')}>${ic('health')} ${bar('hp', g.hp, maxHp(g))}</div>
+      <div class="barrow icrow"${tip('fatigue')}>${ic('fatigue')} ${bar('fat', g.fatigue, 100)}</div>
+      <div class="barrow icrow"${tip('morale')}>${ic('morale')} ${bar('mor', g.morale, 100)}</div>
       ${acts}
     </div>
   </div>`;
@@ -226,7 +226,7 @@ function trains(g, s) { return G.roster.includes(g) && g.injury <= 0 && (g.activ
 
 function statRows(g, hide) {
   return STATS.map(s => `<div class="statrow"${tip(s)}>
-      <span class="${trains(g, s) ? 'gold' : ''}">${STAT_NAMES[s]}${trains(g, s) ? '<br><small class="gold">&#9650; training</small>' : ''}</span><b class="num">${g.stats[s]}</b>
+      <span class="statname ${trains(g, s) ? 'gold' : ''}">${ic(s)} ${STAT_NAMES[s]}${trains(g, s) ? '<small class="gold">&#9650; training</small>' : ''}</span><b class="num">${g.stats[s]}</b>
       ${bar('prog', g.prog[s], needProg(g.stats[s]))}
       <span class="stars"${tip(hide ? 'hidden' : 'talent')}>${hide ? '? ? ?' : '★'.repeat(stars(g.pot[s])) + '☆'.repeat(5 - stars(g.pot[s]))}</span>
     </div>`).join('');
@@ -563,10 +563,10 @@ function gearBlock(g) {
     const it = g.gear[slot];
     const spare = G.armoury.filter(x => x.slot === slot && fits(x, g)).sort((a, b) => b.r - a.r);
     const worn = it
-      ? `<span${tip(itemEffect(it))}>${itemTag(it)}</span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}">Take off</button>`
+      ? `${itemArt(it, 40)}<span${tip(itemEffect(it))}>${itemTag(it)}</span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}">Take off</button>`
       : `<span class="dim">${slot === 'weapon' ? 'Practice ' + WEAPON_NAMES[g.cls] : 'Nothing'}</span>`;
     const choices = spare.map(x => `<button class="mini ${it && x.r <= it.r ? '' : 'better'}" data-act="equip" data-v="${g.id}" data-w="${x.id}"${tip(itemEffect(x))}>${it ? 'Swap for' : 'Wear'} ${RARITY[x.r]} ${itemName(x)}</button>`).join('');
-    return `<span class="lbl"${tip(slot)}>${SLOT_INFO[slot].name}</span><div>${worn}${choices ? `<div class="spare">${choices}</div>` : ''}</div>`;
+    return `<span class="lbl"${tip(slot)}>${ic('slot-' + slot)}</span><div><div class="worn">${worn}</div>${choices ? `<div class="spare">${choices}</div>` : ''}</div>`;
   }).join('');
   const gs = gearStats(g);
   return `<div class="gearlist">${rows}</div>
@@ -579,8 +579,8 @@ function viewSmith() {
   const best = it => G.roster.filter(g => fits(it, g) && (!g.gear[it.slot] || g.gear[it.slot].r < it.r)).map(g => g.name);
   const card = (it, own) => {
     const who = best(it);
-    return `<div class="panel item"><h3>${itemTag(it)}</h3>
-      <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div>
+    return `<div class="panel item"><div class="itemhead">${itemArt(it, 60)}<div><h3>${itemTag(it)}</h3>
+      <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div></div></div>
       <p style="font-size:14px">${itemEffect(it)}</p>
       <div class="dim" style="font-size:13px;margin-bottom:8px">${who.length ? 'An improvement for ' + who.join(', ') : it.slot === 'weapon' && !G.roster.some(g => g.cls === it.cls) ? 'Nobody in your ludus fights this way' : 'No better than what your men wear'}</div>
       ${own ? `<button data-act="smithsell" data-v="${it.id}">Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button>`
@@ -676,6 +676,7 @@ function viewChronicle() {
 }
 
 function paintPortraits() {
+  document.querySelectorAll('[data-item]').forEach(paintItem);
   document.querySelectorAll('[data-portrait]').forEach(cv => { const g = byId(cv.dataset.portrait); if (g) drawPortrait(cv, g, 0); });
   document.querySelectorAll('[data-rportrait]').forEach(cv => {
     const [hid, gid] = cv.dataset.rportrait.split(':');
