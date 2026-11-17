@@ -23,7 +23,8 @@ function botSpend() {
   if (G.denarii < 0) {
     G.ration = 0;
     for (const k of Object.keys(G.staff)) delete G.staff[k];
-    if (G.debtDays >= 4 && G.roster.length > 2) { const w = G.roster.slice().sort((x, y) => statSum(x) - statSum(y))[0]; G.denarii += Math.round(value(w) / 2); G.roster = G.roster.filter(x => x !== w); }
+    for (const it of G.armoury.slice()) sellItem(it.id);
+    if (G.debtDays >= 1 && G.roster.length > 2) { const w = G.roster.slice().sort((x, y) => statSum(x) - statSum(y))[0]; G.denarii += Math.round(value(w) / 2); G.roster = G.roster.filter(x => x !== w); }
     R_debt.n++;
     return;
   }
@@ -57,8 +58,8 @@ function botSpend() {
   for (const it of G.armoury.slice().sort((a, b) => b.r - a.r)) { const g = wants(it); if (g) equip(g, it.id); }
   for (const it of G.smith.stock.slice().sort((a, b) => b.r - a.r)) {
     const g = wants(it);
-    if (!g || spare() < itemPrice(it)) continue;
-    if (buyItem(it.id)) { equip(g, it.id); gearSpend += itemPrice(it); }
+    if (!g || spare() < buyPrice(it)) continue;
+    if (buyItem(it.id)) { equip(g, it.id); gearSpend += buyPrice(it); }
   }
   for (const it of G.armoury.slice()) if (!wants(it)) sellItem(it.id);       // junk nobody needs
   if (G.smith.level < 4 && spare() > SMITH_COST[G.smith.level] + (good ? 250 : 600)) upgradeSmith();
@@ -142,10 +143,21 @@ function botEvent() {
   G.pendingEvent = null;
 }
 
+// The bot's succession: take the best man, the first boon, and whatever the points will buy.
+function botHeir() {
+  const best = G.roster.slice().sort((a, b) => power(b) - power(a))[0];
+  ruinFighter(best ? best.id : null);
+  if (G.ruin.offers.length) ruinBoon(G.ruin.offers[G.ruin.offers.length - 1]);
+  for (const k of ['blood', 'purse', 'cells', 'yard', 'credit', 'forge', 'name']) while (buyLegacy(k)) { /* spend */ }
+  startHeir();
+}
+
 function playRun() {
   newGame();
-  const R = { result: 'timeout', day: 0, tierDay: [1], bouts: 0, wins: 0, deaths: 0, purses: 0, wagerNet: 0, money: {}, power: {} };
-  while (G.day < 450) {
+  const R = { result: 'timeout', day: 0, tierDay: [1], bouts: 0, wins: 0, deaths: 0, purses: 0, wagerNet: 0, money: {}, power: {}, heirs: 0 };
+  let total = 0;
+  while (total < 700) {
+    if (G.ruin) { botHeir(); R.heirs++; continue; }
     if (G.pendingEvent) botEvent();
     G.roster.forEach(g => { while (g.perkPending > 0) choosePerk(g, perkOffer(g)[0]); });
     botSpend();
@@ -153,13 +165,13 @@ function playRun() {
     if (G.won) { R.result = 'won'; break; }
     if (G.over) { R.result = G.over; break; }
     botTrain();
-    endDay();
+    endDay(); total++;
     const t = tier(); if (R.tierDay[t] === undefined) R.tierDay[t] = G.day;
     if (G.fame >= FINAL_FAME && R.finalDay === undefined) R.finalDay = G.day;
     if (G.day % 25 === 0) { R.money[G.day] = G.denarii; R.power[G.day] = Math.round(Math.max(0, ...G.roster.map(statSum))); }
     if (G.over) { R.result = G.over; break; }
   }
-  R.day = G.day; R.fame = G.fame; R.roster = G.roster.length; R.staff = Object.keys(G.staff).length;
+  R.day = total; R.fame = G.fame; R.roster = G.roster.length; R.staff = Object.keys(G.staff).length;
   R.fac = Object.values(G.fac).reduce((a, b) => a + b, 0); R.endMoney = G.denarii;
   R.smith = G.smith.level; R.kit = Math.max(0, ...G.roster.map(g => gearPower(g)));
   return R;
@@ -169,7 +181,7 @@ const runs = []; for (let i = 0; i < RUNS; i++) runs.push(playRun());
 const med = a => { const s = a.filter(x => x !== undefined).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const count = k => runs.filter(r => r.result === k).length;
 const out2 = {
-  skill: SKILL, runs: RUNS, gear: { medianSmithLevel: med(runs.map(r => r.smith)), medianBestKit: med(runs.map(r => +r.kit.toFixed(2))), spendPerRun: Math.round(gearSpend / RUNS) },
+  skill: SKILL, runs: RUNS, dynasty: { runsThatFell: runs.filter(r => r.heirs > 0).length, mostHeirs: Math.max(...runs.map(r => r.heirs)), wonAfterFalling: runs.filter(r => r.heirs > 0 && r.result === 'won').length, wonFirstGeneration: runs.filter(r => r.heirs === 0 && r.result === 'won').length }, gear: { medianSmithLevel: med(runs.map(r => r.smith)), medianBestKit: med(runs.map(r => +r.kit.toFixed(2))), spendPerRun: Math.round(gearSpend / RUNS) },
   tourneys: { entered: med(runs.map(r => r.tEntered || 0)), won: med(runs.map(r => r.tWon || 0)), totalWon: runs.reduce((a, r) => a + (r.tWon || 0), 0), totalEntered: runs.reduce((a, r) => a + (r.tEntered || 0), 0) },
   hunts: { fought: huntStats[0], winRate: +(huntStats[1] / Math.max(1, huntStats[0])).toFixed(2), deathsPerHunt: +(huntStats[2] / Math.max(1, huntStats[0])).toFixed(3), avgOdds: +(huntStats[3] / Math.max(1, huntStats[0])).toFixed(2), perRun: med(runs.map(r => r.hunts || 0)) }, meleesPerRun: med(runs.map(r => r.melees || 0)), medianGrudgeBouts: med(runs.map(r => r.grudges || 0)), debtDaysTotal: R_debt.n,
   lossDays: runs.filter(r => r.result !== 'won').map(r => r.result[0] + r.day),

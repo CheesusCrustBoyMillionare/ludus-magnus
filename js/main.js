@@ -10,7 +10,7 @@ const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}
 
 const TIPS = {
   day: 'Each day every fighter trains or rests, and you pay for food and wages.',
-  denarii: 'Your money, and what an ordinary day costs or earns you after food, wages and the Guild stipend.\nTen days in debt and the creditors take the ludus.',
+  denarii: 'Your money, and what an ordinary day costs or earns you after food, wages and the Guild stipend.\nStay in debt past the days of grace and the creditors take the ludus; an heir then begins again.',
   fame: 'Fame comes from winning bouts, and more from exciting ones. It opens greater arenas with richer purses and stronger opponents.',
   games: 'Games are held every fifth day. Bouts can only be fought on a games day.',
   skip: 'Advance day by day until the games, stopping early if an event needs your decision.',
@@ -49,6 +49,7 @@ const TIPS = {
   favour: 'Rises with gifts and with the deeds each patron cares about. Fades a little every games day.',
   feud: 'Deepens when you kill their fighters or they kill yours. At 40 their champion calls you out; refusing costs you.',
   rations: 'Paid per fighter per day. Better food means higher morale.',
+  dynasty: 'If debt takes the ludus, an heir begins again with what the family has kept. See the Chronicle for the house so far.',
   yard: 'Your ludus. Buildings grow as you improve them. Click a fighter to open his dossier, or a building to go to its screen.',
   friend: 'Friends hit harder when they fight on the same side. If one dies, the other grieves, and may swear to kill the man who did it.',
   rivalbond: 'Rivals inside your own ludus train harder to outdo each other, but fight worse on the same side.',
@@ -162,7 +163,7 @@ function renderTop() {
   const next = TIERS[t + 1] ? TIERS[t + 1].fame : FINAL_FAME;
   const dg = daysToGames(), net = stipend() - upkeep();
   $('#topbar').innerHTML = `
-    <div class="title">LUDUS MAGNUS</div>
+    <div class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</div>
     <div class="stat"${tip('day')}><b>${G.day}</b><span>Day</span></div>
     <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${G.denarii}</b><span>Denarii (${net >= 0 ? '+' : ''}${net}/day)</span></div>
     <div class="stat"${tip('fame')}><b>${G.fame}<small> / ${next}</small></b><span>Fame &middot; ${TIERS[t].name}</span></div>
@@ -490,7 +491,7 @@ function tourneyPanel() {
 
 function savesModal() {
   const when = t => t ? new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown time';
-  const line = i => `Day <b class="num">${i.day}</b> &middot; ${i.tier} &middot; <span class="num">${i.fame}</span> fame &middot; <span class="num">${i.denarii}</span> denarii &middot; ${i.roster} fighter${i.roster === 1 ? '' : 's'}${i.won ? ' &middot; <span class="gold">victor</span>' : ''}${i.over ? ' &middot; <span class="bad">fallen</span>' : ''}`;
+  const line = i => `${i.gen > 1 ? ordinal(i.gen)[0].toUpperCase() + ordinal(i.gen).slice(1) + ' generation &middot; ' : ''}Day <b class="num">${i.day}</b> &middot; ${i.tier} &middot; <span class="num">${i.fame}</span> fame &middot; <span class="num">${i.denarii}</span> denarii &middot; ${i.roster} fighter${i.roster === 1 ? '' : 's'}${i.won ? ' &middot; <span class="gold">victor</span>' : ''}${i.over ? ' &middot; <span class="bad">fallen</span>' : ''}`;
   const rows = [];
   for (let n = 1; n <= SLOT_COUNT; n++) {
     const info = slotInfo(n), bak = slotInfo(n, true), cur = n === slot && !!info;
@@ -525,7 +526,7 @@ function refreshSaves(msg, err) {
 // After the game in memory has been replaced: forget selections and redraw everything.
 function afterLoad() {
   modalQueue.length = 0; paintModal();
-  ui.sel = null; ui.picks = {}; ui.wagers = {}; ui.tpick = null; ui.overShown = false; ui.confirmSlot = null; ui.saveMsg = ''; ui.tab = 'ludus';
+  ui.sel = null; ui.picks = {}; ui.wagers = {}; ui.tpick = null; ui.overShown = false; ui.ruinShown = false; ui.confirmSlot = null; ui.saveMsg = ''; ui.tab = 'ludus';
   render();
   if (G.pendingEvent) showEvent();
   checkEnd();
@@ -584,7 +585,7 @@ function viewSmith() {
       <p style="font-size:14px">${itemEffect(it)}</p>
       <div class="dim" style="font-size:13px;margin-bottom:8px">${who.length ? 'An improvement for ' + who.join(', ') : it.slot === 'weapon' && !G.roster.some(g => g.cls === it.cls) ? 'Nobody in your ludus fights this way' : 'No better than what your men wear'}</div>
       ${own ? `<button data-act="smithsell" data-v="${it.id}">Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button>`
-            : `<button class="primary" data-act="smithbuy" data-v="${it.id}" ${G.denarii < itemPrice(it) ? 'disabled' : ''}>Buy &mdash; ${itemPrice(it)} denarii</button>`}
+            : `<button class="primary" data-act="smithbuy" data-v="${it.id}" ${G.denarii < buyPrice(it) ? 'disabled' : ''}>Buy &mdash; ${buyPrice(it)} denarii</button>`}
     </div>`;
   };
   const stock = S.stock.map(it => card(it, false)).join('') || '<div class="panel dim">He has sold everything he had. Come back after the next games.</div>';
@@ -599,10 +600,79 @@ function viewSmith() {
     <h2 style="margin-top:20px"${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="cards">${mine}</div>`;
 }
 
+// ---------- the dynasty ----------
+
+const cap1 = t => t[0].toUpperCase() + t.slice(1);
+
+// What the family holds, for the Chronicle.
+function dynastyPanel() {
+  const D = G.dynasty;
+  if (D.gen === 1 && !D.history.length) return '';
+  const boons = D.boons.map(b => `<div><b class="gold">${BOONS[b].name}.</b> <span class="dim">${BOONS[b].desc}</span></div>`).join('') || '<div class="dim">No boons yet.</div>';
+  const tree = Object.keys(D.tree).filter(k => D.tree[k]).map(k => `<div><b>${LEGACY_TREE[k].name}</b> <span class="pips">${'●'.repeat(D.tree[k])}</span> <span class="dim">${LEGACY_TREE[k].desc(D.tree[k])}</span></div>`).join('');
+  const past = D.history.map(h => `<div><span class="d">${cap1(ordinal(h.gen))}</span>Lasted ${h.days} days, reached the ${h.tier} with ${h.fame} fame and ${h.wins} victories. Left ${h.earned} legacy.</div>`).join('');
+  return `<h2 style="margin-top:20px">The house <small>${ordinal(D.gen)} generation &middot; ${D.points} legacy unspent</small></h2>
+    <div class="panel">${boons}${tree ? '<hr class="sep">' + tree : ''}${past ? '<hr class="sep"><div class="log" style="max-height:none">' + past + '</div>' : ''}</div>`;
+}
+
+// The succession, shown when debt has taken the ludus. Four steps; it cannot be closed.
+function ruinModal() {
+  const R = G.ruin, D = G.dynasty;
+  const steps = `<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">The succession &middot; ${R.step + 1} of 4</div>`;
+  if (R.step === 0) {
+    const h = D.history[D.history.length - 1];
+    return `${steps}<h2>The creditors come</h2>
+      <p>The days of grace are spent and the purse is still empty. They arrive at dawn with soldiers and a magistrate's seal, and take the ludus, the men and the keys.</p>
+      <p>But a house is more than its walls. Your heir will begin again, and the family keeps what this ludus earned.</p>
+      <ul><li>Lasted <b class="num">${h.days}</b> days</li><li>Reached the <b>${h.tier}</b> with <b class="num">${h.fame}</b> fame</li><li>Won <b class="num">${h.wins}</b> bouts</li></ul>
+      <p>The house earns <b class="gold num">${R.earned}</b> legacy${D.points > R.earned ? `, and holds <b class="num">${D.points}</b> in all` : ''}.</p>
+      <div class="row"><button class="primary" data-act="ruinstep" data-v="1">Send for your heir</button></div>`;
+  }
+  if (R.step === 1) {
+    const men = G.roster.map(g => `<p><button class="${R.fighter === g.id ? 'primary' : ''}" data-act="ruinpick" data-v="${g.id}">${g.name}</button>
+      <span class="dim">${RANKS[g.rank].name} ${CLASSES[g.cls].name}, ${g.wins} victories, strength ${Math.round(power(g))}</span></p>`).join('');
+    return `${steps}<h2>One man goes with him</h2>
+      <p>There is time to get one fighter out through the kitchen gate before the seal goes on the doors. He will arrive with nothing but his skill, and less of that than he had: a hard road wears a man down.</p>
+      ${men || '<p class="dim">There is nobody left to send.</p>'}
+      <p><button class="${R.fighter === null ? 'primary' : ''}" data-act="ruinpick" data-v="0">Send no one</button></p>
+      <div class="row"><button class="primary" data-act="ruinstep" data-v="${R.offers.length ? 2 : 3}">Continue</button></div>`;
+  }
+  if (R.step === 2) {
+    const cards = R.offers.map(b => `<div class="panel" style="margin:8px 0;padding:10px;${R.boon === b ? 'border-color:var(--gold)' : ''}">
+      <b class="gold">${BOONS[b].name}</b> <span class="chip">${['', 'Common', 'Uncommon', 'Rare'][BOONS[b].tier]}</span>
+      <div style="margin:4px 0 8px">${BOONS[b].desc}</div>
+      <button class="${R.boon === b ? 'primary' : ''}" data-act="ruinboon" data-v="${b}">${R.boon === b ? 'Chosen' : 'Keep this'}</button></div>`).join('');
+    return `${steps}<h2>What the family keeps</h2>
+      <p>Not everything can be carried out of a ruin. Choose one of these; it stays with the house for every generation to come.</p>
+      ${cards}
+      <div class="row"><button class="primary" data-act="ruinstep" data-v="3" ${R.boon ? '' : 'disabled'}>Continue</button></div>`;
+  }
+  const rows = Object.keys(LEGACY_TREE).map(k => {
+    const T = LEGACY_TREE[k], l = D.tree[k] || 0, c = legacyCost(k);
+    return `<div class="panel" style="margin:6px 0;padding:8px 10px"><div class="row"><div style="flex:1;min-width:200px"><b>${T.name}</b> <span class="pips">${'●'.repeat(l)}${'○'.repeat(T.cost.length - l)}</span>
+      <div class="dim" style="font-size:13px">${c === null ? T.desc(l) : (l ? T.desc(l) + ' Next: ' : '') + T.desc(l + 1)}</div></div>
+      ${c === null ? '<span class="dim">Complete</span>' : `<button data-act="ruinbuy" data-v="${k}" ${D.points < c ? 'disabled' : ''}>${c} legacy</button>`}</div></div>`;
+  }).join('');
+  return `${steps}<h2>The family ledger</h2>
+    <p>Legacy buys lasting advantages for every heir. What you do not spend now is kept for the next time. <b class="gold num">${D.points}</b> legacy to spend.</p>
+    ${rows}
+    <div class="row"><button class="primary" data-act="ruinstart">Begin as the heir</button></div>`;
+}
+function refreshRuin() { modalQueue[0] = ruinModal(); paintModal(); }
+
+function heirIntro() {
+  const D = G.dynasty, kept = D.boons.map(b => `<li><b>${BOONS[b].name}.</b> ${BOONS[b].desc}</li>`).join('');
+  const tree = Object.keys(D.tree).filter(k => D.tree[k]).map(k => `<li><b>${LEGACY_TREE[k].name}.</b> ${LEGACY_TREE[k].desc(D.tree[k])}</li>`).join('');
+  showModal(`<h2>The ${ordinal(D.gen)} generation</h2>
+    <p>The old ludus is sealed and sold. You have a rented yard, ${G.roster.length} fighters and ${G.denarii} denarii, and the name of a house that has done this before.</p>
+    ${kept || tree ? `<p>What the family kept:</p><ul>${kept}${tree}</ul>` : ''}
+    ${okBtn('Open the gates')}`);
+}
+
 function viewChronicle() {
   const rows = G.log.slice().reverse().map(e => `<div class="${e.k}"><span class="d">Day ${e.d}</span>${e.t}</div>`).join('');
   const fallen = G.fallen.length ? `<h2 style="margin-top:20px">The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
-  return `<h2>Chronicle</h2><div class="panel log">${rows}</div>${fallen}
+  return `<h2>Chronicle</h2><div class="panel log">${rows}</div>${fallen}${dynastyPanel()}
     <p style="margin-top:20px" class="row"><button data-act="tuton">Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p>`;
 }
 
@@ -627,11 +697,10 @@ function showEvent() {
 }
 
 function checkEnd() {
+  if (G.ruin && !ui.ruinShown) { ui.ruinShown = true; modalQueue.length = 0; showModal(ruinModal()); return; }
   if (G.over && !ui.overShown) {
     ui.overShown = true;
-    const why = G.over === 'debt'
-      ? 'Ten days in debt. The creditors arrive with soldiers and take the ludus, the men, and the keys.'
-      : 'Your cells are empty and your purse cannot fill them. The gates are chained shut.';
+    const why = 'Your cells are empty and your purse cannot fill them. The gates are chained shut.';
     showModal(`<h2>The ludus falls</h2><p>${why}</p><p class="dim">You lasted ${G.day} days and earned ${G.fame} fame.</p>
       <div class="row"><button class="primary" data-act="reset">Begin again</button></div>`);
   }
@@ -770,7 +839,7 @@ const ACTIONS = {
     const g = G.market.find(m => m.id === +v);
     if (!g || G.denarii < g.price || G.roster.length >= capacity()) return;
     G.denarii -= g.price; addStory(g, `Bought at market for ${g.price} denarii.`); delete g.price;
-    G.market = G.market.filter(m => m !== g); G.roster.push(g);
+    G.market = G.market.filter(m => m !== g); G.roster.push(welcome(g));
     log(`${g.name} the ${CLASSES[g.cls].name} is bought at market.`);
     ui.sel = g.id; save(); render();
   },
@@ -884,6 +953,16 @@ const ACTIONS = {
   tuton() { G.tut = { step: 0, on: true }; ui.tab = 'ludus'; save(); render(); },
   tutnext() { G.tut.step++; save(); renderTutor(); },
   tutoff() { G.tut.on = false; save(); renderTutor(); },
+  ruinstep(v) { G.ruin.step = +v; save(); refreshRuin(); },
+  ruinpick(v) { ruinFighter(+v || null); save(); refreshRuin(); },
+  ruinboon(v) { ruinBoon(v); save(); refreshRuin(); },
+  ruinbuy(v) { if (buyLegacy(v)) { save(); refreshRuin(); } },
+  ruinstart() {
+    if (!startHeir()) return;
+    modalQueue.length = 0; paintModal();
+    ui.sel = null; ui.picks = {}; ui.wagers = {}; ui.tpick = null; ui.overShown = false; ui.ruinShown = false; ui.tab = 'ludus';
+    render(); heirIntro();
+  },
   mute() { SFX.toggle(); paintSpeed(); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   skip() { finishFight(); },
@@ -894,7 +973,7 @@ const ACTIONS = {
   },
   reset() {
     modalQueue.length = 0; paintModal();
-    ui.sel = null; ui.picks = {}; ui.wagers = {}; ui.overShown = false; ui.tab = 'ludus';
+    ui.sel = null; ui.picks = {}; ui.wagers = {}; ui.overShown = false; ui.ruinShown = false; ui.tab = 'ludus';
     newGame(); render(); intro();
   },
 };
@@ -925,6 +1004,7 @@ function intro() {
       <li>Fame opens greater arenas. At ${FINAL_FAME} fame, the Emperor sends for you.</li>
       <li>Hire staff under <b>Household</b>, court the powerful under <b>Patrons</b>, and choose a perk each time a fighter earns a new rank.</li>
       <li>Tired or wounded men lose. Dead men stay dead.</li>
+      <li>Stay in debt for ${graceDays()} days and the creditors take the ludus. That is not the end: your heir begins again, with whatever the family managed to keep.</li>
     </ul><div class="row"><button class="primary" data-act="tutstart">Show me the ropes</button><button data-act="close">I know the trade</button></div>`);
 }
 

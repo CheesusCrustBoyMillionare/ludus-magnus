@@ -228,6 +228,62 @@ test('ranks and perks', () => game()(function () {
   }
 }));
 
+test('dynasty: debt, ruin, succession and what the family keeps', () => game()(function () {
+  newGame();
+  assert(G.dynasty.gen === 1 && !G.ruin && graceDays() === 3, 'a new dynasty, with three days of grace');
+  // three days below zero and the creditors come; the campaign does not end
+  G.fame = 160; G.tally.wins = 9; G.denarii = -500;
+  const champ = G.roster[0]; champ.wins = 7; champ.rank = 2; champ.traits.push('brute'); champ.gear.weapon = makeItem('weapon', 5, champ.cls);
+  const stats0 = Object.assign({}, champ.stats);
+  endDay(); assert(G.debtDays === 1 && !G.ruin, 'day one of grace');
+  endDay(); assert(G.debtDays === 2 && !G.ruin, 'day two of grace');
+  endDay(); assert(G.ruin && !G.over, 'on the third day the ludus falls, and the game goes on');
+  const R = G.ruin, D = G.dynasty;
+  assert(R.earned === Math.floor(160 / 20) + 0 + 9 + 5 && D.points === R.earned && D.history.length === 1 && D.history[0].gen === 1, 'legacy is worked out from how far the house got');
+  assert(R.offers.length === 3 && new Set(R.offers).size === 3 && R.offers.every(b => BOONS[b]), 'three different boons are offered');
+  // climbing out of debt in time avoids all of it
+  const snap = JSON.stringify(G);
+  // the succession
+  ruinFighter(champ.id); ruinBoon('nonsense'); assert(G.ruin.boon === null, 'only an offered boon can be kept');
+  ruinBoon(R.offers[0]); D.points = 100;
+  assert(buyLegacy('purse') && buyLegacy('purse') && buyLegacy('blood') && buyLegacy('cells') && D.points === 100 - 15 - 25 - 15 - 30 && !buyLegacy('forge'), 'legacy points buy from the ledger until they run out');
+  const kept = R.offers[0];
+  assert(startHeir(), 'the heir begins');
+  assert(G.day === 1 && G.dynasty.gen === 2 && G.dynasty === D || G.dynasty.gen === 2, 'a fresh ludus, second generation');
+  assert(G.denarii === 250 + 100 && G.fac.barracks === 1 && G.dynasty.boons.includes(kept) && G.dynasty.points === 15 && !G.ruin && G.debtDays === 0, 'the ledger and the boon apply to the new ludus');
+  const old = G.roster.find(g => g.name === champ.name && g.wins === 7);
+  assert(old && old.rank === 2 && old.traits.includes('brute') && SLOTS.every(sl => old.gear[sl] === null), 'the smuggled man arrives with his record and no gear');
+  assert(STATS.every(k => old.stats[k] === Math.max(2, Math.round(stats0[k] * 0.8))) && old.hp === maxHp(old) && old.story.some(x => x.t.includes('Smuggled')), 'and worn down by the road');
+  assert(G.roster.length === (G.dynasty.boons.includes('third') ? 4 : 3) && new Set(G.roster.map(g => g.id)).size === G.roster.length && !badNumber(G), 'he joins the heir\'s own fighters');
+  assert(G.houses.length === 5 && G.market.length >= 4 && G.smith.stock.length === 4 && G.log.some(l => l.t.includes('heir')), 'the world is made anew');
+  // every boon starts a working ludus and does what it says
+  for (const b of Object.keys(BOONS)) {
+    const D2 = newDynasty(); D2.gen = 2; D2.boons = [b]; newGame(D2);
+    assert(G.roster.length === (b === 'third' ? 3 : 2) && !badNumber(G), b + ': the ludus starts');
+    if (b === 'doctore' || b === 'cook' || b === 'scout' || b === 'medicus') assert(G.staff[b] && G.staff[b].wage === 0, b + ': unpaid staff from the first day');
+    if (b === 'magistrate' || b === 'guild' || b === 'temple') assert(G.patrons[b] === (b === 'magistrate' ? 40 : 30), b + ': favour');
+    if (b === 'grain') assert(foodCost() === 2 * (RATIONS[1].cost - 1), 'grain: cheaper rations');
+    if (b === 'blade') assert(G.roster[0].gear.weapon.r === 3, 'blade: a C weapon');
+    if (b === 'panoply') assert(G.roster[0].gear.weapon.r === 4 && G.armoury.some(it => it.slot === 'chest' && it.r === 4), 'panoply: a B weapon and cuirass');
+    if (b === 'veteran') assert(G.roster[0].rank === 1 && G.roster[0].perkPending === 1, 'veteran: a rank and a perk');
+    if (b === 'bargain') { const it = makeItem('chest', 4); assert(buyPrice(it) < itemPrice(it) && buyPrice(it) >= itemPrice(it) * 0.8, 'bargain: cheaper forge'); }
+    if (b === 'heirblood') { assert(G.roster.every(g => g.traits.includes('heirblood')), 'heirblood: starters'); const m = welcome(makeGladiator(20)); assert(m.traits.includes('heirblood') && m.hp === maxHp(m), 'heirblood: newcomers'); }
+    for (let i = 0; i < 12; i++) { G.denarii = 500; endDay(); G.pendingEvent = null; }
+    assert(!G.ruin && !G.over && !badNumber(G), b + ': twelve days pass without trouble');
+  }
+  // every ledger entry at every level
+  const D3 = newDynasty(); D3.gen = 3; for (const k of Object.keys(LEGACY_TREE)) D3.tree[k] = LEGACY_TREE[k].cost.length;
+  newGame(D3);
+  assert(G.denarii === 400 && G.fame === 50 && G.fac.barracks === 1 && G.fac.ground === 1 && G.smith.level === 1 && graceDays() === 7 && tier() === 0, 'a full ledger gives every advantage');
+  assert(Object.keys(LEGACY_TREE).every(k => legacyCost(k) === null && typeof LEGACY_TREE[k].desc(1) === 'string'), 'and nothing more can be bought');
+  // paying the debt off in time
+  G = JSON.parse(snap); G.ruin = null; G.dynasty = newDynasty(); G.debtDays = 2; G.denarii = 1000; endDay();
+  assert(G.debtDays === 0 && !G.ruin, 'climbing out of debt resets the count');
+  // losing every fighter with no money is still the end
+  newGame(); G.roster = []; G.denarii = 0; endDay();
+  assert(G.over === 'empty' && !G.ruin, 'an empty ludus with an empty purse still ends the campaign');
+}));
+
 test('equipment: blacksmith, armoury, and what the pieces do', () => game()(function () {
   newGame();
   const [a, b] = G.roster;
@@ -307,13 +363,13 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {
   assert(load() === false, 'nothing to load at first');
   newGame(); const legacy = JSON.parse(JSON.stringify(G));
-  for (const k of ['staff', 'hires', 'patrons', 'gifts', 'autoRest', 'fix', 'houses', 'festival', 'tourney', 'tut', 'bonds', 'armoury', 'smith']) delete legacy[k];
+  for (const k of ['staff', 'hires', 'patrons', 'gifts', 'autoRest', 'fix', 'houses', 'festival', 'tourney', 'tut', 'bonds', 'armoury', 'smith', 'dynasty', 'tally', 'ruin']) delete legacy[k];
   legacy.roster.forEach(g => { delete g.xp; delete g.rank; delete g.perkPending; delete g.perkOffer; delete g.story; delete g.wish; delete g.gear; g.wins = 4; });
   legacy.roster[0].weapon = 2; legacy.roster[0].armor = 3;
   for (const k in mem) delete mem[k];
   mem['ludus-magnus-save-v1'] = JSON.stringify(legacy); G = null;
   assert(load() && slot === 1 && !('ludus-magnus-save-v1' in mem) && mem['ludus-magnus-slot-1'], 'old single save moves to slot 1');
-  assert(G.houses.length === 5 && G.festival && G.patrons && G.tut && Array.isArray(G.bonds) && Array.isArray(G.armoury) && G.smith.stock.length === 4 && G.roster[0].gear.weapon.r === 4 && ARMOR_SLOTS.every(sl => G.roster[0].gear[sl].r === 5) && G.roster[0].armor === 0 && SLOTS.every(sl => G.roster[1].gear[sl] === null) && G.roster.every(g => Array.isArray(g.story)) && G.roster.every(g => g.rank > 0 && g.perkPending > 0), 'old save gains the newer systems');
+  assert(G.houses.length === 5 && G.festival && G.patrons && G.tut && Array.isArray(G.bonds) && G.dynasty.gen === 1 && G.tally.wins === 8 && Array.isArray(G.armoury) && G.smith.stock.length === 4 && G.roster[0].gear.weapon.r === 4 && ARMOR_SLOTS.every(sl => G.roster[0].gear[sl].r === 5) && G.roster[0].armor === 0 && SLOTS.every(sl => G.roster[1].gear[sl] === null) && G.roster.every(g => Array.isArray(g.story)) && G.roster.every(g => g.rank > 0 && g.perkPending > 0), 'old save gains the newer systems');
   for (let i = 0; i < 7; i++) { endDay(); G.pendingEvent = null; }
   assert(slotInfo(1).day === 8 && slotInfo(1, true).day === 5, 'autosave and games-day backup');
   assert(copyToSlot(3) && slotInfo(3).day === 8, 'copy to another slot');

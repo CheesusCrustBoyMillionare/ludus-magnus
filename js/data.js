@@ -72,6 +72,7 @@ const TRAITS = {
   killer:      { name: 'Killer instinct', good: true, desc: 'Telling blows hit far harder.' },
   steady:      { name: 'Steady',      good: true,  desc: 'Morale never falls below half.' },
   laureate:    { name: 'Laureate',    good: true,  special: true, desc: 'A tournament champion. The crowd roars at everything he does.' },
+  heirblood:   { name: 'Blood of the house', good: true, special: true, desc: '+8% health. The family has always fed its fighters well.' },
   embittered:  { name: 'Embittered',  good: false, special: true, desc: 'Was promised his freedom and denied it. Trains 30% slower and hits without heart.' },
 };
 
@@ -203,3 +204,38 @@ const FESTIVALS = {
   tourney: { name: 'The Laurel Tournament', blurb: 'Eight fighters, three rounds, one day. The last man standing takes the laurel.' },
 };
 const ROUND_NAMES = ['Quarter-final', 'Semi-final', 'Final'];
+
+// ---------- the dynasty ----------
+// When debt takes the ludus, an heir begins again. What the family keeps comes in two kinds.
+
+// Bought with legacy points at each succession. cost[i] is the price of level i + 1.
+const LEGACY_TREE = {
+  purse:  { name: 'The family silver',     cost: [15, 25, 40], desc: l => `Begin with ${50 * l} more denarii.` },
+  blood:  { name: 'Good stock',            cost: [15, 30, 45], desc: l => `Your first fighters begin with ${2 * l} more stat points each.` },
+  name:   { name: 'The family name',       cost: [20, 40],     desc: l => `Begin with ${25 * l} fame.` },
+  credit: { name: 'A patient creditor',    cost: [15, 30],     desc: l => `${2 * l} more days of grace when in debt.` },
+  cells:  { name: 'Deeds to the cells',    cost: [30],         desc: () => 'The barracks begin one level higher.' },
+  yard:   { name: 'The old training yard', cost: [30],         desc: () => 'The training ground begins one level higher.' },
+  forge:  { name: 'The family smith',      cost: [35],         desc: () => 'The blacksmith begins one level higher.' },
+};
+
+// One of three is offered at each succession and kept for good. Higher tiers are offered to houses that got further.
+const BOONS = {
+  doctore:   { tier: 1, name: 'The old doctore',        desc: 'He trained your father\'s men and will train yours. A journeyman doctore from the first day, unpaid.' },
+  cook:      { tier: 1, name: 'The family cook',        desc: 'A journeyman cook from the first day, unpaid.' },
+  magistrate:{ tier: 1, name: 'A friend at the forum',  desc: 'The Magistrate remembers the family. Begin with 20 more of his favour.' },
+  guild:     { tier: 1, name: 'An old partnership',     desc: 'The Grain Guild remembers the family. Begin with 20 more of its favour.' },
+  temple:    { tier: 1, name: 'A family altar',         desc: 'The Temple remembers the family. Begin with 20 more of its favour.' },
+  grain:     { tier: 1, name: 'A standing grain order', desc: 'Rations cost one denarius less per man each day.' },
+  blade:     { tier: 1, name: 'An heirloom blade',      desc: 'Your first fighter begins with a C-grade weapon.' },
+  scout:     { tier: 2, name: 'The family\'s eye',      desc: 'A journeyman scout from the first day, unpaid. You always see a recruit\'s talent.' },
+  veteran:   { tier: 2, name: 'A proven man',           desc: 'Your first fighter begins one rank up, with a perk to choose.' },
+  bargain:   { tier: 2, name: 'The smith owes a debt',  desc: 'Everything at the blacksmith costs 15% less.' },
+  crowd:     { tier: 2, name: 'A name they know',       desc: 'Every victory earns 10% more fame.' },
+  third:     { tier: 2, name: 'A cousin\'s fighter',    desc: 'Begin with three fighters, not two.' },
+  medicus:   { tier: 3, name: 'The family physician',   desc: 'A seasoned medicus from the first day, unpaid.' },
+  laurel:    { tier: 3, name: 'Old glory',              desc: 'Every purse you win is 10% richer.' },
+  heirblood: { tier: 3, name: 'Blood of the house',     desc: 'Every fighter who joins your ludus has 8% more health.' },
+  panoply:   { tier: 3, name: 'The ancestral panoply',  desc: 'Begin with a B-grade weapon for your first fighter and a B-grade cuirass.' },
+};
+const GRACE_DAYS = 3;

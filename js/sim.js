@@ -40,7 +40,7 @@ function slotInfo(n, backup) {
   if (!d) return null;
   let t = 0;
   TIERS.forEach((x, i) => { if (d.fame >= x.fame) t = i; });
-  return { day: d.day, fame: d.fame, denarii: d.denarii, roster: d.roster.length, savedAt: d.savedAt || 0, won: !!d.won, over: !!d.over, tier: TIERS[t].name };
+  return { day: d.day, fame: d.fame, denarii: d.denarii, roster: d.roster.length, savedAt: d.savedAt || 0, won: !!d.won, over: !!d.over, tier: TIERS[t].name, gen: d.dynasty ? d.dynasty.gen : 1 };
 }
 
 function loadSlot(n, backup) {
@@ -127,7 +127,7 @@ function makeGladiator(budget, o) {
 }
 
 function maxHp(g) {
-  return Math.round((60 + g.stats.end * 7 + g.stats.str * 2) * (g.traits.includes('ironhide') ? 1.15 : 1) * (g.beast ? BEASTS[g.cls].hpMult : 1));
+  return Math.round((60 + g.stats.end * 7 + g.stats.str * 2) * (g.traits.includes('ironhide') ? 1.15 : 1) * (g.traits.includes('heirblood') ? 1.08 : 1) * (g.beast ? BEASTS[g.cls].hpMult : 1));
 }
 function statSum(g) { return g.stats.str + g.stats.agi + g.stats.end + g.stats.skl; }
 function power(g) {
@@ -199,6 +199,9 @@ function migrate() {
   if (G.tourney === undefined) G.tourney = null;
   if (!G.bonds) G.bonds = [];
   if (!G.armoury) G.armoury = [];
+  if (!G.dynasty) G.dynasty = newDynasty();
+  if (!G.tally) G.tally = { wins: G.roster.reduce((n, g) => n + g.wins, 0), losses: 0 };
+  if (G.over === 'debt') { G.over = false; if (!G.ruin) beginRuin(); }       // an old save that ended in debt now passes to an heir
   // saves from before the blacksmith: turn each fighter's old weapon and armour level into real pieces
   G.roster.concat(G.market).forEach(g => {
     if (g.gear) return;
@@ -238,25 +241,111 @@ function tier() {
 function capacity() { return 3 + 2 * G.fac.barracks; }
 function isGamesDay() { return G.day % GAMES_EVERY === 0; }
 function daysToGames() { return isGamesDay() ? 0 : GAMES_EVERY - (G.day % GAMES_EVERY); }
-function foodCost() { return G.roster.length * RATIONS[G.ration].cost; }
+function foodCost() { return G.roster.length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)); }
 function upkeep() { return foodCost() + wages(); }
 
-function newGame() {
+// ---------- the dynasty: ruin, heirs and what the family keeps ----------
+
+function newDynasty() { return { gen: 1, points: 0, tree: {}, boons: [], history: [] }; }
+const boon = b => !!(G && G.dynasty && G.dynasty.boons.includes(b));
+const legacyLevel = k => (G && G.dynasty && G.dynasty.tree[k]) || 0;
+function graceDays() { return GRACE_DAYS + 2 * legacyLevel('credit'); }
+
+// Every fighter who joins a house with the right blood gains from it.
+function welcome(g) {
+  if (!g.gear) g.gear = emptyGear();
+  if (boon('heirblood') && !g.traits.includes('heirblood')) { g.traits.push('heirblood'); g.hp = maxHp(g); }
+  return g;
+}
+
+// A new ludus. With no arguments it founds a new dynasty; an heir passes the family's dynasty,
+// and may bring one fighter smuggled out of the fallen house.
+function newGame(dynasty, carried) {
+  const D = dynasty || newDynasty(), lv = k => D.tree[k] || 0, has = b => D.boons.includes(b);
   G = {
-    v: 1, day: 1, denarii: 250, fame: 0, nextId: 0, debtDays: 0,
+    v: 1, day: 1, denarii: 250 + 50 * lv('purse'), fame: 25 * lv('name'), nextId: 0, debtDays: 0,
     roster: [], market: [], bouts: null, log: [],
-    fac: { barracks: 0, ground: 0, infirmary: 0, baths: 0 },
+    fac: { barracks: lv('cells'), ground: lv('yard'), infirmary: 0, baths: 0 },
     ration: 1, pendingEvent: null, won: false, over: false, fallen: [],
     staff: {}, hires: [], autoRest: true, fix: null, tourney: null, festival: null, tut: { step: 0, on: false }, bonds: [],
-    armoury: [], smith: { level: 0, stock: [] },
-    patrons: { magistrate: 20, guild: 10, temple: 10 }, gifts: { magistrate: 0, guild: 0, temple: 0 },
+    armoury: [], smith: { level: lv('forge'), stock: [] },
+    patrons: { magistrate: 20 + (has('magistrate') ? 20 : 0), guild: 10 + (has('guild') ? 20 : 0), temple: 10 + (has('temple') ? 20 : 0) },
+    gifts: { magistrate: 0, guild: 0, temple: 0 },
+    dynasty: D, tally: { wins: 0, losses: 0 }, ruin: null,
   };
-  G.roster.push(makeGladiator(23));
-  G.roster.push(makeGladiator(21));   // made second so he cannot share the first man's name
-  G.roster.forEach(g => { g.gear = emptyGear(); addStory(g, 'Came to you with the ludus.'); });
+  const budget = 2 * lv('blood');
+  G.roster.push(makeGladiator(23 + budget));
+  G.roster.push(makeGladiator(21 + budget));   // made after the first so he cannot share the first man's name
+  if (has('third')) G.roster.push(makeGladiator(20 + budget));
+  G.roster.forEach(g => { welcome(g); addStory(g, D.gen > 1 ? 'Bought by the heir to begin again.' : 'Came to you with the ludus.'); });
+  const first = G.roster[0];
+  if (has('veteran')) { first.xp = RANKS[1].xp; checkRank(first); }
+  if (has('panoply')) { first.gear.weapon = makeItem('weapon', 4, first.cls); G.armoury.push(makeItem('chest', 4)); }
+  else if (has('blade')) first.gear.weapon = makeItem('weapon', 3, first.cls);
+  if (has('doctore')) G.staff.doctore = { name: 'Old ' + pick(STAFF_NAMES), skill: 1, wage: 0 };
+  if (has('cook')) G.staff.cook = { name: pick(STAFF_NAMES), skill: 1, wage: 0 };
+  if (has('scout')) G.staff.scout = { name: pick(STAFF_NAMES), skill: 1, wage: 0 };
+  if (has('medicus')) G.staff.medicus = { name: pick(STAFF_NAMES), skill: 2, wage: 0 };
+  if (carried) {          // the man smuggled out arrives older and with nothing but his skill
+    const g = carried;
+    g.id = ++G.nextId;
+    STATS.forEach(k => { g.stats[k] = Math.max(2, Math.round(g.stats[k] * 0.8)); g.prog[k] = 0; });
+    Object.assign(g, { gear: emptyGear(), weapon: 0, armor: 0, fatigue: 0, injury: 0, morale: 55, activity: 'rest', foughtDay: -1,
+      wish: null, lostTo: null, promise: null, askedFree: false, perkOffer: null });
+    g.traits = g.traits.filter(t => t !== 'embittered');
+    welcome(g); g.hp = maxHp(g);
+    addStory(g, 'Smuggled out of the fallen ludus the night before the creditors came.');
+    G.roster.push(g);
+  }
   initHouses(); genMarket(); genHires(); genSmith(); scheduleFestival();
-  log('You inherit a crumbling ludus, two fighters and a purse of 250 denarii.', 'gold');
+  log(D.gen > 1
+    ? `The old ludus is gone. You are its heir, the ${ordinal(D.gen)} of your house to keep a school, and you begin again with ${G.denarii} denarii.`
+    : 'You inherit a crumbling ludus, two fighters and a purse of 250 denarii.', 'gold');
   save();
+}
+function ordinal(n) { return ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'][n] || n + 'th'; }
+
+// What a fallen house is worth to those who come after it.
+function legacyScore() { return Math.floor(G.fame / 20) + Math.floor(G.day / 10) + G.tally.wins + 5 * tier(); }
+
+function rollBoons(score) {
+  const pool = Object.keys(BOONS).filter(b => !G.dynasty.boons.includes(b));
+  const want = score < 30 ? [1, 1, 2] : score < 70 ? [1, 2, 2] : [2, 2, 3], out = [];
+  for (const t of want) {
+    let c = pool.filter(b => BOONS[b].tier === t && !out.includes(b));
+    if (!c.length) c = pool.filter(b => !out.includes(b));
+    if (c.length) out.push(pick(c));
+  }
+  return out;
+}
+
+// The creditors take the ludus. The game pauses on the succession until an heir is named.
+function beginRuin() {
+  if (G.ruin) return;
+  const D = G.dynasty, earned = legacyScore();
+  D.points += earned;
+  D.history.push({ gen: D.gen, days: G.day, fame: G.fame, wins: G.tally.wins, tier: TIERS[tier()].name, earned });
+  G.ruin = { step: 0, earned, offers: rollBoons(earned), fighter: null, boon: null };
+  G.pendingEvent = null;
+  log('The creditors come with soldiers and take the ludus, the men and the keys.', 'bad');
+}
+function ruinFighter(id) { if (G.ruin) G.ruin.fighter = id && byId(id) ? +id : null; }
+function ruinBoon(id) { if (G.ruin && G.ruin.offers.includes(id)) G.ruin.boon = id; }
+function legacyCost(k) { const l = G.dynasty.tree[k] || 0; return l < LEGACY_TREE[k].cost.length ? LEGACY_TREE[k].cost[l] : null; }
+function buyLegacy(k) {
+  const D = G.dynasty, c = legacyCost(k);
+  if (c === null || D.points < c) return false;
+  D.points -= c; D.tree[k] = (D.tree[k] || 0) + 1;
+  return true;
+}
+function startHeir() {
+  const R = G.ruin, D = G.dynasty;
+  if (!R) return false;
+  if (R.boon && !D.boons.includes(R.boon)) D.boons.push(R.boon);
+  D.gen++;
+  const g = R.fighter ? byId(R.fighter) : null;
+  newGame(D, g ? JSON.parse(JSON.stringify(g)) : null);
+  return true;
 }
 
 function genMarket() {
@@ -276,7 +365,6 @@ const ENEMY_BUDGET = [20, 29, 40, 51];
 const FINAL_BUDGET = 62;
 const ENEMY_PERKS = [0, 1, 1, 2, 3];
 const PURSE = [70, 140, 240, 340];
-const DEBT_DAYS = 10;
 const FAME = [10, 18, 28, 40];
 const DIFF = {
   easy: { name: 'Favoured', stat: 0.85, purse: 0.7, fame: 0.7 },
@@ -377,6 +465,8 @@ function emptyGear() { return { weapon: null, head: null, chest: null, legs: nul
 function makeItem(slot, r, cls) { return { id: ++G.nextId, slot, r, cls: slot === 'weapon' ? cls : null }; }
 function itemName(it) { return MATERIAL[it.r] + ' ' + (it.slot === 'weapon' ? WEAPON_NAMES[it.cls] : SLOT_INFO[it.slot].piece); }
 function itemPrice(it) { return Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price / 5) * 5; }
+// what the blacksmith charges you; selling back is always half the full price
+function buyPrice(it) { return boon('bargain') ? Math.round(itemPrice(it) * 0.85 / 5) * 5 : itemPrice(it); }
 function fits(it, g) { return it.slot !== 'weapon' || it.cls === g.cls; }
 const pc = v => Math.round(v * 100) + '%';
 
@@ -466,8 +556,8 @@ function genSmith() {
 }
 function buyItem(itemId) {
   const it = G.smith.stock.find(x => x.id === +itemId);
-  if (!it || G.denarii < itemPrice(it)) return false;
-  G.denarii -= itemPrice(it);
+  if (!it || G.denarii < buyPrice(it)) return false;
+  G.denarii -= buyPrice(it);
   G.smith.stock = G.smith.stock.filter(x => x !== it);
   G.armoury.push(it);
   return true;
@@ -857,8 +947,8 @@ function endDay() {
   if (G.denarii < 0) {
     G.debtDays++;
     G.roster.forEach(g => { g.morale = clamp(g.morale - 5, 0, 100); });
-    log(`The ludus is in debt (${G.debtDays} of ${DEBT_DAYS} days before the creditors come).`, 'bad');
-    if (G.debtDays >= DEBT_DAYS) { G.over = 'debt'; }
+    log(`The ludus is in debt (day ${G.debtDays} of ${graceDays()} before the creditors come).`, 'bad');
+    if (G.debtDays >= graceDays()) beginRuin();
   } else G.debtDays = 0;
 
   if (G.tourney && G.tourney.state !== 'done') finishTourneyOffscreen();
@@ -953,9 +1043,10 @@ function applyBoutResult(bout, B, wager, pay) {
   }
 
   let purse = 0, fameGain = 0, wagerGain = 0;
+  if (win) G.tally.wins++; else G.tally.losses++;
   if (win) {
-    purse = bout.purse;
-    fameGain = Math.round(bout.fame * (0.8 + 0.7 * avgExc)) + kills * 2;
+    purse = boon('laurel') ? Math.round(bout.purse * 1.1 / 5) * 5 : bout.purse;
+    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1));
     mine.forEach(f => { f.g.fame += Math.round(fameGain / mine.length); });
     if (wager) wagerGain = Math.round(wager * pay);
     log(`Victory over ${bout.house}: ${purse} denarii, +${fameGain} fame.`, 'good');
@@ -1055,7 +1146,7 @@ const EVENTS = {
     make: () => ({ fee: 40 + tier() * 40, g: makeGladiator(19 + tier() * 8 + rint(0, 5)) }),
     text: c => `<b>${c.g.name}</b> of ${c.g.origin}, drowning in debt, offers to swear the gladiator's oath as a ${CLASSES[c.g.cls].name}. He asks ${c.fee} denarii to pay off his creditors.`,
     opts: [
-      { label: c => `Take his oath (${c.fee})`, ok: c => G.denarii >= c.fee && G.roster.length < capacity(), run: c => { G.denarii -= c.fee; c.g.gear = c.g.gear || emptyGear(); G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A free man who swore the oath to pay his debts.'); return `${c.g.name} swears to be burned, bound, beaten and killed by the sword. He joins the ludus.`; } },
+      { label: c => `Take his oath (${c.fee})`, ok: c => G.denarii >= c.fee && G.roster.length < capacity(), run: c => { G.denarii -= c.fee; welcome(c.g); G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A free man who swore the oath to pay his debts.'); return `${c.g.name} swears to be burned, bound, beaten and killed by the sword. He joins the ludus.`; } },
       { label: () => 'Turn him away', run: () => 'He walks back down the road.' },
     ],
   },
