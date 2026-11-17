@@ -165,3 +165,11 @@ button.mini.better { border-color: var(--green); }
 
 /* the ludus yard */
 #yard { display: block; width: 100%; height: auto; aspect-ratio: 59 / 19; image-rendering: pixelated; border: 2px solid var(--line); box-shadow: 0 3px 0 #0006; margin: 14px 0 0; cursor: pointer; background: #8fbcd4; }
+
+/* dev tools drawer (Shift+Y) */
+#dev { position: fixed; top: 0; right: 0; bottom: 0; width: min(330px, 92vw); z-index: 45; overflow: auto; background: #120c0a; border-left: 2px solid var(--gold);
+  padding: 12px; font-size: 12px; box-shadow: -6px 0 0 #0008; }
+#dev h4 { margin: 12px 0 3px; font: bold 11px Consolas, monospace; color: var(--gold); text-transform: uppercase; letter-spacing: .08em; }
+#dev button { padding: 2px 7px; font-size: 12px; margin: 2px 2px 0 0; box-shadow: none; }
+#dev button.off { opacity: .4; }
+#dev .devmsg { margin-top: 8px; padding: 6px 8px; border: 1px solid var(--line); background: #241a16; color: var(--text); }
