@@ -6,6 +6,7 @@
 
 const YARD = { W: 590, H: 190, S: 2, GY: 128 };
 let yardRaf = 0, yardLast = 0;
+let yardLayer = null, yardMask = null;      // off-screen canvases: the scene without its sky, and the shape of it
 let yardHits = [];          // click targets: { x0, x1, y0, y1, fighter | tab }
 
 function yardPerson(ctx, X, Y, d, o) {
@@ -31,23 +32,58 @@ function yardPerson(ctx, X, Y, d, o) {
   }
 }
 
+// The yard turns through a day every four minutes: a long day, a short dusk, night, and dawn.
+// It is only for show; it has nothing to do with the game's days.
+const YARD_DAY = 240;
+const YARD_KEYS = [
+  { at: 0.00, bands: ['#e9b497', '#f1cdb0', '#f7e2c8'], tint: '#ffdcc6', night: 0.12, cloud: '#fbe6d4' },   // dawn
+  { at: 0.09, bands: ['#8fbcd4', '#a9cfdc', '#c5dfe0'], tint: '#ffffff', night: 0, cloud: '#eef6f8' },      // day
+  { at: 0.56, bands: ['#8fbcd4', '#a9cfdc', '#c5dfe0'], tint: '#ffffff', night: 0, cloud: '#eef6f8' },
+  { at: 0.66, bands: ['#c9744f', '#e59a66', '#f3c88f'], tint: '#ffbe94', night: 0.2, cloud: '#f6c9a0' },    // dusk
+  { at: 0.74, bands: ['#151d3c', '#1f2b54', '#2d3b68'], tint: '#6c7cc0', night: 1, cloud: '#3a4672' },      // night
+  { at: 0.92, bands: ['#151d3c', '#1f2b54', '#2d3b68'], tint: '#6c7cc0', night: 1, cloud: '#3a4672' },
+  { at: 1.00, bands: ['#e9b497', '#f1cdb0', '#f7e2c8'], tint: '#ffdcc6', night: 0.12, cloud: '#fbe6d4' },
+];
+function mixHex(a, b, t) {
+  const p = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)], x = p(a), y = p(b);
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+function yardSky(T) {
+  const u = ((T / YARD_DAY) + 0.2) % 1;                       // begin in mid-morning
+  let i = 0; while (i < YARD_KEYS.length - 2 && u >= YARD_KEYS[i + 1].at) i++;
+  const a = YARD_KEYS[i], b = YARD_KEYS[i + 1], t = (u - a.at) / (b.at - a.at);
+  const sunP = u < 0.70 ? u / 0.70 : -1, moonP = u >= 0.70 ? (u - 0.70) / 0.30 : -1;
+  const arc = p => [40 + p * 510, 70 - Math.sin(p * Math.PI) * 58];
+  const low = sunP >= 0 ? 1 - Math.sin(sunP * Math.PI) : 1;   // 0 at noon, 1 at the horizon
+  return {
+    bands: a.bands.map((c, k) => mixHex(c, b.bands[k], t)), tint: mixHex(a.tint, b.tint, t), cloud: mixHex(a.cloud, b.cloud, t),
+    night: a.night + (b.night - a.night) * t,
+    sun: sunP >= 0 ? arc(sunP) : null, sunCol: mixHex('#fbeab0', '#f08a4a', Math.max(0, low * 1.4 - 0.4)), moon: moonP >= 0 ? arc(moonP) : null,
+    shadow: { len: Math.round(2 + low * 12), a: 0.2 },
+  };
+}
+
 function drawYard(cv, T) {
-  const ctx = cv.getContext('2d'), GY = YARD.GY, F = G.fac, t = tier();
+  const main = cv.getContext('2d'), GY = YARD.GY, F = G.fac, t = tier();
+  let ctx = main;                           // drawing switches to the scene layer once the sky is done
   ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  const label = (x, y, text) => {
+  // names and signs are drawn last, after the light of the hour has been laid over the scene
+  const late = [];
+  const label = (x, y, text) => late.push(() => {
     ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(text, x + 0.5, y + 0.5);
     ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
-  };
+  });
   // building names sit on a dark plaque so they read against any wall
-  const sign = (x, y, text) => {
+  const sign = (x, y, text) => late.push(() => {
     ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
     const w = Math.ceil(ctx.measureText(text).width) + 8;
     R(x - w / 2 - 1, y - 8, w + 2, 11, '#e0aa3e'); R(x - w / 2, y - 7, w, 9, '#241812');
     ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
-  };
+  });
+  const sky = yardSky(T), lights = [], fires = [];
   const OUT = '#2a1c14', SHADOW = 'rgba(0,0,0,.3)';
   const pips = (n, max) => '●'.repeat(n) + '○'.repeat(max - n);
   const smoke = (x, y, n, col) => {            // puffs drifting up and to the right
@@ -62,9 +98,24 @@ function drawYard(cv, T) {
   const hit = (x0, y0, x1, y1, o) => yardHits.push(Object.assign({ x0, y0, x1, y1 }, o));
 
   // ---- sky, hills, sun ----
-  R(0, 0, 590, 70, '#8fbcd4'); R(0, 42, 590, 30, '#a9cfdc'); R(0, 60, 590, 14, '#c5dfe0');
-  R(498, 12, 14, 14, '#fbeab0'); R(495, 15, 20, 8, '#fbeab0'); R(501, 9, 8, 20, '#fbeab0');
-  for (let i = 0; i < 3; i++) { const cx = (T * (3 + i) + i * 210) % 680 - 60, cy = 14 + i * 9; R(cx, cy, 34, 5, '#eef6f8'); R(cx + 6, cy - 3, 20, 4, '#eef6f8'); }
+  R(0, 0, 590, 70, sky.bands[0]); R(0, 42, 590, 30, sky.bands[1]); R(0, 60, 590, 14, sky.bands[2]);
+  if (sky.night > 0.05) {
+    for (let i = 0; i < 46; i++) { ctx.globalAlpha = sky.night * (0.5 + 0.5 * Math.sin(T * 1.7 + i * 2.1)); R((i * 131) % 588, (i * 47) % 58, 1, 1, '#f4f6ff'); }
+    ctx.globalAlpha = 1;
+  }
+  if (sky.sun) { const [sx, sy] = sky.sun; R(sx - 7, sy - 7, 14, 14, sky.sunCol); R(sx - 10, sy - 4, 20, 8, sky.sunCol); R(sx - 4, sy - 10, 8, 20, sky.sunCol); }
+  if (sky.moon) { const [mx, my] = sky.moon; R(mx - 6, my - 6, 12, 12, '#eef0f8'); R(mx - 8, my - 3, 16, 6, '#eef0f8'); R(mx - 3, my - 8, 6, 16, '#eef0f8'); R(mx + 1, my - 5, 6, 9, sky.bands[0]); R(mx - 3, my + 2, 2, 2, '#cfd4e6'); }
+  for (let i = 0; i < 3; i++) { const cx = (T * (3 + i) + i * 210) % 680 - 60, cy = 14 + i * 9; R(cx, cy, 34, 5, sky.cloud); R(cx + 6, cy - 3, 20, 4, sky.cloud); }
+
+  // Everything under the sky is drawn on its own layer, so the light of the hour can be laid over
+  // exactly what is there (roofs and chimneys included) without staining the sky behind it.
+  if (!yardLayer || yardLayer.width !== cv.width) {
+    yardLayer = document.createElement('canvas'); yardMask = document.createElement('canvas');
+    yardLayer.width = yardMask.width = cv.width; yardLayer.height = yardMask.height = cv.height;
+  }
+  ctx = yardLayer.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0); ctx.imageSmoothingEnabled = false;
   for (let x = -20; x < 590; x += 46) { const h = 14 + ((x * 7) % 11); R(x, 74 - h, 60, h, '#7fa27a'); R(x + 8, 70 - h, 40, 5, '#8fb287'); }
 
   // ---- outer wall: grows grander with fame ----
@@ -95,7 +146,7 @@ function drawYard(cv, T) {
     else { R(x - 2, y - 3, w + 4, 4, '#8a6a4a'); R(x - 2, y - 3, w + 4, 1, '#a8855e'); }
   };
   const door = (x, w, h) => { R(x - 1, GY - h - 1, w + 2, h + 1, '#5a4334'); R(x, GY - h, w, h, '#241812'); R(x, GY - h, 1, h, '#3a2a1c'); };
-  const win = (x, y) => { R(x - 1, y - 1, 8, 9, '#5a4334'); R(x, y, 6, 7, '#241812'); R(x + 3, y, 1, 7, '#5a4334'); };
+  const win = (x, y) => { R(x - 1, y - 1, 8, 9, '#5a4334'); R(x, y, 6, 7, '#241812'); R(x + 3, y, 1, 7, '#5a4334'); lights.push([x, y]); };
   const column = (x, y, h) => { R(x, y, 5, h, '#f0e8d6'); R(x, y, 1, h, '#c9c0aa'); R(x - 1, y, 7, 2, '#f0e8d6'); R(x - 1, y + h - 2, 7, 2, '#d6ccb8'); };
 
   // ---- barracks: more cells, then a second floor, then tiles and a colonnade ----
@@ -175,6 +226,7 @@ function drawYard(cv, T) {
     if (r >= 1) { R(x + 30, GY - 14, 14, 2, '#7a5a2a'); R(x + 31, GY - 12, 2, 12, '#7a5a2a'); R(x + 41, GY - 12, 2, 12, '#7a5a2a'); R(x + 32, GY - 18, 5, 4, '#d9b877'); R(x + 38, GY - 17, 4, 3, '#d9b877'); }
     if (r === 2) { R(x - 8, GY - 16, 6, 16, '#b0603a'); R(x - 7, GY - 20, 4, 4, '#b0603a'); R(x - 8, GY - 16, 1, 16, '#8a4428'); }
     smoke(x + 13, GY - 32, 4, '#d8d8d8');
+    fires.push([x + 13, GY - 12, 26]);
     sign(x + 18, GY - 63, 'KITCHEN: ' + RATIONS[r].name.toUpperCase());
     hit(x - 12, GY - 60, x + 48, GY, { tab: 'facilities' });
     if (G.staff.cook) yardPerson(ctx, x - 12 + Math.round(Math.sin(T * 0.8) * 2), GY + 6, 1, { tunic: '#b9b09a', apron: '#f2ecd8', hair: '#5a3a22', item: 'ladle' });
@@ -200,6 +252,7 @@ function drawYard(cv, T) {
     const glow = 0.6 + Math.sin(T * 5) * 0.2;
     R(x + 7, GY - 14, 12, 14, '#4a3a34'); R(x + 9, GY - 18, 8, 6, '#e2702a'); ctx.globalAlpha = glow; R(x + 10, GY - 20, 6, 5, '#f5c04a'); ctx.globalAlpha = 1;
     R(x + 24, GY - 9, 10, 3, '#55565c'); R(x + 26, GY - 6, 6, 6, '#3c3d42'); R(x + 22, GY - 10, 14, 2, '#6c6d74');   // anvil
+    fires.push([x + 13, GY - 16, 24]);
     const sw = (T * 1.1) % 1;
     yardPerson(ctx, x + 16, GY + 3, 1, { tunic: '#6b5a48', apron: '#4a3323', hair: '#1e1612', skin: '#c9966c', item: 'hammer', swing: sw });
     if (sw > 0.5 && sw < 0.62) { R(x + 27, GY - 14, 1, 1, '#fff0b0'); R(x + 31, GY - 16, 1, 1, '#f5c04a'); R(x + 24, GY - 17, 1, 1, '#f5c04a'); R(x + 33, GY - 12, 1, 1, '#fff0b0'); }
@@ -213,6 +266,7 @@ function drawYard(cv, T) {
     R(x + 14, GY - 44, 34, 44, '#3a2a1c'); R(x + 16, GY - 42, 30, 42, '#5a4030'); R(x + 30, GY - 42, 2, 42, '#3a2a1c');
     for (let yy = GY - 36; yy < GY; yy += 10) R(x + 16, yy, 30, 1, '#3a2a1c');
     R(x + 12, GY - 48, 38, 4, W.d);
+    fires.push([x + 6, GY - 40, 14], [x + 56, GY - 40, 14]);       // torches either side of the gate
     const banner = (bx) => { R(bx, GY - 60, 8, 12, '#c23b2e'); R(bx, GY - 60, 2, 12, '#7e241c'); R(bx, GY - 48, 3, 3, '#c23b2e'); R(bx + 5, GY - 48, 3, 3, '#c23b2e'); R(bx + 3, GY - 57, 2, 4, '#e8b545'); };
     banner(x + 3); banner(x + 51);
     if (t >= 2) { R(x + 27, GY - 78, 2, 14, '#5a4334'); R(x + 29, GY - 78, 12 + Math.round(Math.sin(T * 3)), 7, '#c23b2e'); }
@@ -239,7 +293,7 @@ function drawYard(cv, T) {
   const things = posts.map(p => ({ y: p[1], draw: () => drawPost(p) }));
   const place = (g, x, y, o) => {
     things.push({ y, draw: () => {
-      drawSprite(ctx, Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0 }, o));
+      drawSprite(ctx, Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o));
       if (g.id === ui.sel) { R(x - 2, y - 52, 5, 2, '#e8b545'); R(x - 1, y - 50, 3, 1, '#e8b545'); R(x, y - 49, 1, 1, '#e8b545'); }
       // a name is skipped when it would sit on top of one already drawn; the selected fighter always gets his
       const half = g.name.length * 1.9 + 2, clash = names.some(n => Math.abs(n.x - x) < n.half + half && Math.abs(n.y - y) < 8);
@@ -247,7 +301,7 @@ function drawYard(cv, T) {
     } });
     hit(x - 10, y - 46, x + 10, y + 10, { fighter: g.id });
   };
-  const strike = (off, every) => { const p = ((T + off) / every) % 1; return { windup: p < 0.18, atkAnim: p >= 0.18 && p < 0.5 ? 1 - (p - 0.18) / 0.32 : 0, slash: p >= 0.18 && p < 0.24 ? 0.1 : 0 }; };
+  const strike = (off, every) => { const p = ((T + off) / every) % 1; return { windup: p < 0.22, windP: Math.min(1, p / 0.22), atkAnim: p >= 0.22 && p < 0.6 ? 1 - (p - 0.22) / 0.38 : 0 }; };
   const by = k => G.roster.filter(g => (g.injury > 0 ? 'hurt' : g.activity) === k);
   by('hurt').forEach((g, i) => place(g, 186 + i * 20, 141 + (i % 2) * 5, { falling: true, down: true }));
   by('rest').forEach((g, i) => place(g, 24 + i * 22, 140 + (i % 2) * 7, {}));
@@ -267,8 +321,34 @@ function drawYard(cv, T) {
   });
   if (G.staff.doctore) things.push({ y: 149, draw: () => { const dx = Math.sin(T * 0.35) * 30; yardPerson(ctx, 152 + dx, 149, Math.cos(T * 0.35) >= 0 ? 1 : -1, { tunic: '#8a3a2a', hair: '#c9c2b2', item: 'staff' }); } });
   if (G.staff.medicus) things.push({ y: GY + 4, draw: () => yardPerson(ctx, 168, GY + 5, 1, { tunic: '#f2ecd8', hair: '#3a2a1c', item: 'bag' }) });
-  // the selected fighter is drawn first among equals so his name claims its place
   things.sort((a, b) => a.y - b.y).forEach(o => o.draw());
+
+  // ---- the light of the hour over everything below the sky, then what glows in the dark ----
+  if (sky.tint !== '#ffffff') {
+    const m = yardMask.getContext('2d');             // the tint colour, cut to the shape of the scene
+    m.setTransform(1, 0, 0, 1, 0, 0); m.globalCompositeOperation = 'source-over';
+    m.fillStyle = sky.tint; m.fillRect(0, 0, cv.width, cv.height);
+    m.globalCompositeOperation = 'destination-in'; m.drawImage(yardLayer, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(yardMask, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx = main;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(yardLayer, 0, 0);
+  ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0);
+  if (sky.night > 0.05) {
+    const n = sky.night;
+    ctx.globalAlpha = n; for (const [lx, ly] of lights) { R(lx, ly, 6, 7, '#ffd27a'); R(lx + 3, ly, 1, 7, '#b8802e'); } ctx.globalAlpha = 1;
+    R(512 - 1, GY - 46, 3, 6, '#e2702a'); R(562 - 1, GY - 46, 3, 6, '#e2702a');
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [lx, ly] of lights) { ctx.fillStyle = `rgba(255,190,90,${(0.16 * n).toFixed(3)})`; ctx.fillRect(lx - 4, ly - 4, 14, 15); }
+    for (const [fx, fy, r] of fires) {
+      const k = (0.85 + Math.sin(T * 8 + fx) * 0.15) * n;
+      for (const [q, a] of [[1, 0.07], [0.66, 0.1], [0.35, 0.14]]) { ctx.fillStyle = `rgba(255,150,60,${(a * k).toFixed(3)})`; ctx.fillRect(fx - r * q, fy - r * q * 0.7, r * q * 2, r * q * 1.4); }
+      for (let i = 0; i < 5; i++) { const w = r * (1.9 - i * 0.3); ctx.fillStyle = `rgba(255,170,80,${(0.022 * k).toFixed(3)})`; ctx.fillRect(fx - w / 2, GY + 1 + i, w, 14 - i * 2); }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  late.forEach(f => f());
 }
 
 function yardFrame(ts) {

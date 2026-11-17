@@ -83,7 +83,9 @@ function createBattle(teamA, teamB, opts) {
   const B = {
     fighters: [], time: 0, over: false, winner: -1, outro: 0, outroEnd: 2,
     exc: 0.15, excSum: 0, death: !!opts.death, hunt: !!opts.hunt, mercy: opts.mercy || [0, 0],
-    hitstop: 0, shake: 0, slowmo: 0, clock: 0, intro: opts.noIntro ? 0 : 2.6,
+    hitstop: 0, shake: 0, slowmo: 0, clock: 0, flashT: 0,
+    light: opts.light || (opts.death ? 'dusk' : 'day'),          // bouts to the death are fought as the sun goes down
+    intro: opts.noIntro ? 0 : 2.6,
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
     parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [],
@@ -130,7 +132,7 @@ function knockDown(B, d, a, how) {
   d.hp = 0; d.down = true; d.downedBy = a || d.downedBy; d.state = 'ready'; d.bleed = 0;
   d.fallT = 0.35; snd(B, 'down');
   B.exc += 0.2 * (a ? a.show : 1);
-  B.hitstop = 0.12; B.shake = 3;
+  B.hitstop = 0.12; B.shake = 3; B.flashT = 0.12;
   fxBlood(B, d, 16, a ? a.facing : 1);
   fxDust(B, d.x, d.y, 8);
   for (let i = 0; i < 10; i++) B.stains.push({ x: d.x + rand(-7, 7), y: d.y + rand(-2, 3), w: rint(1, 3) });
@@ -181,7 +183,7 @@ function resolveAttack(B, a, d, o) {
   if (d.state === 'windup' && (o.stun || crit)) { d.state = 'ready'; d.move = null; d.flurry = 0; d.cd = 0.3; }
   B.exc += (dmg / 220 + (crit ? 0.06 : 0) + (o.name ? 0.03 : 0)) * a.show;
   B.shake = Math.max(B.shake, crit ? 2 : 0.8);
-  if (crit) B.hitstop = 0.06;
+  if (crit) { B.hitstop = 0.06; B.flashT = 0.07; }
   if (blocked) {
     fxText(B, d, 'block ' + dmg, '#e8e2d0');
     d.guard = 0.25; snd(B, 'block');
@@ -226,7 +228,7 @@ function walkBy(f, ux, uy, mult, dt) {
   f.walk += dt * 8; f.moving = true;
 }
 
-function startMove(f, move, t) { f.state = 'windup'; f.move = move; f.t = t; }
+function startMove(f, move, t) { f.state = 'windup'; f.move = move; f.t = t; f.t0 = t; }
 
 function trySpecial(B, f, t, dist) {
   if (f.spCd > 0 || f.stam < 16) return false;
@@ -368,6 +370,7 @@ function stepFx(B, dt) {
   B.texts = B.texts.filter(t => t.life > 0);
   for (const l of B.feed) l.life -= dt;
   B.shake = Math.max(0, B.shake - dt * 12);
+  B.flashT = Math.max(0, B.flashT - dt);
   B.clock += dt;
   for (const f of B.fighters) f.fallT = Math.max(0, f.fallT - dt);
 }
@@ -476,13 +479,14 @@ function shade(hex, f) {
 }
 
 function drawSprite(ctx, o) {
-  // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,bash,guard,flash,down,falling,yielded,snare,slash,cheer}
+  // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,windP,recoil,bash,guard,flash,down,falling,yielded,snare,cheer,shadow}
   if (o.g.beast) { drawBeast(ctx, o); return; }
   const g = o.g, c = CLASSES[g.cls], cls = g.cls, d = o.facing;
   const look = gearLook(g), armorT = look.armor, weaponT = look.weapon;
   const X = Math.round(o.x), Y = Math.round(o.y) - (o.cheer && Math.sin(o.cheer * 9) > 0.3 ? 2 : 0);
   const white = o.flash > 0;
-  const P = (x, y, w, h, col) => { ctx.fillStyle = white ? '#fff' : col; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
+  let lean = 0;       // sideways shift of everything above the hips: into a blow, back from a hit
+  const P = (x, y, w, h, col) => { ctx.fillStyle = white ? '#fff' : col; ctx.fillRect(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h); };
   const L = (x0, y0, x1, y1, w, col) => {
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)), o2 = w >> 1;
     for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; P(Math.round(x0 + (x1 - x0) * t) - o2, Math.round(y0 + (y1 - y0) * t) - o2, w, w, col); }
@@ -501,8 +505,11 @@ function drawSprite(ctx, o) {
   const arm = manica ? '#cfc4a6' : skin, armD = manica ? '#a2977a' : skinD;
   const seed = g.id * 7919 % 97;
 
-  ctx.fillStyle = 'rgba(0,0,0,.2)';
-  ctx.fillRect(X - 9, Y - 2, 18, 3); ctx.fillRect(X - 6, Y + 1, 12, 1);
+  // shadow: a pool under the feet, drawn out along the ground when the light is low
+  const sh = o.shadow || { len: 0, a: 0.2 };
+  ctx.fillStyle = `rgba(0,0,0,${sh.a})`;
+  ctx.fillRect(X - 9, Y - 2, 18 + sh.len, 3); ctx.fillRect(X - 6, Y + 1, 12 + sh.len, 1);
+  if (sh.len) { ctx.fillRect(X - 5, Y - 3, 12 + sh.len, 1); ctx.fillRect(X + 9 + sh.len, Y - 2, 3, 2); }
 
   // ---- lying on the sand ----
   if (o.down && !o.falling) {
@@ -521,9 +528,12 @@ function drawSprite(ctx, o) {
 
   // ---- pose ----
   const kneel = o.yielded || o.falling;
-  const frame = o.moving ? Math.floor(o.walk) % 4 : -1;
-  const by = kneel ? 8 : (o.moving ? frame % 2 : (Math.sin((o.clock || 0) * 2.6) > 0.55 ? 1 : 0));
-  const pose = kneel ? 'kneel' : o.cheer ? 'cheer' : o.windup ? 'windup' : o.atkAnim > 0.35 ? 'strike' : 'idle';
+  const ph = (o.walk || 0) * Math.PI / 2;                       // walk cycle: one stride every four units of o.walk
+  const by = kneel ? 8 : (o.moving ? (Math.abs(Math.sin(ph)) > 0.7 ? 1 : 0) : (Math.sin((o.clock || 0) * 2.6) > 0.55 ? 1 : 0));
+  const striking = !kneel && !o.cheer && !o.windup && o.atkAnim > 0.45;
+  // lean forward on the move and into a blow; rock back while winding up or when struck
+  const leanAmt = kneel ? 0 : (o.moving ? 1 : 0) + (striking ? 2 : o.atkAnim > 0 && !o.windup ? 1 : 0) - (o.windup ? 1 : 0) - Math.round((o.recoil || 0) * 2);
+  const sway = (o.moving ? -1 : 0) + (Math.sin((o.clock || 0) * 3.1 + seed) > 0.6 ? -1 : 0) - (striking ? 1 : 0);   // crests and plumes trail behind
 
   // ---- legs ----
   const greave = (x, lift, tall) => { P(x, (tall ? -10 : -8) - lift, 4, tall ? 9 : 7, metal); P(x + 1, (tall ? -10 : -8) - lift, 1, tall ? 9 : 7, metalL); };
@@ -538,16 +548,17 @@ function drawSprite(ctx, o) {
     P(-9, -3, 10, 3, skinD); P(-11, -3, 2, 3, leather);       // rear shin flat on the sand
     P(-1, -8, 4, 6, skin); P(1, -3, 6, 3, skin); P(6, -2, 3, 2, leather);
   } else {
-    const fdx = o.moving ? [2, 0, -2, 0][frame] : 0;
+    const fdx = o.moving ? Math.round(Math.sin(ph) * 2.5) : striking ? 2 : 0;       // a stride, or a step into the blow
     const gFront = cls === 'murmillo' ? 1 : (cls === 'thraex' || cls === 'hoplomachus') ? 2 : look.legs ? 1 : 0;
     const gBack = (cls === 'thraex' || cls === 'hoplomachus') ? 2 : look.legs ? 1 : 0;
-    leg(-4 - fdx, o.moving && frame === 1 ? 1 : 0, true, gBack);
-    leg(0 + fdx, o.moving && frame === 3 ? 1 : 0, false, gFront);
+    leg(-4 - fdx, o.moving ? Math.max(0, Math.round(-Math.cos(ph) * 1.6)) : 0, true, gBack);
+    leg(0 + fdx, o.moving ? Math.max(0, Math.round(Math.cos(ph) * 1.6)) : 0, false, gFront);
   }
 
   // ---- hips and belt ----
   P(-5, -16 + (kneel ? 8 : 0), 10, 4, cloth); P(-5, -13 + (kneel ? 8 : 0), 10, 1, clothD);
-  if (!kneel) { P(1, -12, 3, 3, cloth); P(1, -9, 3, 1, clothD); }
+  if (!kneel) { const fl = o.moving ? Math.round(Math.sin(ph + 1.2)) : 0; P(1 + fl, -12, 3, 3, cloth); P(1 + fl, -9, 3, 1, clothD); }
+  lean = leanAmt;
   P(-5, -18 + by, 10, 2, team); P(-5, -17 + by, 10, 1, teamD);
   P(-3, -18 + by, 1, 1, gold); P(0, -18 + by, 1, 1, gold); P(3, -18 + by, 1, 1, gold);
 
@@ -581,14 +592,15 @@ function drawSprite(ctx, o) {
     P(-5, -34 + by, 11, 1, metalL); P(-5, -33 + by, 2, 3, metal); P(-2, -30 + by, 5, 1, metalD);
     if (cls === 'murmillo') {            // tall fin crest
       P(-4, -39 + by, 8, 1, metalD);
-      P(-5, -42 + by, 8, 3, team); P(-4, -43 + by, 6, 1, teamL); P(3, -41 + by, 1, 2, team);
-      P(-4, -42 + by, 1, 3, teamD); P(-2, -42 + by, 1, 3, teamD); P(0, -42 + by, 1, 3, teamD); P(2, -41 + by, 1, 2, teamD);
+      P(-5, -40 + by, 8, 1, team); P(-5 + sway, -42 + by, 8, 2, team); P(-4 + sway, -43 + by, 6, 1, teamL); P(3, -41 + by, 1, 2, team);
+      P(-4 + sway, -42 + by, 1, 2, teamD); P(-2 + sway, -42 + by, 1, 2, teamD); P(0 + sway, -42 + by, 1, 2, teamD); P(-4, -40 + by, 1, 1, teamD); P(-2, -40 + by, 1, 1, teamD); P(0, -40 + by, 1, 1, teamD); P(2, -41 + by, 1, 2, teamD);
     } else if (cls === 'thraex') {       // griffin hook with a plume behind it
-      P(-5, -42 + by, 4, 4, team); P(-6, -41 + by, 1, 5, teamD); P(-4, -43 + by, 2, 1, teamL);
+      P(-5, -40 + by, 4, 2, team); P(-5 + sway, -42 + by, 4, 2, team); P(-6, -41 + by, 1, 5, teamD); P(-4 + sway, -43 + by, 2, 1, teamL);
       P(0, -41 + by, 2, 3, metal); P(1, -43 + by, 3, 2, metal); P(4, -42 + by, 1, 2, metalL); P(2, -42 + by, 1, 1, ink);
     } else {                             // feathers
-      P(-1, -44 + by, 2, 6, '#f0ead8'); P(-3, -43 + by, 2, 5, '#f0ead8'); P(1, -42 + by, 2, 4, '#d8d0b8');
-      P(-1, -45 + by, 2, 1, team); P(-3, -44 + by, 2, 1, team); P(1, -43 + by, 2, 1, team); P(-5, -41 + by, 2, 3, '#d8d0b8');
+      P(-1, -42 + by, 2, 4, '#f0ead8'); P(-3, -41 + by, 2, 3, '#f0ead8'); P(1, -40 + by, 2, 2, '#d8d0b8');
+      P(-1 + sway, -44 + by, 2, 2, '#f0ead8'); P(-3 + sway, -43 + by, 2, 2, '#f0ead8'); P(1 + sway, -42 + by, 2, 2, '#d8d0b8');
+      P(-1 + sway, -45 + by, 2, 1, team); P(-3 + sway, -44 + by, 2, 1, team); P(1 + sway, -43 + by, 2, 1, team); P(-5, -41 + by, 2, 3, '#d8d0b8');
     }
   } else {
     P(-3, -36 + by, 7, 7, skin); P(-3, -30 + by, 7, 1, skinD); P(-3, -36 + by, 1, 7, skinD);
@@ -613,16 +625,31 @@ function drawSprite(ctx, o) {
     else { L(2, -26 + by, 4, -19 + by, 3, arm); P(4, -19 + by, 2, 2, skin); }
   } else {
     // ---- weapon arm ----
+    // Key poses for elbow (e), hand (h) and the direction the weapon points (v). The arm eases between
+    // them: drawn back through the wind-up, snapped forward on the blow, then carried back to guard.
     const long = c.weapon === 'spear' || c.weapon === 'trident';
-    const A = {
-      idle:   long ? { e: [1, -22], h: [4, -22], v: [0.97, -0.24] } : { e: [-4, -22], h: [-5, -26], v: [0.22, -0.97] },   // sword held high behind the shoulder
+    const K = long ? {
+      idle:   { e: [1, -22],  h: [4, -22],  v: [0.97, -0.24] },
+      windup: { e: [-4, -25], h: [-7, -27], v: [0.97, -0.24] },
+      strike: { e: [4, -24],  h: [9, -24],  v: [1, 0] },
+      cheer:  { e: [-1, -31], h: [1, -36],  v: [0, -1] },
+    } : {
+      idle:   { e: [-4, -22], h: [-5, -26], v: [0.22, -0.97] },     // sword held high behind the shoulder
       windup: { e: [-4, -25], h: [-6, -29], v: [-0.35, -0.94] },
-      strike: { e: [3, -24], h: [8, -24], v: [1, 0] },
-      cheer:  { e: [-1, -31], h: [1, -36], v: [0, -1] },
-    }[pose];
+      strike: { e: [3, -24],  h: [8, -24],  v: [1, 0] },
+      cheer:  { e: [-1, -31], h: [1, -36],  v: [0, -1] },
+    };
+    const mix = (a, b, t) => ({ e: [a.e[0] + (b.e[0] - a.e[0]) * t, a.e[1] + (b.e[1] - a.e[1]) * t], h: [a.h[0] + (b.h[0] - a.h[0]) * t, a.h[1] + (b.h[1] - a.h[1]) * t], v: [a.v[0] + (b.v[0] - a.v[0]) * t, a.v[1] + (b.v[1] - a.v[1]) * t] });
+    const ease = t => t * t * (3 - 2 * t);
+    let A = K.idle;
+    if (o.cheer) A = K.cheer;
+    else if (o.windup) A = mix(K.idle, K.windup, ease(o.windP === undefined ? 1 : o.windP));
+    else if (o.atkAnim > 0.45) A = K.strike;
+    else if (o.atkAnim > 0) A = mix(K.strike, K.idle, ease(1 - o.atkAnim / 0.45));
+    A = { e: [Math.round(A.e[0]), Math.round(A.e[1])], h: [Math.round(A.h[0]), Math.round(A.h[1])], v: A.v };
+    const vn = Math.hypot(A.v[0], A.v[1]) || 1;
     const hx = A.h[0], hy = A.h[1] + by;
-    let vx = A.v[0], vy = A.v[1];
-    if (long && pose !== 'cheer') { vx = pose === 'strike' ? 1 : 0.97; vy = pose === 'strike' ? 0 : -0.24; }
+    const vx = A.v[0] / vn, vy = A.v[1] / vn;
     let tx, ty;
     if (long) {
       const ax = hx - vx * 9, ay = hy - vy * 9, bx = hx + vx * 12, bY = hy + vy * 12;
@@ -649,7 +676,14 @@ function drawSprite(ctx, o) {
     L(-1, -26 + by, A.e[0], A.e[1] + by, 3, arm); L(A.e[0], A.e[1] + by, hx, hy, 3, arm);
     if (manica) P(A.e[0] - 1, A.e[1] + by - 1, 3, 1, armD);
     P(hx - 1, hy - 1, 3, 3, skin); P(hx - 1, hy + 1, 3, 1, skinD);
-    if (o.slash > 0) { P(Math.round(tx) + 1, Math.round(ty) - 5, 1, 11, '#ffffff'); P(Math.round(tx), Math.round(ty) - 3, 1, 7, 'rgba(255,255,255,.55)'); P(Math.round(tx) + 2, Math.round(ty) - 2, 1, 5, 'rgba(255,255,255,.55)'); }
+    if (striking && o.atkAnim > 0.55) {          // the sweep of the blow: a fading trail from the wind-up to the strike
+      const reach = long ? 16 : c.weapon === 'gladius' ? 9 : 7;
+      for (let i = 1; i <= 5; i++) {
+        const t = i / 6, m = mix(K.windup, K.strike, t), n = Math.hypot(m.v[0], m.v[1]) || 1;
+        P(Math.round(m.h[0] + m.v[0] / n * reach), Math.round(m.h[1] + by + m.v[1] / n * reach - Math.sin(t * Math.PI) * 3), 2, 2, `rgba(255,255,255,${(0.1 + t * 0.5).toFixed(2)})`);
+      }
+      P(Math.round(tx) + 1, Math.round(ty) - 3, 1, 7, 'rgba(255,255,255,.8)');
+    }
 
     // ---- off hand: shield, net or second blade ----
     const so = o.bash ? 4 : o.guard > 0 ? 2 : 0, sy = (o.guard > 0 ? -3 : 0) + by;
@@ -673,7 +707,7 @@ function drawSprite(ctx, o) {
       for (let y = -19; y <= -11; y += 2) P(5 + (y & 2 ? 0 : 1), y + by, 1, 1, '#8f8363');
       P(7, -19 + by, 1, 1, '#8f8363'); P(7, -15 + by, 1, 1, '#8f8363');
     } else {
-      const up = pose === 'strike';
+      const up = striking;
       const fx = up ? 4 : 7, fy = (up ? -24 : -20) + by, wx = up ? 0.25 : 0.8, wy = up ? -0.97 : -0.6;
       L(fx + wx, fy + wy, fx + wx * 7, fy + wy * 7, 2, blade); L(fx + wx, fy + wy, fx + wx * 7, fy + wy * 7, 1, bladeD);
       P(Math.round(fx - wy) - 1, Math.round(fy + wx) - 1, 2, 2, hilt);
@@ -681,6 +715,7 @@ function drawSprite(ctx, o) {
     }
   }
 
+  lean = 0;
   // ---- snared in the net ----
   if (o.snare > 0) {
     ctx.fillStyle = 'rgba(232,220,180,.75)';
@@ -804,6 +839,8 @@ function drawSpectator(ctx, p, up) {
   if (up && p.arms) { ctx.fillStyle = p.skin; ctx.fillRect(p.x - 1, p.y - 10 - up, 1, 4); ctx.fillRect(p.x + 4, p.y - 10 - up, 1, 4); }
 }
 
+const ARENA_TORCHES = [24, 132, 294, 402];      // x of each wall torch, in sprite pixels
+
 // Everything that does not move is painted once per fight onto its own canvas (428x240 sprite pixels).
 function renderBackdrop(B) {
   const th = B.theme, cv = document.createElement('canvas');
@@ -856,9 +893,13 @@ function renderBackdrop(B) {
   if (th.banners) for (const x of [108, 150, 266, 308]) banner(x, '#d9a441', '#a87a26');
   // sand
   R(0, 86, 428, 154, th.sand);
-  R(0, 86, 428, 3, 'rgba(60,35,10,.3)'); R(0, 89, 428, 3, 'rgba(60,35,10,.12)');
   const sd = shade(th.sand, 0.9), sl = shade(th.sand, 1.12);
   for (const s of B.specks) R(s.x, s.y, s.w, 1, s.c ? sd : sl);
+  // the wall's shade falls across the near sand, further when the sun is low
+  const bands = B.light === 'dusk' ? 9 : 5;
+  for (let i = 0; i < bands; i++) R(0, 86 + i * 4, 428, 4, `rgba(50,28,8,${(0.34 * (1 - i / bands)).toFixed(3)})`);
+  // torch brackets along the wall; the flames are drawn live
+  for (const x of ARENA_TORCHES) { R(x, 70, 2, 9, '#3a2a1c'); R(x - 2, 69, 6, 2, '#5a4334'); }
   return cv;
 }
 
@@ -881,18 +922,41 @@ function drawBattle(ctx, B) {
   ctx.fillStyle = '#8e1b14';
   for (const s of B.stains) ctx.fillRect(Math.round(s.x * 2), Math.round(s.y * 2), s.w * 2, 2);
 
+  const dusk = B.light === 'dusk';
+  const shadow = dusk ? { len: 16, a: 0.3 } : { len: 5, a: 0.22 };
   const flat = f => f.down && f.fallT <= 0;
   const sorted = B.fighters.slice().sort((a, b) => (flat(a) === flat(b) ? a.y - b.y : flat(a) ? -1 : 1));
   for (const f of sorted) {
     drawSprite(ctx, {
       x: f.x * 2, y: f.y * 2, facing: f.facing, g: f.g, team: f.team, col: B.col[f.team], colD: B.colD[f.team],
       moving: f.moving, walk: f.walk, clock: T + f.walk, atkAnim: f.atkAnim,
-      windup: f.state === 'windup', bash: f.state === 'windup' && f.move === 'bash', guard: f.guard,
+      windup: f.state === 'windup', windP: f.t0 ? clamp(1 - f.t / f.t0, 0, 1) : 1,
+      recoil: clamp(Math.abs(f.kx) / 40, 0, 1), shadow,
+      bash: f.state === 'windup' && f.move === 'bash', guard: f.guard,
       flash: f.flash, down: f.down, falling: f.fallT > 0, yielded: f.yielded, snare: f.snare, slash: f.slash,
       cheer: B.over && !out(f) && f.team === B.winner && B.slowmo <= 0 ? T + f.walk : 0,
     });
   }
   for (const p of B.parts) { ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 2, 2); }
+
+  // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
+  if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
+  for (const x of ARENA_TORCHES) {
+    const fl = Math.sin(T * 13 + x) > 0 ? 1 : 0;
+    if (dusk) {                       // lit: a flame, a halo, and a pool of light on the sand below
+      ctx.globalCompositeOperation = 'lighter';
+      const k = 0.85 + Math.sin(T * 9 + x) * 0.15;
+      for (let i = 0; i < 7; i++) { const r = 34 - i * 4; ctx.fillStyle = `rgba(255,150,60,${(0.035 * k).toFixed(3)})`; ctx.fillRect(x + 1 - r, 66 - r * 0.7, r * 2, r * 1.4); }
+      for (let i = 0; i < 7; i++) { const w = 62 - i * 8, h = 26 - i * 3; ctx.fillStyle = `rgba(255,170,80,${(0.028 * k).toFixed(3)})`; ctx.fillRect(x + 1 - w / 2, 87 + i, w, h); }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#e2702a'; ctx.fillRect(x - 1, 63 - fl, 4, 6 + fl); ctx.fillStyle = '#f5c04a'; ctx.fillRect(x, 64 - fl, 2, 4); ctx.fillStyle = '#fff0b0'; ctx.fillRect(x, 66, 1, 2);
+    } else { ctx.fillStyle = '#2a1c14'; ctx.fillRect(x - 1, 66, 4, 3); }
+  }
+  for (let i = 0; i < 4; i++) {       // the edges fall away into shade
+    ctx.fillStyle = `rgba(20,10,4,${(0.05 * (dusk ? 1.6 : 1)).toFixed(3)})`;
+    ctx.fillRect(0, 86, 14 - i * 3, 154); ctx.fillRect(428 - 14 + i * 3, 86, 14 - i * 3, 154); ctx.fillRect(0, 240 - 10 + i * 2, 428, 10 - i * 2);
+  }
+  if (B.flashT > 0) { ctx.fillStyle = `rgba(255,250,235,${Math.min(0.2, B.flashT * 1.8).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
 
   // ---- world-unit layer: nets, bars, floating text ----
   ctx.setTransform(WORLD, 0, 0, WORLD, shx, shy);
