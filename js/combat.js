@@ -784,8 +784,8 @@ function drawBeast(ctx, o) {
   }
 }
 
-// Small canvases get a bust; large ones (the dossier) show the whole fighter.
-function drawPortrait(canvas, g, team, col, colD) {
+// The arena sprite on a portrait canvas. Beasts still use this; fighters get a close-up (art.js).
+function drawSpritePortrait(canvas, g, team, col, colD) {
   const ctx = canvas.getContext('2d');
   const full = canvas.width >= 100;
   const s = full ? 3 : Math.max(2, Math.round(canvas.width / 18));

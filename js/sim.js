@@ -118,7 +118,7 @@ function makeGladiator(budget, o) {
     traits, hp: 0, fatigue: 0, morale: 60, injury: 0,
     activity: 'rest', tactic: 'balanced', weapon: o.weapon || 0, armor: o.armor || 0, gear: null,
     wins: 0, losses: 0, kills: 0, fame: 0, foughtDay: -1,
-    story: [], wish: null, lostTo: null, promise: null,
+    story: [], wish: null, lostTo: null, promise: null, scars: [],
     xp: 0, rank: 0, perkPending: 0, perkOffer: null,
     look: { skin: origin.skin, hair: pick(origin.hair) },
   };
@@ -211,6 +211,7 @@ function migrate() {
     g.weapon = 0; g.armor = 0;
   });
   if (!G.smith) { G.smith = { level: 0, stock: [] }; genSmith(); }
+  G.roster.forEach(g => { if (!g.scars) { g.scars = []; for (let i = 0; i < Math.min(3, g.losses); i++) g.scars.push({ k: i ? 'cut' : 'deep', p: (g.id + i * 2) % 6 }); } });
   G.roster.concat(G.market).forEach(g => { if (!g.story) { g.story = []; g.wish = null; g.lostTo = null; g.promise = null; } });
   if (!G.tut) G.tut = { step: 0, on: false };
   if (!G.festival) scheduleFestival();
@@ -579,6 +580,11 @@ function upgradeSmith() {
 
 // ---------- fighter stories: histories, friendships, rivalries, vows ----------
 
+// A wound that will show on his portrait for good. k: cut, deep, claw or arm; p picks where it falls.
+function addScar(g, k) {
+  if (!g.scars) g.scars = [];
+  if (g.scars.length < 7) g.scars.push({ k, p: rint(0, 5) });
+}
 function addStory(g, t) {
   if (!g.story) g.story = [];
   g.story.push({ d: G.day, t });
@@ -1011,17 +1017,17 @@ function applyBoutResult(bout, B, wager, pay) {
       }
       if (f.hp > 0) {
         g.hp = Math.max(1, Math.round(f.hp));
-        g.injury = rint(1, 3);
+        g.injury = rint(1, 3); addScar(g, 'cut');
         lines.push(`<b>${g.name}</b> yields, and the crowd lets him live. Wounded for ${g.injury} day${g.injury === 1 ? "" : "s"}.`);
       } else {
       g.hp = Math.max(1, Math.round(maxHp(g) * 0.1));
-      g.injury = Math.max(1, Math.round(rint(3, 7) * (g.traits.includes('frail') ? 1.5 : 1)) - G.fac.infirmary);
+      g.injury = Math.max(1, Math.round(rint(3, 7) * (g.traits.includes('frail') ? 1.5 : 1)) - G.fac.infirmary); addScar(g, bout.hunt ? 'claw' : 'deep');
       lines.push(`<b>${g.name}</b> ${bout.hunt ? 'is dragged clear by the handlers, badly mauled' : 'falls, but the crowd grants mercy'}. Wounded for ${g.injury} day${g.injury === 1 ? "" : "s"}.`);
       }
     } else {
       g.hp = Math.max(1, Math.round(f.hp));
       if (f.hamstrung || f.armWound) {
-        g.injury = rint(1, 2);
+        g.injury = rint(1, 2); addScar(g, f.armWound ? 'arm' : 'cut');
         lines.push(`<b>${g.name}</b> carries a wound out of the arena. Resting for ${g.injury} day${g.injury === 1 ? "" : "s"}.`);
       }
     }

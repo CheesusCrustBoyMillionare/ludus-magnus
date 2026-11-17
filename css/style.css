@@ -263,6 +263,7 @@ select { background: #241a14; border: 1px solid var(--edge); box-shadow: inset 0
 .statrow { grid-template-columns: minmax(104px, auto) 24px minmax(30px, 1fr) auto; }
 .statname { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .statname small { flex-basis: 100%; margin-left: 28px; margin-top: -4px; }
+.gcard { grid-template-columns: 96px 1fr; gap: 12px; }
 .itemart { image-rendering: pixelated; display: block; flex: none; box-shadow: 0 2px 0 #0008; }
 .itemhead { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
 .gearlist { grid-template-columns: 30px 1fr; align-items: center; }

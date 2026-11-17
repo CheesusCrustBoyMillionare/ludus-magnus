@@ -208,7 +208,7 @@ function gladCard(g) {
       <div class="acts"><span class="lbl">Rest</span><div>${actBtn(ACT_BUTTONS[0])}</div>
       <span class="lbl">Train</span><div>${ACT_BUTTONS.slice(1).map(actBtn).join('')}</div></div>`;
   return `<div class="panel gcard ${ui.sel === g.id ? 'sel' : ''}" data-act="sel" data-v="${g.id}">
-    <canvas width="72" height="84" data-portrait="${g.id}"></canvas>
+    <canvas width="96" height="112" data-portrait="${g.id}"></canvas>
     <div>
       <div class="name">${g.name}</div>
       <div class="sub">${RANKS[g.rank].name} &middot; ${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</div>
@@ -237,12 +237,19 @@ function traitList(g) {
     : '<div class="dim">No notable traits.</div>';
 }
 
+// What the portrait is showing, in words: his mood and the marks he carries.
+function faceTip(g) {
+  const mood = { hurt: 'Bandaged and in pain.', angry: 'There is anger in his face.', weary: 'He is worn out.', low: 'His spirits are low.', proud: 'He holds his head high.', grim: 'He gives nothing away.' }[moodOf(g)];
+  const n = scarsOf(g).length;
+  return mood + (n ? ` He carries ${n} scar${n === 1 ? '' : 's'} from the arena.` : ' No blade has marked him yet.');
+}
+
 function gladDetail(g) {
   const c = CLASSES[g.cls];
   const tac = Object.entries(TACTICS).map(([k, t]) => `<option value="${k}" ${g.tactic === k ? 'selected' : ''}>${t.name}</option>`).join('');
   return `<div class="panel">
     <div class="row" style="align-items:flex-start">
-      <canvas class="portrait" width="120" height="140" data-portrait="${g.id}"></canvas>
+      <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
       <div style="flex:1;min-width:180px">
         <h2 style="margin-bottom:2px">${g.name}</h2>
         <div>${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin}</div>
@@ -336,7 +343,7 @@ function viewMarket() {
   const full = G.roster.length >= capacity();
   const cards = G.market.map(g => `<div class="panel">
       <div class="row" style="align-items:flex-start">
-        <canvas class="portrait" width="72" height="84" data-mportrait="${g.id}"></canvas>
+        <canvas class="portrait" width="96" height="112" data-mportrait="${g.id}"></canvas>
         <div style="flex:1"><div style="font-size:16px">${g.name}</div>
           <div class="dim" style="font-size:13px">${CLASSES[g.cls].name} of ${g.origin}</div>
           <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div></div>

@@ -126,3 +126,234 @@ const ic = name => `<i class="ic ic-${name}"></i>`;
   st.textContent = rules.join('\n');
   document.head.appendChild(st);
 })();
+
+// ---------- close-up portraits ----------
+// A bust drawn on a 48x56 grid and scaled up to whatever canvas it is given. The face is built from
+// the fighter himself: features from his id, expression from his morale, fatigue and injuries, scars
+// from the wounds he has taken, and each piece of kit he wears drawn in its own material.
+
+// What his face is doing today. The worst thing wins.
+function moodOf(g) {
+  if (g.injury > 0) return 'hurt';
+  if (g.traits.includes('embittered') || (g.wish && g.wish.type === 'avenge')) return 'angry';
+  if (g.fatigue >= 70) return 'weary';
+  if (g.morale < 35) return 'low';
+  if (g.morale >= 75) return 'proud';
+  return 'grim';
+}
+// Fighters with a recorded history carry exactly those scars; anyone else (rivals, men at market)
+// gets a few that fit his record.
+function scarsOf(g) {
+  if (g.scars) return g.scars;
+  const n = Math.min(3, Math.floor(((g.losses || 0) + (g.rank || 0)) / 2)), out = [];
+  for (let i = 0; i < n; i++) out.push({ k: (g.id + i) % 4 === 0 ? 'deep' : 'cut', p: (g.id * 3 + i * 5) % 6 });
+  return out;
+}
+// The material of whatever fills a slot: the item itself, or the old numbered tiers rivals still use.
+function slotMat(g, slot, look) {
+  if (g.gear) return g.gear[slot] ? ITEM_MAT[g.gear[slot].r] : null;
+  const t = slot === 'weapon' ? look.weapon : slot === 'head' ? look.head : slot === 'chest' ? look.armor : slot === 'arms' ? (look.arms ? 1 : 0) : 0;
+  return t ? ITEM_MAT[[0, 2, 3, 4][t]] : null;
+}
+
+function drawBust(ctx, g, col, colD) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+  const M2 = (x, y, w, h, c) => { R(x, y, w, h, c); R(48 - x - w, y, w, h, c); };            // both sides of the face
+  const seed = g.id * 7919 % 97, mood = moodOf(g), look = gearLook(g);
+  const skin = g.look.skin, skinD = shade(skin, 0.8), skinDD = shade(skin, 0.62), skinL = shade(skin, 1.16);
+  const hair = g.look.hair, hairD = shade(hair, 0.7), hairL = shade(hair, 1.25), ink = '#1c1310';
+  const team = col || TEAM_COL[0], teamD = colD || shade(team, 0.7), teamL = shade(team, 1.3);
+  const wood = '#7a5a2a', woodD = '#5e4222', leather = '#6b4526', leatherD = '#4a2f1a';
+  const hurt = mood === 'hurt';
+  const mHead = hurt ? null : slotMat(g, 'head', look), mChest = slotMat(g, 'chest', look);
+  const mArms = slotMat(g, 'arms', look), mSh = slotMat(g, 'shoulders', look), mWep = slotMat(g, 'weapon', look);
+  const build = g.stats.str >= 14 ? 2 : g.stats.str >= 8 ? 1 : 0;
+  const jaw = seed % 3;                                   // 0 square, 1 even, 2 narrow
+
+  // wall behind him, darker toward the edges
+  R(0, 0, 48, 56, '#54433a');
+  for (let y = 5, r = 0; y < 56; y += 7, r++) { R(0, y, 48, 1, '#483930'); for (let x = r % 2 ? 5 : 13; x < 48; x += 16) R(x, y - 6, 1, 6, '#483930'); }
+  R(0, 0, 48, 3, 'rgba(0,0,0,.28)'); R(0, 0, 3, 56, 'rgba(0,0,0,.2)'); R(45, 0, 3, 56, 'rgba(0,0,0,.2)'); R(16, 6, 16, 34, 'rgba(255,220,160,.06)');
+
+  // his weapon, held upright behind the shoulder
+  const weapon = (x, flip) => {
+    const W = mWep || { m: '#a07a44', d: woodD, l: '#c49a5c', t: woodD };       // no item: a wooden practice piece
+    const F = (dx, y, w, h, c) => R(flip ? x + 3 - dx - w + 1 : x + dx, y, w, h, c);
+    if (g.cls === 'retiarius') {
+      F(1, 16, 2, 30, wood); F(2, 16, 1, 30, woodD); F(-2, 14, 8, 2, W.d);
+      F(-2, 5, 1, 9, W.m); F(1, 3, 2, 11, W.m); F(5, 5, 1, 9, W.m); F(1, 3, 1, 8, W.l); F(-2, 4, 1, 1, W.l); F(5, 4, 1, 1, W.l);
+    } else if (g.cls === 'hoplomachus') {
+      F(1, 15, 2, 31, wood); F(2, 15, 1, 31, woodD); F(0, 13, 4, 2, W.t);
+      F(1, 3, 2, 10, W.m); F(0, 6, 4, 5, W.m); F(1, 3, 1, 9, W.l); F(3, 7, 1, 4, W.d);
+    } else if (g.cls === 'thraex') {
+      F(0, 12, 4, 26, W.m); F(0, 12, 1, 26, W.l); F(3, 12, 1, 26, W.d);
+      F(1, 8, 4, 4, W.m); F(3, 5, 3, 3, W.m); F(5, 3, 2, 2, W.m); F(1, 8, 1, 4, W.l);
+      F(-2, 38, 8, 2, W.t); F(0, 40, 4, 6, leather);
+    } else {
+      F(0, 10, 4, 28, W.m); F(0, 10, 1, 28, W.l); F(3, 10, 1, 28, W.d); F(1, 7, 2, 3, W.m); F(1, 5, 1, 2, W.l); F(2, 14, 1, 20, W.d);
+      F(-2, 38, 8, 2, W.t); F(0, 40, 4, 6, leather);
+    }
+  };
+  weapon(3, false);
+  if (g.cls === 'dimachaerus') weapon(41, true);
+
+  // long hair falls behind the neck
+  const style = seed % 3;
+  if (style === 2 && !mHead) { M2(11, 16, 4, 24, hairD); M2(12, 14, 3, 4, hair); M2(12, 30, 2, 8, hair); }
+
+  // neck and shoulders
+  R(19, 33, 10, 10, skin); R(26, 33, 3, 10, skinD); R(19, 36, 10, 2, skinDD); R(19, 38, 8, 1, skinD);
+  const sh = [7, 11, 15, 18, 19 + build];
+  for (let y = 39; y < 56; y++) { const w = sh[Math.min(y - 39, 4)]; R(24 - w, y, w * 2, 1, skin); R(24 + w - 4, y, 4, 1, skinD); }
+  R(24 - 15, 41, 6, 1, skinL); R(24 - 18, 43, 5, 1, skinL);
+  M2(14, 44, 8, 1, skinD); R(23, 45, 2, 11, skinD); M2(11, 51, 11, 1, skinD); M2(12, 52, 9, 1, skinDD);
+  if (build === 2) M2(9, 46, 1, 6, skinD);
+
+  // scars on the body show only where no armour covers them
+  const scars = scarsOf(g);
+  const scarC = shade(skin, 0.58), scarL = shade(skin, 1.22);
+  if (!mChest) scars.forEach(s => {
+    if (s.k === 'claw') for (let i = 0; i < 3; i++) for (let j = 0; j < 6; j++) R((s.p % 2 ? 28 : 10) + i * 3 + (j >> 1), 45 + j, 1, 1, scarC);
+    if (s.k === 'arm') for (let j = 0; j < 6; j++) { R((s.p % 2 ? 37 : 8) + (j >> 1), 44 + j, 1, 1, scarC); R((s.p % 2 ? 38 : 9) + (j >> 1), 44 + j, 1, 1, scarL); }
+  });
+
+  // chest: a cuirass in the metal of the piece, or bare skin under a sword belt
+  if (mChest) {
+    const C = mChest;
+    for (let y = 43; y < 56; y++) { const w = Math.min(sh[4] - 3, 12 + (y - 43)); R(24 - w, y, w * 2, 1, C.m); R(24 + w - 3, y, 3, 1, C.d); R(24 - w, y, 1, 1, C.d); }
+    R(18, 43, 12, 1, C.t); R(19, 44, 10, 1, C.d); R(21, 45, 6, 1, C.d);
+    M2(13, 48, 8, 1, C.l); M2(12, 52, 10, 1, C.d); R(23, 46, 2, 10, C.d); M2(15, 45, 2, 3, C.t); M2(15, 45, 1, 1, C.l);
+    if (g.gear && g.gear.chest && g.gear.chest.r >= 4) { R(21, 49, 6, 4, C.t); R(22, 50, 4, 2, C.l); R(23, 50, 2, 2, C.t); }
+  } else {
+    for (let i = 0; i < 16; i++) { R(11 + i * 2, 43 + i, 3, 2, leather); R(11 + i * 2, 44 + i, 3, 1, leatherD); }
+    R(23, 48, 3, 3, '#c8913c'); R(24, 49, 1, 1, '#e8b860');
+  }
+  // arm guard: padded, strapped sleeve on the sword arm
+  if (mArms) {
+    const A = mArms, x0 = 24 - sh[4];
+    for (let y = 47; y < 56; y++) { R(x0, y, 6, 1, (y - 47) % 3 === 2 ? A.d : A.m); R(x0, y, 1, 1, A.l); }
+    R(x0, 46, 6, 1, A.t);
+  }
+  // shoulder guards: layered plates over each shoulder
+  if (mSh) {
+    const S = mSh;
+    M2(24 - sh[4] - 1, 41, 11, 2, S.m); M2(24 - sh[4] - 2, 43, 12, 2, S.m); M2(24 - sh[4] - 2, 45, 11, 2, S.m);
+    M2(24 - sh[4] - 1, 42, 11, 1, S.d); M2(24 - sh[4] - 2, 44, 12, 1, S.d); M2(24 - sh[4] - 2, 46, 11, 1, S.d);
+    R(24 - sh[4], 41, 6, 1, S.l); M2(24 - sh[4] + 8, 40, 2, 2, S.t);
+  }
+  // neck cloth in his house's colour
+  R(18, 40, 12, 2, team); R(18, 41, 12, 1, teamD); R(20, 42, 8, 1, teamD); R(18, 40, 5, 1, teamL);
+
+  // head
+  const hw = y => y < 11 ? 0 : y === 11 ? 5 : y === 12 ? 7 : y === 13 ? 8 : y <= 28 ? 9
+    : [[9, 9, 8, 8, 7, 6, 5], [9, 8, 8, 7, 6, 5, 4], [8, 8, 7, 6, 5, 4, 3]][jaw][y - 29];
+  M2(13, 22, 3, 6, skinD); M2(14, 23, 1, 4, skinDD); R(13, 22, 2, 1, skin);                       // ears
+  for (let y = 11; y <= 35; y++) { const w = hw(y); R(24 - w, y, w * 2, 1, skin); R(24 + w - 3, y, 3, 1, skinD); R(24 - w, y, 1, 1, skinD); }
+  R(17, 15, 4, 2, skinL); R(16, 26, 3, 2, skinL);                                                 // light on brow and cheek
+  M2(16, 28, 2, 1, skinD);                                                                        // cheekbones
+
+  // nose and mouth
+  const nose = seed % 4;
+  R(23, 22, 2, 7, skin); R(25, 24, 1, 5, skinD); R(23, 22, 1, 6, skinL); R(22, 28, 4, 1, skin); R(22, 29, 4, 1, skinD);
+  R(22, 29, 1, 1, skinDD); R(25, 29, 1, 1, skinDD);
+  if (nose === 0) { R(21, 28, 1, 1, skin); R(26, 28, 1, 1, skinD); }                              // broad
+  if (nose === 1) R(24, 24, 1, 2, skinD);                                                         // broken once
+  const lip = shade(skin, 0.55);
+  R(21, 34, 6, 1, skinD);
+  if (mood === 'proud') { R(20, 32, 8, 1, lip); R(19, 31, 1, 1, lip); R(28, 31, 1, 1, lip); R(22, 33, 4, 1, skinL); }
+  else if (mood === 'low') { R(20, 32, 8, 1, lip); R(19, 33, 1, 1, lip); R(28, 33, 1, 1, lip); }
+  else if (mood === 'angry') { R(20, 32, 8, 1, lip); R(20, 33, 1, 1, lip); R(27, 33, 1, 1, lip); R(21, 31, 6, 1, skinD); }
+  else if (hurt) { R(20, 31, 8, 3, lip); R(21, 32, 6, 1, '#efe6d2'); R(23, 32, 1, 1, lip); R(25, 32, 1, 1, lip); }
+  else if (mood === 'weary') { R(21, 32, 6, 1, lip); R(22, 33, 4, 1, shade(skin, 0.45)); }
+  else R(20, 32, 8, 1, lip);
+
+  // eyes and brows
+  const iris = ['#3a2412', '#241408', '#3f6a8a', '#4a6a3a', '#5a3a1a'][seed % 5];
+  const lid = shade(skin, 0.42), white = '#efe6d2', brow = shade(hair, 0.62);
+  const eye = (x, shut, px) => {
+    if (shut) { R(x, 24, 4, 1, lid); return; }
+    R(x, 23, 4, 1, lid); R(x, 24, 4, 1, white); R(x + px, 24, 2, 1, iris); R(x + px, 24, 1, 1, ink);
+    if (mood === 'weary') { R(x, 24, 4, 1, lid); R(x + 1, 25, 2, 1, white); R(x + px, 25, 1, 1, iris); R(x, 27, 4, 1, skinDD); }
+    else R(x, 25, 4, 1, skinD);
+    if (mood === 'proud') { R(x, 22, 4, 1, lid); R(x, 23, 4, 1, white); R(x + px, 23, 2, 2, iris); R(x + px, 23, 1, 1, ink); }
+  };
+  eye(17, false, 1); eye(27, hurt, 1);
+  if (hurt) { R(26, 22, 6, 5, 'rgba(110,40,90,.35)'); R(27, 26, 4, 1, 'rgba(60,20,60,.45)'); }
+  if (mood === 'angry') { R(16, 20, 3, 1, brow); R(18, 21, 4, 1, brow); R(21, 22, 1, 1, brow); R(29, 20, 3, 1, brow); R(26, 21, 4, 1, brow); R(26, 22, 1, 1, brow); R(23, 21, 2, 1, skinD); }
+  else if (mood === 'low' || hurt) { R(16, 22, 2, 1, brow); R(17, 21, 3, 1, brow); R(20, 20, 2, 1, brow); R(30, 22, 2, 1, brow); R(28, 21, 3, 1, brow); R(26, 20, 2, 1, brow); }
+  else if (mood === 'proud') { M2(16, 20, 6, 1, brow); M2(16, 21, 1, 1, brow); }
+  else M2(16, 21, 6, 1, brow);
+
+  // beard, by the same rule the arena sprite uses
+  if (seed % 5 < 2) {
+    for (let y = 29; y <= 35; y++) { const w = hw(y); R(24 - w, y, w * 2, 1, y % 2 ? hair : hairD); }
+    R(19, 30, 10, 1, hair); R(20, 31, 8, 3, skinD);
+    R(20, 32, 8, 1, hurt ? '#efe6d2' : lip); R(22, 34, 4, 1, hair); R(24 - hw(27), 26, 2, 3, hair); R(22 + hw(27), 26, 2, 3, hairD);
+    R(19, 30, 3, 1, hairL);
+  } else if (seed % 5 === 2) {
+    for (let y = 29; y <= 35; y++) {                          // a day's stubble, kept clear of the mouth
+      const w = hw(y), c = 'rgba(40,28,20,.17)';
+      if (y >= 31 && y <= 33) { R(24 - w, y, w - 5, 1, c); R(29, y, w - 5, 1, c); } else R(24 - w, y, w * 2, 1, c);
+    }
+  }
+
+  // scars on the face
+  scars.forEach(s => {
+    const D = (x, y, n, dx) => { for (let i = 0; i < n; i++) { R(x + Math.round(i * dx), y + i, 1, 1, scarC); R(x + Math.round(i * dx) + 1, y + i, 1, 1, scarL); } };
+    if (s.k === 'deep') { const x = s.p % 2 ? 29 : 18; D(x, 17, 4, 0.3); D(x + 1, 26, 5, 0.3); R(x, 21, 2, 1, skin); }        // through the brow and down the cheek
+    else if (s.k === 'cut') {
+      const p = s.p % 6;
+      if (p === 0) D(16, 26, 4, 0.6); else if (p === 1) D(29, 26, 4, -0.6); else if (p === 2) D(27, 14, 4, 0.7);
+      else if (p === 3) { R(22, 25, 4, 1, scarC); R(22, 24, 4, 1, scarL); } else if (p === 4) D(20, 33, 3, 0.5); else D(19, 14, 3, -0.5);
+    } else if (s.k === 'claw' && mChest) for (let i = 0; i < 3; i++) D(28 + i * 2, 26, 4, -0.4);
+  });
+
+  // hair, or the helmet over it
+  if (mHead) {
+    const H = mHead, wide = g.cls === 'murmillo' || g.cls === 'thraex';
+    const dome = [6, 8, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10];
+    dome.forEach((w, i) => { R(24 - w, 8 + i, w * 2, 1, H.m); R(24 + w - 3, 8 + i, 3, 1, H.d); });
+    R(17, 10, 2, 7, H.l); R(16, 12, 1, 4, H.l);
+    R(wide ? 10 : 13, 19, wide ? 28 : 22, 2, H.m); R(wide ? 10 : 13, 20, wide ? 28 : 22, 1, H.d); R(wide ? 10 : 13, 19, 8, 1, H.l);
+    R(22, 18, 4, 1, H.t); R(23, 19, 2, 3, H.m); R(24, 19, 1, 3, H.d);                                // nose guard
+    for (let y = 21; y <= 32; y++) { const w = y < 28 ? 4 : y < 31 ? 3 : 2; R(13, y, w, 1, H.m); R(13, y, 1, 1, H.l); R(35 - w, y, w, 1, H.d); }
+    M2(14, 22, 1, 1, H.t);
+    if (g.gear && g.gear.head && g.gear.head.r >= 4) { R(15, 16, 18, 1, H.t); R(23, 12, 2, 3, H.t); }
+    if (g.cls === 'murmillo') { R(22, 1, 4, 8, team); R(22, 1, 1, 8, teamL); R(25, 1, 1, 8, teamD); R(21, 3, 1, 5, teamD); R(26, 3, 1, 5, teamD); R(21, 7, 6, 2, H.d); }
+    else if (g.cls === 'thraex') { R(22, 4, 3, 5, H.m); R(23, 2, 4, 3, H.m); R(26, 3, 2, 2, H.l); R(25, 3, 1, 1, ink); R(17, 3, 5, 5, team); R(16, 5, 2, 5, teamD); R(18, 2, 3, 2, teamL); }
+    else if (g.cls === 'hoplomachus') { R(23, 2, 2, 7, '#f0ead8'); R(20, 3, 2, 6, '#f0ead8'); R(26, 4, 2, 5, '#d8d0b8'); R(23, 1, 2, 2, team); R(20, 2, 2, 2, team); R(26, 3, 2, 2, team); }
+    else { R(23, 6, 2, 2, H.t); R(23, 6, 1, 1, H.l); }
+  } else {
+    if (style === 1) {                                         // shaved close
+      R(19, 10, 10, 1, hairD); R(17, 11, 14, 1, 'rgba(30,20,14,.5)'); for (let x = 16; x < 32; x += 2) { R(x, 12, 1, 1, 'rgba(30,20,14,.4)'); R(x + 1, 13, 1, 1, 'rgba(30,20,14,.25)'); }
+    } else {
+      R(19, 8, 10, 1, hairD); R(17, 9, 14, 1, hair); R(16, 10, 16, 1, hair);
+      for (let y = 11; y <= 14; y++) { const w = hw(y) + 1; R(24 - w, y, w * 2, 1, hair); R(24 + w - 3, y, 3, 1, hairD); }
+      R(15, 15, 5, 1, hair); R(22, 15, 3, 1, hair); R(28, 15, 5, 1, hairD); M2(14, 15, 2, 6, hair); R(32, 15, 2, 6, hairD);
+      R(18, 10, 5, 1, hairL); R(17, 12, 3, 1, hairL); R(24, 11, 1, 3, hairD); R(21, 13, 1, 2, hairD);
+      if (style === 2) { M2(13, 14, 2, 20, hair); R(34, 14, 1, 20, hairD); }
+    }
+    if (g.cls === 'retiarius') { R(15, 14, 18, 2, team); R(15, 15, 18, 1, teamD); R(13, 15, 2, 5, teamD); }      // headband
+    if (g.traits.includes('laureate')) {                       // the tournament's laurel
+      const leaf = '#5a9a3a', leafL = '#8fc35a';
+      for (let i = 0; i < 5; i++) { M2(14 + i * 2, 13 - (i >> 1), 2, 2, i % 2 ? leaf : leafL); }
+      R(23, 10, 2, 1, '#e8b545');
+    }
+    if (hurt) {                                                // bandaged, and no helmet until he heals
+      for (let x = 14; x < 34; x++) R(x, 13 + ((x - 14) >> 3), 1, 3, x % 4 === 0 ? '#cfc6b0' : '#efe8d6');
+      R(27, 15, 3, 2, '#a3261b'); R(28, 16, 1, 1, '#7a1a12'); R(33, 15, 2, 4, '#cfc6b0');
+    }
+  }
+  if (mood === 'weary') { R(15, 18, 1, 2, '#c8e8f8'); R(32, 26, 1, 2, '#c8e8f8'); R(15, 20, 1, 1, '#8fc0e0'); }
+}
+
+// Paints a fighter onto any portrait canvas. Beasts keep their arena drawing.
+function drawPortrait(canvas, g, team, col, colD) {
+  if (g.beast || !g.look) return drawSpritePortrait(canvas, g, team, col, colD);
+  const ctx = canvas.getContext('2d'), s = Math.max(1, Math.floor(Math.min(canvas.width / 48, canvas.height / 56)));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#3a2d26'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(s, 0, 0, s, Math.floor((canvas.width - 48 * s) / 2), Math.floor((canvas.height - 56 * s) / 2));
+  ctx.imageSmoothingEnabled = false;
+  drawBust(ctx, g, col || TEAM_COL[team || 0], colD);
+}
