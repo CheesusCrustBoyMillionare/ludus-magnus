@@ -50,7 +50,6 @@ const TIPS = {
   feud: 'Deepens when you kill their fighters or they kill yours. At 40 their champion calls you out; refusing costs you.',
   rations: 'Paid per fighter per day. Better food means higher morale.',
   dynasty: 'If debt takes the ludus, an heir begins again with what the family has kept. See the Chronicle for the house so far.',
-  yard: 'Your ludus. Buildings grow as you improve them. Click a fighter to open his dossier, or a building to go to its screen.',
   friend: 'Friends hit harder when they fight on the same side. If one dies, the other grieves, and may swear to kill the man who did it.',
   rivalbond: 'Rivals inside your own ludus train harder to outdo each other, but fight worse on the same side.',
   vow: 'He has sworn to face this rival. When that man appears on a card he fights him with extra fury; winning lifts him greatly.',
@@ -154,7 +153,7 @@ function render() {
   hideTip();
   renderTop(); renderTabs(); renderView(); paintPortraits();
   // a browser may briefly pair a cached page with newer scripts; never let a missing yard stop the game
-  if (ui.tab === 'ludus' && typeof startYard === 'function') startYard();
+  if (typeof startYard === 'function') startYard();
   renderTutor();
 }
 
@@ -277,8 +276,7 @@ function gladDetail(g) {
 function viewLudus() {
   if (!G.roster.length) return `<div class="panel">Your cells are empty. Visit the market.</div>`;
   if (!byId(ui.sel)) ui.sel = G.roster[0].id;
-  return `<canvas id="yard" width="1180" height="380" data-act="yard"${tip('yard')}></canvas>
-  <div class="cols">
+  return `<div class="cols">
     <div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small></h2>
       <label class="row"${tip('autorest')} style="margin-bottom:10px;font-size:14px;gap:6px"><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> Exhausted fighters rest on their own</label><div class="grid">${G.roster.map(gladCard).join('')}</div></div>
     <div><h2>Dossier</h2>${gladDetail(byId(ui.sel))}</div>
@@ -779,7 +777,7 @@ const ACTIONS = {
   yard(v, w, el, e) {                       // click a fighter to open his dossier, a building to go to its screen
     const h = typeof yardPick === 'function' ? yardPick(el, e) : null;
     if (!h) return;
-    if (h.fighter) ui.sel = h.fighter; else ui.tab = h.tab;
+    if (h.fighter) { ui.sel = h.fighter; ui.tab = 'ludus'; } else ui.tab = h.tab;
     render();
   },
   activity(v, w, el) {

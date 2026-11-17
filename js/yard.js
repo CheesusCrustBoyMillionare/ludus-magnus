@@ -41,6 +41,14 @@ function drawYard(cv, T) {
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(text, x + 0.5, y + 0.5);
     ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
   };
+  // building names sit on a dark plaque so they read against any wall
+  const sign = (x, y, text) => {
+    ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
+    const w = Math.ceil(ctx.measureText(text).width) + 8;
+    R(x - w / 2 - 1, y - 8, w + 2, 11, '#e0aa3e'); R(x - w / 2, y - 7, w, 9, '#241812');
+    ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
+  };
+  const OUT = '#2a1c14', SHADOW = 'rgba(0,0,0,.3)';
   const pips = (n, max) => '●'.repeat(n) + '○'.repeat(max - n);
   const smoke = (x, y, n, col) => {            // puffs drifting up and to the right
     for (let i = 0; i < n; i++) {
@@ -68,15 +76,20 @@ function drawYard(cv, T) {
     if (t >= 2) for (let x = 0; x < 590; x += 14) R(x, 69, 8, 5, W.c);
   }
 
+  R(0, 76, 590, GY - 76, 'rgba(24,14,8,.3)');      // the wall falls into shade so what stands before it shows
+
   // ---- generic building pieces ----
   const walls = (x, w, h, c) => {
     const y = GY - h, d = shade(c, 0.78);
+    R(x + w + 1, y + 6, 6, h - 6, SHADOW);                    // shadow thrown on the wall behind
+    R(x - 1, y - 1, w + 2, h + 1, OUT);                       // outline
     R(x, y, w, h, c); R(x, y, 2, h, d); R(x + w - 2, y, 2, h, d);
     for (let yy = y + 7; yy < GY - 2; yy += 7) R(x + 2, yy, w - 4, 1, shade(c, 0.9));
     R(x, GY - 3, w, 3, d);
     return y;
   };
   const roof = (x, y, w, kind) => {
+    if (kind === 'thatch') R(x - 4, y - 10, w + 8, 12, OUT); else if (kind === 'tile') R(x - 5, y - 13, w + 10, 15, OUT); else R(x - 3, y - 4, w + 6, 6, OUT);
     if (kind === 'thatch') { R(x - 3, y - 6, w + 6, 7, '#9a7a42'); R(x - 1, y - 9, w + 2, 3, '#b8964e'); for (let xx = x - 2; xx < x + w + 3; xx += 5) R(xx, y - 6, 1, 7, '#7a5e30'); }
     else if (kind === 'tile') { R(x - 4, y - 5, w + 8, 6, '#a8452e'); R(x - 1, y - 9, w + 2, 4, '#b8553a'); R(x + 5, y - 12, w - 10, 3, '#c9684a'); for (let xx = x - 3; xx < x + w + 4; xx += 4) R(xx, y - 5, 1, 6, '#7e3220'); }
     else { R(x - 2, y - 3, w + 4, 4, '#8a6a4a'); R(x - 2, y - 3, w + 4, 1, '#a8855e'); }
@@ -94,7 +107,7 @@ function drawYard(cv, T) {
     for (let i = 0; i < n; i++) door(x + 10 + i * ((w - 30) / Math.max(1, n - 1)), 11, 30);
     if (lv >= 2) { R(x, GY - 46, w, 2, '#a8905e'); for (let i = 0; i < n; i++) win(x + 12 + i * ((w - 30) / Math.max(1, n - 1)), GY - 74); }
     if (lv >= 3) { for (let xx = x - 2; xx <= x + w - 3; xx += 24) column(xx, GY - 46, 46); R(x - 3, GY - 49, w + 6, 4, '#f0e8d6'); }
-    label(x + w / 2, y - 14, 'BARRACKS ' + pips(lv, 3));
+    sign(x + w / 2, y - 17, 'BARRACKS ' + pips(lv, 3));
     hit(x, y - 12, x + w, GY, { tab: 'facilities' });
   }
   // ---- infirmary: a cot under an awning, then a hut, then stone, then columns ----
@@ -102,36 +115,57 @@ function drawYard(cv, T) {
     const lv = F.infirmary, x = 172, w = [36, 44, 52, 58][lv], h = [38, 48, 58, 66][lv];
     let y;
     if (lv === 0) {
-      y = GY - h; R(x, y, 2, h, '#7a5a2a'); R(x + w - 2, y, 2, h, '#7a5a2a'); R(x - 3, y, w + 6, 5, '#e8d7b0'); R(x - 3, y + 4, w + 6, 1, '#b8a888');
-      for (let xx = x; xx < x + w; xx += 8) R(xx, y, 4, 5, '#b8452e');
-      R(x + 8, GY - 9, 20, 3, '#f2ecd8'); R(x + 8, GY - 6, 2, 6, '#7a5a2a'); R(x + 26, GY - 6, 2, 6, '#7a5a2a'); R(x + 8, GY - 11, 5, 2, '#e8d7b0');
+      // a healer's tent: canvas walls, a green-striped awning, a cot inside
+      y = GY - h;
+      R(x + w + 1, y + 10, 6, h - 10, SHADOW);
+      R(x - 1, y + 5, w + 2, h - 5, OUT); R(x, y + 6, w, h - 6, '#efe6cf'); R(x, y + 6, 3, h - 6, '#cfc4a6'); R(x + w - 3, y + 6, 3, h - 6, '#cfc4a6');
+      R(x + 8, y + 13, w - 16, h - 13, '#33241c');
+      R(x - 5, y - 1, w + 10, 9, OUT); R(x - 4, y, w + 8, 7, '#efe6cf'); for (let xx = x - 4; xx < x + w + 4; xx += 8) R(xx, y, 4, 7, '#3f8a3a');
+      R(x + 10, GY - 10, w - 20, 3, '#f2ecd8'); R(x + 10, GY - 7, 2, 7, '#7a5a2a'); R(x + w - 12, GY - 7, 2, 7, '#7a5a2a'); R(x + 10, GY - 12, 5, 2, '#e8d7b0');
     } else {
-      y = walls(x, w, h, lv >= 2 ? '#ddd3bd' : '#c9b58a'); roof(x, y, w, lv >= 2 ? 'tile' : 'thatch');
+      y = walls(x, w, h, lv >= 2 ? '#f6f1e4' : '#efe6cf'); roof(x, y, w, lv >= 2 ? 'tile' : 'thatch');
+      R(x + 2, y + 2, w - 4, 3, '#3f8a3a');                                           // the healers' green band
       door(x + w / 2 - 6, 12, 30); win(x + 6, GY - 30); if (lv >= 2) win(x + w - 12, GY - 30);
       if (lv >= 3) { column(x - 3, GY - 40, 40); column(x + w - 2, GY - 40, 40); R(x - 4, GY - 43, w + 8, 4, '#f0e8d6'); }
       R(x + w / 2 - 5, y + 6, 10, 10, '#f2ecd8'); R(x + w / 2 - 1, y + 7, 1, 8, '#3f8a3a'); R(x + w / 2 - 2, y + 9, 3, 1, '#3f8a3a'); R(x + w / 2 - 1, y + 12, 3, 1, '#3f8a3a');
     }
-    label(x + w / 2, y - (lv ? 14 : 4), 'INFIRMARY ' + pips(lv, 3));
+    sign(x + w / 2, y - (lv ? (lv >= 2 ? 19 : 16) : 7), 'INFIRMARY ' + pips(lv, 3));
     hit(x, y - 12, x + w, GY, { tab: 'facilities' });
   }
   // ---- baths: a trough, then a bathhouse, then a dome, then a grand dome with columns ----
   {
-    const lv = F.baths, x = 244, w = [28, 46, 58, 70][lv], h = [10, 44, 52, 60][lv];
+    const lv = F.baths, x = 244, w = [34, 46, 58, 70][lv], h = [36, 44, 52, 60][lv];
     let y = GY - h;
-    if (lv === 0) { R(x, y, w, h, '#7a5a34'); R(x + 2, y + 2, w - 4, 4, '#5aa0d0'); R(x + 3, y + 2, 6, 1, '#bfe0f0'); R(x, y, w, 2, '#94703f'); }
+    if (lv === 0) {       // a washing place: a stone basin under a blue-striped canopy
+      R(x + w + 1, y + 10, 6, h - 10, SHADOW);
+      R(x - 1, y + 5, w + 2, h - 16, OUT); R(x, y + 6, w, h - 18, '#d3e6ec'); R(x, y + 6, 3, h - 18, '#b3ccd4');
+      R(x, y + 4, 2, h - 4, '#5a4334'); R(x + w - 2, y + 4, 2, h - 4, '#5a4334');
+      R(x - 5, y - 1, w + 10, 9, OUT); R(x - 4, y, w + 8, 7, '#eef6f8'); for (let xx = x - 4; xx < x + w + 4; xx += 8) R(xx, y, 4, 7, '#3d86c8');
+      R(x + 1, GY - 13, w - 2, 13, OUT); R(x + 2, GY - 12, w - 4, 12, '#c9c0aa'); R(x + 2, GY - 12, w - 4, 2, '#e4dcc8');
+      R(x + 5, GY - 10, w - 10, 5, '#3d9be0'); R(x + 6, GY - 10, 8, 1, '#c8e8f8'); R(x + w - 14, GY - 8, 6, 1, '#c8e8f8');
+    }
     else {
-      y = walls(x, w, h, '#e0d6c0'); R(x - 2, y - 3, w + 4, 4, '#f0e8d6');
+      y = walls(x, w, h, '#dfeaee'); R(x - 3, y - 4, w + 6, 6, OUT); R(x - 2, y - 3, w + 4, 4, '#f4fafb');
+      R(x + 2, y + 3, w - 4, 3, '#3d86c8');                                            // the bathers' blue band
       if (lv >= 2) { const dw = w - 20; for (let i = 0; i < 6; i++) R(x + 10 + i * 2, y - 5 - i * 3, dw - i * 4, 3, i % 2 ? '#c7d3d6' : '#b3c3c8'); }
       door(x + w / 2 - 6, 12, 30); R(x + 6, GY - 26, 8, 2, '#5aa0d0'); R(x + w - 14, GY - 26, 8, 2, '#5aa0d0');
       if (lv >= 3) { column(x - 3, GY - 40, 40); column(x + w - 2, GY - 40, 40); column(x + 12, GY - 40, 40); column(x + w - 17, GY - 40, 40); }
       smoke(x + w / 2, y - (lv >= 2 ? 22 : 4), 3 + lv, '#f4f8f8');
     }
-    label(x + w / 2, y - (lv >= 2 ? 30 : lv ? 10 : 4), 'BATHS ' + pips(lv, 3));
+    sign(x + w / 2, y - (lv >= 2 ? 32 : lv ? 12 : 7), 'BATHS ' + pips(lv, 3));
     hit(x, y - 12, x + w, GY, { tab: 'facilities' });
   }
   // ---- kitchen: what is over the fire depends on the rations ----
   {
     const x = 328, r = G.ration;
+    // a cookhouse: whitewashed wall, tiled roof and a dark hearth alcove, so the fire has something to burn against
+    { const kx = x - 12, kw = 60, kh = 46, ky = GY - kh;
+      R(kx + kw + 1, ky + 6, 6, kh - 6, SHADOW); R(kx - 1, ky - 1, kw + 2, kh + 1, OUT);
+      R(kx, ky, kw, kh, '#ecdcb8'); R(kx, ky, 3, kh, '#cdbb92'); R(kx + kw - 3, ky, 3, kh, '#cdbb92'); R(kx, GY - 3, kw, 3, '#cdbb92');
+      R(kx + 2, ky + 2, kw - 4, 3, '#c2552e');
+      roof(kx, ky, kw, 'tile');
+      R(x - 2, GY - 36, 32, 36, OUT); R(x - 1, GY - 35, 30, 35, '#3a2a22');
+      R(kx + kw - 16, GY - 31, 12, 1, '#7a5a2a'); R(kx + kw - 15, GY - 35, 3, 4, '#b0603a'); R(kx + kw - 10, GY - 34, 4, 3, '#8d9094'); }
     R(x, GY - 6, 26, 6, '#6a6058'); R(x + 2, GY - 8, 22, 3, '#7c7268');
     const fl = Math.sin(T * 9) > 0 ? 1 : 0;
     R(x + 8, GY - 12 - fl, 10, 5 + fl, '#e2702a'); R(x + 10, GY - 14 - fl, 6, 4, '#f5c04a'); R(x + 12, GY - 16, 2, 3, '#fff0b0');
@@ -141,17 +175,23 @@ function drawYard(cv, T) {
     if (r >= 1) { R(x + 30, GY - 14, 14, 2, '#7a5a2a'); R(x + 31, GY - 12, 2, 12, '#7a5a2a'); R(x + 41, GY - 12, 2, 12, '#7a5a2a'); R(x + 32, GY - 18, 5, 4, '#d9b877'); R(x + 38, GY - 17, 4, 3, '#d9b877'); }
     if (r === 2) { R(x - 8, GY - 16, 6, 16, '#b0603a'); R(x - 7, GY - 20, 4, 4, '#b0603a'); R(x - 8, GY - 16, 1, 16, '#8a4428'); }
     smoke(x + 13, GY - 32, 4, '#d8d8d8');
-    label(x + 14, GY - 40, RATIONS[r].name.toUpperCase());
-    hit(x - 8, GY - 46, x + 46, GY, { tab: 'facilities' });
+    sign(x + 18, GY - 63, 'KITCHEN: ' + RATIONS[r].name.toUpperCase());
+    hit(x - 12, GY - 60, x + 48, GY, { tab: 'facilities' });
     if (G.staff.cook) yardPerson(ctx, x - 12 + Math.round(Math.sin(T * 0.8) * 2), GY + 6, 1, { tunic: '#b9b09a', apron: '#f2ecd8', hair: '#5a3a22', item: 'ladle' });
   }
   // ---- forge: an anvil under a lean-to grows into an armourer's workshop ----
   {
     const lv = G.smith ? G.smith.level : 0, x = 392, w = [38, 46, 54, 60, 72][lv], h = [38, 46, 54, 60, 66][lv];
     let y = GY - h;
-    if (lv === 0) { R(x, y, 2, h, '#5a4334'); R(x + w - 2, y + 8, 2, h - 8, '#5a4334'); for (let i = 0; i < 6; i++) R(x - 3, y + i, w + 6 - i, 1, i % 2 ? '#8a6a3a' : '#9a7a42'); }
+    if (lv === 0) {       // a lean-to: soot-black planks behind, a slatted roof above
+      R(x + w + 1, y + 10, 6, h - 10, SHADOW);
+      R(x - 1, y + 5, w + 2, h - 5, OUT); R(x, y + 6, w, h - 6, '#4a3a36'); for (let xx = x + 5; xx < x + w; xx += 6) R(xx, y + 6, 1, h - 6, '#352825');
+      R(x - 5, y - 1, w + 10, 9, OUT); for (let i = 0; i < 7; i++) R(x - 4, y + i, w + 8, 1, i % 2 ? '#6a4a34' : '#8a6444');
+      R(x, y + 6, 2, h - 6, '#2e221e'); R(x + w - 2, y + 6, 2, h - 6, '#2e221e');
+    }
     else {
-      y = walls(x, w, h, lv >= 2 ? '#8a5a48' : '#9a8468'); roof(x, y, w, lv >= 3 ? 'tile' : 'flat');
+      y = walls(x, w, h, lv >= 2 ? '#8a4a3a' : '#6e5248'); roof(x, y, w, lv >= 3 ? 'tile' : 'flat');
+      R(x + 2, y + 2, w - 4, 3, '#e2702a');                                           // the smiths' ember band
       R(x + w - 14, y - 22, 9, 22, '#6a4a3c'); R(x + w - 15, y - 24, 11, 3, '#4a3428'); smoke(x + w - 10, y - 26, 3 + lv, '#6a6a6a');
       if (lv >= 4) { R(x + 6, y - 16, 8, 16, '#6a4a3c'); R(x + 5, y - 18, 10, 3, '#4a3428'); smoke(x + 9, y - 20, 4, '#6a6a6a'); }
       R(x + 5, GY - 34, w - 22, 34, '#1c130f');                                         // the open front
@@ -163,7 +203,7 @@ function drawYard(cv, T) {
     const sw = (T * 1.1) % 1;
     yardPerson(ctx, x + 16, GY + 3, 1, { tunic: '#6b5a48', apron: '#4a3323', hair: '#1e1612', skin: '#c9966c', item: 'hammer', swing: sw });
     if (sw > 0.5 && sw < 0.62) { R(x + 27, GY - 14, 1, 1, '#fff0b0'); R(x + 31, GY - 16, 1, 1, '#f5c04a'); R(x + 24, GY - 17, 1, 1, '#f5c04a'); R(x + 33, GY - 12, 1, 1, '#fff0b0'); }
-    label(x + w / 2, y - (lv ? (lv >= 3 ? 30 : 28) : 4), 'FORGE ' + pips(lv, 4));
+    sign(x + w / 2, y - (lv ? (lv >= 3 ? 34 : 32) : 7), 'FORGE ' + pips(lv, 4));
     hit(x, y - 12, x + w, GY + 4, { tab: 'smith' });
   }
   // ---- gate: banners multiply with fame ----
@@ -177,7 +217,7 @@ function drawYard(cv, T) {
     banner(x + 3); banner(x + 51);
     if (t >= 2) { R(x + 27, GY - 78, 2, 14, '#5a4334'); R(x + 29, GY - 78, 12 + Math.round(Math.sin(T * 3)), 7, '#c23b2e'); }
     if (t >= 3) { R(x + 26, GY - 61, 10, 9, '#e8b545'); R(x + 28, GY - 59, 6, 5, '#f8dc88'); }
-    label(x + 31, GY - 84 + (t >= 2 ? 0 : 12), TIERS[t].name.toUpperCase());
+    sign(x + 31, GY - 84 + (t >= 2 ? 0 : 10), TIERS[t].name.toUpperCase());
     hit(x, GY - 70, x + 62, GY, { tab: 'arena' });
     if (G.staff.scout) yardPerson(ctx, x - 8, GY + 8, -1, { tunic: '#4a6a3a', hair: '#2a1c14', item: 'scroll' });
   }
@@ -191,7 +231,7 @@ function drawYard(cv, T) {
   const drawPost = ([px, py]) => { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(px - 5, py - 1, 10, 2); R(px - 2, py - 34, 4, 34, '#7a5a2a'); R(px - 2, py - 34, 1, 34, '#5e4426'); R(px - 6, py - 26, 12, 2, '#7a5a2a'); R(px - 2, py - 36, 4, 2, '#94703f'); if (gl >= 2) { R(px - 3, py - 20, 6, 8, '#a8452e'); R(px - 2, py - 18, 4, 4, '#e8b545'); } };
   if (gl >= 1) { R(452, 148, 2, 22, '#5e4426'); R(470, 148, 2, 22, '#5e4426'); R(450, 152, 24, 2, '#7a5a2a'); for (let i = 0; i < 4; i++) R(455 + i * 5, 136, 1, 18, i % 2 ? '#c1c7cc' : '#7a5a2a'); }
   if (gl >= 3) { R(476, GY - 6, 14, 6, '#c9c0aa'); R(479, GY - 30, 8, 24, '#d6ccb8'); R(480, GY - 37, 6, 7, '#d6ccb8'); R(479, GY - 30, 2, 24, '#b5aa94'); R(488, GY - 40, 1, 34, '#b5aa94'); R(480, GY - 39, 6, 2, '#a8452e'); }
-  label(300, YARD.H - 4, 'TRAINING GROUND ' + pips(gl, 3));
+  sign(300, YARD.H - 4, 'TRAINING GROUND ' + pips(gl, 3));
   hit(190, GY + 8, 420, YARD.H, { tab: 'facilities', low: true });
 
   // ---- who is where ----
@@ -234,7 +274,8 @@ function drawYard(cv, T) {
 function yardFrame(ts) {
   const cv = document.getElementById('yard');
   if (!cv || !G) { yardRaf = 0; return; }
-  if (ts - yardLast > 30) { yardLast = ts; try { drawYard(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
+  const arena = document.getElementById('arena');
+  if (ts - yardLast > 30 && !(arena && !arena.hidden)) { yardLast = ts; try { drawYard(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
   yardRaf = requestAnimationFrame(yardFrame);
 }
 // Draw once at once, then keep it moving while the canvas is on the page.
