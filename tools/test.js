@@ -82,7 +82,7 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   const tips = main.slice(main.indexOf('const TIPS = {'), main.indexOf('const esc ='));
   for (const k of tipKeys) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
   for (const k of ['str', 'agi', 'end', 'skl'].concat(['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'])) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
-  for (const s of ['data.js', 'sim.js', 'combat.js', 'sfx.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
+  for (const s of ['data.js', 'sim.js', 'combat.js', 'sfx.js', 'yard.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
   return acts.length + ' actions, ' + tipKeys.length + ' tooltips';
 });
 

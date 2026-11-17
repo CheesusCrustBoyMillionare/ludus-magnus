@@ -17,7 +17,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await sleep(3000);
     const ws = new WebSocket(page.webSocketDebuggerUrl);
     await new Promise(r => ws.addEventListener('open', r));
-    const expr = `(() => { try { return JSON.stringify({ href: location.href, day: G.day, slot, tabs: document.querySelectorAll('#tabs button').length,
+    const expr = `(() => { try { return JSON.stringify({ href: location.href, day: G.day, slot, tabs: document.querySelectorAll('#tabs button').length, yard: (() => { const y = document.querySelector('#yard'); return !!y && y.getContext('2d').getImageData(300, 300, 1, 1).data[3] > 0; })(),
       portrait: (() => { const c = document.querySelector('[data-portrait]'); return !!c && c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some(v => v !== 0); })() }); }
       catch (e) { return JSON.stringify({ href: location.href, error: String(e), body: document.body ? document.body.innerText.slice(0, 160) : '' }); } })()`;
     report = await new Promise(res => {
@@ -26,7 +26,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     });
     ws.close();
     const r = JSON.parse(report);
-    ok = !r.error && r.tabs > 0 && r.portrait;
+    ok = !r.error && r.tabs > 0 && r.portrait && r.yard;
   }
   try { execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" }); } catch (e) { /* already gone */ }
   console.log(ok ? 'EXE OK' : 'EXE BROKEN', report);

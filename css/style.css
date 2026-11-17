@@ -162,3 +162,6 @@ select { padding: 4px 6px; max-width: 100%; }
 button.mini { padding: 1px 7px; font-size: 12px; box-shadow: none; }
 button.mini.better { border-color: var(--green); }
 .item h3 { font-size: 16px; }
+
+/* the ludus yard */
+#yard { display: block; width: 100%; height: auto; aspect-ratio: 59 / 19; image-rendering: pixelated; border: 2px solid var(--line); box-shadow: 0 3px 0 #0006; margin-bottom: 16px; cursor: pointer; background: #8fbcd4; }
