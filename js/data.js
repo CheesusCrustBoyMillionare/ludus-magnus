@@ -75,9 +75,35 @@ const TRAITS = {
   embittered:  { name: 'Embittered',  good: false, special: true, desc: 'Was promised his freedom and denied it. Trains 30% slower and hits without heart.' },
 };
 
-const WEAPON_TIERS = ['Worn', 'Iron', 'Steel', 'Masterwork'];
-const ARMOR_TIERS = ['Bare', 'Padded', 'Bronze', 'Lorica'];
-const GEAR_COST = [0, 60, 150, 350];
+// ---------- equipment ----------
+// Every piece has a rarity from F (worst) to S. Weapons fit one fighting style; armour fits anyone.
+const RARITY = ['F', 'E', 'D', 'C', 'B', 'A', 'S'];
+const MATERIAL = ['Rusted', 'Worn', 'Bronze', 'Iron', 'Steel', 'Gilded', 'Imperial'];
+const SLOTS = ['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'];
+const ARMOR_SLOTS = ['head', 'chest', 'legs', 'arms', 'shoulders'];
+// price: share of the rarity's base price. share: how much of a full set's protection this piece carries.
+const SLOT_INFO = {
+  weapon:    { name: 'Weapon',    piece: '',          price: 1.3, share: 0 },
+  head:      { name: 'Head',      piece: 'helm',      price: 0.7, share: 0.2 },
+  chest:     { name: 'Chest',     piece: 'cuirass',   price: 1.0, share: 0.4 },
+  legs:      { name: 'Legs',      piece: 'greaves',   price: 0.5, share: 0.15 },
+  arms:      { name: 'Arms',      piece: 'arm guard', price: 0.5, share: 0.125 },
+  shoulders: { name: 'Shoulders', piece: 'pauldrons', price: 0.5, share: 0.125 },
+};
+const WEAPON_NAMES = { murmillo: 'gladius', thraex: 'sica', retiarius: 'trident', hoplomachus: 'spear', dimachaerus: 'twin blades' };
+const ITEM_PRICE = [35, 65, 115, 200, 340, 560, 900];       // by rarity, before the slot's price factor
+const WEAPON_DMG = [1, 1.8, 2.6, 3.6, 4.6, 5.6, 7];        // damage added per blow
+const ARMOR_TOTAL = [0.8, 1.4, 2.1, 2.9, 3.8, 4.8, 6];     // damage a full five-piece set takes off each blow
+const SMITH_NAMES = ['Village smith', 'Journeyman smith', 'Armourer', 'Master armourer', 'Imperial armourer'];
+const SMITH_COST = [250, 600, 1200, 2200];                // to reach levels 1 to 4
+// chance (out of 100) of each rarity F..S appearing in his stock, by level
+const SMITH_ODDS = [
+  [50, 35, 15, 0, 0, 0, 0],
+  [25, 35, 25, 15, 0, 0, 0],
+  [0, 20, 30, 30, 17, 3, 0],
+  [0, 0, 15, 30, 30, 20, 5],
+  [0, 0, 0, 15, 30, 35, 20],
+];
 
 const FACILITIES = {
   barracks:  { name: 'Barracks',        desc: 'Cells for your fighters.', effect: l => `Room for ${3 + 2 * l} gladiators` },

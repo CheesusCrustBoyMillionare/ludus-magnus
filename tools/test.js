@@ -81,7 +81,7 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   for (const c of used(/data-chg=\\?"(\w+)\\?"/g, main)) assert(new RegExp('\\n  ' + c + '\\(').test(main), 'no change handler for "' + c + '"');
   const tips = main.slice(main.indexOf('const TIPS = {'), main.indexOf('const esc ='));
   for (const k of tipKeys) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
-  for (const k of ['str', 'agi', 'end', 'skl', 'weapon', 'armor']) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
+  for (const k of ['str', 'agi', 'end', 'skl'].concat(['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'])) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
   for (const s of ['data.js', 'sim.js', 'combat.js', 'sfx.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
   return acts.length + ' actions, ' + tipKeys.length + ' tooltips';
 });
@@ -228,6 +228,45 @@ test('ranks and perks', () => game()(function () {
   }
 }));
 
+test('equipment: blacksmith, armoury, and what the pieces do', () => game()(function () {
+  newGame();
+  const [a, b] = G.roster;
+  assert(G.smith.level === 0 && G.smith.stock.length === 4 && G.armoury.length === 0 && SLOTS.every(s => a.gear[s] === null), 'a village smith with four pieces, and nobody wearing anything');
+  assert(G.smith.stock.every(it => it.r <= 2), 'a village smith sells nothing better than D');
+  // buying, equipping, swapping, selling
+  G.denarii = 10000;
+  const helm = makeItem('head', 3), better = makeItem('head', 5), blade = makeItem('weapon', 4, a.cls), wrong = makeItem('weapon', 4, Object.keys(CLASSES).find(c => c !== a.cls));
+  G.smith.stock = [helm, better, blade, wrong];
+  const money = G.denarii;
+  assert(buyItem(helm.id) && G.denarii === money - itemPrice(helm) && G.armoury.includes(helm) && !G.smith.stock.includes(helm), 'buying moves a piece to the armoury');
+  [better, blade, wrong].forEach(it => buyItem(it.id));
+  const bare = power(a), hp0 = createBattle([a], [b], { noIntro: true }).fighters[0];
+  assert(equip(a, helm.id) && a.gear.head === helm && !G.armoury.includes(helm), 'equipping takes it from the armoury');
+  assert(equip(a, better.id) && a.gear.head === better && G.armoury.includes(helm), 'swapping returns the old piece');
+  assert(!equip(a, wrong.id) && equip(a, blade.id), 'a weapon only fits its own fighting style');
+  const f = createBattle([a], [b], { noIntro: true }).fighters[0];
+  assert(f.dmg > hp0.dmg + 4 && f.armor > hp0.armor && f.stunRes > 0.4 && f.critRes > 0.05 && power(a) > bare * 1.15, 'kit makes him hit harder and take less');
+  assert(unequip(a, 'head') && a.gear.head === null && G.armoury.includes(better), 'taking a piece off returns it');
+  const m2 = G.denarii; assert(sellItem(helm.id) && G.denarii === m2 + Math.round(itemPrice(helm) / 2) && !G.armoury.includes(helm), 'selling back pays half');
+  // every slot does what it says
+  for (const slot of ARMOR_SLOTS) { const z = itemStats(makeItem(slot, 6)), lo = itemStats(makeItem(slot, 0)); assert(z.armor > lo.armor && z.armor > 0, slot + ' protects, and more at S than F'); }
+  assert(itemStats(makeItem('chest', 4)).armor > itemStats(makeItem('head', 4)).armor * 1.9, 'the cuirass protects most');
+  assert(itemStats(makeItem('legs', 6)).hamRes > 0.7 && itemStats(makeItem('arms', 6)).armRes > 0.7 && itemStats(makeItem('shoulders', 6)).bleedRes > 0.7, 'each small piece guards against its wound');
+  assert(SLOTS.every(s => typeof itemEffect(makeItem(s, 3, a.cls)) === 'string' && !/NaN|undefined/.test(itemEffect(makeItem(s, 3, a.cls)))), 'every piece can describe itself');
+  // gear comes home when a fighter leaves
+  equip(a, better.id);
+  const n = G.armoury.length;
+  G.roster = G.roster.filter(x => x !== a); departed(a, 'dead', null);
+  assert(G.armoury.length === n + 2 && G.armoury.includes(blade) && G.armoury.includes(better), 'a dead man\'s kit returns to the armoury');
+  // upgrading the forge
+  G.denarii = 10000;
+  for (let lv = 1; lv <= 4; lv++) { assert(upgradeSmith() && G.smith.level === lv, 'forge improves'); genSmith(); assert(G.smith.stock.length === 4 + lv && G.smith.stock.every(it => SMITH_ODDS[lv][it.r] > 0), 'stock matches the smith at level ' + lv); }
+  assert(!upgradeSmith(), 'the forge has a top level');
+  let s = 0; for (let i = 0; i < 60; i++) { genSmith(); s += G.smith.stock.filter(it => it.r === 6).length; }
+  assert(s > 20, 'an imperial armourer does offer S pieces');
+  assert(SMITH_ODDS.every(row => row.reduce((x, y) => x + y, 0) === 100) && !badNumber(G), 'rarity odds add up');
+}));
+
 test('fighter stories: bonds, grief, vows and promises', () => game()(function () {
   newGame();
   while (G.roster.length < 4) G.roster.push(makeGladiator(25));
@@ -268,12 +307,13 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {
   assert(load() === false, 'nothing to load at first');
   newGame(); const legacy = JSON.parse(JSON.stringify(G));
-  for (const k of ['staff', 'hires', 'patrons', 'gifts', 'autoRest', 'fix', 'houses', 'festival', 'tourney', 'tut', 'bonds']) delete legacy[k];
-  legacy.roster.forEach(g => { delete g.xp; delete g.rank; delete g.perkPending; delete g.perkOffer; delete g.story; delete g.wish; g.wins = 4; });
+  for (const k of ['staff', 'hires', 'patrons', 'gifts', 'autoRest', 'fix', 'houses', 'festival', 'tourney', 'tut', 'bonds', 'armoury', 'smith']) delete legacy[k];
+  legacy.roster.forEach(g => { delete g.xp; delete g.rank; delete g.perkPending; delete g.perkOffer; delete g.story; delete g.wish; delete g.gear; g.wins = 4; });
+  legacy.roster[0].weapon = 2; legacy.roster[0].armor = 3;
   for (const k in mem) delete mem[k];
   mem['ludus-magnus-save-v1'] = JSON.stringify(legacy); G = null;
   assert(load() && slot === 1 && !('ludus-magnus-save-v1' in mem) && mem['ludus-magnus-slot-1'], 'old single save moves to slot 1');
-  assert(G.houses.length === 5 && G.festival && G.patrons && G.tut && Array.isArray(G.bonds) && G.roster.every(g => Array.isArray(g.story)) && G.roster.every(g => g.rank > 0 && g.perkPending > 0), 'old save gains the newer systems');
+  assert(G.houses.length === 5 && G.festival && G.patrons && G.tut && Array.isArray(G.bonds) && Array.isArray(G.armoury) && G.smith.stock.length === 4 && G.roster[0].gear.weapon.r === 4 && ARMOR_SLOTS.every(sl => G.roster[0].gear[sl].r === 5) && G.roster[0].armor === 0 && SLOTS.every(sl => G.roster[1].gear[sl] === null) && G.roster.every(g => Array.isArray(g.story)) && G.roster.every(g => g.rank > 0 && g.perkPending > 0), 'old save gains the newer systems');
   for (let i = 0; i < 7; i++) { endDay(); G.pendingEvent = null; }
   assert(slotInfo(1).day === 8 && slotInfo(1, true).day === 5, 'autosave and games-day backup');
   assert(copyToSlot(3) && slotInfo(3).day === 8, 'copy to another slot');

@@ -10,6 +10,7 @@ const good = SKILL === 'good';
 const WAGERS = [500, 250, 100, 50, 25];
 const R_debt = { n: 0 };
 const huntStats = [0, 0, 0, 0];
+let gearSpend = 0;
 const calib = {}; // predicted win chance bucket -> [fights, wins]
 const tierStats = [0,1,2,3,4].map(() => ({ bouts: 0, wins: 0, deaths: 0 }));
 
@@ -51,12 +52,16 @@ function botSpend() {
       G.denarii -= h.fee; G.staff[h.role] = { name: h.name, skill: h.skill, wage: h.wage }; G.hires = G.hires.filter(x => x !== h);
     }
   }
-  // gear, best fighters first
-  for (const g of G.roster.slice().sort((a, b) => power(b) - power(a))) {
-    for (const slot of ['weapon', 'armor']) {
-      while (g[slot] < 3 && spare() >= GEAR_COST[g[slot] + 1]) { G.denarii -= GEAR_COST[g[slot] + 1]; g[slot]++; }
-    }
+  // gear: hand out spare pieces, then buy whatever improves someone, best pieces first
+  const wants = it => G.roster.filter(g => fits(it, g) && (!g.gear[it.slot] || g.gear[it.slot].r < it.r)).sort((a, b) => power(b) - power(a))[0];
+  for (const it of G.armoury.slice().sort((a, b) => b.r - a.r)) { const g = wants(it); if (g) equip(g, it.id); }
+  for (const it of G.smith.stock.slice().sort((a, b) => b.r - a.r)) {
+    const g = wants(it);
+    if (!g || spare() < itemPrice(it)) continue;
+    if (buyItem(it.id)) { equip(g, it.id); gearSpend += itemPrice(it); }
   }
+  for (const it of G.armoury.slice()) if (!wants(it)) sellItem(it.id);       // junk nobody needs
+  if (G.smith.level < 4 && spare() > SMITH_COST[G.smith.level] + (good ? 250 : 600)) upgradeSmith();
   // facilities
   const order = G.roster.length >= capacity() ? ['barracks', 'ground', 'infirmary', 'baths'] : ['ground', 'infirmary', 'baths', 'barracks'];
   for (const k of order) {
@@ -156,6 +161,7 @@ function playRun() {
   }
   R.day = G.day; R.fame = G.fame; R.roster = G.roster.length; R.staff = Object.keys(G.staff).length;
   R.fac = Object.values(G.fac).reduce((a, b) => a + b, 0); R.endMoney = G.denarii;
+  R.smith = G.smith.level; R.kit = Math.max(0, ...G.roster.map(g => gearPower(g)));
   return R;
 }
 
@@ -163,7 +169,7 @@ const runs = []; for (let i = 0; i < RUNS; i++) runs.push(playRun());
 const med = a => { const s = a.filter(x => x !== undefined).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const count = k => runs.filter(r => r.result === k).length;
 const out2 = {
-  skill: SKILL, runs: RUNS,
+  skill: SKILL, runs: RUNS, gear: { medianSmithLevel: med(runs.map(r => r.smith)), medianBestKit: med(runs.map(r => +r.kit.toFixed(2))), spendPerRun: Math.round(gearSpend / RUNS) },
   tourneys: { entered: med(runs.map(r => r.tEntered || 0)), won: med(runs.map(r => r.tWon || 0)), totalWon: runs.reduce((a, r) => a + (r.tWon || 0), 0), totalEntered: runs.reduce((a, r) => a + (r.tEntered || 0), 0) },
   hunts: { fought: huntStats[0], winRate: +(huntStats[1] / Math.max(1, huntStats[0])).toFixed(2), deathsPerHunt: +(huntStats[2] / Math.max(1, huntStats[0])).toFixed(3), avgOdds: +(huntStats[3] / Math.max(1, huntStats[0])).toFixed(2), perRun: med(runs.map(r => r.hunts || 0)) }, meleesPerRun: med(runs.map(r => r.melees || 0)), medianGrudgeBouts: med(runs.map(r => r.grudges || 0)), debtDaysTotal: R_debt.n,
   lossDays: runs.filter(r => r.result !== 'won').map(r => r.result[0] + r.day),

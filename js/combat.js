@@ -34,10 +34,11 @@ function makeFighter(g, team, i, n) {
   const c = CLASSES[g.cls] || BEASTS[g.cls], s = g.stats, T = g.tactic || 'balanced';
   const has = t => g.traits.includes(t);
   const mh = maxHp(g);
-  let dmg = c.dmg + s.str * 0.6 + g.weapon * 2;
+  const gs = gearStats(g);
+  let dmg = c.dmg + s.str * 0.6 + gs.dmg;
   let atk = c.atkTime * (1.15 - s.agi * 0.015);
-  let dodge = c.dodge + s.agi * 0.008 - g.armor * 0.015;
-  let block = c.shield ? c.block + s.skl * 0.012 : 0;
+  let dodge = c.dodge + s.agi * 0.008 + gs.dodge;
+  let block = c.shield ? c.block + s.skl * 0.012 + gs.block : 0;
   let acc = 0.82 + s.skl * 0.008, crit = (c.crit || 0.05) + s.skl * 0.006;
   let show = 1;
   if (T === 'aggressive') { dmg *= 1.1; atk *= 0.9; dodge *= 0.7; block *= 0.7; }
@@ -60,8 +61,9 @@ function makeFighter(g, team, i, n) {
     y: 83 + (i - (n - 1) / 2) * Math.min(26, 56 / Math.max(1, n - 1)),
     hp: Math.min(g.hp, mh), maxHp: mh,
     dmg, atkTime: Math.max(0.35, atk), dodge: Math.max(0, dodge), block, acc, crit, show, critMult: has('killer') ? 2.1 : 1.7,
-    armor: c.armor + g.armor * 1.5 + (has('thickskin') ? 2 : 0), reach: c.reach,
-    speed: 26 * c.speed * (1 + s.agi * 0.015),
+    armor: c.armor + gs.armor + (has('thickskin') ? 2 : 0), reach: c.reach,
+    stunRes: Math.min(0.7, gs.stunRes), critRes: gs.critRes, bleedRes: gs.bleedRes, hamRes: gs.hamRes, armRes: gs.armRes,
+    speed: 26 * c.speed * (1 + s.agi * 0.015) * gs.speed,
     maxStam, stam: maxStam * (1 - g.fatigue / 200), stamRegen: (5 + s.end * 0.25) * lungs,
     atkCost: c.weapon === 'twin' ? 6 : 10,
     tall: g.beast ? BEAST_ART[g.cls].lh + BEAST_ART[g.cls].bh + 9 : 45,
@@ -165,7 +167,7 @@ function resolveAttack(B, a, d, o) {
   if (a.hate === d) dmg *= 1.15;        // a man facing the rival he has sworn to beat
   if (a.g.traits.includes('bloodthirsty') && d.hp < d.maxHp * 0.5) dmg *= 1.15;
   if (a.g.traits.includes('lionheart') && a.hp < a.maxHp * 0.35) dmg *= 1.2;
-  const crit = !o.nocrit && Math.random() < a.crit;
+  const crit = !o.nocrit && Math.random() < Math.max(0.01, a.crit - d.critRes);
   if (crit) dmg *= a.critMult;
   let blocked = false;
   if (!o.unblockable && d.snare <= 0 && Math.random() < d.block * tired) { blocked = true; dmg *= 0.25; d.stam = Math.max(0, d.stam - 6); }
@@ -175,7 +177,7 @@ function resolveAttack(B, a, d, o) {
   a.dmgDealt += dmg;
   d.flash = 0.12;
   d.kx = a.facing * (o.kb || (blocked ? 15 : 35)) * (crit ? 1.5 : 1);
-  d.stun = Math.max(o.stun || 0, blocked ? 0.05 : 0.15);
+  d.stun = Math.max(o.stun || 0, blocked ? 0.05 : 0.15) * (1 - d.stunRes);
   if (d.state === 'windup' && (o.stun || crit)) { d.state = 'ready'; d.move = null; d.flurry = 0; d.cd = 0.3; }
   B.exc += (dmg / 220 + (crit ? 0.06 : 0) + (o.name ? 0.03 : 0)) * a.show;
   B.shake = Math.max(B.shake, crit ? 2 : 0.8);
@@ -197,7 +199,10 @@ function resolveAttack(B, a, d, o) {
   // wounds
   if (!blocked && (crit || o.bleed)) {
     const r = o.bleed ? 0 : Math.random();
-    if (r < 0.4) {
+    // good armour on the right part of the body can turn a wound aside
+    const res = r < 0.4 ? d.bleedRes : r < 0.6 ? d.hamRes : r < 0.8 ? d.armRes : 0;
+    if (r < 0.8 && Math.random() < res) fxText(B, d, 'armour holds', '#c9d1d9');
+    else if (r < 0.4) {
       d.bleed += Math.max(1.2, dmg * 0.09); d.bleedT = 6; d.bleedBy = a;
       fxText(B, d, 'bleeding', '#ff6a5a');
       if (crit) feed(B, `${a.g.name} opens a vein on ${d.g.name}`, a.team);
@@ -474,6 +479,7 @@ function drawSprite(ctx, o) {
   // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,bash,guard,flash,down,falling,yielded,snare,slash,cheer}
   if (o.g.beast) { drawBeast(ctx, o); return; }
   const g = o.g, c = CLASSES[g.cls], cls = g.cls, d = o.facing;
+  const look = gearLook(g), armorT = look.armor, weaponT = look.weapon;
   const X = Math.round(o.x), Y = Math.round(o.y) - (o.cheer && Math.sin(o.cheer * 9) > 0.3 ? 2 : 0);
   const white = o.flash > 0;
   const P = (x, y, w, h, col) => { ctx.fillStyle = white ? '#fff' : col; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
@@ -484,14 +490,14 @@ function drawSprite(ctx, o) {
 
   const skin = g.look.skin, skinD = shade(skin, 0.76), skinL = shade(skin, 1.18), hair = g.look.hair;
   const team = o.col || TEAM_COL[o.team], teamD = o.colD || TEAM_DARK[o.team], teamL = shade(team, 1.3);
-  const metal = g.armor >= 3 ? '#b4bec8' : g.armor === 2 ? '#dcae48' : '#b98a34';
+  const metal = look.head >= 3 ? '#b4bec8' : look.head === 2 ? '#dcae48' : '#b98a34';
   const metalD = shade(metal, 0.68), metalL = shade(metal, 1.4);
-  const blade = ['#8d9094', '#c1c7cc', '#e4e9ed', '#fbf6dc'][g.weapon], bladeD = shade(blade, 0.72);
-  const hilt = g.weapon >= 3 ? '#e8b545' : g.weapon >= 1 ? '#8a6230' : '#5e4222';
+  const blade = ['#8d9094', '#c1c7cc', '#e4e9ed', '#fbf6dc'][weaponT], bladeD = shade(blade, 0.72);
+  const hilt = weaponT >= 3 ? '#e8b545' : weaponT >= 1 ? '#8a6230' : '#5e4222';
   const gold = '#e8b545', wood = '#7a5a2a', cloth = '#ddd3ba', clothD = '#b0a488', leather = '#6b4526', ink = '#1c1310';
-  const torso = [skin, '#d6c8a2', skin, '#aeb8c2'][g.armor], torsoD = [skinD, '#b0a078', skinD, '#7c8792'][g.armor];
+  const torso = [skin, '#d6c8a2', skin, '#aeb8c2'][armorT], torsoD = [skinD, '#b0a078', skinD, '#7c8792'][armorT];
   const helmed = cls === 'murmillo' || cls === 'thraex' || cls === 'hoplomachus';
-  const manica = cls === 'murmillo' || cls === 'thraex' || cls === 'retiarius' || g.armor >= 1;
+  const manica = cls === 'murmillo' || cls === 'thraex' || cls === 'retiarius' || look.arms;
   const arm = manica ? '#cfc4a6' : skin, armD = manica ? '#a2977a' : skinD;
   const seed = g.id * 7919 % 97;
 
@@ -504,8 +510,8 @@ function drawSprite(ctx, o) {
     P(-18, -4, 10, 3, skin); P(-18, -2, 10, 1, skinD); P(-20, -4, 2, 3, leather);
     P(-9, -6, 6, 5, cloth); P(-9, -2, 6, 1, clothD);
     P(-3, -8, 11, 7, torso); P(-3, -2, 11, 1, torsoD); P(-4, -8, 2, 7, team);
-    if (g.armor === 2) { P(0, -8, 6, 4, metal); P(0, -8, 6, 1, metalL); }
-    if (g.armor === 3) { for (let x = -1; x < 8; x += 2) P(x, -8, 1, 6, '#7c8792'); }
+    if (armorT === 2) { P(0, -8, 6, 4, metal); P(0, -8, 6, 1, metalL); }
+    if (armorT === 3) { for (let x = -1; x < 8; x += 2) P(x, -8, 1, 6, '#7c8792'); }
     L(6, -3, 13, -1, 2, arm);
     if (helmed) { P(8, -9, 7, 7, metal); P(8, -9, 7, 1, metalL); P(13, -6, 2, 3, ink); P(6, -10, 3, 3, cls === 'hoplomachus' ? '#f0ead8' : team); }
     else { P(8, -8, 6, 6, skin); P(8, -8, 6, 2, hair); P(8, -6, 2, 3, hair); P(12, -5, 1, 1, ink); }
@@ -533,8 +539,8 @@ function drawSprite(ctx, o) {
     P(-1, -8, 4, 6, skin); P(1, -3, 6, 3, skin); P(6, -2, 3, 2, leather);
   } else {
     const fdx = o.moving ? [2, 0, -2, 0][frame] : 0;
-    const gFront = cls === 'murmillo' ? 1 : (cls === 'thraex' || cls === 'hoplomachus') ? 2 : 0;
-    const gBack = (cls === 'thraex' || cls === 'hoplomachus') ? 2 : 0;
+    const gFront = cls === 'murmillo' ? 1 : (cls === 'thraex' || cls === 'hoplomachus') ? 2 : look.legs ? 1 : 0;
+    const gBack = (cls === 'thraex' || cls === 'hoplomachus') ? 2 : look.legs ? 1 : 0;
     leg(-4 - fdx, o.moving && frame === 1 ? 1 : 0, true, gBack);
     leg(0 + fdx, o.moving && frame === 3 ? 1 : 0, false, gFront);
   }
@@ -547,23 +553,24 @@ function drawSprite(ctx, o) {
 
   // ---- torso ----
   P(-5, -28 + by, 10, 10, torso); P(-5, -28 + by, 2, 10, torsoD);
-  if (g.armor === 0 || g.armor === 2) {
+  if (armorT === 0 || armorT === 2) {
     P(-2, -24 + by, 6, 1, skinD); P(1, -22 + by, 1, 1, skinD); P(1, -20 + by, 1, 1, skinD); P(3, -27 + by, 1, 3, skinL);
     L(-4, -27 + by, 3, -19 + by, 1, leather);
   }
-  if (g.armor === 1) {
+  if (armorT === 1) {
     for (let y = -26; y <= -20; y += 3) P(-5, y + by, 10, 1, torsoD);
     P(-2, -28 + by, 1, 10, torsoD); P(2, -28 + by, 1, 10, torsoD);
   }
-  if (g.armor === 2) {
+  if (armorT === 2) {
     P(-3, -27 + by, 7, 7, metal); P(-3, -27 + by, 7, 1, metalL); P(-3, -21 + by, 7, 1, metalD);
     P(-3, -27 + by, 1, 7, metalD); P(-1, -25 + by, 3, 3, metalL); P(0, -24 + by, 1, 1, metal);
   }
-  if (g.armor === 3) {
+  if (armorT === 3) {
     for (let y = -28; y <= -20; y += 2) { P(-5, y + by, 10, 1, '#cfd7df'); P(-5, y + 1 + by, 10, 1, '#7c8792'); }
     P(-5, -28 + by, 10, 1, gold); P(-5, -19 + by, 10, 1, gold);
     P(-6, -29 + by, 5, 3, '#cfd7df'); P(-6, -27 + by, 5, 1, '#7c8792');
   }
+  if (look.shoulders && armorT !== 3) { P(-6, -29 + by, 5, 3, metal); P(-6, -29 + by, 5, 1, metalL); P(-6, -27 + by, 5, 1, metalD); }
   P(-1, -29 + by, 3, 1, skinD);
 
   // ---- head ----

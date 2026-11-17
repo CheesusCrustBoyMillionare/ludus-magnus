@@ -26,8 +26,15 @@ const TIPS = {
   talent: 'Talent: how quickly this stat improves with training. One star is slow, five is exceptional.',
   hidden: 'You cannot judge a recruit\'s talent by looking at him. Employ a scout to see it before you buy.',
   rank: 'Fighters earn rank from bouts, wins and kills. Each new rank lets you choose a perk for him.',
-  weapon: 'Better weapons add damage to every blow.',
-  armor: 'Armour takes damage off every blow that lands, at a small cost to dodging.',
+  weapon: 'Adds damage to every blow. A weapon fits only the fighting style it was made for.',
+  head: 'Helm: some protection, shorter stuns, and fewer telling blows land on him.',
+  chest: 'Cuirass: by far the most protection of any piece.',
+  legs: 'Greaves: some protection, quicker feet, and a chance to shrug off a hamstring.',
+  arms: 'Arm guard: some protection, better blocking with a shield, and a chance to shrug off an arm wound.',
+  shoulders: 'Pauldrons: some protection, and a chance to shrug off a bleeding wound.',
+  rarity: 'Rarity runs F, E, D, C, B, A, S. Each step up is stronger and dearer.',
+  armoury: 'Pieces you own that nobody is wearing. Gear returns here when a fighter dies, is sold or is freed.',
+  smithlevel: 'A better smith offers more pieces each games day, and rarer ones.',
   orders: 'Standing orders he follows in every bout.',
   sell: 'Sells him for half his market value. Proven fighters are worth far more than raw recruits.',
   free: 'A veteran given his freedom leaves for good. The city talks of it, and every man in the yard trains harder for it.',
@@ -106,7 +113,7 @@ const TUTORIAL = [
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
     text: 'Each card is a bout. Compare your fighter\'s strength with his opponent\'s, choose who to send, and wager if you trust him. Winning pays a purse and fame, and fame opens greater arenas. <b>Pick a fighter and send him to the sand.</b>' },
   { text: 'A beaten fighter may be spared or killed by the crowd, and wounds keep men out for days. Fighters also earn rank from their bouts, and each new rank lets you choose a perk in his dossier.' },
-  { text: 'Three more things, when you are ready. <b>Patrons</b> reward your favour. <b>Rivals</b> shows the other houses and your feuds with them. And a festival comes every fifteen days: watch the Arena tab for it. Your campaigns are kept under <b>Saves</b>, top right. I will leave you to it.' },
+  { text: 'Three more things, when you are ready. <b>Patrons</b> reward your favour. <b>Rivals</b> shows the other houses and your feuds with them. And a festival comes every fifteen days: watch the Arena tab for it. The <b>Blacksmith</b> sells weapons and armour, graded F to S. Your campaigns are kept under <b>Saves</b>, top right. I will leave you to it.' },
 ];
 
 function renderTutor() {
@@ -164,13 +171,13 @@ function renderTop() {
 
 function renderTabs() {
   const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0;
-  const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['rivals', 'Rivals'], ['market', 'Market'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
+  const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['rivals', 'Rivals'], ['market', 'Market'], ['smith', 'Blacksmith'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
   $('#tabs').innerHTML = tabs.map(([id, name]) =>
     `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}</button>`).join('');
 }
 
 function renderView() {
-  const v = { ludus: viewLudus, arena: viewArena, market: viewMarket, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
+  const v = { ludus: viewLudus, arena: viewArena, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
   $('#view').innerHTML = v();
 }
 
@@ -228,13 +235,6 @@ function traitList(g) {
 
 function gladDetail(g) {
   const c = CLASSES[g.cls];
-  const gear = (slot, names) => {
-    const lvl = g[slot];
-    const btn = lvl < 3
-      ? `<button data-act="gear" data-v="${g.id}" data-w="${slot}" ${G.denarii < GEAR_COST[lvl + 1] ? 'disabled' : ''}>${names[lvl + 1]} &mdash; ${GEAR_COST[lvl + 1]}</button>`
-      : '<span class="dim">Finest there is</span>';
-    return `<span${tip(slot)}>${slot === 'weapon' ? 'Weapon' : 'Armour'}: <b>${names[lvl]}</b></span>${btn}`;
-  };
   const tac = Object.entries(TACTICS).map(([k, t]) => `<option value="${k}" ${g.tactic === k ? 'selected' : ''}>${t.name}</option>`).join('');
   return `<div class="panel">
     <div class="row" style="align-items:flex-start">
@@ -256,7 +256,9 @@ function gladDetail(g) {
     ${traitList(g)}
     ${storyBlock(g)}
     <hr class="sep">
-    <div class="kv">${gear('weapon', WEAPON_TIERS)}${gear('armor', ARMOR_TIERS)}
+    ${gearBlock(g)}
+    <hr class="sep">
+    <div class="kv">
       <span${tip('orders')}>Orders in the arena<br><small>${TACTICS[g.tactic].desc}</small></span>
       <select data-chg="tactic" data-v="${g.id}">${tac}</select>
     </div>
@@ -333,7 +335,7 @@ function viewMarket() {
         <canvas class="portrait" width="72" height="84" data-mportrait="${g.id}"></canvas>
         <div style="flex:1"><div style="font-size:16px">${g.name}</div>
           <div class="dim" style="font-size:13px">${CLASSES[g.cls].name} of ${g.origin}</div>
-          <div class="num dim" style="font-size:13px">health ${maxHp(g)} &middot; ${WEAPON_TIERS[g.weapon]} weapon</div></div>
+          <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div></div>
       </div>
       <div style="margin-top:8px">${statRows(g, !staffLvl('scout'))}</div>
       <div style="margin:8px 0">${traitList(g)}</div>
@@ -546,6 +548,53 @@ function storyBlock(g) {
   return `<hr class="sep">${chips.length ? `<div style="margin-bottom:4px">${chips.join('')}</div>` : ''}${lines ? `<div class="log" style="font-size:13px;max-height:none">${lines}</div>` : ''}`;
 }
 
+// ---------- equipment ----------
+
+function itemTag(it) { return `<span class="rar r${it.r}"${tip('rarity')}>${RARITY[it.r]}</span> ${itemName(it)}`; }
+
+// The six equipment slots on a fighter's dossier, with anything in the armoury he could wear instead.
+function gearBlock(g) {
+  if (!g.gear) return '';
+  const rows = SLOTS.map(slot => {
+    const it = g.gear[slot];
+    const spare = G.armoury.filter(x => x.slot === slot && fits(x, g)).sort((a, b) => b.r - a.r);
+    const worn = it
+      ? `<span${tip(itemEffect(it))}>${itemTag(it)}</span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}">Take off</button>`
+      : `<span class="dim">${slot === 'weapon' ? 'Practice ' + WEAPON_NAMES[g.cls] : 'Nothing'}</span>`;
+    const choices = spare.map(x => `<button class="mini ${it && x.r <= it.r ? '' : 'better'}" data-act="equip" data-v="${g.id}" data-w="${x.id}"${tip(itemEffect(x))}>${it ? 'Swap for' : 'Wear'} ${RARITY[x.r]} ${itemName(x)}</button>`).join('');
+    return `<span class="lbl"${tip(slot)}>${SLOT_INFO[slot].name}</span><div>${worn}${choices ? `<div class="spare">${choices}</div>` : ''}</div>`;
+  }).join('');
+  const gs = gearStats(g);
+  return `<div class="gearlist">${rows}</div>
+    <div class="dim num" style="font-size:12px;margin-top:6px">Kit in all: +${gs.dmg.toFixed(1)} damage, ${gs.armor.toFixed(1)} off every blow${gs.dodge < 0 ? ', ' + (gs.dodge * 100).toFixed(1) + '% dodge' : ''}</div>`;
+}
+
+function viewSmith() {
+  const S = G.smith, lv = S.level, odds = SMITH_ODDS[lv];
+  const range = RARITY.filter((_, i) => odds[i] > 0);
+  const best = it => G.roster.filter(g => fits(it, g) && (!g.gear[it.slot] || g.gear[it.slot].r < it.r)).map(g => g.name);
+  const card = (it, own) => {
+    const who = best(it);
+    return `<div class="panel item"><h3>${itemTag(it)}</h3>
+      <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div>
+      <p style="font-size:14px">${itemEffect(it)}</p>
+      <div class="dim" style="font-size:13px;margin-bottom:8px">${who.length ? 'An improvement for ' + who.join(', ') : it.slot === 'weapon' && !G.roster.some(g => g.cls === it.cls) ? 'Nobody in your ludus fights this way' : 'No better than what your men wear'}</div>
+      ${own ? `<button data-act="smithsell" data-v="${it.id}">Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button>`
+            : `<button class="primary" data-act="smithbuy" data-v="${it.id}" ${G.denarii < itemPrice(it) ? 'disabled' : ''}>Buy &mdash; ${itemPrice(it)} denarii</button>`}
+    </div>`;
+  };
+  const stock = S.stock.map(it => card(it, false)).join('') || '<div class="panel dim">He has sold everything he had. Come back after the next games.</div>';
+  const mine = G.armoury.slice().sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || b.r - a.r).map(it => card(it, true)).join('')
+    || '<div class="panel dim">The racks are empty. Pieces you buy wait here until a fighter wears them; open a fighter\'s dossier to equip him.</div>';
+  return `<div class="panel" style="margin-bottom:16px"><div class="row">
+      <div style="flex:1;min-width:220px"><h3${tip('smithlevel')}>${SMITH_NAMES[lv]} <span class="pips">${'●'.repeat(lv)}${'○'.repeat(4 - lv)}</span></h3>
+      <div class="dim" style="font-size:13px">Offers ${4 + lv} pieces each games day, graded ${range[0]} to ${range[range.length - 1]}.${lv < 4 ? ` Improved, he would offer ${5 + lv}, graded ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0)[0]} to ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0).slice(-1)[0]}.` : ' There is no finer forge in the empire.'}</div></div>
+      ${lv < 4 ? `<button data-act="smithup" ${G.denarii < SMITH_COST[lv] ? 'disabled' : ''}>Improve the forge &mdash; ${SMITH_COST[lv]} denarii</button>` : ''}
+    </div></div>
+    <h2>For sale <small>new stock every games day</small></h2><div class="cards">${stock}</div>
+    <h2 style="margin-top:20px"${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="cards">${mine}</div>`;
+}
+
 function viewChronicle() {
   const rows = G.log.slice().reverse().map(e => `<div class="${e.k}"><span class="d">Day ${e.d}</span>${e.t}</div>`).join('');
   const fallen = G.fallen.length ? `<h2 style="margin-top:20px">The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
@@ -685,11 +734,11 @@ const ACTIONS = {
     modalQueue[0] = `<h2>${E.title}</h2><p>${res}</p>${okBtn()}`;
     paintModal(); render();
   },
-  gear(v, w) {
-    const g = byId(v), cost = GEAR_COST[g[w] + 1];
-    if (g[w] >= 3 || G.denarii < cost) return;
-    G.denarii -= cost; g[w]++; save(); render();
-  },
+  smithbuy(v) { if (buyItem(v)) { save(); render(); } },
+  smithsell(v) { if (sellItem(v)) { save(); render(); } },
+  smithup() { if (upgradeSmith()) { save(); render(); } },
+  equip(v, w) { const g = byId(v); if (g && equip(g, w)) { save(); render(); } },
+  unequip(v, w) { const g = byId(v); if (g && unequip(g, w)) { save(); render(); } },
   sell(v) {
     const g = byId(v); if (!g) return;
     const p = Math.round(value(g) / 2);

@@ -151,3 +151,14 @@ select { padding: 4px 6px; max-width: 100%; }
 .acts button.off { opacity: .4; cursor: default; }
 .acts button.off:hover { border-color: var(--line); background: #3a2a22; }
 .statrow small { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* equipment */
+.rar { display: inline-block; min-width: 18px; padding: 0 4px; text-align: center; font: bold 12px Consolas, monospace; color: #17110f; border-radius: 2px; }
+.rar.r0 { background: #8a8a8a; } .rar.r1 { background: #c2b79d; } .rar.r2 { background: #7fb85a; } .rar.r3 { background: #5aa0e0; }
+.rar.r4 { background: #b77be8; } .rar.r5 { background: #e8b545; } .rar.r6 { background: #f0705e; box-shadow: 0 0 6px #f0705e99; }
+.gearlist { display: grid; grid-template-columns: 78px 1fr; gap: 6px 10px; align-items: start; font-size: 14px; }
+.gearlist .lbl { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; padding-top: 3px; }
+.gearlist .spare { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+button.mini { padding: 1px 7px; font-size: 12px; box-shadow: none; }
+button.mini.better { border-color: var(--green); }
+.item h3 { font-size: 16px; }

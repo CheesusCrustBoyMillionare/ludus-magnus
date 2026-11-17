@@ -116,7 +116,7 @@ function makeGladiator(budget, o) {
     prog: { str: 0, agi: 0, end: 0, skl: 0 },
     pot: { str: rand(0.7, 1.4), agi: rand(0.7, 1.4), end: rand(0.7, 1.4), skl: rand(0.7, 1.4) },
     traits, hp: 0, fatigue: 0, morale: 60, injury: 0,
-    activity: 'rest', tactic: 'balanced', weapon: o.weapon || 0, armor: o.armor || 0,
+    activity: 'rest', tactic: 'balanced', weapon: o.weapon || 0, armor: o.armor || 0, gear: null,
     wins: 0, losses: 0, kills: 0, fame: 0, foughtDay: -1,
     story: [], wish: null, lostTo: null, promise: null,
     xp: 0, rank: 0, perkPending: 0, perkOffer: null,
@@ -133,15 +133,13 @@ function statSum(g) { return g.stats.str + g.stats.agi + g.stats.end + g.stats.s
 function power(g) {
   const s = g.stats;
   const traits = g.traits.reduce((n, t) => n + (TRAITS[t].good ? 1 : -1), 0);
-  return (s.str * 1.1 + s.agi + s.end + s.skl) * (1 + 0.07 * g.weapon + 0.07 * g.armor) * (1 + 0.05 * traits)
+  return (s.str * 1.1 + s.agi + s.end + s.skl) * gearPower(g) * (1 + 0.05 * traits)
     * (0.94 + g.morale / 1000) * (0.6 + 0.4 * g.hp / maxHp(g)) * (g.beast ? BEASTS[g.cls].pw : 1);
 }
 function talent(g) { return (g.pot.str + g.pot.agi + g.pot.end + g.pot.skl) / 4; }
 function value(g) {
   // proven fighters cost far more than raw stock
   let v = Math.pow(statSum(g), 1.6) * 0.85 * (0.6 + 0.4 * talent(g)) * (1 + Math.max(0, statSum(g) - 30) * 0.04);
-  for (let i = 1; i <= g.weapon; i++) v += GEAR_COST[i] * 0.5;
-  for (let i = 1; i <= g.armor; i++) v += GEAR_COST[i] * 0.5;
   return Math.round(v / 5) * 5;
 }
 function stars(p) { return clamp(Math.round((p - 0.7) / 0.7 * 4) + 1, 1, 5); }
@@ -200,6 +198,16 @@ function migrate() {
   if (!G.houses) initHouses();
   if (G.tourney === undefined) G.tourney = null;
   if (!G.bonds) G.bonds = [];
+  if (!G.armoury) G.armoury = [];
+  // saves from before the blacksmith: turn each fighter's old weapon and armour level into real pieces
+  G.roster.concat(G.market).forEach(g => {
+    if (g.gear) return;
+    g.gear = emptyGear();
+    if (g.weapon > 0) g.gear.weapon = makeItem('weapon', [0, 2, 4, 5][g.weapon], g.cls);
+    if (g.armor > 0) ARMOR_SLOTS.forEach(slot => { g.gear[slot] = makeItem(slot, [0, 2, 3, 5][g.armor]); });
+    g.weapon = 0; g.armor = 0;
+  });
+  if (!G.smith) { G.smith = { level: 0, stock: [] }; genSmith(); }
   G.roster.concat(G.market).forEach(g => { if (!g.story) { g.story = []; g.wish = null; g.lostTo = null; g.promise = null; } });
   if (!G.tut) G.tut = { step: 0, on: false };
   if (!G.festival) scheduleFestival();
@@ -240,12 +248,13 @@ function newGame() {
     fac: { barracks: 0, ground: 0, infirmary: 0, baths: 0 },
     ration: 1, pendingEvent: null, won: false, over: false, fallen: [],
     staff: {}, hires: [], autoRest: true, fix: null, tourney: null, festival: null, tut: { step: 0, on: false }, bonds: [],
+    armoury: [], smith: { level: 0, stock: [] },
     patrons: { magistrate: 20, guild: 10, temple: 10 }, gifts: { magistrate: 0, guild: 0, temple: 0 },
   };
   G.roster.push(makeGladiator(23));
   G.roster.push(makeGladiator(21));   // made second so he cannot share the first man's name
-  G.roster.forEach(g => addStory(g, 'Came to you with the ludus.'));
-  initHouses(); genMarket(); genHires(); scheduleFestival();
+  G.roster.forEach(g => { g.gear = emptyGear(); addStory(g, 'Came to you with the ludus.'); });
+  initHouses(); genMarket(); genHires(); genSmith(); scheduleFestival();
   log('You inherit a crumbling ludus, two fighters and a purse of 250 denarii.', 'gold');
   save();
 }
@@ -255,14 +264,16 @@ function genMarket() {
   G.market = [];
   const scout = staffLvl('scout');
   for (let i = 0; i < (scout >= 2 ? 5 : 4); i++) {
-    const g = makeGladiator(18 + t * 8 + rint(-3, 6), { weapon: chance(0.3) ? Math.min(3, t) : 0 });
-    g.price = Math.round(value(g) * rand(1.0, 1.25) * (scout >= 3 ? 0.9 : 1) / 5) * 5;
+    const g = makeGladiator(18 + t * 8 + rint(-3, 6));
+    g.gear = emptyGear();
+    if (chance(0.3)) g.gear.weapon = makeItem('weapon', clamp(t + rint(0, 1), 0, 6), g.cls);   // some come with their own blade
+    g.price = Math.round((value(g) * rand(1.0, 1.25) + (g.gear.weapon ? itemPrice(g.gear.weapon) * 0.6 : 0)) * (scout >= 3 ? 0.9 : 1) / 5) * 5;
     G.market.push(g);
   }
 }
 
-const ENEMY_BUDGET = [20, 29, 39, 50];
-const FINAL_BUDGET = 61;
+const ENEMY_BUDGET = [20, 29, 40, 51];
+const FINAL_BUDGET = 62;
 const ENEMY_PERKS = [0, 1, 1, 2, 3];
 const PURSE = [70, 140, 240, 340];
 const DEBT_DAYS = 10;
@@ -360,6 +371,122 @@ function pickRivals(H, size, budget, t, booked) {
   return picks;
 }
 
+// ---------- equipment: items, the armoury and the blacksmith ----------
+
+function emptyGear() { return { weapon: null, head: null, chest: null, legs: null, arms: null, shoulders: null }; }
+function makeItem(slot, r, cls) { return { id: ++G.nextId, slot, r, cls: slot === 'weapon' ? cls : null }; }
+function itemName(it) { return MATERIAL[it.r] + ' ' + (it.slot === 'weapon' ? WEAPON_NAMES[it.cls] : SLOT_INFO[it.slot].piece); }
+function itemPrice(it) { return Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price / 5) * 5; }
+function fits(it, g) { return it.slot !== 'weapon' || it.cls === g.cls; }
+const pc = v => Math.round(v * 100) + '%';
+
+// What one piece does, as numbers. Used for combat, tooltips and comparisons.
+function itemStats(it) {
+  const k = it.r + 1, z = { dmg: 0, armor: 0, dodge: 0, block: 0, speed: 0, stunRes: 0, critRes: 0, bleedRes: 0, hamRes: 0, armRes: 0 };
+  if (it.slot === 'weapon') { z.dmg = WEAPON_DMG[it.r]; return z; }
+  z.armor = ARMOR_TOTAL[it.r] * SLOT_INFO[it.slot].share;
+  z.dodge = -0.006;                                           // every piece is weight to carry
+  if (it.slot === 'head') { z.stunRes = 0.07 * k; z.critRes = 0.01 * k; }
+  if (it.slot === 'legs') { z.hamRes = 0.11 * k; z.speed = 0.01 * k; z.dodge = 0; }
+  if (it.slot === 'arms') { z.armRes = 0.11 * k; z.block = 0.006 * k; }
+  if (it.slot === 'shoulders') z.bleedRes = 0.11 * k;
+  return z;
+}
+function itemEffect(it) {
+  const z = itemStats(it);
+  if (it.slot === 'weapon') return `+${z.dmg} damage on every blow. Only a ${CLASSES[it.cls].name} can use it.`;
+  const bits = [`Takes ${z.armor.toFixed(1)} damage off every blow`];
+  if (it.slot === 'head') bits.push(`stuns are ${pc(z.stunRes)} shorter`, `telling blows against him ${pc(z.critRes)} less likely`);
+  if (it.slot === 'chest') bits.push('the heaviest protection of any piece');
+  if (it.slot === 'legs') bits.push(`${pc(z.hamRes)} chance to shrug off a hamstring`, `moves ${pc(z.speed)} faster`);
+  if (it.slot === 'arms') bits.push(`${pc(z.armRes)} chance to shrug off an arm wound`, `+${(z.block * 100).toFixed(1)}% block with a shield`);
+  if (it.slot === 'shoulders') bits.push(`${pc(z.bleedRes)} chance to shrug off a bleeding wound`);
+  return bits.join('; ') + '.';
+}
+
+// Everything a fighter's kit adds up to. Rivals and champions have no individual pieces:
+// their single weapon and armour level (0 to 3) stands for the whole kit.
+function gearStats(g) {
+  const s = { dmg: 0, armor: 0, dodge: 0, block: 0, speed: 1, stunRes: 0, critRes: 0, bleedRes: 0, hamRes: 0, armRes: 0 };
+  if (g.beast) return s;
+  if (!g.gear) {
+    s.dmg = g.weapon * 2; s.armor = g.armor * 1.5; s.dodge = -g.armor * 0.015;
+    s.stunRes = g.armor * 0.08; s.critRes = g.armor * 0.01; s.bleedRes = s.hamRes = s.armRes = g.armor * 0.1;
+    return s;
+  }
+  for (const slot of SLOTS) {
+    const it = g.gear[slot];
+    if (!it) continue;
+    const z = itemStats(it);
+    s.dmg += z.dmg; s.armor += z.armor; s.dodge += z.dodge; s.block += z.block; s.speed += z.speed;
+    s.stunRes += z.stunRes; s.critRes += z.critRes; s.bleedRes += z.bleedRes; s.hamRes += z.hamRes; s.armRes += z.armRes;
+  }
+  return s;
+}
+function gearPower(g) { const s = gearStats(g); return 1 + 0.07 * (s.dmg / 2) + 0.07 * (s.armor / 1.5); }
+// How the kit shows on the sprite: 0 to 3 for torso, blade and helmet; flags for the smaller pieces.
+function gearLook(g) {
+  if (g.beast) return { armor: 0, weapon: 0, head: 0, legs: false, arms: false, shoulders: false };
+  if (!g.gear) return { armor: g.armor, weapon: g.weapon, head: g.armor, legs: false, arms: g.armor >= 1, shoulders: false };
+  const t = it => (it ? (it.r <= 1 ? 1 : it.r <= 3 ? 2 : 3) : 0), x = g.gear;
+  return { armor: t(x.chest), weapon: t(x.weapon), head: t(x.head), legs: !!x.legs, arms: !!x.arms, shoulders: !!x.shoulders };
+}
+
+function equip(g, itemId) {
+  const it = G.armoury.find(x => x.id === +itemId);
+  if (!it || !g.gear || !fits(it, g)) return false;
+  G.armoury = G.armoury.filter(x => x !== it);
+  if (g.gear[it.slot]) G.armoury.push(g.gear[it.slot]);
+  g.gear[it.slot] = it;
+  return true;
+}
+function unequip(g, slot) {
+  if (!g.gear || !g.gear[slot]) return false;
+  G.armoury.push(g.gear[slot]); g.gear[slot] = null;
+  return true;
+}
+function stripGear(g) {
+  if (!g.gear) return;
+  for (const slot of SLOTS) if (g.gear[slot]) { G.armoury.push(g.gear[slot]); g.gear[slot] = null; }
+}
+
+// The blacksmith's stock changes every games day. A better smith offers more pieces and rarer ones.
+function genSmith() {
+  const S = G.smith, odds = SMITH_ODDS[S.level];
+  const styles = G.roster.map(g => g.cls);
+  S.stock = [];
+  for (let i = 0; i < 4 + S.level; i++) {
+    let roll = Math.random() * 100, r = 0;
+    while (r < 6 && roll >= odds[r]) { roll -= odds[r]; r++; }
+    const slot = chance(0.3) ? 'weapon' : pick(ARMOR_SLOTS);
+    // weapons usually suit a style you actually field
+    const cls = slot === 'weapon' ? (styles.length && chance(0.75) ? pick(styles) : pick(Object.keys(CLASSES))) : null;
+    S.stock.push(makeItem(slot, r, cls));
+  }
+}
+function buyItem(itemId) {
+  const it = G.smith.stock.find(x => x.id === +itemId);
+  if (!it || G.denarii < itemPrice(it)) return false;
+  G.denarii -= itemPrice(it);
+  G.smith.stock = G.smith.stock.filter(x => x !== it);
+  G.armoury.push(it);
+  return true;
+}
+function sellItem(itemId) {
+  const it = G.armoury.find(x => x.id === +itemId);
+  if (!it) return false;
+  G.denarii += Math.round(itemPrice(it) / 2);
+  G.armoury = G.armoury.filter(x => x !== it);
+  return true;
+}
+function upgradeSmith() {
+  const S = G.smith;
+  if (S.level >= SMITH_COST.length || G.denarii < SMITH_COST[S.level]) return false;
+  G.denarii -= SMITH_COST[S.level]; S.level++;
+  log(`The forge is improved. Your smith is now a ${SMITH_NAMES[S.level].toLowerCase()}.`, 'gold');
+  return true;
+}
+
 // ---------- fighter stories: histories, friendships, rivalries, vows ----------
 
 function addStory(g, t) {
@@ -388,6 +515,7 @@ function unbondedPair() {
 
 // A fighter leaves the ludus. why: 'dead', 'sold' or 'freed'. Those bound to him feel it.
 function departed(g, why, killer) {
+  stripGear(g);                       // whatever he wore goes back to the armoury
   for (const b of bondsOf(g)) {
     const o = b.other;
     if (b.type === 'friend' && why === 'dead') {
@@ -745,7 +873,7 @@ function endDay() {
   if (G.festival.day - G.day === 5) log(`Heralds cry it through the town: ${FESTIVALS[G.festival.type].name}, in five days.`, 'gold');
   if (isGamesDay()) {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
-    genBouts(); checkWishes(); genMarket(); genHires();
+    genBouts(); checkWishes(); genMarket(); genHires(); genSmith();
     log(`Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, 'gold');
   } else { G.bouts = null; G.tourney = null; }
 
@@ -927,7 +1055,7 @@ const EVENTS = {
     make: () => ({ fee: 40 + tier() * 40, g: makeGladiator(19 + tier() * 8 + rint(0, 5)) }),
     text: c => `<b>${c.g.name}</b> of ${c.g.origin}, drowning in debt, offers to swear the gladiator's oath as a ${CLASSES[c.g.cls].name}. He asks ${c.fee} denarii to pay off his creditors.`,
     opts: [
-      { label: c => `Take his oath (${c.fee})`, ok: c => G.denarii >= c.fee && G.roster.length < capacity(), run: c => { G.denarii -= c.fee; G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A free man who swore the oath to pay his debts.'); return `${c.g.name} swears to be burned, bound, beaten and killed by the sword. He joins the ludus.`; } },
+      { label: c => `Take his oath (${c.fee})`, ok: c => G.denarii >= c.fee && G.roster.length < capacity(), run: c => { G.denarii -= c.fee; c.g.gear = c.g.gear || emptyGear(); G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A free man who swore the oath to pay his debts.'); return `${c.g.name} swears to be burned, bound, beaten and killed by the sword. He joins the ludus.`; } },
       { label: () => 'Turn him away', run: () => 'He walks back down the road.' },
     ],
   },
@@ -1004,6 +1132,7 @@ const EVENTS = {
         const g = byId(c.g); if (!g) return 'The deal falls through.';
         G.roster = G.roster.filter(x => x !== g); G.denarii += c.pay; departed(g, 'sold');
         g.wish = null; g.promise = null; g.lostTo = null;
+        g.gear = null; g.weapon = clamp(tier() - 1, 0, 3); g.armor = clamp(tier() - 1, 0, 3);   // his new house kits him out
         g.house = c.h; g.vs = { w: 0, l: 0 }; g.slew = []; g.exYours = true; g.hp = maxHp(g); g.fatigue = 0; g.activity = 'rest';
         houseOf(c.h).roster.push(g);
         G.roster.forEach(x => { x.morale = clamp(x.morale - 5, 0, 100); });
