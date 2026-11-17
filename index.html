@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="build" content="6afcbaf6">
+<meta name="build" content="48466511">
 <title>Ludus Magnus</title>
-<link rel="stylesheet" href="css/style.css?v=31077849">
+<link rel="stylesheet" href="css/style.css?v=1f8e58b0">
 </head>
 <body>
 <div id="app">
@@ -18,6 +18,11 @@
 <div id="arena" hidden>
   <div id="arenaHead"></div>
   <canvas id="arenaCanvas" width="1280" height="720"></canvas>
+  <div id="arenaOrders">
+    <button data-act="order" data-v="press" id="ordPress" data-tip="Your men attack faster and hit harder for eight seconds, and will not stop for breath, but they block and dodge less. Key: 1">Press!</button>
+    <button data-act="order" data-v="hold" id="ordHold" data-tip="Your men block and dodge more and get their wind back for eight seconds, but strike slower and softer. Key: 2">Hold!</button>
+    <button data-act="order" data-v="yield" id="ordYield" data-tip="Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once per bout. Key: 3">Throw in the cloth</button>
+  </div>
   <div id="arenaCtl">
     <button data-act="speed" data-v="1">1x</button>
     <button data-act="speed" data-v="2">2x</button>
@@ -34,11 +39,11 @@
 
 <script src="js/data.js?v=31340665"></script>
 <script src="js/sim.js?v=be2eabf7"></script>
-<script src="js/combat.js?v=d111fd74"></script>
-<script src="js/show.js?v=52b9624f"></script>
+<script src="js/combat.js?v=07c6472f"></script>
+<script src="js/show.js?v=1afb1116"></script>
 <script src="js/sfx.js?v=afa7181b"></script>
 <script src="js/yard.js?v=3177e80f"></script>
 <script src="js/art.js?v=0d9d27b8"></script>
-<script src="js/main.js?v=92298594"></script>
+<script src="js/main.js?v=c60e88b8"></script>
 </body>
 </html>

@@ -736,9 +736,25 @@ function startFight(boutId, tourneyBout) {
   fight = { bout: b, B, speed: 1, wager, pay: odds.pay, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your ludus</span> <span class="dim">vs</span> <span style="color:${b.houseId ? houseDef(b.houseId).col : '#6fa4e6'}">${b.house}</span>${b.death ? ' &middot; <span class="death">to the death</span>' : ''}`;
   $('#arena').hidden = false;
-  paintSpeed();
+  paintSpeed(); paintOrders();
   drawBattle($('#arenaCanvas').getContext('2d'), B);
   fight.raf = requestAnimationFrame(fightLoop);
+}
+// The order buttons: greyed while your voice recovers, with the seconds left on them.
+function paintOrders() {
+  if (!fight) return;
+  const B = fight.B, wait = Math.ceil(B.orderCd);
+  const state = [canOrder(B, 'press'), canOrder(B, 'yield'), wait, B.order ? B.order.kind : ''].join();
+  if (state === fight.ordState) return;
+  fight.ordState = state;
+  for (const [id, kind, label] of [['ordPress', 'press', 'Press!'], ['ordHold', 'hold', 'Hold!']]) {
+    const b = $('#' + id);
+    b.disabled = !canOrder(B, kind);
+    b.classList.toggle('on', !!B.order && B.order.kind === kind);
+    b.textContent = B.orderCd > 0 && !(B.order && B.order.kind === kind) && !B.over ? `${label} (${wait})` : label;
+  }
+  $('#ordYield').disabled = !canOrder(B, 'yield');
+  $('#arenaOrders').style.visibility = B.hunt && B.death ? 'hidden' : 'visible';
 }
 function paintSpeed() {
   $('#muteBtn').textContent = SFX.muted ? 'Sound off' : 'Sound on';
@@ -753,6 +769,7 @@ function fightLoop(ts) {
   for (const s of f.B.snd) SFX.play(s[0], s[1]);
   f.B.snd.length = 0;
   SFX.crowd(f.B.exc + (f.B.over ? 0.3 : 0));
+  paintOrders();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
   if (f.B.over && f.B.outro > f.B.outroEnd) { finishFight(); return; }
   f.raf = requestAnimationFrame(fightLoop);
@@ -984,6 +1001,7 @@ const ACTIONS = {
   updatelater() { const el = document.getElementById('updatebar'); if (el) el.remove(); },
   mute() { SFX.toggle(); paintSpeed(); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
+  order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   skip() { finishFight(); },
   leavearena() { SFX.stop(); $('#arena').hidden = true; fight = null; closeModal(); render(); if (G.pendingEvent) showEvent(); checkEnd(); },
   askreset() {
@@ -1124,6 +1142,12 @@ function renderDev() {
   if (!ui.dev) { el.hidden = true; return; }
   el.innerHTML = devPanel(); el.hidden = false;
 }
+// 1, 2 and 3 shout the orders while a fight is on
+document.addEventListener('keydown', e => {
+  if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
+  const kind = { 1: 'press', 2: 'hold', 3: 'yield' }[e.key];
+  if (kind) { e.preventDefault(); ACTIONS.order(kind); }
+});
 document.addEventListener('keydown', e => {
   if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || (e.key !== 'Y' && e.key !== 'y')) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || document.body).tagName) && document.activeElement.type !== 'checkbox') return;

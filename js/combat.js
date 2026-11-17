@@ -75,6 +75,9 @@ function makeFighter(g, team, i, n) {
     walk: Math.random() * 10, moving: false,
     bleed: 0, bleedT: 0, bleedBy: null, drip: 0, hamstrung: false, armWound: false,
     fallT: 0, guard: 0, hate: null, down: false, yielded: false, fate: null, dmgDealt: 0, downedBy: null,
+    // reading the other man: feints, ripostes, and what the fight has done to his kit
+    feintP: g.beast ? 0 : clamp(0.05 + s.skl * 0.012, 0, 0.3) * (T === 'showman' ? 1.3 : 1), feinted: false, open: 0, riposte: false,
+    backT: 0, flankT: 0, flourish: 0, shieldHits: 0, noHelm: false,
   };
 }
 
@@ -88,7 +91,8 @@ function createBattle(teamA, teamB, opts) {
     intro: opts.noIntro ? 0 : 2.6,
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
-    parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [],
+    parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [],
+    order: null, orderCd: 0, towel: false, lastDown: null, finish: null,
   };
   teamA.forEach((g, i) => B.fighters.push(makeFighter(g, 0, i, teamA.length)));
   teamB.forEach((g, i) => B.fighters.push(makeFighter(g, 1, i, teamB.length)));
@@ -129,7 +133,7 @@ function feed(B, str, team) {
 // ---------- resolution ----------
 
 function knockDown(B, d, a, how) {
-  d.hp = 0; d.down = true; d.downedBy = a || d.downedBy; d.state = 'ready'; d.bleed = 0;
+  d.hp = 0; d.down = true; d.downedBy = a || d.downedBy; d.state = 'ready'; d.bleed = 0; B.lastDown = d;
   d.fallT = 0.35; snd(B, 'down');
   B.exc += 0.2 * (a ? a.show : 1);
   B.hitstop = 0.12; B.shake = 3; B.flashT = 0.12;
@@ -145,26 +149,72 @@ function tryYield(B, d, a) {
   if (d.g.traits.includes('nervous')) p += 0.2;
   if (d.tactic === 'aggressive') p -= 0.15;
   if (Math.random() >= clamp(p, 0.05, 0.8)) return;
-  d.yielded = true; d.downedBy = a; d.state = 'ready'; d.snare = 0;
+  d.yielded = true; d.downedBy = a; d.state = 'ready'; d.snare = 0; B.lastDown = null;
   B.exc += 0.08; snd(B, 'yield');
   fxText(B, d, 'yields', '#ffffff', true);
   feed(B, `${d.g.name} raises a finger and yields`, d.team);
+}
+
+// ---------- orders from the lanista ----------
+// The player may shout to his own men (team 0) while they fight. Press and Hold last eight seconds and
+// share a cooldown; the cloth can be thrown in once, to make the worst-hurt man yield while he still can.
+const ORDER_TIME = 8, ORDER_WAIT = 16;
+const orderOf = (B, f) => (B.order && f.team === 0 && !f.g.beast ? B.order.kind : null);
+function canOrder(B, kind) {
+  if (B.over || B.intro > 0) return false;
+  if (kind === 'yield') return !B.death && !B.hunt && !B.towel && B.fighters.some(f => f.team === 0 && !out(f));
+  return B.orderCd <= 0;
+}
+function giveOrder(B, kind) {
+  if (!canOrder(B, kind)) return false;
+  const mine = B.fighters.filter(f => f.team === 0 && !out(f));
+  if (kind === 'yield') {
+    const f = mine.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+    B.towel = true;
+    if (f.g.traits.includes('lionheart')) { fxText(B, f, 'will not yield', '#ffd24a', true); feed(B, `${f.g.name} sees the cloth, and fights on`, 0); return true; }
+    f.yielded = true; f.downedBy = f.target; f.state = 'ready'; f.snare = 0; B.lastDown = null;
+    fxText(B, f, 'yields', '#ffffff', true); snd(B, 'yield');
+    feed(B, `You throw in the cloth for ${f.g.name}`, 0);
+    return true;
+  }
+  B.order = { kind, t: ORDER_TIME }; B.orderCd = ORDER_WAIT;
+  for (const f of mine) fxText(B, f, kind === 'press' ? 'PRESS!' : 'HOLD!', kind === 'press' ? '#ff9a6a' : '#9cc4ff', true);
+  feed(B, kind === 'press' ? 'You shout: press him!' : 'You shout: hold, and make him come to you!', 0);
+  snd(B, 'special');
+  return true;
+}
+
+// A skilled man who has just turned a blow aside may answer it at once.
+function tryRiposte(B, d) {
+  if (d.g.beast || out(d) || d.state !== 'ready' || d.stun > 0.2) return;
+  if (Math.random() >= clamp(d.g.stats.skl * 0.02, 0, 0.35) * (d.tactic === 'defensive' ? 1.4 : 1)) return;
+  d.cd = Math.min(d.cd, 0.1); d.riposte = true;
+  fxText(B, d, 'riposte', '#e8d7a0');
 }
 
 // o: {mult, unblockable, pierce, bleed, stun, kb, nocrit, name}
 function resolveAttack(B, a, d, o) {
   o = o || {};
   const tired = d.stam < 8 ? 0.5 : 1;
+  // what the defender is dealing with: a feint that fooled him, a man at his back, his lanista's orders
+  const flank = !d.g.beast && !a.g.beast && d.target && d.target !== a && !out(d.target) && Math.sign(a.x - d.x) === -d.facing;
+  const ordD = orderOf(B, d), ordA = orderOf(B, a);
+  const wary = (d.open > 0 ? 0.55 : 1) * (ordD === 'hold' ? 1.25 : ordD === 'press' ? 0.8 : 1);
+  d.open = 0;
   if (Math.random() > a.acc) { fxText(B, d, 'miss', '#cfc6b4'); snd(B, 'miss'); return 'miss'; }
-  const dodge = (d.snare > 0 || d.stun > 0) ? 0 : d.dodge * tired * (d.hamstrung ? 0.5 : 1);
+  const dodge = (d.snare > 0 || d.stun > 0) ? 0 : d.dodge * tired * (d.hamstrung ? 0.5 : 1) * wary * (flank ? 0.6 : 1);
   if (Math.random() < dodge) {
     d.stam = Math.max(0, d.stam - 8);
     d.kx = a.facing * 40;
     fxText(B, d, 'dodge', '#cfe0ff'); snd(B, 'miss');
     B.exc += 0.015 * d.show;
+    tryRiposte(B, d);
     return 'dodge';
   }
   let dmg = a.dmg * (a.armWound ? 0.8 : 1) * (0.8 + Math.random() * 0.4) * (o.mult || 1);
+  if (ordA) dmg *= ordA === 'press' ? 1.1 : 0.9;
+  if (a.riposte) { dmg *= 1.15; a.riposte = false; }
+  if (flank && !d.flankSaid) { d.flankSaid = true; feed(B, `${a.g.name} takes ${d.g.name} from behind`, a.team); }
   if (d.snare > 0) dmg *= 1.1;
   if (a.hate === d) dmg *= 1.15;        // a man facing the rival he has sworn to beat
   if (a.g.traits.includes('bloodthirsty') && d.hp < d.maxHp * 0.5) dmg *= 1.15;
@@ -172,7 +222,7 @@ function resolveAttack(B, a, d, o) {
   const crit = !o.nocrit && Math.random() < Math.max(0.01, a.crit - d.critRes);
   if (crit) dmg *= a.critMult;
   let blocked = false;
-  if (!o.unblockable && d.snare <= 0 && Math.random() < d.block * tired) { blocked = true; dmg *= 0.25; d.stam = Math.max(0, d.stam - 6); }
+  if (!o.unblockable && d.snare <= 0 && Math.random() < d.block * tired * wary * (flank ? 0.3 : 1)) { blocked = true; dmg *= 0.25; d.stam = Math.max(0, d.stam - 6); }
   const armor = o.pierce ? 0 : d.armor * (blocked ? 0.5 : 1);
   dmg = Math.max(1, Math.round(dmg - armor));
   d.hp -= dmg;
@@ -188,10 +238,28 @@ function resolveAttack(B, a, d, o) {
     fxText(B, d, 'block ' + dmg, '#e8e2d0');
     d.guard = 0.25; snd(B, 'block');
     for (let i = 0; i < 4; i++) B.parts.push({ x: d.x - a.facing * 3, y: d.y, h: 10, vx: rand(-30, 30), vh: rand(10, 40), col: '#ffe9a0', spark: true });
+    // a shield only takes so much: it splinters, then hangs in pieces (for show; it still turns blows)
+    d.shieldHits++;
+    if (d.shieldHits === 4 || d.shieldHits === 9) {
+      for (let i = 0; i < 9; i++) B.parts.push({ x: d.x - a.facing * 3, y: d.y, h: rand(8, 14), vx: rand(-40, 40), vh: rand(15, 50), col: chance(0.5) ? B.col[d.team] : '#7a5a2a', spark: true });
+      fxText(B, d, d.shieldHits === 4 ? 'shield splinters' : 'shield in pieces', '#e8e2d0');
+      B.exc += 0.03;
+    }
   } else {
     fxText(B, d, (crit ? '!' : '') + dmg, crit ? '#ffd24a' : '#ffffff');
     fxBlood(B, d, crit ? 9 : 4, a.facing);
     snd(B, 'hit', crit ? 1.5 : 1);
+    // a heavy blow to the head can tear a helmet off; it lies where it lands
+    if (crit && !d.noHelm && (d.g.cls === 'murmillo' || d.g.cls === 'thraex' || d.g.cls === 'hoplomachus') && chance(0.4)) {
+      d.noHelm = true;
+      const hd = gearLook(d.g).head;
+      B.props.push({ x0: d.x, y0: d.y, x: clamp(d.x + a.facing * rand(10, 22), ARENA.x0, ARENA.x1), y: clamp(d.y + rand(-5, 6), ARENA.y0, ARENA.y1), t: B.clock,
+        col: hd >= 3 ? '#b4bec8' : hd === 2 ? '#dcae48' : '#b98a34', crest: d.g.cls === 'hoplomachus' ? '#f0ead8' : B.col[d.team] });
+      fxText(B, d, 'helmet torn off', '#ffd24a');
+      feed(B, `${a.g.name} knocks the helmet from ${d.g.name}'s head`, a.team);
+      B.exc += 0.04 * a.show;
+    }
+    if (crit && a.show > 1.2) { a.flourish = 0.7; B.exc += 0.03; }       // a showman plays to the stands
   }
   if (o.name) snd(B, 'special');
   if (o.name) feed(B, `${a.g.name}: ${o.name}${blocked ? ' (blocked)' : ''}`, a.team);
@@ -219,6 +287,7 @@ function resolveAttack(B, a, d, o) {
     }
   }
   if (!blocked && d.hp < d.maxHp * 0.22) tryYield(B, d, a);
+  if (blocked) tryRiposte(B, d);
   return blocked ? 'block' : 'hit';
 }
 
@@ -284,7 +353,9 @@ function performMove(B, f, t, dx, dy, dist) {
   }
   f.flurry = 0;
   f.state = 'ready';
-  f.cd = f.atkTime * 0.7 * (f.stam < 5 ? 1.5 : 1);
+  const ord = orderOf(B, f);
+  f.cd = f.atkTime * 0.7 * (f.stam < 5 ? 1.5 : 1) * (ord === 'press' ? 0.85 : ord === 'hold' ? 1.1 : 1);
+  if (f.tactic === 'defensive') f.backT = 0.3;
   f.atkAnim = 1; f.slash = 0.12;
 }
 
@@ -293,6 +364,7 @@ function updateFighter(B, f, dt) {
   f.atkAnim = Math.max(0, f.atkAnim - dt * 4);
   f.slash = Math.max(0, f.slash - dt);
   f.guard = Math.max(0, f.guard - dt);
+  f.open = Math.max(0, f.open - dt); f.flourish = Math.max(0, f.flourish - dt);
   f.x += f.kx * dt;
   f.kx *= Math.pow(0.002, dt);
   f.moving = false;
@@ -311,17 +383,28 @@ function fighterAct(B, f, dt) {
     if (f.bleedT <= 0) f.bleed = 0;
     if (f.hp <= 0) { knockDown(B, f, f.bleedBy, `${f.g.name} collapses from loss of blood`); return; }
   }
-  f.stam = Math.min(f.maxStam, f.stam + f.stamRegen * (f.mode === 'recover' ? 2.2 : 1) * dt);
+  f.stam = Math.min(f.maxStam, f.stam + f.stamRegen * (f.mode === 'recover' ? 2.2 : 1) * (orderOf(B, f) === 'hold' ? 1.5 : 1) * dt);
   f.snare = Math.max(0, f.snare - dt);
   f.spCd -= dt; f.cd -= dt; f.retarget -= dt; f.recCd -= dt;
 
   if (!f.target || out(f.target) || f.retarget <= 0) {
-    let best = null, bd = 1e9;
+    // nearest first, but a man weighs more than distance: the one he hates, the one already hurt or
+    // helpless, and above all the one who is cutting down a wounded friend
+    let best = null, bd = 1e9, cover = null;
     for (const o of B.fighters) {
       if (o.team === f.team || out(o)) continue;
-      const dd = Math.hypot(o.x - f.x, (o.y - f.y) * 1.3);
-      if (dd < bd) { bd = dd; best = o; }
+      let dd = Math.hypot(o.x - f.x, (o.y - f.y) * 1.3), c = null;
+      if (!f.g.beast) {
+        if (o === f.target) dd -= 6;
+        if (o === f.hate) dd -= 30;
+        if (o.hp < o.maxHp * 0.35) dd -= f.tactic === 'aggressive' || f.g.traits.includes('bloodthirsty') ? 22 : 9;
+        if (o.snare > 0 || o.stun > 0.3) dd -= 8;
+        const m = o.target;
+        if (m && m !== f && m.team === f.team && !out(m) && m.hp < m.maxHp * 0.4) { dd -= f.tactic === 'defensive' ? 26 : 14; c = m; }
+      }
+      if (dd < bd) { bd = dd; best = o; cover = c; }
     }
+    if (cover && best !== f.target && !f.coverSaid) { f.coverSaid = true; feed(B, `${f.g.name} steps in to cover ${cover.g.name}`, f.team); B.exc += 0.03; }
     if (best !== f.target && f.state === 'windup') { f.state = 'ready'; f.move = null; f.flurry = 0; }
     f.target = best; f.retarget = 1.5;
   }
@@ -342,7 +425,7 @@ function fighterAct(B, f, dt) {
   if (f.mode === 'recover') {
     f.recT -= dt;
     if (f.recT <= 0 || f.stam > f.maxStam * 0.5) { f.mode = 'engage'; f.recCd = 7; }
-  } else if (f.recCd <= 0 && f.stam < f.maxStam * f.windThresh && f.snare <= 0 && t.snare <= 0 && t.stun <= 0) {
+  } else if (f.recCd <= 0 && f.stam < f.maxStam * f.windThresh && f.snare <= 0 && t.snare <= 0 && t.stun <= 0 && orderOf(B, f) !== 'press') {
     f.mode = 'recover'; f.recT = 2.2;
     fxText(B, f, 'winded', '#c9b458');
   }
@@ -352,11 +435,31 @@ function fighterAct(B, f, dt) {
   }
 
   if (trySpecial(B, f, t, dist)) return;
-  if (dist > f.reach) walkBy(f, ux, uy, 1, dt);
-  else if (f.cd <= 0) {
-    startMove(f, 'strike', f.atkTime * 0.3);
-    f.stam = Math.max(0, f.stam - f.atkCost);
+  if (dist > f.reach) {
+    // when a friend already has him busy, come at his back instead of his shield
+    if (!f.g.beast && t.target && t.target !== f && !out(t.target) && dist < 60 && f.flankT < 1.5) {
+      const ex = t.x - t.facing * f.reach * 0.75 - f.x, ey = t.y - f.y, ed = Math.hypot(ex, ey);
+      if (ed > 3) { f.flankT += dt; walkBy(f, ex / ed, ey / ed, 1, dt); return; }
+    }
+    walkBy(f, ux, uy, 1, dt);
+  } else if (f.cd <= 0) {
+    f.flankT = 0;
+    if (!f.feinted && t.open <= 0 && f.stam > 12 && Math.random() < f.feintP) {
+      // a feint: a false start that costs little, and leaves a man who believes it open to the true blow
+      f.feinted = true; f.cd = f.atkTime * 0.3; f.stam -= 3; f.atkAnim = 0.6;
+      if (Math.random() < clamp(0.25 + t.g.stats.skl * 0.03, 0, 0.8)) fxText(B, t, 'reads it', '#cfc6b4');
+      else { t.open = 0.9; fxText(B, f, 'feint', '#e8d7a0'); }
+    } else {
+      f.feinted = false;
+      startMove(f, 'strike', f.atkTime * 0.3);
+      f.stam = Math.max(0, f.stam - f.atkCost);
+    }
   } else if (f.c.net && dist < f.reach * 0.7 && t.snare <= 0) walkBy(f, -ux, -uy, 0.45, dt);
+  else if (f.tactic === 'aggressive' && !f.g.beast) { if (dist > f.reach * 0.65) walkBy(f, ux, uy, 0.3, dt); }       // he crowds his man
+  else if ((f.backT > 0 || (f.g.traits.includes('nervous') && f.hp < f.maxHp * 0.3)) && !f.g.beast) {              // he steps out after striking
+    f.backT -= dt;
+    if (dist < f.reach * 0.95) walkBy(f, -ux, -uy, 0.4, dt);
+  }
   else walkBy(f, -uy * f.circle, ux * f.circle, 0.3, dt);
 }
 
@@ -430,6 +533,8 @@ function stepBattle(B, dt) {
   if (B.intro > 0) { stepIntro(B, dt); return; }
   if (B.hitstop > 0) { B.hitstop -= dt; return; }
   B.time += dt;
+  if (B.order && (B.order.t -= dt) <= 0) B.order = null;
+  B.orderCd = Math.max(0, B.orderCd - dt);
   B.exc = clamp(B.exc - 0.012 * dt, 0, 1);
   B.excSum += B.exc * dt;
   for (const f of B.fighters) updateFighter(B, f, dt);
@@ -459,7 +564,7 @@ function stepBattle(B, dt) {
   for (const f of F) { if (!out(f)) alive[f.team]++; frac[f.team] += f.hp / f.maxHp; }
   if (!alive[0] || !alive[1]) { B.over = true; B.winner = alive[0] ? 0 : 1; }
   else if (B.time > 150) { B.over = true; B.winner = frac[0] >= frac[1] ? 0 : 1; B.decision = true; }
-  if (B.over) { decideVerdicts(B); if (!B.decision) B.slowmo = 0.8; }
+  if (B.over) { decideVerdicts(B); if (!B.decision) B.slowmo = 0.8; if (!B.decision && B.lastDown) B.finish = { x: B.lastDown.x, y: B.lastDown.y }; }
 }
 
 // ---------- drawing ----------
@@ -500,7 +605,7 @@ function drawSprite(ctx, o) {
   const hilt = weaponT >= 3 ? '#e8b545' : weaponT >= 1 ? '#8a6230' : '#5e4222';
   const gold = '#e8b545', wood = '#7a5a2a', cloth = '#ddd3ba', clothD = '#b0a488', leather = '#6b4526', ink = '#1c1310';
   const torso = [skin, '#d6c8a2', skin, '#aeb8c2'][armorT], torsoD = [skinD, '#b0a078', skinD, '#7c8792'][armorT];
-  const helmed = cls === 'murmillo' || cls === 'thraex' || cls === 'hoplomachus';
+  const helmed = (cls === 'murmillo' || cls === 'thraex' || cls === 'hoplomachus') && !o.noHelm;
   const manica = cls === 'murmillo' || cls === 'thraex' || cls === 'retiarius' || look.arms;
   const arm = manica ? '#cfc4a6' : skin, armD = manica ? '#a2977a' : skinD;
   const seed = g.id * 7919 % 97;
@@ -583,6 +688,15 @@ function drawSprite(ctx, o) {
   }
   if (look.shoulders && armorT !== 3) { P(-6, -29 + by, 5, 3, metal); P(-6, -29 + by, 5, 1, metalL); P(-6, -27 + by, 5, 1, metalD); }
   P(-1, -29 + by, 3, 1, skinD);
+  // ---- wounds: the worse he is hurt, the more of it shows ----
+  if (o.hurt) {
+    const bl = '#a3261b', blD = '#7a1a12';
+    P(-1, -25 + by, 2, 2, bl); P(0, -23 + by, 1, 2, blD);
+    if (o.hurt >= 2) { P(-4, -22 + by, 3, 2, bl); P(-3, -20 + by, 1, 2, blD); P(1, -27 + by, 2, 1, bl); }
+    if (o.hurt >= 3) { P(-2, -27 + by, 4, 1, bl); P(2, -21 + by, 2, 3, bl); P(-1, -16 + (kneel ? 8 : 0), 3, 2, blD); if (!kneel) P(1, -11, 2, 3, bl); }
+  }
+  if (o.armWound) { P(-5, -27 + by, 2, 3, '#a3261b'); P(-5, -24 + by, 1, 2, '#7a1a12'); }
+  if (o.hamstrung && !kneel) { P(0, -9, 3, 2, '#a3261b'); P(1, -7, 1, 3, '#7a1a12'); }
 
   // ---- head ----
   if (helmed) {
@@ -700,7 +814,13 @@ function drawSprite(ctx, o) {
       const sx = 4 + so;
       P(sx + 1, -26 + sy, 4, 8, metal); P(sx, -25 + sy, 6, 6, metal); P(sx + 1, -26 + sy, 2, 1, metalL); P(sx, -25 + sy, 1, 3, metalL);
       P(sx + 1, -24 + sy, 4, 4, team); P(sx + 2, -23 + sy, 2, 2, metalL); P(sx + 5, -22 + sy, 1, 3, metalD);
-    } else if (cls === 'retiarius') {
+    }
+    if (c.shield && o.shieldDmg) {          // cracks, then a corner gone
+      const sx = 4 + so, top = cls === 'murmillo' ? -29 : -27;
+      P(sx + 2, top + 3 + sy, 1, 4, ink); P(sx + 3, top + 6 + sy, 1, 3, ink); P(sx + 1, top + 8 + sy, 2, 1, ink);
+      if (o.shieldDmg >= 2) { P(sx + 3, top + sy, 3, 3, '#3a2a1c'); P(sx + 2, top + 2 + sy, 2, 2, '#3a2a1c'); P(sx + 4, top + 5 + sy, 1, 3, ink); P(sx, top + 5 + sy, 2, 1, ink); }
+    }
+    if (cls === 'retiarius') {
       L(2, -26 + by, 5, -21 + by, 3, arm); P(4, -22 + by, 3, 3, skin);
       P(-8, -34 + by, 5, 1, metalL); P(-8, -33 + by, 4, 8, metal); P(-8, -33 + by, 1, 8, metalL); P(-5, -33 + by, 1, 8, metalD);   // shoulder guard
       P(4, -20 + by, 5, 6, '#cfc3a0'); P(5, -14 + by, 3, 4, '#cfc3a0'); P(6, -10 + by, 1, 3, '#b3a785');
@@ -912,8 +1032,20 @@ function drawBattle(ctx, B) {
   const shx = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake) * SCALE : 0;
   const shy = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake * 0.6) * SCALE : 0;
 
+  // the camera closes in on the blow that ends it, then draws back for the verdict
+  const cam = B.cam || (B.cam = { z: 1, x: 214, y: 120, t: performance.now() });
+  const now = performance.now(), cdt = Math.min(0.1, (now - cam.t) / 1000), ck = 1 - Math.pow(0.004, cdt);
+  cam.t = now;
+  const want = B.over && B.finish && B.outro < 0.55 ? 1.5 : 1;
+  if (want > 1) { cam.tx = B.finish.x * 2; cam.ty = B.finish.y * 2 - 16; if (cam.z === 1) { cam.x = cam.tx; cam.y = cam.ty; } }
+  cam.z += (want - cam.z) * ck; if (Math.abs(cam.z - want) < 0.004) cam.z = want;
+  if (cam.tx != null) { cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; }
+  const cz = cam.z, CW = ctx.canvas.width, CH = ctx.canvas.height;
+  const cox = cz === 1 ? 0 : clamp(CW / 2 - cam.x * FINE * cz, CW - 428 * FINE * cz, 0), coy = cz === 1 ? 0 : clamp(CH / 2 - cam.y * FINE * cz, CH - 240 * FINE * cz, 0);
+  const view = unit => ctx.setTransform(unit * cz, 0, 0, unit * cz, cox + shx, coy + shy);
+
   // ---- sprite-pixel layer: backdrop, crowd, blood, fighters ----
-  ctx.setTransform(FINE, 0, 0, FINE, shx, shy);
+  view(FINE);
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
@@ -930,7 +1062,9 @@ function drawBattle(ctx, B) {
       recoil: clamp(Math.abs(f.kx) / 40, 0, 1), shadow,
       bash: f.state === 'windup' && f.move === 'bash', guard: f.guard,
       flash: f.flash, down: f.down, falling: f.fallT > 0, yielded: f.yielded, snare: f.snare, slash: f.slash,
-      cheer: B.over && !out(f) && f.team === B.winner && B.slowmo <= 0 ? T + f.walk : 0,
+      cheer: (B.over && !out(f) && f.team === B.winner && B.slowmo <= 0) || f.flourish > 0 ? T + f.walk : 0,
+      noHelm: f.noHelm, hurt: f.g.beast ? 0 : f.hp < f.maxHp * 0.3 ? 3 : f.hp < f.maxHp * 0.55 ? 2 : f.hp < f.maxHp * 0.8 ? 1 : 0,
+      hamstrung: f.hamstrung, armWound: f.armWound, shieldDmg: f.shieldHits >= 9 ? 2 : f.shieldHits >= 4 ? 1 : 0,
     });
   }
   for (const p of B.parts) { ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 2, 2); }
@@ -956,7 +1090,7 @@ function drawBattle(ctx, B) {
   if (B.flashT > 0) { ctx.fillStyle = `rgba(255,250,235,${Math.min(0.2, B.flashT * 1.8).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
 
   // ---- world-unit layer: nets, bars, floating text ----
-  ctx.setTransform(WORLD, 0, 0, WORLD, shx, shy);
+  view(WORLD);
   for (const p of B.projs) {
     const px = Math.round(p.x), py = Math.round(p.y - 12 - Math.sin(p.k * Math.PI) * 10);
     ctx.fillStyle = 'rgba(232,220,180,.9)';
@@ -964,7 +1098,7 @@ function drawBattle(ctx, B) {
   }
 
   // bars, wound pips and names over each fighter (interface units; world positions are scaled by Z)
-  ctx.setTransform(SCALE, 0, 0, SCALE, shx, shy);
+  view(SCALE);
   ctx.textAlign = 'center';
   ctx.font = 'bold 5px Consolas, monospace';
   for (const f of B.fighters) {
@@ -979,6 +1113,8 @@ function drawBattle(ctx, B) {
     if (f.bleed > 0) pip('#ff3a2a');
     if (f.hamstrung) pip('#ffd24a');
     if (f.armWound) pip('#ff9a3a');
+    if (f.open > 0) pip('#e8d7a0');
+    if (orderOf(B, f)) pip(B.order.kind === 'press' ? '#ff6a3a' : '#6aa8ff');
     if (B.fighters.length > 2) continue;   // in team fights the corner panels carry the names
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(f.g.name, fx + 0.4, ny + 0.4);
     ctx.fillStyle = f.team ? '#bcd6ff' : '#ffd9d2'; ctx.fillText(f.g.name, fx, ny);
@@ -1035,6 +1171,12 @@ function drawBattle(ctx, B) {
   ctx.fillStyle = '#e0aa3e'; ctx.fillRect(110, 173, Math.round(100 * clamp(B.exc, 0, 1)), 3);
   ctx.fillStyle = '#3a2a22'; ctx.fillText('CROWD', 160, 170);
   if (B.death && B.intro <= 0) { ctx.fillStyle = '#8e1b14'; ctx.fillText('SINE MISSIONE', 160, 72); }
+  if (B.order) {            // the order in force, and how long it has left
+    const press = B.order.kind === 'press';
+    ctx.fillStyle = '#000'; ctx.fillRect(41, 172, 52, 5);
+    ctx.fillStyle = press ? '#ff6a3a' : '#6aa8ff'; ctx.fillRect(42, 173, Math.round(50 * B.order.t / ORDER_TIME), 3);
+    ctx.fillStyle = press ? '#ff9a6a' : '#9cc4ff'; ctx.fillText(press ? 'PRESSING' : 'HOLDING', 67, 170);
+  }
 
   if (B.over) {
     ctx.font = 'bold 16px Cinzel, Georgia, serif';

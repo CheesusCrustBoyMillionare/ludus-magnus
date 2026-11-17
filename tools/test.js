@@ -176,6 +176,30 @@ test('bouts to the death and beast hunts follow their own rules', () => game()(f
   }
 }));
 
+test('orders: press, hold and the cloth work only for your own men, with a cooldown', () => game()(function () {
+  newGame();
+  const start = opts => createBattle([makeGladiator(30), makeGladiator(30)], [makeGladiator(30), makeGladiator(30)], Object.assign({ noIntro: true }, opts || {}));
+  let B = start();
+  assert(giveOrder(B, 'press'), 'press should be accepted');
+  assert(B.order && B.order.kind === 'press', 'press should be in force');
+  assert(!giveOrder(B, 'hold'), 'a second shout must wait');
+  assert(orderOf(B, B.fighters[0]) === 'press' && orderOf(B, B.fighters[2]) === null, 'orders reach only your own men');
+  for (let i = 0; i < 30 * (ORDER_WAIT + 1) && !B.over; i++) stepBattle(B, 1 / 30);
+  assert(B.over || (!B.order && giveOrder(B, 'hold')), 'after the wait, another order can be given');
+  B = start();
+  B.fighters.forEach(f => { f.g.traits = []; });
+  assert(giveOrder(B, 'yield'), 'the cloth should be accepted');
+  assert(B.fighters.filter(f => f.team === 0 && f.yielded).length === 1, 'one of your men yields');
+  assert(!giveOrder(B, 'yield'), 'the cloth can be thrown once');
+  assert(!giveOrder(start({ death: true }), 'yield'), 'no yielding in a bout to the death');
+  for (let i = 0; i < 20; i++) {             // fights run to a verdict with orders flying
+    const F = start(); let n = 0;
+    while ((!F.over || F.outro <= F.outroEnd) && n++ < 40000) { if (n % 200 === 0) giveOrder(F, n % 400 ? 'press' : 'hold'); stepBattle(F, 1 / 30); }
+    assert(F.over, 'battle with orders did not finish');
+    assert(!badNumber(F.fighters.map(f => [f.hp, f.x, f.y, f.cd, f.stam])), 'a number went bad in a fight with orders');
+  }
+}));
+
 test('a bout pays out and updates records', () => game()(function () {
   let wins = 0, losses = 0;
   for (let i = 0; i < 40; i++) {

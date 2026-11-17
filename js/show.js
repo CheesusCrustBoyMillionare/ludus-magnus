@@ -175,8 +175,13 @@ function showBack(ctx, B, T) {
     if (age < 1.2) { ctx.fillStyle = '#e8584a'; ctx.fillRect(x, y, 1, 1); }
   }
   for (const l of S.litter) { R(l.x, l.y, 2, 1, l.col); R(l.x, l.y + 1, 2, 1, 'rgba(0,0,0,.18)'); }
+  for (const p of B.props) {              // helmets torn off: they spin away, land, and lie there
+    const q = Math.min(1, (T - p.t) / 0.5), x = Math.round((p.x0 + (p.x - p.x0) * q) * 2), y = Math.round((p.y0 * 2 - 70) + (p.y * 2 - (p.y0 * 2 - 70)) * q - Math.sin(q * Math.PI) * 14);
+    if (q >= 1) R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,.2)');
+    R(x - 3, y - 6, 7, 6, p.col); R(x - 3, y - 6, 7, 1, shade(p.col, 1.4)); R(x - 3, y - 6, 1, 6, shade(p.col, 0.68)); R(x + 1, y - 3, 2, 2, '#1c1310'); R(x - 2, y - 8, 4, 2, p.crest);
+  }
   // heat: by day the foot of the wall and the far sand swim a little
-  if (B.light !== 'dusk' && B.shake <= 0.2) {
+  if (B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
     const cv = ctx.canvas;
     for (let y = 80; y < 100; y++) {
       const a = Math.sin(T * 3.1 + y * 0.83) * (1 - (y - 80) / 26);
