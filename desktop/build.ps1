@@ -80,7 +80,7 @@ $res = @(
     "/resource:`"$lib\WebView2Loader.dll`",bin/WebView2Loader.dll",
     "/resource:`"$root\index.html`",app/index.html"
 )
-foreach ($dir in 'css', 'js') {
+foreach ($dir in 'css', 'js', 'fonts') {
     Get-ChildItem (Join-Path $root $dir) -File | ForEach-Object { $res += "/resource:`"$($_.FullName)`",app/$dir/$($_.Name)" }
 }
 

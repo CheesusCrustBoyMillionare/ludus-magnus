@@ -183,6 +183,8 @@ button.mini.better { border-color: var(--green); }
    parchment for anything read like a letter, and a strip of mosaic under the masthead.
    This block comes last and restyles the plain layout rules above it.
    ===================================================================================== */
+/* Cinzel by Natanael Gama, SIL Open Font License (fonts/OFL.txt); shipped with the game so it works offline */
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 400 900; font-display: swap; src: url(../fonts/cinzel.woff2) format('woff2'); }
 :root {
   --bg: #15100d; --panel: #2b2019; --panel2: #382a20; --line: #4d3a2a; --text: #ecdcbb; --dim: #a9957a;
   --gold: #e3b04a; --bronze: #a8793a; --bronze-d: #5c4020; --bronze-l: #e8c27a; --edge: #120b08;

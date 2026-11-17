@@ -90,6 +90,7 @@ class MainForm : Form
         if (ext == ".css") return "text/css; charset=utf-8";
         if (ext == ".json") return "application/json";
         if (ext == ".png") return "image/png";
+        if (ext == ".woff2") return "font/woff2";
         return "application/octet-stream";
     }
 
