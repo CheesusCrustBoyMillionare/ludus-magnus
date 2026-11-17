@@ -972,6 +972,8 @@ const ACTIONS = {
     checkEnd();
     renderDev();
   },
+  reload() { save(); location.reload(); },
+  updatelater() { const el = document.getElementById('updatebar'); if (el) el.remove(); },
   mute() { SFX.toggle(); paintSpeed(); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   skip() { finishFight(); },
@@ -1122,6 +1124,31 @@ document.addEventListener('keydown', e => {
   renderDev();
 });
 
+// ---------- noticing a newer published version ----------
+// The page carries a build mark (see tools/stamp.js). Every so often the game fetches the page
+// afresh and, if the published mark differs from its own, offers a reload.
+
+const buildOf = html => { const m = /<meta name="build" content="([0-9a-f]+)"/.exec(html); return m ? m[1] : ''; };
+let updateChecked = 0;
+function checkForUpdate() {
+  const mine = (document.querySelector('meta[name="build"]') || {}).content;
+  if (!mine || !/^https?:$/.test(location.protocol) || Date.now() - updateChecked < 5 * 60 * 1000) return;
+  updateChecked = Date.now();
+  fetch('index.html?check=' + updateChecked, { cache: 'no-store' }).then(r => (r.ok ? r.text() : '')).then(html => {
+    const theirs = buildOf(html);
+    if (theirs && theirs !== mine) showUpdateBar();
+  }).catch(() => { /* offline, or served from inside the exe: nothing to do */ });
+}
+function showUpdateBar() {
+  if (document.getElementById('updatebar')) return;
+  const el = document.createElement('div');
+  el.id = 'updatebar';
+  el.innerHTML = 'A newer version of Ludus Magnus has been published. Your campaign is saved. <button class="primary" data-act="reload">Reload now</button> <button data-act="updatelater">Later</button>';
+  document.body.appendChild(el);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+setInterval(checkForUpdate, 10 * 60 * 1000);
+
 // ---------- boot ----------
 
 if (load()) {
@@ -1131,3 +1158,4 @@ if (load()) {
 } else {
   newGame(); render(); intro();
 }
+checkForUpdate();

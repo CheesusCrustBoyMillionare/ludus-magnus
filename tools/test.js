@@ -72,6 +72,15 @@ test('scripts parse', () => {
   }
 });
 
+test('page is stamped: every script and stylesheet address carries its current fingerprint', () => {
+  const r = spawnSync(process.execPath, [path.join(__dirname, 'stamp.js'), '--check'], { encoding: 'utf8' });
+  assert(r.status === 0, (r.stderr || r.stdout).trim());
+  const html = read('index.html');
+  assert(/<meta name="build" content="[0-9a-f]{8}">/.test(html), 'index.html has no build mark');
+  assert((html.match(/\?v=[0-9a-f]{8}"/g) || []).length >= 7, 'expected a fingerprint on the stylesheet and all six scripts');
+  return (r.stdout.match(/build \w+/) || [''])[0];
+});
+
 test('interface wiring: every button, field and tooltip has a handler', () => {
   const main = read('js/main.js'), html = read('index.html');
   const used = (re, src) => [...new Set([...src.matchAll(re)].map(m => m[1]))];
