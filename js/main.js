@@ -1802,16 +1802,44 @@ function viewChronicle() {
   // the men who have done most for it
   const lead = (label, key, unit) => { const g = G.roster.slice().sort((a, b) => b[key] - a[key])[0]; return g && g[key] > 0 ? `<div><span>${label}</span><b>${g.name}</b><small>${g[key]} ${unit}${g[key] === 1 ? '' : 's'}</small></div>` : ''; };
   const honours = lead('Most victories', 'wins', 'win') + lead('Most kills', 'kills', 'kill') + lead('Most famous', 'fame', 'fame');
-  const fallen = G.fallen.length ? `<h2>The fallen <small>${G.fallen.length}</small></h2><div class="panel list tight">${G.fallen.slice().reverse().map(x => prow(`<div class="grow"><span class="t">${x.name} <small class="inl">${CLASSES[x.cls] ? CLASSES[x.cls].name : ''} &middot; ${x.wins} ${x.wins === 1 ? 'victory' : 'victories'}</small></span></div>
-      <span class="end dim">day ${x.day}${x.by ? ' &middot; ' + x.by : ''}</span>`)).join('')}</div>` : '';
+  // the years: where the house stood on each games day
+  const A = (G.annals || []).slice(-40), top = Math.max(1, ...A.map(x => x.f));
+  const years = A.length > 1 ? `<h2>The years <small>fame on each games day</small></h2><div class="panel"><div class="spark years"${tip(`Fame at each games day, from day ${A[0].d} to day ${A[A.length - 1].d}: ${A[0].f} to ${A[A.length - 1].f}. The marks are where each greater arena opens.`)}>${A.map(x => `<i style="height:${Math.max(4, Math.round(x.f / top * 100))}%"${tip(`Day ${x.d}: ${x.f} fame, ${x.w} won and ${x.l} lost, ${x.c} denarii.`)}></i>`).join('')}${TIERS.filter(x => x.fame > 0 && x.fame < top).map(x => `<u style="bottom:${Math.round(x.fame / top * 100)}%"></u>`).join('')}</div></div>` : '';
+  const tabs = [['house', 'The house'], ['deeds', `Deeds <span class="num">${deedCount()}/${DEEDS.length}</span>`], ['records', 'Records'], ['men', `The men <span class="num">${G.fallen.length + (G.alumni || []).length}</span>`]];
+  const ct = tabs.some(x => x[0] === ui.ctab) ? ui.ctab : 'house';
+  let right;
+  if (ct === 'deeds') {
+    const row = D => { const day = (G.deeds || {})[D.id], at = D.at ? D.at() : null;
+      return `<div class="deed ${day ? 'done' : ''}"${tip(`${D.name}: ${D.what}${day ? `\nDone on day ${day}.` : at ? `\n${Math.min(at[0], at[1])} of ${at[1]} so far.` : '\nNot yet.'}`)}><b>${D.name}</b><small>${D.what}</small><span class="num">${day ? 'day ' + day : at ? `${Math.min(at[0], at[1])}/${at[1]}` : '&mdash;'}</span></div>`; };
+    right = `<div class="deeds"${tip('Each deed is done once and stays done. If the house falls, every deed is a point of legacy for the heir.')}>${DEEDS.map(row).join('')}</div>`;
+  } else if (ct === 'records') {
+    const R = G.records || {}, rec = (label, k, fmt, none) => { const x = R[k]; return `<div${x ? tip(`${x.who}, against ${x.vs || 'the field'}, on day ${x.day}.`) : ''}><span>${label}</span><b class="num ${x ? '' : 'dim'}">${x ? fmt(x.v) : '&mdash;'}</b><small>${x ? `${x.who} &middot; day ${x.day}` : none}</small></div>`; };
+    const count = (label, v, sub) => `<div><span>${label}</span><b class="num ${v ? '' : 'dim'}">${v || 0}</b><small>${sub}</small></div>`;
+    right = `<h2>The best of the house <small>in a single bout won</small></h2><div class="panel"><div class="kvs three recs">
+        ${rec('Richest purse', 'purse', v => v, 'no bout won yet')}${rec('Most fame', 'fame', v => '+' + v, 'no bout won yet')}${rec('Biggest wager won', 'wager', v => v, 'no wager won yet')}
+        ${rec('Quickest win', 'quick', v => v + 's', 'no bout won yet')}${rec('Longest fight won', 'long', v => v + 's', 'no bout won yet')}${rec('Loudest crowd', 'crowd', v => v + '%', 'no bout won yet')}</div></div>
+      <h2>The tally</h2><div class="panel"><div class="kvs three recs">
+        ${count('Longest run', G.bestStreak, 'victories in a row')}${count('Clean sweeps', G.sweeps, 'whole cards won')}${count('Festival crowns', trophies(), 'held by the house')}
+        ${count('Laurels', (G.laurels || []).filter(x => !x.hid).length, 'tournaments won')}${count('Title defences', G.title && G.title.house === null ? G.title.defences : 0, G.title && G.title.house === null ? `${G.title.name} holds it` : 'the title is not yours')}${count('Bounties', wildMap().bounties, 'taken in the province')}
+        ${count('Places dealt with', wildMap().cleared, 'out in the country')}${count('Regions safe', safeRegions().length, `of ${Object.keys(regionTally()).length}`)}${count('Deeds', deedCount(), `of ${DEEDS.length}`)}</div></div>`;
+  } else if (ct === 'men') {
+    const WHY = { freed: 'freed', sold: 'sold', deserted: 'ran' };
+    const fallen = G.fallen.slice(-12).reverse().map(x => `<div class="lrow" style="cursor:default"${tip(`${x.name}${CLASSES[x.cls] ? ', ' + CLASSES[x.cls].name : ''}: ${x.wins} ${x.wins === 1 ? 'victory' : 'victories'}. Died on day ${x.day}${x.by ? ', killed by ' + x.by : ''}.`)}><div class="grow"><span class="t">${x.name}</span></div><span class="end dim">${x.wins}W &middot; day ${x.day}</span></div>`).join('');
+    const gone = (G.alumni || []).slice(-8).reverse().map(x => `<div class="lrow" style="cursor:default"${tip(`${x.name}${CLASSES[x.cls] ? ', ' + CLASSES[x.cls].name : ''}: ${x.wins} ${x.wins === 1 ? 'victory' : 'victories'}, ${x.kills} kill${x.kills === 1 ? '' : 's'}. ${x.why === 'freed' ? 'Given his freedom' : x.why === 'sold' ? 'Sold' : 'Ran'} on day ${x.day}.`)}><div class="grow"><span class="t">${x.name}</span></div><span class="end ${x.why === 'freed' ? 'gold' : 'dim'}">${WHY[x.why] || x.why} &middot; day ${x.day}</span></div>`).join('');
+    right = `${honours ? `<h2>Honours <small>of the men you have now</small></h2><div class="panel"><div class="kvs three">${honours}</div></div>` : ''}
+      <h2>The fallen <small>${G.fallen.length}${G.fallen.length > 12 ? ', the last twelve shown' : ''}</small></h2>${fallen ? `<div class="panel list tight twoup">${fallen}</div>` : '<div class="listnote">No fighter of this house has died yet.</div>'}
+      <h2>Those who left <small>${(G.alumni || []).length}${(G.alumni || []).length > 8 ? ', the last eight shown' : ''}</small></h2>${gone ? `<div class="panel list tight twoup">${gone}</div>` : '<div class="listnote">Nobody has been sold, freed or lost to the road.</div>'}`;
+  } else {
+    right = `${standing}${years}${provincePanel()}${dynastyPanel()}
+      <p style="margin-top:10px" class="row"><button data-act="tuton"${tip('steward')}>Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p>`;
+  }
   return `<div class="fill">
     <div><h2>Chronicle <small>${shown.length} of the last ${G.log.length} entries</small></h2>
       <div class="subtabs logtabs">${filters}</div>
       <div class="pane" data-pane="log-${f}-${pg}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div>${pager}</div></div>
-    <div><h2>The house</h2><div class="pane" data-pane="house">${standing}
-      ${honours ? `<h2>Honours</h2><div class="panel"><div class="kvs three">${honours}</div></div>` : ''}
-      ${fallen || '<div class="listnote">No fighter of this house has died yet.</div>'}${provincePanel()}${dynastyPanel()}
-      <p style="margin-top:14px" class="row"><button data-act="tuton"${tip('steward')}>Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p></div></div>
+    <div><h2>The annals</h2>
+      <div class="subtabs logtabs">${tabs.map(([k, n]) => `<button class="${ct === k ? 'on' : ''}" data-act="ctab" data-v="${k}"${k === 'deeds' ? tip('Things the house has done once and for all. Each is a point of legacy for the heir if the house falls.') : ''}>${n}</button>`).join('')}</div>
+      <div class="pane" data-pane="annals-${ct}">${right}</div></div>
   </div>`;
 }
 
@@ -2268,6 +2296,7 @@ const ACTIONS = {
   rowsel(v, w) { ui[v] = /^\d+$/.test(w) ? +w : w; render(); },
   dtab(v) { ui.dtab = v; render(); },
   lfilter(v) { ui.lfilter = v; ui.lpage = 0; render(); },
+  ctab(v) { ui.ctab = v; render(); },
   lpage(v) { ui.lpage = Math.max(0, (ui.lpage || 0) + (+v)); render(); },
   storyall(v) { ui.storyAll = ui.storyAll === +v ? null : +v; render(); },
   // A dealing with a house: those that cannot be taken back are asked twice.

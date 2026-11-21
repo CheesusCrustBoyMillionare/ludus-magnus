@@ -95,7 +95,67 @@ function importSave(text, n) {
 
 function log(text, kind) {
   G.log.push({ d: G.day, t: text, k: kind || '' });
-  if (G.log.length > 250) G.log.shift();
+  if (G.log.length > 400) G.log.shift();
+}
+
+// ---------- the annals: deeds, records, and the years ----------
+// A deed is done once and stays done. Each is worth a point of legacy to the heir, if it comes to that.
+// at() gives [how far, how far it must go] for the deeds that are counted towards.
+const mapOf = () => (G.dynasty && G.dynasty.map) || {};
+const DEEDS = [
+  { id: 'win1', name: 'First blood', what: 'Win a bout.', at: () => [G.tally.wins, 1] },
+  { id: 'win10', name: 'A name in the pits', what: 'Win 10 bouts.', at: () => [G.tally.wins, 10] },
+  { id: 'win50', name: 'A house to be feared', what: 'Win 50 bouts.', at: () => [G.tally.wins, 50] },
+  { id: 'win100', name: 'A hundred victories', what: 'Win 100 bouts.', at: () => [G.tally.wins, 100] },
+  { id: 'run5', name: 'Five on the run', what: 'Win 5 bouts in a row.', at: () => [G.bestStreak || 0, 5] },
+  { id: 'run10', name: 'Unbeaten', what: 'Win 10 bouts in a row.', at: () => [G.bestStreak || 0, 10] },
+  { id: 'sweep', name: 'The day is yours', what: 'Fight and win every bout on a card of three or more.', at: () => [G.sweeps || 0, 1] },
+  { id: 'tier1', name: 'Out of the pits', what: `Reach the ${TIERS[1].name}.`, done: () => tier() >= 1 },
+  { id: 'tier2', name: 'The city knows you', what: `Reach the ${TIERS[2].name}.`, done: () => tier() >= 2 },
+  { id: 'tier3', name: 'The great arena', what: `Reach the ${TIERS[3].name}.`, done: () => tier() >= 3 },
+  { id: 'emperor', name: 'Before the Emperor', what: 'Win the Emperor\'s Games.', done: () => !!G.won },
+  { id: 'title', name: 'Champion of the arena', what: 'A man of yours takes the championship.', done: () => !!G.title && G.title.house === null },
+  { id: 'title3', name: 'None can take it', what: 'Defend the championship three times.', at: () => [G.title && G.title.house === null ? G.title.defences : 0, 3] },
+  { id: 'laurel', name: 'The laurel', what: 'A man of yours wins the Laurel Tournament.', done: () => (G.laurels || []).some(x => !x.hid) },
+  { id: 'crown1', name: 'Victor of a festival', what: 'Win a festival crown.', at: () => [trophies(), 1] },
+  { id: 'crown3', name: 'Three crowns', what: 'Win three festival crowns.', at: () => [trophies(), 3] },
+  { id: 'first', name: 'First among the schools', what: 'Stand above every rival house in renown.', done: () => G.fame > 0 && G.houses.every(H => H.prestige < G.fame) },
+  { id: 'primus', name: 'A man at the top', what: `A fighter of yours reaches the rank of ${RANKS[RANKS.length - 1].name}.`, done: () => G.roster.some(g => g.rank >= RANKS.length - 1) },
+  { id: 'killer', name: 'A killer in the house', what: 'A fighter of yours has five kills.', at: () => [Math.max(0, ...G.roster.map(g => g.kills || 0)), 5] },
+  { id: 'freed', name: 'The wooden sword', what: 'Give a fighter his freedom.', done: () => (G.alumni || []).some(x => x.why === 'freed') },
+  { id: 'cells', name: 'A full barracks', what: 'Keep nine fighters at once.', at: () => [G.roster.length, 9] },
+  { id: 'staff', name: 'A full household', what: 'Fill every post.', at: () => [Object.keys(G.staff).length, Object.keys(STAFF_ROLES).length] },
+  { id: 'built', name: 'Nothing left to build', what: 'Improve every building as far as it goes.', at: () => [Object.keys(FACILITIES).filter(k => (G.fac[k] || 0) >= 3).length, Object.keys(FACILITIES).length] },
+  { id: 'forge', name: 'An imperial forge', what: 'Improve the forge as far as it goes.', at: () => [G.smith.level, 4] },
+  { id: 'harness', name: 'A matched harness', what: 'Arm a man in five pieces of one grade.', done: () => G.roster.some(g => g.gear && gearStats(g).full === 2) },
+  { id: 'rich', name: 'A heavy purse', what: 'Hold 2,000 denarii.', at: () => [Math.max(0, G.denarii), 2000] },
+  { id: 'patron', name: 'A friend in high places', what: 'Reach 80 favour with a patron.', at: () => [Math.round(Math.max(...Object.values(G.patrons))), 80] },
+  { id: 'work', name: 'First choice', what: 'Earn the best name for work on contract.', at: () => [Math.round(workRep()), 85] },
+  { id: 'sites', name: 'A walker of the province', what: 'Deal with ten places out in the country.', at: () => [mapOf().cleared || 0, 10] },
+  { id: 'bounty', name: 'The Magistrate\'s hunter', what: 'Take three bounties.', at: () => [mapOf().bounties || 0, 3] },
+  { id: 'safe', name: 'Safe roads', what: 'Make a region of the province safe.', at: () => [safeRegions().length, 1] },
+  { id: 'eagle', name: 'The eagle of the Seventeenth', what: 'Find the lost eagle.', done: () => (mapOf().story || 0) >= 5 },
+];
+const deedDone = D => { try { if (D.done) return !!D.done(); const [a, b] = D.at(); return a >= b; } catch (e) { return false; } };
+const deedCount = () => Object.keys(G.deeds || {}).length;
+// Marks whatever has just been achieved. The lines of a report can be handed in to carry the news.
+function checkDeeds(lines) {
+  const got = [];
+  G.deeds = G.deeds || {};
+  for (const D of DEEDS) {
+    if (G.deeds[D.id] || !deedDone(D)) continue;
+    G.deeds[D.id] = G.day; got.push(D);
+    log(`A deed for the annals: ${D.name}.`, 'gold');
+    if (lines) lines.push(`<span class="gold">A deed for the annals: <b>${D.name}</b>.</span>`);
+  }
+  return got;
+}
+// The best the house has done at one thing or another. `more`: a bigger figure beats the old one.
+function setRecord(k, v, who, vs, more) {
+  const R = G.records = G.records || {};
+  if (!(v > 0) || (R[k] && (more ? v <= R[k].v : v >= R[k].v))) return false;
+  R[k] = { v, who, vs: vs || '', day: G.day };
+  return true;
 }
 
 // ---------- gladiators ----------
@@ -433,7 +493,7 @@ function newGame(dynasty, carried) {
 function ordinal(n) { return ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'][n] || n + 'th'; }
 
 // What a fallen house is worth to those who come after it.
-function legacyScore() { return Math.floor(G.fame / 20) + Math.floor(G.day / 10) + G.tally.wins + 5 * tier(); }
+function legacyScore() { return Math.floor(G.fame / 20) + Math.floor(G.day / 10) + G.tally.wins + 5 * tier() + deedCount(); }
 
 function rollBoons(score) {
   const pool = Object.keys(BOONS).filter(b => !G.dynasty.boons.includes(b));
@@ -997,6 +1057,7 @@ function unbondedPair() {
 
 // A fighter leaves the ludus. why: 'dead', 'sold', 'freed' or 'deserted'. Those bound to him feel it.
 function departed(g, why, killer) {
+  if (why !== 'dead') { (G.alumni = G.alumni || []).push({ name: g.name, cls: g.cls, wins: g.wins || 0, kills: g.kills || 0, day: G.day, why }); if (G.alumni.length > 40) G.alumni.shift(); }      // the roll of those who left alive
   stripGear(g);                       // whatever he wore goes back to the armoury
   for (const b of bondsOf(g)) {
     const o = b.other;
@@ -1637,12 +1698,14 @@ function endDay() {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
     genRequest();
     genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts(); postBounty();
+    (G.annals = G.annals || []).push({ d: G.day, f: G.fame, c: G.denarii, w: G.tally.wins, l: G.tally.losses }); if (G.annals.length > 80) G.annals.shift();      // where the house stood, each games day
     log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
   } else { G.bouts = null; G.tourney = null; }
 
   if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
   if (!G.over && !G.ruin) jobsTick();
   if (!G.over && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
+  if (!G.over && !G.ruin) checkDeeds();
   if (isGamesDay()) backupSlot();
   save();
 }
@@ -1789,7 +1852,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
     const R = G.dayRec && G.dayRec.day === G.day ? G.dayRec : (G.dayRec = { day: G.day, w: 0, l: 0 });
     if (win) R.w++; else R.l++;
     if (win && !R.l && R.w >= 3 && G.bouts.every(b => b.done || b === bout)) {
-      sweep = round5(PURSE[tier()] * 0.6); purse += sweep; fameGain += Math.round(FAME[tier()] * 0.5); favor('magistrate', 2);
+      sweep = round5(PURSE[tier()] * 0.6); purse += sweep; G.sweeps = (G.sweeps || 0) + 1; fameGain += Math.round(FAME[tier()] * 0.5); favor('magistrate', 2);
       lines.push(`<span class="gold">Every bout on the card, fought and won. The editor sends down a wreath and ${sweep} denarii: the day is yours.</span>`);
     }
   }
@@ -1798,6 +1861,13 @@ function applyBoutResult(bout, B, wager, pay, kind) {
   bout.done = true;
   if (bout.tourney) advanceTourney(win, lines);
   if (bout.final && win) G.won = true;
+  if (win) {                                  // what goes in the book of records
+    const who = mine.map(f => f.g.name).join(' & ');
+    setRecord('purse', purse, who, bout.house, true); setRecord('fame', fameGain, who, bout.house, true); setRecord('wager', wagerGain, who, bout.house, true);
+    setRecord('crowd', Math.round(avgExc * 100), who, bout.house, true); setRecord('long', Math.round(B.time), who, bout.house, true);
+    if (!B.decision) setRecord('quick', Math.round(B.time * 10) / 10, who, bout.house, false);
+  }
+  checkDeeds(lines);
   if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
   save();
   return { win, lines, purse, fameGain, wager, wagerGain, avgExc, sweep, kind: kind || 'win' };

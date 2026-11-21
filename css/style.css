@@ -1294,3 +1294,16 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 
 /* ---- the camp: three ways to spend a day ---- */
 .camprow button { padding-left: 6px; padding-right: 6px; white-space: nowrap; }
+
+/* ---- the annals: deeds, records, the years ---- */
+.deeds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 6px; }
+.deed { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 8px; align-items: baseline; padding: 3px 8px 4px; background: var(--panel); border: 1px solid var(--edge); opacity: .72; }
+.deed b { font: 700 11.5px var(--display); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deed span { font-size: 11px; color: var(--dim); }
+.deed small { font-size: 11px; line-height: 1.25; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deed.done { opacity: 1; border-color: var(--gold); }
+.deed.done b, .deed.done span { color: var(--gold); }
+.kvs.recs { row-gap: 8px; }
+.kvs.recs small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spark.years { height: 64px; position: relative; }
+.spark.years u { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(240, 220, 170, .35); pointer-events: none; }

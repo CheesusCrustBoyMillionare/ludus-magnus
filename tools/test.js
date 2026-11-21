@@ -747,7 +747,7 @@ test('dynasty: debt, ruin, succession and what the family keeps', () => game()(f
   endDay(); assert(G.debtDays === 2 && !G.ruin, 'day two of grace');
   endDay(); assert(G.ruin && !G.over, 'on the third day the ludus falls, and the game goes on');
   const R = G.ruin, D = G.dynasty;
-  assert(R.earned === Math.floor(160 / 20) + 0 + 9 + 5 && D.points === R.earned && D.history.length === 1 && D.history[0].gen === 1, 'legacy is worked out from how far the house got');
+  assert(deedCount() >= 1 && R.earned === Math.floor(160 / 20) + 0 + 9 + 5 + deedCount() && D.points === R.earned && D.history.length === 1 && D.history[0].gen === 1, 'legacy is worked out from how far the house got');
   assert(R.offers.length === 3 && new Set(R.offers).size === 3 && R.offers.every(b => BOONS[b]), 'three different boons are offered');
   // climbing out of debt in time avoids all of it
   const snap = JSON.stringify(G);
@@ -995,6 +995,39 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
   newGame(); raiseEvent('feast', EVENTS.feast.make()); raiseEvent('vigil', EVENTS.vigil.make());
   assert(G.pendingEvent.id === 'feast' && G.eventQueue.length === 1, 'the second waits behind the first');
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
+}));
+
+test('the annals: deeds, records, the years, and those who left', () => game()(function () {
+  newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(30));
+  assert(new Set(DEEDS.map(D => D.id)).size === DEEDS.length && DEEDS.every(D => D.name && D.what && (D.done || D.at)), 'every deed is named and can be judged');
+  assert(checkDeeds().length === 0 && deedCount() === 0, 'nothing is done on the first morning');
+  DEEDS.forEach(D => { if (D.at) { const a = D.at(); assert(a.length === 2 && a[0] >= 0 && a[1] > 0 && !a.some(isNaN), D.id + ' counts towards something'); } assert(deedDone(D) === false, D.id + ' is not done at the start'); });
+  // a bout won: the first deed, and the book of records opened
+  G.day = 5; genBouts();
+  const b = G.bouts[0], g = G.roster[0], B = fight([g], [boutEnemies(b)[0]]); B.winner = 0; B.fighters.forEach(f => { if (f.team === 0) f.fate = null; });
+  const legacy0 = legacyScore(), r = applyBoutResult(b, B, 0, 1);
+  assert(G.deeds.win1 === G.day && deedCount() === 1 && r.lines.some(l => /First blood/.test(l)), 'the first victory is a deed, and the report says so');
+  assert(legacyScore() >= legacy0 + 2, 'a deed is a point of legacy, on top of the victory');
+  const R = G.records;
+  assert(R.purse.v === r.purse && R.purse.who === g.name && R.fame.v === r.fameGain && R.quick.v > 0 && R.long.v > 0 && R.purse.day === G.day, 'the records are opened');
+  assert(!setRecord('purse', R.purse.v - 5, 'x', 'y', true) && setRecord('purse', R.purse.v + 5, 'x', 'y', true) && G.records.purse.who === 'x', 'only a better figure is written in');
+  assert(!setRecord('quick', R.quick.v + 5, 'x', 'y', false) && setRecord('quick', 1, 'x', 'y', false), 'a quicker win beats a slower one');
+  assert(checkDeeds().length === 0, 'a deed is done once');
+  // counted deeds, and deeds of state
+  G.tally.wins = 10; G.bestStreak = 5; G.denarii = 2500; G.smith.level = 4;
+  const got = checkDeeds().map(D => D.id);
+  assert(['win10', 'run5', 'rich', 'forge'].every(k => got.includes(k)) && !got.includes('win50'), 'what has been reached is marked, and no more');
+  G.denarii = 100; assert(G.deeds.rich, 'and stays marked');
+  // those who left alive are remembered
+  const gone = G.roster[2]; G.roster = G.roster.filter(x => x !== gone); departed(gone, 'freed');
+  assert(G.alumni.length === 1 && G.alumni[0].name === gone.name && G.alumni[0].why === 'freed' && checkDeeds().some(D => D.id === 'freed'), 'a man freed is on the roll, and it is a deed');
+  const dead = G.roster[2]; G.roster = G.roster.filter(x => x !== dead); departed(dead, 'dead');
+  assert(G.alumni.length === 1, 'the dead are not among those who left');
+  // the years: a line for each games day
+  G.bouts.forEach(x => { x.done = true; }); G.day = 9; endDay();
+  assert(G.annals.length === 1 && G.annals[0].d === 10 && G.annals[0].f === G.fame && G.annals[0].w === G.tally.wins, 'the games day is written into the years');
+  endDay(); assert(G.annals.length === 1, 'and only games days');
+  assert(!badNumber(G), 'the annals left a bad number');
 }));
 
 test('the province: bounties, foraging, scouting and regions made safe', () => game()(function () {
