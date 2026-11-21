@@ -511,3 +511,31 @@ h2 .h2opt { float: right; font: 12px Georgia, serif; letter-spacing: 0; text-tra
 @media (max-width: 1000px) { #wilds { flex-direction: column; overflow: auto; } #wildCanvas { height: auto; width: 100%; max-width: none; } }
 #camp .lrow { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
 #camp .listnote { padding: 5px 8px; font-size: 12px; }
+
+/* styles, abilities, and the choice the fight stops for */
+.stylemark { display: inline-flex; align-items: center; vertical-align: middle; }
+.stylemark .ic { width: 15px; height: 15px; }
+.stylemark.none { color: var(--dim); font-size: 12px; }
+.abgroup { margin-bottom: 8px; }
+.abhead { display: flex; align-items: center; gap: 6px; font: 700 12px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+.abhead .ic { width: 16px; height: 16px; }
+.ab { padding: 4px 8px; margin: 2px 0; font-size: 13px; line-height: 1.3; border: 1px solid var(--bronze-d); background: #1c140f; }
+.ab small { float: right; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.ab .dim { font-size: 12px; }
+.ab.locked { opacity: .45; }
+.ab.on { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }
+.ab.on small { color: var(--gold); }
+.ab[data-act] { cursor: pointer; }
+.ab[data-act]:hover { background: #2a1f16; }
+#arenaPick { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 3; width: min(880px, 94%); padding: 10px 12px;
+  background: #e7d6ad var(--grain); color: #2c1c10; border: 1px solid var(--edge); box-shadow: 0 0 0 3px var(--gold), 0 0 0 4px var(--edge), 0 8px 0 #000a; }
+#arenaPick .who { font: 700 14px var(--display); letter-spacing: .1em; text-transform: uppercase; color: #7a1f16; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; justify-content: center; }
+#arenaPick .abrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
+#arenaPick button { display: block; text-align: left; padding: 6px 8px 7px; white-space: normal; position: relative; }
+#arenaPick button b { display: block; font-size: 13px; letter-spacing: .04em; padding-right: 16px; }
+#arenaPick button small { display: block; font: 11px/1.25 Georgia, serif; color: #e8d9b8; text-transform: none; letter-spacing: 0; text-shadow: none; margin-top: 2px; }
+#arenaPick button .key { position: absolute; right: 6px; top: 4px; font: bold 11px Consolas, monospace; opacity: .7; }
+#arena { position: fixed; }
+.abcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.abcols .ab small { float: none; display: block; }
+.abcols .ab { padding: 4px 6px; }

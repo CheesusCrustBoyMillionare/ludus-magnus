@@ -93,6 +93,14 @@ const CONTRACTS = {
   },
 };
 
+// The weights above were written when there were four skills. What was asked of endurance is asked of the
+// others in proportion, so that each contract's weights still add up to one.
+for (const k in CONTRACTS) {
+  const w = CONTRACTS[k].w, rest = 1 - (w.end || 0);
+  delete w.end;
+  for (const s of STATS) w[s] = rest > 0 ? (w[s] || 0) / rest : 1 / STATS.length;
+}
+
 // The going rate: about half of what the same men would win at the games over the same days.
 const JOB_RATE = 0.1;
 const DANGER_WORD = d => d <= 0 ? 'No danger' : d < 0.4 ? 'Some danger' : d < 0.65 ? 'Dangerous' : 'Deadly work';

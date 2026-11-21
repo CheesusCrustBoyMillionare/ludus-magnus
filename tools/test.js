@@ -33,7 +33,7 @@ function game() {
     localStorage: { getItem: k => (k in mem ? mem[k] : null), setItem(k, v) { mem[k] = String(v); }, removeItem(k) { delete mem[k]; } },
   };
   vm.createContext(ctx);
-  vm.runInContext(['data', 'sim', 'jobs', 'wilds', 'combat'].map(f => read('js/' + f + '.js')).join('\n') + HELPERS, ctx);
+  vm.runInContext(['data', 'sim', 'jobs', 'wilds', 'combat', 'abilities'].map(f => read('js/' + f + '.js')).join('\n') + HELPERS, ctx);
   return fn => vm.runInContext('(' + fn.toString() + ')()', ctx);
 }
 // Helpers available inside the game context.
@@ -100,7 +100,7 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   for (const c of used(/data-chg=\\?"(\w+)\\?"/g, main)) assert(new RegExp('\\n  ' + c + '\\(').test(main), 'no change handler for "' + c + '"');
   const tips = main.slice(main.indexOf('const TIPS = {'), main.indexOf('const esc ='));
   for (const k of tipKeys) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
-  for (const k of ['str', 'agi', 'end', 'skl'].concat(['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'])) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
+  for (const k of ['str', 'agi', 'skl', 'rating', 'style', 'charge', 'abilities'].concat(['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'])) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
   for (const s of ['data.js', 'sim.js', 'combat.js', 'show.js', 'sfx.js', 'yard.js', 'art.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
   return acts.length + ' actions, ' + tipKeys.length + ' tooltips';
 });
@@ -121,7 +121,7 @@ test('200 days of play keep the books straight', () => game()(function () {
   let events = 0, games = 0, sent = 0, quests = 0;
   for (let d = 0; d < 200; d++) {
     G.denarii = Math.max(G.denarii, 2000);
-    G.roster.forEach(g => { g.activity = pick(['str', 'agi', 'end', 'skl', 'rest', 'spar']); });
+    G.roster.forEach(g => { g.activity = pick(['str', 'agi', 'skl', 'rest', 'spar']); });
     while (G.roster.length < 4 && G.market.length) { const m = G.market.pop(); delete m.price; G.roster.push(m); }
     const day = G.day;
     endDay();
@@ -201,28 +201,132 @@ test('bouts to the death and beast hunts follow their own rules', () => game()(f
   }
 }));
 
-test('orders: press, hold and the cloth work only for your own men, with a cooldown', () => game()(function () {
+test('three skills: power, potential, and old fighters converted', () => game()(function () {
   newGame();
-  const start = opts => createBattle([makeGladiator(30), makeGladiator(30)], [makeGladiator(30), makeGladiator(30)], Object.assign({ noIntro: true }, opts || {}));
-  let B = start();
-  assert(giveOrder(B, 'press'), 'press should be accepted');
-  assert(B.order && B.order.kind === 'press', 'press should be in force');
-  assert(!giveOrder(B, 'hold'), 'a second shout must wait');
-  assert(orderOf(B, B.fighters[0]) === 'press' && orderOf(B, B.fighters[2]) === null, 'orders reach only your own men');
-  for (let i = 0; i < 30 * (ORDER_WAIT + 1) && !B.over; i++) stepBattle(B, 1 / 30);
-  assert(B.over || (!B.order && giveOrder(B, 'hold')), 'after the wait, another order can be given');
-  B = start();
-  B.fighters.forEach(f => { f.g.traits = []; });
-  assert(giveOrder(B, 'yield'), 'the cloth should be accepted');
-  assert(B.fighters.filter(f => f.team === 0 && f.yielded).length === 1, 'one of your men yields');
-  assert(!giveOrder(B, 'yield'), 'the cloth can be thrown once');
-  assert(!giveOrder(start({ death: true }), 'yield'), 'no yielding in a bout to the death');
-  for (let i = 0; i < 20; i++) {             // fights run to a verdict with orders flying
-    const F = start(); let n = 0;
-    while ((!F.over || F.outro <= F.outroEnd) && n++ < 40000) { if (n % 200 === 0) giveOrder(F, n % 400 ? 'press' : 'hold'); stepBattle(F, 1 / 30); }
-    assert(F.over, 'battle with orders did not finish');
-    assert(!badNumber(F.fighters.map(f => [f.hp, f.x, f.y, f.cd, f.stam])), 'a number went bad in a fight with orders');
+  assert(STATS.join() === 'str,agi,skl' && Object.keys(STAT_NAMES).length === 3, 'strength, agility and skill');
+  for (let i = 0; i < 200; i++) {
+    const b = 8 + Math.floor(Math.random() * 60), g = makeGladiator(b);
+    assert(Object.keys(g.stats).join() === 'str,agi,skl' && Object.keys(g.pot).join() === 'str,agi,skl' && Object.keys(g.prog).join() === 'str,agi,skl', 'a new man has three skills');
+    assert(rating(g) === g.stats.str + g.stats.agi + g.stats.skl && rating(g) === Math.max(6, Math.min(60, b)) && STATS.every(k => g.stats[k] >= 2 && g.stats[k] <= 20), 'power is the sum of his skills and matches what was paid for: ' + rating(g) + ' for ' + b);
+    assert(potential(g) === Math.round((g.pot.str + g.pot.agi + g.pot.skl) * 10) && potential(g) >= 21 && potential(g) <= 42, 'potential is the sum of his talents');
+    assert(maxHp(g) === Math.round((60 + rating(g) * 2.3) * (g.traits.includes('ironhide') ? 1.15 : 1)), 'health comes from all three');
   }
+  for (const k in CONTRACTS) assert(CONTRACTS[k].w.end === undefined, k + ' no longer asks for endurance');
+  for (const k in BEASTS) assert(rating(makeBeast(k, 30)) > 6, k + ' is made of three skills too');
+  // a fighter from an older save: his endurance is shared out, lowest skill first, and nothing is lost
+  const old = makeGladiator(20);
+  Object.assign(old, { stats: { str: 9, agi: 3, end: 7, skl: 5 }, prog: { str: 0.2, agi: 0, end: 0.9, skl: 0 }, pot: { str: 1, agi: 1, end: 1.3, skl: 1 }, activity: 'end', hp: 999 });
+  delete old.abil;
+  G.roster.push(old); G.houses[0].roster[0].stats.end = 4;
+  const sumBefore = 9 + 3 + 7 + 5, rival = G.houses[0].roster[0], rivalSum = rival.stats.str + rival.stats.agi + rival.stats.skl + 4;
+  migrate();
+  assert(old.stats.end === undefined && old.prog.end === undefined && old.pot.end === undefined && rating(old) === sumBefore, 'his points are all still there: ' + JSON.stringify(old.stats));
+  assert(old.stats.agi > 3 && old.stats.str === 9 && old.activity === 'rest' && old.hp === maxHp(old) && Array.isArray(old.abil), 'the weakest skill gained most, and he is resting');
+  assert(rival.stats.end === undefined && rating(rival) === rivalSum, 'rival fighters are converted too');
+  const capped = makeGladiator(20); capped.stats = { str: 20, agi: 20, end: 9, skl: 19 }; fixSkills(capped);
+  assert(capped.stats.str === 20 && capped.stats.agi === 20 && capped.stats.skl === 20 && capped.stats.end === undefined, 'no skill passes twenty');
+  // training still works on each of the three, and sparring on all
+  const t = G.roster[0]; t.fatigue = 0; t.morale = 80;
+  for (const k of STATS) { t.activity = k; const before = t.prog[k] + t.stats[k] * 100; endDay(); G.pendingEvent = null; assert(t.prog[k] + t.stats[k] * 100 > before, 'training ' + k + ' moves it'); }
+  assert(!badNumber(G), 'no number went bad');
+}));
+
+test('styles: strength beats agility beats skill beats strength', () => game()(function () {
+  newGame();
+  const man = (cls, st) => { const g = makeGladiator(30, { cls }); g.stats = Object.assign({ str: 8, agi: 8, skl: 8 }, st); g.traits = []; g.hp = maxHp(g); return g; };
+  assert(styleOf(man('murmillo', { str: 14 })) === 'str' && styleOf(man('murmillo', { agi: 14 })) === 'agi' && styleOf(man('murmillo', { skl: 14 })) === 'skl', 'his highest skill is his style');
+  assert(styleOf(man('murmillo', {})) === null && styleOf(man('murmillo', { str: 12, skl: 12 })) === null && styleOf(makeBeast('lion', 30)) === null, 'two level skills are no style, and a beast has none');
+  assert(styleEdge('str', 'agi') === 1.1 && styleEdge('agi', 'skl') === 1.1 && styleEdge('skl', 'str') === 1.1, 'each beats the next');
+  assert(styleEdge('agi', 'str') === 0.9 && styleEdge('skl', 'agi') === 0.9 && styleEdge('str', 'skl') === 0.9, 'and loses to the one before');
+  assert(styleEdge('str', 'str') === 1 && styleEdge(null, 'agi') === 1 && styleEdge('str', null) === 1, 'like against like, or no style, is even');
+  // in the arena it tells: the same two men, with the skill points moved so that one style beats the other
+  const duel = (a, b, n) => { let w = 0; for (let i = 0; i < n; i++) { const A = man('thraex', a), Bm = man('thraex', b); if (fight([A], [Bm]).winner === 0) w++; } return w / n; };
+  const up = duel({ str: 14, agi: 5, skl: 5 }, { str: 5, agi: 14, skl: 5 }, 160), down = duel({ str: 5, agi: 14, skl: 5 }, { str: 14, agi: 5, skl: 5 }, 160);
+  assert(up > down + 0.12, 'strength beat agility ' + Math.round(up * 100) + '% of the time, and agility beat strength ' + Math.round(down * 100) + '%');
+  // and the bookmakers know it
+  const s1 = man('thraex', { str: 14, agi: 5, skl: 5 }), a1 = man('thraex', { str: 5, agi: 14, skl: 5 }), k1 = man('thraex', { str: 5, agi: 5, skl: 14 });
+  assert(winOdds([s1], [a1]).p > winOdds([s1], [s1]).p && winOdds([s1], [k1]).p < winOdds([s1], [s1]).p, 'the odds lean toward the style that beats the other');
+  return 'strength over agility ' + Math.round(up * 100) + '% / ' + Math.round(down * 100) + '%';
+}));
+
+test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', () => game()(function () {
+  newGame();
+  // forty-five of them, three for each skill of each fighting style, every one with a name and something it does
+  let n = 0; const names = new Set();
+  for (const cls in CLASSES) for (const sk of STATS) {
+    assert(ABILITIES[cls][sk].length === 3, cls + ' ' + sk + ' has three');
+    ABILITIES[cls][sk].forEach((a, i) => {
+      n++; names.add(a.name);
+      assert(a.at === [5, 10, 16][i] && a.id === cls + '.' + sk + i && abilityById(a.id) === a && a.desc.length > 12, a.id + ' is in its place');
+      const x = a.fx; assert(x.mult || x.net || x.buff || x.heal, a.id + ' does something');
+      if (x.buff) assert(x.buff.t > 0 && (x.buff.dodge || x.buff.block || x.buff.dr || x.buff.dmg || x.buff.haste), a.id + ' has a real buff');
+    });
+  }
+  assert(n === 45 && names.size === 45, 'forty-five abilities, no two with the same name');
+  // learning
+  const g = makeGladiator(20, { cls: 'murmillo' }); g.traits = [];
+  g.stats = { str: 4, agi: 4, skl: 4 };
+  assert(abilitiesKnown(g).length === 0 && abilitiesOf(g)[0] === BLOW && abilityNext(g, 'str').at === 5, 'below five he knows nothing but a heavy blow');
+  g.stats.str = 5; assert(abilitiesKnown(g).map(a => a.id).join() === 'murmillo.str0', 'five teaches the first');
+  g.stats.str = 10; assert(abilitiesKnown(g).length === 2, 'ten the second');
+  g.stats.str = 16; assert(abilitiesKnown(g).length === 3 && abilityNext(g, 'str') === null, 'sixteen the third, and then no more');
+  g.stats = { str: 16, agi: 10, skl: 5 };
+  const known = abilitiesKnown(g), carried = abilitiesOf(g);
+  assert(known.length === 6 && carried.length === 4 && carried.every(a => known.includes(a)) && carried[0].tier === 2, 'he knows six and carries the best four');
+  const out1 = known.find(a => !carried.includes(a));
+  assert(toggleAbility(g, out1.id) && abilitiesOf(g).includes(out1) && abilitiesOf(g).length === 4, 'one he did not carry takes a place');
+  assert(toggleAbility(g, out1.id) && !abilitiesOf(g).includes(out1) && abilitiesOf(g).length === 4, 'and can be put down again for another');
+  const few = makeGladiator(20, { cls: 'thraex' }); few.stats = { str: 6, agi: 6, skl: 6 };
+  assert(!toggleAbility(few, 'thraex.str0') && abilitiesOf(few).length === 3, 'with four or fewer there is nothing to choose');
+  assert(!toggleAbility(g, 'thraex.str0') && !toggleAbility(g, 'nonsense'), 'he cannot carry what his style does not teach');
+  // the charge: fills by itself and with blows, and is spent on an ability
+  const a = makeGladiator(40, { cls: 'murmillo' }), b = makeGladiator(40, { cls: 'thraex' });
+  let B = createBattle([a], [b], { noIntro: true });
+  assert(B.fighters.every(f => f.charge === 0 && f.abl.length >= 1 && f.abl.length <= 4 && f.stam === undefined), 'they start uncharged, with their abilities, and no stamina');
+  for (let i = 0; i < 30 && !B.over; i++) stepBattle(B, 1 / 30);
+  assert(B.fighters.every(f => f.charge > 0 && f.charge < 100), 'a second in, the charge has begun to fill');
+  for (let i = 0; i < 3000 && !B.over && !B.fighters.some(f => f.casts > 0); i++) stepBattle(B, 1 / 30);
+  assert(B.fighters.some(f => f.casts > 0 && f.charge < 100) && B.time < 40, 'somebody has used an ability, after ' + B.time.toFixed(1) + 's');
+  // every ability can be cast without breaking anything
+  for (const cls in CLASSES) for (const sk of STATS) for (const ab of ABILITIES[cls][sk]) {
+    const me = makeGladiator(45, { cls }), foes = [makeGladiator(45), makeGladiator(45), makeGladiator(45)];
+    const F = createBattle([me, makeGladiator(45)], foes, { noIntro: true });
+    for (let i = 0; i < 90; i++) stepBattle(F, 1 / 30);
+    const f = F.fighters[0]; f.hp = Math.max(1, f.maxHp * 0.5); f.charge = 100;
+    castAbility(F, f, ab);
+    assert(f.charge === 0 && f.casts >= 1 && !badNumber(F.fighters.map(q => [q.hp, q.x, q.y, q.cd, q.charge, q.snare, q.stun, q.bleed, q.weakT, q.open])), ab.id + ' left a bad number');
+    if (ab.fx.heal) assert(f.hp > f.maxHp * 0.5, ab.id + ' heals');
+    if (ab.fx.buff) assert(f.buff && f.buff.t > 0, ab.id + ' leaves him buffed');
+    let k = 0; while ((!F.over || F.outro <= F.outroEnd) && k++ < 40000) stepBattle(F, 1 / 30);
+    assert(F.over, 'the fight after ' + ab.id + ' reaches a verdict');
+  }
+  // watched fights stop for the player's men, and only for them
+  B = createBattle([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)], { noIntro: true, ask: true });
+  let asked = 0, foeCasts = 0, steps = 0;
+  while (!B.over && steps++ < 30000) {
+    stepBattle(B, 1 / 30);
+    if (B.pick) {
+      const who = B.pick, t0 = B.time;
+      assert(who.team === 0 && who.charge >= 100 && who.abl.length > 1, 'it stops for one of yours, charged, with a choice to make');
+      for (let i = 0; i < 20; i++) stepBattle(B, 1 / 30);
+      assert(B.pick === who && B.time === t0, 'and stays stopped until you choose');
+      const choice = who.abl[asked % who.abl.length];
+      assert(pickAbility(B, choice.id) && !B.pick && who.charge === 0 && who.lastCast === choice.id, 'he does what you chose');
+      asked++;
+    }
+  }
+  foeCasts = B.fighters.filter(f => f.team === 1).reduce((m, f) => m + f.casts, 0);
+  assert(B.over && asked > 0 && foeCasts > 0, 'you were asked ' + asked + ' times; the other side chose for itself ' + foeCasts + ' times');
+  // unwatched, nobody is asked
+  B = fight([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)]);
+  assert(!B.pick && B.fighters.some(f => f.team === 0 && f.casts > 0), 'unwatched, your men choose for themselves');
+  // the cloth is the one order left
+  const start = opts => createBattle([makeGladiator(30), makeGladiator(30)], [makeGladiator(30), makeGladiator(30)], Object.assign({ noIntro: true }, opts || {}));
+  B = start(); B.fighters.forEach(f => { f.g.traits = []; });
+  assert(!giveOrder(B, 'press') && !giveOrder(B, 'hold'), 'press and hold are gone');
+  assert(giveOrder(B, 'yield') && B.fighters.filter(f => f.team === 0 && f.yielded).length === 1 && !giveOrder(B, 'yield'), 'the cloth makes one of yours yield, once');
+  assert(!giveOrder(start({ death: true }), 'yield'), 'no yielding in a bout to the death');
+  return asked + ' choices asked of the player in one two-a-side fight';
 }));
 
 test('a bout pays out and updates records', () => game()(function () {

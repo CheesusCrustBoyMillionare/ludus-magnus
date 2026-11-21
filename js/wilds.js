@@ -235,7 +235,7 @@ function wildDayFor(g) {
   const camp = G.field.mode === 'camp', mh = maxHp(g);
   if (g.injury > 0) { g.injury -= 1; if (g.injury <= 0) { g.injury = 0; log(`${g.name} is fit to fight again.`); } }
   if (camp) { g.fatigue -= 24; g.hp += mh * (0.14 + 0.04 * staffLvl('cook')); g.morale += 1; }
-  else { g.fatigue += 11 - g.stats.end * 0.2; g.hp += mh * 0.04; }
+  else { g.fatigue += 11 - statSum(g) * 0.06; g.hp += mh * 0.04; }
   const target = Math.min(100, RATIONS[G.ration].morale + 5 * staffLvl('cook') + G.patrons.temple / 10 - 6);
   g.morale += clamp(target - g.morale, -3, 3);
   g.fatigue = clamp(g.fatigue, 0, 100);

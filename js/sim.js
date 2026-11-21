@@ -98,11 +98,11 @@ function makeGladiator(budget, o) {
   o = o || {};
   const cls = o.cls || pick(Object.keys(CLASSES));
   const origin = pick(ORIGINS);
-  const stats = { str: 2, agi: 2, end: 2, skl: 2 };
+  const stats = { str: 2, agi: 2, skl: 2 };
   const bias = CLASSES[cls].bias;
   const bag = [];
   STATS.forEach(s => { for (let i = 0; i < bias[s]; i++) bag.push(s); });
-  let pts = Math.max(0, Math.round(budget) - 8), guard = 0;
+  let pts = Math.max(0, Math.min(60, Math.round(budget)) - 6), guard = 0;       // the budget is the sum of his three skills
   while (pts > 0 && guard++ < 2000) {
     const s = pick(bag);
     if (stats[s] < 20) { stats[s]++; pts--; }
@@ -113,13 +113,13 @@ function makeGladiator(budget, o) {
   while (traits.length < n) { const t = pick(keys); if (!traits.includes(t)) traits.push(t); }
   const g = {
     id: ++G.nextId, name: freshName(origin), origin: origin.name, cls, stats,
-    prog: { str: 0, agi: 0, end: 0, skl: 0 },
-    pot: { str: rand(0.7, 1.4), agi: rand(0.7, 1.4), end: rand(0.7, 1.4), skl: rand(0.7, 1.4) },
+    prog: { str: 0, agi: 0, skl: 0 },
+    pot: { str: rand(0.7, 1.4), agi: rand(0.7, 1.4), skl: rand(0.7, 1.4) },
     traits, hp: 0, fatigue: 0, morale: 60, injury: 0,
     activity: 'rest', tactic: 'balanced', weapon: o.weapon || 0, armor: o.armor || 0, gear: null,
     wins: 0, losses: 0, kills: 0, fame: 0, foughtDay: -1,
     story: [], wish: null, lostTo: null, promise: null, scars: [],
-    xp: 0, rank: 0, perkPending: 0, perkOffer: null,
+    xp: 0, rank: 0, perkPending: 0, perkOffer: null, abil: [],
     look: { skin: origin.skin, hair: pick(origin.hair) },
   };
   g.hp = maxHp(g);
@@ -127,16 +127,19 @@ function makeGladiator(budget, o) {
 }
 
 function maxHp(g) {
-  return Math.round((60 + g.stats.end * 7 + g.stats.str * 2) * (g.traits.includes('ironhide') ? 1.15 : 1) * (g.traits.includes('heirblood') ? 1.08 : 1) * (g.beast ? BEASTS[g.cls].hpMult : 1));
+  return Math.round((60 + statSum(g) * 2.3) * (g.traits.includes('ironhide') ? 1.15 : 1) * (g.traits.includes('heirblood') ? 1.08 : 1) * (g.beast ? BEASTS[g.cls].hpMult : 1));
 }
-function statSum(g) { return g.stats.str + g.stats.agi + g.stats.end + g.stats.skl; }
+function statSum(g) { return g.stats.str + g.stats.agi + g.stats.skl; }
+// The two ratings shown for every fighter: power is what he is, potential is how fast he will become more.
+const rating = statSum;
+function potential(g) { return Math.round((g.pot.str + g.pot.agi + g.pot.skl) * 10); }
 function power(g) {
   const s = g.stats;
   const traits = g.traits.reduce((n, t) => n + (TRAITS[t].good ? 1 : -1), 0);
-  return (s.str * 1.1 + s.agi + s.end + s.skl) * gearPower(g) * (1 + 0.05 * traits)
+  return (s.str * 1.06 + s.agi + s.skl) * gearPower(g) * (1 + 0.05 * traits)
     * (0.94 + g.morale / 1000) * (0.6 + 0.4 * g.hp / maxHp(g)) * (g.beast ? BEASTS[g.cls].pw : 1);
 }
-function talent(g) { return (g.pot.str + g.pot.agi + g.pot.end + g.pot.skl) / 4; }
+function talent(g) { return (g.pot.str + g.pot.agi + g.pot.skl) / 3; }
 function value(g) {
   // proven fighters cost far more than raw stock
   let v = Math.pow(statSum(g), 1.6) * 0.85 * (0.6 + 0.4 * talent(g)) * (1 + Math.max(0, statSum(g) - 30) * 0.04);
@@ -182,6 +185,20 @@ function choosePerk(g, t) {
   log(`${g.name} the ${RANKS[g.rank].name} learns: ${TRAITS[t].name}.`, 'gold');
 }
 
+// Endurance is gone: a fighter from an older save has its points shared out among the three skills that remain,
+// lowest first, and whatever he was doing to train it becomes rest.
+function fixSkills(g) {
+  if (!g || !g.stats || g.stats.end === undefined) return;
+  let pts = g.stats.end;
+  delete g.stats.end;
+  for (let guard = 0; pts > 0 && guard < 200; guard++) { const k = STATS.filter(s => g.stats[s] < 20).sort((a, b) => g.stats[a] - g.stats[b])[0]; if (!k) break; g.stats[k]++; pts--; }
+  if (g.prog) delete g.prog.end;
+  if (g.pot) delete g.pot.end;
+  if (g.activity === 'end') g.activity = 'rest';
+  if (!g.abil) g.abil = [];
+  g.hp = Math.min(g.hp || 1, maxHp(g));
+}
+
 // bring a save from an earlier version up to date
 function migrate() {
   G.staff = G.staff || {};
@@ -191,11 +208,16 @@ function migrate() {
   if (G.autoRest === undefined) G.autoRest = true;
   if (G.fix === undefined) G.fix = null;
   const fixG = g => {
+    fixSkills(g);
     if (g && g.xp === undefined) { g.xp = g.wins * 5 + g.losses * 2 + g.kills; g.rank = 0; g.perkPending = 0; g.perkOffer = null; checkRank(g); }
   };
   G.roster.forEach(fixG); G.market.forEach(fixG);
   (G.bouts || []).forEach(b => (b.enemies || []).forEach(fixG));
   if (!G.houses) initHouses();
+  G.houses.forEach(H => H.roster.forEach(fixSkills));
+  if (G.tourney && G.tourney.bout) (G.tourney.bout.enemies || []).forEach(fixSkills);
+  (G.eventQueue || []).concat(G.pendingEvent || []).forEach(e => { if (e && e.c && e.c.g && typeof e.c.g === 'object') fixSkills(e.c.g); });
+  if (G.field && G.field.fight) (G.field.fight.foes || []).forEach(fixSkills);
   if (G.tourney === undefined) G.tourney = null;
   if (!G.bonds) G.bonds = [];
   if (!G.armoury) G.armoury = [];
@@ -712,9 +734,9 @@ function scheduleFestival() {
 }
 
 function makeBeast(kind, budget) {
-  const b = BEASTS[kind], stats = { str: 2, agi: 2, end: 2, skl: 2 }, bag = [];
+  const b = BEASTS[kind], stats = { str: 2, agi: 2, skl: 2 }, bag = [];
   STATS.forEach(k => { for (let i = 0; i < b.bias[k]; i++) bag.push(k); });
-  let pts = Math.max(0, Math.round(budget * b.budget) - 8), guard = 0;
+  let pts = Math.max(0, Math.min(60, Math.round(budget * b.budget)) - 6), guard = 0;
   while (pts > 0 && guard++ < 2000) { const k = pick(bag); if (stats[k] < 20) { stats[k]++; pts--; } }
   const g = {
     id: ++G.nextId, name: b.name, origin: 'the wilds', cls: kind, beast: true, stats, traits: [],
@@ -915,8 +937,13 @@ function genBouts() {
 }
 
 function winOdds(mine, foes) {
-  const a = mine.reduce((s, g) => s + power(g), 0), b = foes.reduce((s, g) => s + power(g), 0);
+  let a = mine.reduce((s, g) => s + power(g), 0);
+  const b = foes.reduce((s, g) => s + power(g), 0);
   if (!a) return { p: 0, pay: 0 };
+  // the bookmakers know which style beats which: each of your men is weighed against the men he will face
+  let edge = 0, n = 0;
+  for (const g of mine) for (const f of foes) { edge += Math.log(styleEdge(styleOf(g), styleOf(f)) / styleEdge(styleOf(f), styleOf(g))); n++; }
+  if (n) a *= Math.exp(edge / n * 0.5);
   const p = Math.pow(a, 4) / (Math.pow(a, 4) + Math.pow(b, 4));
   return { p, pay: Math.round(clamp(0.9 / p, 1.1, 6) * 10) / 10 };
 }
@@ -955,7 +982,7 @@ function endDay() {
       for (const st of (spar ? STATS : [g.activity])) {
         if (addProg(g, st, m * g.pot[st] * (spar ? 0.32 : 1))) log(`${g.name}'s ${STAT_NAMES[st].toLowerCase()} rises to ${g.stats[st]}.`, 'good');
       }
-      g.fatigue += (13 - g.stats.end * 0.25) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1);
+      g.fatigue += (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1);
       g.hp += mh * 0.06;
       if (g.fatigue > 75 && chance(0.12)) {
         g.injury = Math.round(rint(2, 4) * (g.traits.includes('frail') ? 1.5 : 1));

@@ -1,0 +1,245 @@
+'use strict';
+// Fighting styles and abilities.
+//
+// A man has three skills. Whichever is highest is his style, and styles beat one another in a ring:
+// Strength beats Agility, Agility beats Skill, Skill beats Strength. Against the style his own beats,
+// a man deals a tenth more and takes a tenth less.
+//
+// Each skill teaches an ability at 5, at 10 and at 16, and what it teaches depends on how he fights:
+// nine for each of the five fighting styles, forty-five in all. He carries four into a fight. As he
+// fights, a charge builds (slowly by itself, faster with every blow given or taken); when it is full he
+// uses one of the four, and if he is yours and you are watching, the fight stops for you to choose.
+
+const ABILITY_AT = [5, 10, 16];
+const STYLE_BEATS = { str: 'agi', agi: 'skl', skl: 'str' };
+const STYLE_EDGE = 0.1;
+
+// What an ability does (fx):
+//   mult     a blow at this many times his usual damage        n      that many blows
+//   aoe      strikes every foe within this distance of his man  lunge  comes from far off to do it
+//   stun, kb seconds stunned, how far thrown back               bleed, ham   opens a vein, cuts the leg
+//   pierce   ignores armour      unblockable, nodge   cannot be blocked, cannot be dodged or missed
+//   crit     always a telling blow                              exec   multiplies again if the foe is below 40% health
+//   net      snares for this many seconds (may miss)            weak   { amt, t } foe hits softer for t seconds
+//   expose   foe is open for this many seconds                  back   he steps away first
+//   heal     gets back this share of his health                 cleanse  shakes off bleeding, snares and weakness
+//   buff     { t, dodge, block, dr, dmg, haste } for t seconds: more dodging and blocking, damage taken cut by dr,
+//            damage dealt raised by dmg, and haste below 1 makes his blows come quicker
+const ABILITIES = {
+  murmillo: {
+    str: [
+      { name: 'Shield bash', desc: 'Slams his shield into a foe: little hurt, but stunned and thrown back.', fx: { mult: 0.5, stun: 1.1, kb: 70 } },
+      { name: 'Overhand chop', desc: 'A blow from above with his whole weight in it.', fx: { mult: 1.75, kb: 50 } },
+      { name: 'Break the line', desc: 'Drives into the press: strikes every foe close by, staggering them.', fx: { mult: 1.25, aoe: 28, stun: 0.6, kb: 60 } },
+    ],
+    agi: [
+      { name: 'Shield rush', desc: 'Crosses the sand at a run and hits shield-first.', fx: { mult: 1.0, lunge: true, kb: 65, stun: 0.3 } },
+      { name: 'Sidestep', desc: 'For five seconds he is much harder to hit, and quicker to answer.', fx: { buff: { t: 5, dodge: 0.25, haste: 0.85 } } },
+      { name: 'Second wind', desc: 'Gets back a fifth of his health and shakes off bleeding and snares.', fx: { heal: 0.22, cleanse: true } },
+    ],
+    skl: [
+      { name: 'Shield wall', desc: 'For six seconds he blocks far more and takes a quarter less.', fx: { buff: { t: 6, block: 0.3, dr: 0.25 } } },
+      { name: 'Counter-guard', desc: 'For six seconds he blocks more and hits a quarter harder.', fx: { buff: { t: 6, block: 0.2, dmg: 0.25 } } },
+      { name: 'Find the gap', desc: 'A thrust past shield and armour that leaves the foe open.', fx: { mult: 1.6, pierce: true, unblockable: true, expose: 4 } },
+    ],
+  },
+  thraex: {
+    str: [
+      { name: 'Hacking blow', desc: 'A heavy downward cut.', fx: { mult: 1.5, kb: 45 } },
+      { name: 'Sunder', desc: 'Cuts through armour and numbs the arm behind it: the foe hits a quarter softer for six seconds.', fx: { mult: 1.3, pierce: true, weak: { amt: 0.25, t: 6 } } },
+      { name: 'Executioner', desc: 'A killing stroke, far worse for a man already badly hurt.', fx: { mult: 1.9, exec: 1.5 } },
+    ],
+    agi: [
+      { name: 'Quick cut', desc: 'Two fast cuts.', fx: { mult: 0.75, n: 2 } },
+      { name: 'Dancing blade', desc: 'For six seconds he dodges more and strikes faster.', fx: { buff: { t: 6, dodge: 0.2, haste: 0.8 } } },
+      { name: 'Whirl', desc: 'A spinning cut at every foe in reach; each one bleeds.', fx: { mult: 1.1, aoe: 26, bleed: true } },
+    ],
+    skl: [
+      { name: 'Hooking cut', desc: 'Reaches round shield and armour. Cannot be blocked, and the wound bleeds.', fx: { mult: 0.95, unblockable: true, pierce: true, bleed: true } },
+      { name: 'Hamstring', desc: 'Cuts the leg: the foe is slowed and dodges half as well for the rest of the fight.', fx: { mult: 0.7, ham: true } },
+      { name: 'Open the vein', desc: 'Cannot be blocked, dodged or turned by armour, and bleeds twice over.', fx: { mult: 1.25, unblockable: true, nodge: true, pierce: true, bleed: 2 } },
+    ],
+  },
+  retiarius: {
+    str: [
+      { name: 'Trident thrust', desc: 'All three points, driven home.', fx: { mult: 1.5, kb: 55 } },
+      { name: 'Pin', desc: 'Pins the foe where he stands: stunned for a second, armour no help.', fx: { mult: 1.1, pierce: true, stun: 1.0 } },
+      { name: 'Gaff', desc: 'Hooks and tears: a heavy wound that bleeds and throws him back.', fx: { mult: 1.8, pierce: true, bleed: true, kb: 70 } },
+    ],
+    agi: [
+      { name: 'Slip away', desc: 'Skips out of reach, and for five seconds is very hard to hit.', fx: { back: true, buff: { t: 5, dodge: 0.3 } } },
+      { name: 'Net sweep', desc: 'Swings the net low through every foe close by, tangling whom it catches.', fx: { mult: 0.3, aoe: 28, net: 2 } },
+      { name: 'Dance of the tide', desc: 'For seven seconds his blows come much faster, and he dodges more.', fx: { buff: { t: 7, haste: 0.7, dodge: 0.15 } } },
+    ],
+    skl: [
+      { name: 'Cast net', desc: 'Snares a foe for three and a half seconds: he can neither dodge nor block, and every blow hurts more.', fx: { net: 3.5 } },
+      { name: 'Tangle', desc: 'A snare that also fouls the sword arm: he hits a third softer.', fx: { net: 3, weak: { amt: 0.3, t: 5 } } },
+      { name: 'Drag down', desc: 'Nets him, hauls him off his feet, and strikes as he falls.', fx: { net: 3.5, mult: 1.4, stun: 0.8 } },
+    ],
+  },
+  hoplomachus: {
+    str: [
+      { name: 'Driving thrust', desc: 'The spear with his shoulder behind it.', fx: { mult: 1.5, kb: 60 } },
+      { name: 'Shield slam', desc: 'The round shield in the face: stunned and thrown back.', fx: { mult: 0.6, stun: 1.0, kb: 65 } },
+      { name: 'Impale', desc: 'Through armour, and it bleeds.', fx: { mult: 2.0, pierce: true, bleed: true } },
+    ],
+    agi: [
+      { name: 'Spear lunge', desc: 'A running thrust launched from well outside sword range.', fx: { mult: 1.5, lunge: true, kb: 60 } },
+      { name: 'Keep away', desc: 'Sweeps the shaft through everyone near, throwing them back.', fx: { mult: 0.6, aoe: 24, kb: 85 } },
+      { name: 'Phalanx step', desc: 'Lunges, and for five seconds after is hard to hit.', fx: { mult: 1.3, lunge: true, buff: { t: 5, dodge: 0.2 } } },
+    ],
+    skl: [
+      { name: 'Measured thrust', desc: 'Placed, not thrown: it cannot be blocked or dodged.', fx: { mult: 1.2, unblockable: true, nodge: true } },
+      { name: 'Set spear', desc: 'For six seconds he takes a fifth less and hits a fifth harder.', fx: { buff: { t: 6, dr: 0.2, dmg: 0.2 } } },
+      { name: 'Heart-seeker', desc: 'Always a telling blow, and armour does not turn it.', fx: { mult: 1.5, pierce: true, crit: true } },
+    ],
+  },
+  dimachaerus: {
+    str: [
+      { name: 'Twin cleave', desc: 'Both blades, one after the other.', fx: { mult: 0.98, n: 2 } },
+      { name: 'Butcher\'s cross', desc: 'A crossing cut that opens a vein.', fx: { mult: 1.8, bleed: true } },
+      { name: 'Frenzy', desc: 'For seven seconds he hits a third harder and takes a little more.', fx: { buff: { t: 7, dmg: 0.35, dr: -0.15 } } },
+    ],
+    agi: [
+      { name: 'Flurry', desc: 'Three cuts in the time of one.', fx: { mult: 0.72, n: 3 } },
+      { name: 'Blade storm', desc: 'Five cuts, faster than the eye follows.', fx: { mult: 0.66, n: 5 } },
+      { name: 'Whirlwind', desc: 'Two cuts at every foe within reach.', fx: { mult: 0.8, n: 2, aoe: 26 } },
+    ],
+    skl: [
+      { name: 'Feint and cut', desc: 'The false blade draws the guard; the true one cannot be blocked or dodged.', fx: { mult: 1.2, unblockable: true, nodge: true } },
+      { name: 'Crossed blades', desc: 'For five seconds he parries like a man with a shield, and dodges more.', fx: { buff: { t: 5, block: 0.28, dodge: 0.1 } } },
+      { name: 'Thousand cuts', desc: 'Four cuts through armour, every one of them bleeding.', fx: { mult: 0.6, n: 4, pierce: true, bleed: true } },
+    ],
+  },
+};
+// What a man with no ability yet does with a full charge, and what the beasts do.
+const BLOW = { id: 'blow', name: 'Heavy blow', desc: 'Puts his whole weight behind one stroke.', skill: null, tier: 0, fx: { mult: 1.5, kb: 45 } };
+const BEAST_MOVES = {
+  boar: { id: 'boar', name: 'Charge', fx: { mult: 1.35, lunge: true, stun: 0.5, kb: 65 } },
+  wolf: { id: 'wolf', name: 'Savage', fx: { mult: 0.8, n: 2, bleed: true } },
+  lion: { id: 'lion', name: 'Pounce', fx: { mult: 1.4, lunge: true, kb: 60 } },
+  bear: { id: 'bear', name: 'Maul', fx: { mult: 1.6, stun: 0.5, kb: 55 } },
+};
+// every ability knows its own name: 'murmillo.str0' is a Murmillo's first Strength ability
+for (const cls in ABILITIES) for (const sk in ABILITIES[cls]) ABILITIES[cls][sk].forEach((a, i) => Object.assign(a, { id: `${cls}.${sk}${i}`, cls, skill: sk, tier: i, at: ABILITY_AT[i] }));
+function abilityById(id) {
+  if (id === 'blow') return BLOW;
+  const m = /^(\w+)\.(str|agi|skl)(\d)$/.exec(id || '');
+  return m && ABILITIES[m[1]] ? ABILITIES[m[1]][m[2]][+m[3]] || null : null;
+}
+
+// Everything he has learned so far, best first.
+function abilitiesKnown(g) {
+  if (g.beast || !ABILITIES[g.cls]) return [];
+  const out = [];
+  for (const sk of STATS) ABILITIES[g.cls][sk].forEach(a => { if (g.stats[sk] >= a.at) out.push(a); });
+  return out.sort((a, b) => b.tier - a.tier || g.stats[b.skill] - g.stats[a.skill]);
+}
+// The four he carries into a fight: the ones chosen for him, filled out with the best of the rest.
+function abilitiesOf(g) {
+  if (g.beast) return [BEAST_MOVES[g.cls] || BLOW];
+  const known = abilitiesKnown(g);
+  if (!known.length) return [BLOW];
+  const picked = (g.abil || []).map(abilityById).filter(a => a && known.includes(a)).slice(0, 4);
+  for (const a of known) { if (picked.length >= 4) break; if (!picked.includes(a)) picked.push(a); }
+  return picked;
+}
+// Change what he carries. Only matters once he knows more than four: an ability he carries is put down
+// for the best one he does not, and one he does not carry takes the place of the fourth.
+function toggleAbility(g, id) {
+  const a = abilityById(id), known = abilitiesKnown(g);
+  if (!a || !known.includes(a) || known.length <= 4) return false;
+  let cur = abilitiesOf(g).map(x => x.id);
+  if (cur.includes(id)) { const spare = known.find(k => !cur.includes(k.id)); cur = cur.filter(x => x !== id); if (spare) cur.push(spare.id); }
+  else cur = cur.slice(0, 3).concat(id);
+  g.abil = cur;
+  return true;
+}
+// The next thing each skill will teach him, for the dossier.
+function abilityNext(g, sk) { return g.beast || !ABILITIES[g.cls] ? null : ABILITIES[g.cls][sk].find(a => g.stats[sk] < a.at) || null; }
+
+// His style: the skill that stands clear above the other two, or none if two are level.
+function styleOf(g) {
+  if (!g || g.beast || !g.stats) return null;
+  const s = g.stats, top = STATS.slice().sort((a, b) => s[b] - s[a]);
+  return s[top[0]] > s[top[1]] ? top[0] : null;
+}
+// What a blow from a to d is multiplied by, for their styles.
+function styleEdge(a, d) {
+  if (!a || !d) return 1;
+  return STYLE_BEATS[a] === d ? 1 + STYLE_EDGE : STYLE_BEATS[d] === a ? 1 - STYLE_EDGE : 1;
+}
+
+// ---------- in the fight ----------
+
+function chargeUp(f, n) { if (!out(f)) f.charge = Math.min(100, f.charge + n * f.chargeRate); }
+
+function castAbility(B, f, ab) {
+  const x = ab.fx;
+  let t = f.target && !out(f.target) ? f.target : null;
+  if (!t) for (const o of B.fighters) if (o.team !== f.team && !out(o) && (!t || Math.hypot(o.x - f.x, o.y - f.y) < Math.hypot(t.x - f.x, t.y - f.y))) t = o;
+  f.charge = 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id;
+  fxText(B, f, ab.name, '#ffd24a', true);
+  snd(B, 'special', 1, f, f.g.beast ? 'beast' : '');
+  feed(B, `${f.g.name}: ${ab.name}`, f.team);
+  B.exc += 0.045 * f.show;
+  f.state = 'ready'; f.move = null;
+  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); }
+  if (x.cleanse) { f.bleed = 0; f.snare = 0; f.weakT = 0; }
+  if (x.buff) f.buff = Object.assign({}, x.buff);
+  if (!t) return;
+  const dx = t.x - f.x, dy = t.y - f.y, dist = Math.hypot(dx, dy) || 0.01;
+  f.facing = dx >= 0 ? 1 : -1;
+  if (x.back) { fxDust(B, f.x, f.y, 5); f.x -= dx / dist * 22; f.y -= dy / dist * 10; }
+  const strikes = x.mult || x.net || x.weak;
+  if (!strikes) return;
+  if (!x.net || x.mult) {                     // close with him: a blow needs reach, a net does not
+    const go = Math.max(0, dist - f.reach * 0.85);
+    if (go > 0) { fxDust(B, f.x, f.y, x.lunge ? 6 : 3); f.x += dx / dist * go; f.y += dy / dist * go; if (x.lunge) fxDust(B, f.x, f.y, 4); }
+  }
+  const foes = x.aoe ? B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe) : [t];
+  for (const o of foes) {
+    if (x.net) {
+      const hit = x.mult && !x.aoe ? true : Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - o.g.stats.agi * 0.012, 0.25, 0.9);
+      if (hit) { o.snare = Math.max(o.snare, x.net); fxText(B, o, 'netted', '#d8c79a'); snd(B, 'net', 1, o); if (o.state === 'windup') { o.state = 'ready'; o.move = null; } }
+      else { fxText(B, o, 'net misses', '#cfc6b4'); if (!x.mult) continue; }
+    }
+    let res = 'hit';
+    for (let i = 0; i < (x.n || 1) && x.mult && !out(o); i++) {
+      res = resolveAttack(B, f, o, { mult: x.mult * (x.exec && o.hp < o.maxHp * 0.4 ? x.exec : 1), unblockable: x.unblockable, pierce: x.pierce, bleed: x.bleed, stun: x.stun, kb: x.kb, nodge: x.nodge, crit: x.crit, ham: x.ham, ability: true });
+    }
+    if (out(o) || res === 'miss' || res === 'dodge') continue;
+    if (x.weak) { o.weakT = x.weak.t; o.weakAmt = x.weak.amt; fxText(B, o, 'weakened', '#c9b458'); }
+    if (x.expose) o.open = Math.max(o.open, x.expose);
+  }
+  f.atkAnim = 1; f.slash = 0.16; f.cd = f.atkTime * 0.6;
+}
+
+// What a man chooses for himself when nobody is choosing for him.
+function aiPickAbility(B, f) {
+  const t = f.target, hurt = f.hp / f.maxHp;
+  let best = f.abl[0], bs = -1e9;
+  for (const a of f.abl) {
+    const x = a.fx;
+    let s = (a.tier || 0) + Math.random() * 1.3;
+    if (x.heal) s += hurt < 0.45 ? 4 : hurt < 0.7 ? 0 : -6;
+    if (x.buff && !x.mult) { s += f.buff ? -6 : (x.buff.dr > 0 || x.buff.block || x.buff.dodge) && hurt < 0.6 ? 1.5 : 0; }
+    if (x.aoe && t) { const n = B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe).length; s += n >= 3 ? 3 : n === 2 ? 1.5 : -1.5; }
+    if (x.net && t && t.snare > 0) s -= 4;
+    if (x.exec && t && t.hp < t.maxHp * 0.4) s += 2.5;
+    if (x.ham && t && t.hamstrung) s -= 4;
+    if (x.stun && t && t.state === 'windup') s += 1;
+    if (x.lunge && t && Math.hypot(t.x - f.x, t.y - f.y) > f.reach * 1.5) s += 1.5;
+    if (s > bs) { bs = s; best = a; }
+  }
+  return best;
+}
+// The player has chosen for the man the fight stopped for.
+function pickAbility(B, id) {
+  const f = B.pick;
+  if (!f) return false;
+  const a = f.abl.find(x => x.id === id) || f.abl[0];
+  B.pick = null;
+  if (!out(f)) castAbility(B, f, a);
+  return true;
+}

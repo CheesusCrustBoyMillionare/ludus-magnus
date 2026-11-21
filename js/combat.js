@@ -10,14 +10,6 @@ const FINE = 3;    // canvas pixels per sprite pixel
 const WORLD = 6;   // canvas pixels per world unit (two sprite pixels)
 const Z = WORLD / SCALE;
 
-const SPECIALS = {
-  murmillo:    { name: 'Shield bash', desc: 'Slams his shield into a foe, leaving him stunned and open.' },
-  thraex:      { name: 'Hooking cut', desc: 'Reaches around shield and armour. Cannot be blocked, and the wound bleeds.' },
-  retiarius:   { name: 'Cast net',    desc: 'Snares a foe, who can neither dodge nor block, then fights from beyond his reach.' },
-  hoplomachus: { name: 'Spear lunge', desc: 'A running thrust launched from well outside sword range.' },
-  dimachaerus: { name: 'Flurry',      desc: 'Three cuts in the time of one.' },
-};
-
 // one look per arena tier, from a village palisade to the imperial amphitheatre
 const THEMES = [
   { stands: '#2e2a22', step: '#25211b', wall: '#7a5a34', wallTop: '#94703f', wallLine: '#5e4426', sand: '#cfae6f', crowd: 0.35, planks: true },
@@ -37,11 +29,12 @@ function makeFighter(g, team, i, n, fld) {
   const has = t => g.traits.includes(t);
   const mh = maxHp(g);
   const gs = gearStats(g);
-  let dmg = c.dmg + s.str * 0.6 + gs.dmg;
-  let atk = c.atkTime * (1.15 - s.agi * 0.015);
-  let dodge = c.dodge + s.agi * 0.008 + gs.dodge;
-  let block = c.shield ? c.block + s.skl * 0.012 + gs.block : 0;
-  let acc = 0.82 + s.skl * 0.008, crit = (c.crit || 0.05) + s.skl * 0.006;
+  // three skills: Strength is the weight of a blow, Agility its speed and his feet, Skill his aim and his guard
+  let dmg = c.dmg + s.str * 0.38 + gs.dmg;
+  let atk = c.atkTime * (1.15 - s.agi * 0.012);
+  let dodge = c.dodge + s.agi * 0.0065 + gs.dodge;
+  let block = c.shield ? c.block + s.skl * 0.0095 + gs.block : 0;
+  let acc = 0.80 + s.skl * 0.0085, crit = (c.crit || 0.05) + s.skl * 0.006;
   let show = 1;
   if (T === 'aggressive') { dmg *= 1.1; atk *= 0.9; dodge *= 0.7; block *= 0.7; }
   if (T === 'defensive') { dmg *= 0.9; atk *= 1.1; dodge *= 1.3; block *= 1.3; }
@@ -60,9 +53,7 @@ function makeFighter(g, team, i, n, fld) {
   if (has('pitfighter') && n === 1) dmg *= 1.08;
   if (has('reaver') && fld.wild) dmg *= 1.1;
   if (has('eaglesworn')) dmg *= 1.05;
-  const lungs = has('ironlungs') ? 1.3 : 1;
   dmg *= 0.94 + g.morale / 1000;
-  const maxStam = (60 + s.end * 4) * lungs;
   return {
     g, c, team, tactic: T,
     // a line down the field; in a crowd they stand three deep, so that nine a side have room
@@ -72,20 +63,19 @@ function makeFighter(g, team, i, n, fld) {
     dmg, atkTime: Math.max(0.35, atk), dodge: Math.max(0, dodge), block, acc, crit, show, critMult: has('killer') ? 2.1 : 1.7,
     armor: c.armor + gs.armor + (has('thickskin') ? 2 : 0), reach: c.reach,
     stunRes: Math.min(0.7, gs.stunRes), critRes: gs.critRes, bleedRes: gs.bleedRes, hamRes: gs.hamRes, armRes: gs.armRes,
-    speed: 26 * c.speed * (1 + s.agi * 0.015) * gs.speed,
-    maxStam, stam: maxStam * (1 - g.fatigue / 200), stamRegen: (5 + s.end * 0.25) * lungs,
-    atkCost: c.weapon === 'twin' ? 6 : 10,
+    speed: 26 * c.speed * (1 + s.agi * 0.011) * gs.speed,
+    // the charge that fills as he fights: full, it is spent on one of the abilities he carries (abilities.js)
+    charge: 0, chargeRate: (has('ironlungs') ? 1.25 : 1) * (1 - g.fatigue / 250), abl: abilitiesOf(g), casts: 0,
+    style: styleOf(g), buff: null, weakT: 0, weakAmt: 0,
     tall: g.beast ? BEAST_ART[g.cls].lh + BEAST_ART[g.cls].bh + 9 : 45,
-    windThresh: g.beast || T === 'aggressive' ? 0 : T === 'defensive' ? 0.25 : 0.15,
-    cd: 0.4 + Math.random() * 0.6, state: 'ready', t: 0, move: null, flurry: 0,
-    spCd: c.net ? 1.5 + Math.random() * 2 : 3 + Math.random() * 4,
-    target: null, retarget: 0, mode: 'engage', recT: 0, recCd: 0, circle: chance(0.5) ? 1 : -1,
+    cd: 0.4 + Math.random() * 0.6, state: 'ready', t: 0, move: null,
+    target: null, retarget: 0, circle: chance(0.5) ? 1 : -1,
     facing: team === 0 ? 1 : -1, snare: 0, stun: 0, kx: 0, flash: 0, atkAnim: 0, slash: 0,
     walk: Math.random() * 10, moving: false,
     bleed: 0, bleedT: 0, bleedBy: null, drip: 0, hamstrung: false, armWound: false,
     fallT: 0, guard: 0, hate: null, down: false, yielded: false, fate: null, dmgDealt: 0, downedBy: null,
     // reading the other man: feints, ripostes, and what the fight has done to his kit
-    feintP: g.beast ? 0 : clamp(0.05 + s.skl * 0.012, 0, 0.3) * (T === 'showman' ? 1.3 : 1), feinted: false, open: 0, riposte: false,
+    feintP: g.beast ? 0 : clamp(0.05 + s.skl * 0.009, 0, 0.3) * (T === 'showman' ? 1.3 : 1), feinted: false, open: 0, riposte: false,
     backT: 0, flankT: 0, flourish: 0, shieldHits: 0, noHelm: false,
   };
 }
@@ -101,7 +91,8 @@ function createBattle(teamA, teamB, opts) {
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
     parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [],
-    order: null, orderCd: 0, towel: false, lastDown: null, finish: null,
+    towel: false, lastDown: null, finish: null,
+    ask: !!opts.ask, pick: null,                  // ask: stop the fight when one of the player's men is charged, and let him choose (pick is who is waiting)
     wild: opts.wild || null,                                     // a fight outside the walls: what stands behind it
     field: opts.wild ? { x0: 12, x1: 201, y0: 42, y1: 113, wild: true } : ARENA,
   };
@@ -166,55 +157,45 @@ function tryYield(B, d, a) {
   feed(B, `${d.g.name} raises a finger and yields`, d.team);
 }
 
-// ---------- orders from the lanista ----------
-// The player may shout to his own men (team 0) while they fight. Press and Hold last eight seconds and
-// share a cooldown; the cloth can be thrown in once, to make the worst-hurt man yield while he still can.
-const ORDER_TIME = 8, ORDER_WAIT = 16;
-const orderOf = (B, f) => (B.order && f.team === 0 && !f.g.beast ? B.order.kind : null);
+// ---------- the cloth ----------
+// The one thing the player may still do from the rail: throw in the cloth, once, to make his worst-hurt
+// man yield while he still can. Everything else he does by choosing abilities.
 function canOrder(B, kind) {
-  if (B.over || B.intro > 0) return false;
-  if (kind === 'yield') return !B.death && !B.hunt && !B.towel && B.fighters.some(f => f.team === 0 && !out(f));
-  return B.orderCd <= 0;
+  if (B.over || B.intro > 0 || kind !== 'yield') return false;
+  return !B.death && !B.hunt && !B.towel && B.fighters.some(f => f.team === 0 && !out(f));
 }
 function giveOrder(B, kind) {
   if (!canOrder(B, kind)) return false;
-  const mine = B.fighters.filter(f => f.team === 0 && !out(f));
-  if (kind === 'yield') {
-    const f = mine.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
-    B.towel = true;
-    if (f.g.traits.includes('lionheart')) { fxText(B, f, 'will not yield', '#ffd24a', true); feed(B, `${f.g.name} sees the cloth, and fights on`, 0); return true; }
-    f.yielded = true; f.downedBy = f.target; f.state = 'ready'; f.snare = 0; B.lastDown = null;
-    fxText(B, f, 'yields', '#ffffff', true); snd(B, 'yield');
-    feed(B, `You throw in the cloth for ${f.g.name}`, 0);
-    return true;
-  }
-  B.order = { kind, t: ORDER_TIME }; B.orderCd = ORDER_WAIT; snd(B, kind);
-  for (const f of mine) fxText(B, f, kind === 'press' ? 'PRESS!' : 'HOLD!', kind === 'press' ? '#ff9a6a' : '#9cc4ff', true);
-  feed(B, kind === 'press' ? 'You shout: press him!' : 'You shout: hold, and make him come to you!', 0);
+  const f = B.fighters.filter(x => x.team === 0 && !out(x)).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+  B.towel = true;
+  if (f.g.traits.includes('lionheart')) { fxText(B, f, 'will not yield', '#ffd24a', true); feed(B, `${f.g.name} sees the cloth, and fights on`, 0); return true; }
+  f.yielded = true; f.downedBy = f.target; f.state = 'ready'; f.snare = 0; B.lastDown = null;
+  if (B.pick === f) B.pick = null;
+  fxText(B, f, 'yields', '#ffffff', true); snd(B, 'yield');
+  feed(B, `You throw in the cloth for ${f.g.name}`, 0);
   return true;
 }
 
 // A skilled man who has just turned a blow aside may answer it at once.
 function tryRiposte(B, d) {
   if (d.g.beast || out(d) || d.state !== 'ready' || d.stun > 0.2) return;
-  if (Math.random() >= clamp(d.g.stats.skl * 0.02, 0, 0.35) * (d.tactic === 'defensive' ? 1.4 : 1)) return;
+  if (Math.random() >= clamp(d.g.stats.skl * 0.015, 0, 0.35) * (d.tactic === 'defensive' ? 1.4 : 1)) return;
   d.cd = Math.min(d.cd, 0.1); d.riposte = true;
   fxText(B, d, 'riposte', '#e8d7a0');
 }
 
-// o: {mult, unblockable, pierce, bleed, stun, kb, nocrit, name}
+// o: {mult, unblockable, pierce, bleed, stun, kb, nocrit, nodge, crit, ham, ability}
 function resolveAttack(B, a, d, o) {
   o = o || {};
-  const tired = d.stam < 8 ? 0.5 : 1;
+  const ab = a.buff || {}, db = d.buff || {};
   // what the defender is dealing with: a feint that fooled him, a man at his back, his lanista's orders
   const flank = !d.g.beast && !a.g.beast && d.target && d.target !== a && !out(d.target) && Math.sign(a.x - d.x) === -d.facing;
-  const ordD = orderOf(B, d), ordA = orderOf(B, a);
-  const wary = (d.open > 0 ? 0.55 : 1) * (ordD === 'hold' ? 1.25 : ordD === 'press' ? 0.8 : 1);
-  d.open = 0;
-  if (Math.random() > a.acc) { fxText(B, d, 'miss', '#cfc6b4'); snd(B, 'miss', 1, a); return 'miss'; }
-  const dodge = (d.snare > 0 || d.stun > 0) ? 0 : d.dodge * tired * (d.hamstrung ? 0.5 : 1) * wary * (flank ? 0.6 : 1);
+  const wary = d.open > 0 ? 0.55 : 1;
+  if (!o.ability) d.open = 0;
+  if (!o.nodge && Math.random() > a.acc) { fxText(B, d, 'miss', '#cfc6b4'); snd(B, 'miss', 1, a); return 'miss'; }
+  const dodge = (o.nodge || d.snare > 0 || d.stun > 0) ? 0 : (d.dodge + (db.dodge || 0)) * (d.hamstrung ? 0.5 : 1) * wary * (flank ? 0.6 : 1);
   if (Math.random() < dodge) {
-    d.stam = Math.max(0, d.stam - 8);
+    chargeUp(d, 5);
     d.kx = a.facing * 40;
     fxText(B, d, 'dodge', '#cfe0ff'); snd(B, 'miss', 1, a);
     B.exc += 0.015 * d.show;
@@ -222,7 +203,8 @@ function resolveAttack(B, a, d, o) {
     return 'dodge';
   }
   let dmg = a.dmg * (a.armWound ? 0.8 : 1) * (0.8 + Math.random() * 0.4) * (o.mult || 1);
-  if (ordA) dmg *= ordA === 'press' ? 1.1 : 0.9;
+  dmg *= styleEdge(a.style, d.style);                 // strength beats agility beats skill beats strength
+  dmg *= (1 + (ab.dmg || 0)) * (a.weakT > 0 ? 1 - a.weakAmt : 1) * (1 - (db.dr || 0));
   if (a.riposte) { dmg *= 1.15; a.riposte = false; }
   if (flank && !d.flankSaid) { d.flankSaid = true; feed(B, `${a.g.name} takes ${d.g.name} from behind`, a.team); }
   if (d.snare > 0) dmg *= 1.1;
@@ -230,19 +212,22 @@ function resolveAttack(B, a, d, o) {
   if (a.g.traits.includes('bloodthirsty') && d.hp < d.maxHp * 0.5) dmg *= 1.15;
   if (a.g.traits.includes('lionheart') && a.hp < a.maxHp * 0.35) dmg *= 1.2;
   if (d.g.beast && a.g.traits.includes('beastslayer')) dmg *= 1.2;
-  const crit = !o.nocrit && Math.random() < Math.max(0.01, a.crit - d.critRes);
+  const crit = !o.nocrit && (o.crit || Math.random() < Math.max(0.01, a.crit - d.critRes));
   if (crit) dmg *= a.critMult;
   let blocked = false;
-  if (!o.unblockable && d.snare <= 0 && Math.random() < d.block * tired * wary * (flank ? 0.3 : 1)) { blocked = true; dmg *= 0.25; d.stam = Math.max(0, d.stam - 6); }
+  if (!o.unblockable && d.snare <= 0 && Math.random() < (d.block + (db.block || 0)) * wary * (flank ? 0.3 : 1)) { blocked = true; dmg *= 0.25; }
   const armor = o.pierce ? 0 : d.armor * (blocked ? 0.5 : 1);
   dmg = Math.max(1, Math.round(dmg - armor));
   d.hp -= dmg;
   a.dmgDealt += dmg;
   d.flash = 0.12;
+  // blows fill the charge: more for landing one than for taking one, and nothing from an ability's own strokes
+  if (!o.ability) chargeUp(a, blocked ? 4 : 9);
+  chargeUp(d, blocked ? 6 : 5);
   d.kx = a.facing * (o.kb || (blocked ? 15 : 35)) * (crit ? 1.5 : 1);
   d.stun = Math.max(o.stun || 0, blocked ? 0.05 : 0.15) * (1 - d.stunRes);
-  if (d.state === 'windup' && (o.stun || crit)) { d.state = 'ready'; d.move = null; d.flurry = 0; d.cd = 0.3; }
-  B.exc += (dmg / 220 + (crit ? 0.06 : 0) + (o.name ? 0.03 : 0)) * a.show;
+  if (d.state === 'windup' && (o.stun || crit)) { d.state = 'ready'; d.move = null; d.cd = 0.3; }
+  B.exc += (dmg / 220 + (crit ? 0.06 : 0) + (o.ability ? 0.02 : 0)) * a.show;
   B.shake = Math.max(B.shake, crit ? 2 : 0.8);
   if (crit) { B.hitstop = 0.06; B.flashT = 0.07; }
   if (blocked) {
@@ -272,19 +257,18 @@ function resolveAttack(B, a, d, o) {
     }
     if (crit && a.show > 1.2) { a.flourish = 0.7; B.exc += 0.03; }       // a showman plays to the stands
   }
-  if (o.name) snd(B, 'special', 1, a, a.g.beast ? 'beast' : '');
-  if (o.name) feed(B, `${a.g.name}: ${o.name}${blocked ? ' (blocked)' : ''}`, a.team);
 
   if (d.hp <= 0) { knockDown(B, d, a); return 'down'; }
 
   // wounds
+  if (!blocked && o.ham && !d.hamstrung) { d.hamstrung = true; fxText(B, d, 'hamstrung', '#ffd24a'); feed(B, `${a.g.name} hamstrings ${d.g.name}`, a.team); }
   if (!blocked && (crit || o.bleed)) {
     const r = o.bleed ? 0 : Math.random();
     // good armour on the right part of the body can turn a wound aside
     const res = r < 0.4 ? d.bleedRes : r < 0.6 ? d.hamRes : r < 0.8 ? d.armRes : 0;
     if (r < 0.8 && Math.random() < res) fxText(B, d, 'armour holds', '#c9d1d9');
     else if (r < 0.4) {
-      d.bleed += Math.max(1.2, dmg * 0.09); d.bleedT = 6; d.bleedBy = a;
+      d.bleed += Math.max(1.2, dmg * 0.09) * (o.bleed > 1 ? o.bleed : 1); d.bleedT = 6; d.bleedBy = a;
       fxText(B, d, 'bleeding', '#ff6a5a');
       if (crit) feed(B, `${a.g.name} opens a vein on ${d.g.name}`, a.team);
     } else if (r < 0.6 && !d.hamstrung) {
@@ -303,69 +287,18 @@ function resolveAttack(B, a, d, o) {
 }
 
 function walkBy(f, ux, uy, mult, dt) {
-  const sp = f.speed * mult * (f.snare > 0 ? 0.3 : 1) * (f.hamstrung ? 0.6 : 1) * (f.stam < 5 ? 0.8 : 1);
+  const sp = f.speed * mult * (f.snare > 0 ? 0.3 : 1) * (f.hamstrung ? 0.6 : 1);
   f.x += ux * sp * dt; f.y += uy * sp * dt * 0.8;
   f.walk += dt * 8; f.moving = true;
 }
 
 function startMove(f, move, t) { f.state = 'windup'; f.move = move; f.t = t; f.t0 = t; }
 
-function trySpecial(B, f, t, dist) {
-  if (f.spCd > 0 || f.stam < 16) return false;
-  if (f.g.beast) {
-    const mv = f.c.move;
-    if (!mv) return false;
-    if (mv === 'maul') { if (dist > f.reach || f.cd > 0) return false; f.spCd = 8; f.stam -= 15; startMove(f, 'maul', 0.45); return true; }
-    if (dist < 24 || dist > 50) return false;
-    f.spCd = 8; f.stam -= 15; startMove(f, 'lunge', 0.3); return true;
-  }
-  const k = f.g.cls;
-  if (k === 'retiarius') {
-    if (dist > 58 || t.snare > 0) return false;
-    f.spCd = 9; f.stam -= 8; f.atkAnim = 1;
-    const hit = Math.random() < clamp(0.55 + f.g.stats.skl * 0.015 - t.g.stats.agi * 0.015, 0.2, 0.85);
-    B.projs.push({ from: f, to: t, x: f.x, y: f.y, t: 0, dur: 0.35, hit });
-    snd(B, 'net', 1, f);
-    return true;
-  }
-  if (k === 'hoplomachus') {
-    if (dist < 27 || dist > 52) return false;
-    f.spCd = 9; f.stam -= 15; startMove(f, 'lunge', 0.3); return true;
-  }
-  if (dist > f.reach || f.cd > 0) return false;
-  f.stam -= 15;
-  if (k === 'murmillo') { f.spCd = 8; startMove(f, 'bash', 0.25); }
-  else if (k === 'thraex') { f.spCd = 10; startMove(f, 'hook', f.atkTime * 0.35); }
-  else if (k === 'dimachaerus') { f.spCd = 9; f.flurry = 3; startMove(f, 'flurry', 0.15); }
-  else return false;
-  return true;
-}
-
 function performMove(B, f, t, dx, dy, dist) {
-  const mv = f.move || 'strike';
   f.move = null;
-  const range = mv === 'lunge' ? 62 : f.reach * 1.4;
-  if (!out(t) && dist <= range) {
-    if (mv === 'strike') resolveAttack(B, f, t);
-    else if (mv === 'bash') resolveAttack(B, f, t, { mult: 0.45, stun: 1.1, kb: 70, nocrit: true, name: 'shield bash' });
-    else if (mv === 'hook') resolveAttack(B, f, t, { mult: 0.95, unblockable: true, pierce: true, bleed: true, name: 'hooking cut' });
-    else if (mv === 'maul') resolveAttack(B, f, t, { mult: 1.6, stun: 0.5, kb: 55, name: 'maul' });
-    else if (mv === 'lunge') {
-      const go = Math.max(0, dist - f.reach * 0.8);
-      fxDust(B, f.x, f.y, 6);
-      f.x += dx / dist * go; f.y += dy / dist * go;
-      fxDust(B, f.x, f.y, 4);
-      resolveAttack(B, f, t, { mult: f.g.beast ? 1.35 : 1.5, kb: 60, stun: f.g.cls === 'boar' ? 0.5 : 0, name: f.g.beast ? f.c.move : 'spear lunge' });
-    } else if (mv === 'flurry') {
-      resolveAttack(B, f, t, { mult: 0.72, name: f.flurry === 3 ? 'flurry' : null });
-      f.flurry--;
-      if (f.flurry > 0 && !out(t)) { startMove(f, 'flurry', 0.14); f.atkAnim = 1; f.slash = 0.1; return; }
-    }
-  }
-  f.flurry = 0;
+  if (!out(t) && dist <= f.reach * 1.4) resolveAttack(B, f, t);
   f.state = 'ready';
-  const ord = orderOf(B, f);
-  f.cd = f.atkTime * 0.7 * (f.stam < 5 ? 1.5 : 1) * (ord === 'press' ? 0.85 : ord === 'hold' ? 1.1 : 1);
+  f.cd = f.atkTime * 0.7 * (f.buff && f.buff.haste ? f.buff.haste : 1);
   if (f.tactic === 'defensive') f.backT = 0.3;
   f.atkAnim = 1; f.slash = 0.12;
 }
@@ -394,9 +327,11 @@ function fighterAct(B, f, dt) {
     if (f.bleedT <= 0) f.bleed = 0;
     if (f.hp <= 0) { knockDown(B, f, f.bleedBy, `${f.g.name} collapses from loss of blood`); return; }
   }
-  f.stam = Math.min(f.maxStam, f.stam + f.stamRegen * (f.mode === 'recover' ? 2.2 : 1) * (orderOf(B, f) === 'hold' ? 1.5 : 1) * dt);
+  chargeUp(f, 3.2 * dt);                               // the charge builds by itself, slowly
+  if (f.buff && (f.buff.t -= dt) <= 0) f.buff = null;
+  f.weakT = Math.max(0, f.weakT - dt);
   f.snare = Math.max(0, f.snare - dt);
-  f.spCd -= dt; f.cd -= dt; f.retarget -= dt; f.recCd -= dt;
+  f.cd -= dt; f.retarget -= dt;
 
   if (!f.target || out(f.target) || f.retarget <= 0) {
     // nearest first, but a man weighs more than distance: the one he hates, the one already hurt or
@@ -416,7 +351,7 @@ function fighterAct(B, f, dt) {
       if (dd < bd) { bd = dd; best = o; cover = c; }
     }
     if (cover && best !== f.target && !f.coverSaid) { f.coverSaid = true; feed(B, `${f.g.name} steps in to cover ${cover.g.name}`, f.team); B.exc += 0.03; }
-    if (best !== f.target && f.state === 'windup') { f.state = 'ready'; f.move = null; f.flurry = 0; }
+    if (best !== f.target && f.state === 'windup') { f.state = 'ready'; f.move = null; }
     f.target = best; f.retarget = 1.5;
   }
   const t = f.target;
@@ -432,20 +367,12 @@ function fighterAct(B, f, dt) {
     return;
   }
 
-  // winded fighters give ground to catch their breath
-  if (f.mode === 'recover') {
-    f.recT -= dt;
-    if (f.recT <= 0 || f.stam > f.maxStam * 0.5) { f.mode = 'engage'; f.recCd = 7; }
-  } else if (f.recCd <= 0 && f.stam < f.maxStam * f.windThresh && f.snare <= 0 && t.snare <= 0 && t.stun <= 0 && orderOf(B, f) !== 'press') {
-    f.mode = 'recover'; f.recT = 2.2;
-    fxText(B, f, 'winded', '#c9b458');
-  }
-  if (f.mode === 'recover') {
-    if (dist < 46) walkBy(f, -ux, -uy, 0.7, dt);
+  // charged: he uses one of the abilities he carries. One of yours, with you watching, waits for your word.
+  if (f.charge >= 100) {
+    if (f.team === 0 && B.ask && !f.g.beast && f.abl.length > 1) { B.pick = f; return; }
+    castAbility(B, f, f.abl.length > 1 ? aiPickAbility(B, f) : f.abl[0]);
     return;
   }
-
-  if (trySpecial(B, f, t, dist)) return;
   if (dist > f.reach) {
     // when a friend already has him busy, come at his back instead of his shield
     if (!f.g.beast && t.target && t.target !== f && !out(t.target) && dist < 60 && f.flankT < 1.5) {
@@ -455,15 +382,14 @@ function fighterAct(B, f, dt) {
     walkBy(f, ux, uy, 1, dt);
   } else if (f.cd <= 0) {
     f.flankT = 0;
-    if (!f.feinted && t.open <= 0 && f.stam > 12 && Math.random() < f.feintP) {
+    if (!f.feinted && t.open <= 0 && Math.random() < f.feintP) {
       // a feint: a false start that costs little, and leaves a man who believes it open to the true blow
-      f.feinted = true; f.cd = f.atkTime * 0.3; f.stam -= 3; f.atkAnim = 0.6;
-      if (Math.random() < clamp(0.25 + t.g.stats.skl * 0.03, 0, 0.8)) fxText(B, t, 'reads it', '#cfc6b4');
+      f.feinted = true; f.cd = f.atkTime * 0.3; f.atkAnim = 0.6;
+      if (Math.random() < clamp(0.25 + t.g.stats.skl * 0.022, 0, 0.8)) fxText(B, t, 'reads it', '#cfc6b4');
       else { t.open = 0.9; fxText(B, f, 'feint', '#e8d7a0'); }
     } else {
       f.feinted = false;
       startMove(f, 'strike', f.atkTime * 0.3);
-      f.stam = Math.max(0, f.stam - f.atkCost);
     }
   } else if (f.c.net && dist < f.reach * 0.7 && t.snare <= 0) walkBy(f, -ux, -uy, 0.45, dt);
   else if (f.tactic === 'aggressive' && !f.g.beast) { if (dist > f.reach * 0.65) walkBy(f, ux, uy, 0.3, dt); }       // he crowds his man
@@ -543,10 +469,9 @@ function stepBattle(B, dt) {
   stepFx(B, dt);
   if (B.over) { stepOutro(B, dt); return; }
   if (B.intro > 0) { stepIntro(B, dt); return; }
+  if (B.pick) { if (out(B.pick) || !B.ask) B.pick = null; else return; }      // stopped, waiting for the player to choose an ability
   if (B.hitstop > 0) { B.hitstop -= dt; return; }
   B.time += dt;
-  if (B.order && (B.order.t -= dt) <= 0) B.order = null;
-  B.orderCd = Math.max(0, B.orderCd - dt);
   B.exc = clamp(B.exc - 0.012 * dt, 0, 1);
   B.excSum += B.exc * dt;
   for (const f of B.fighters) updateFighter(B, f, dt);
@@ -558,7 +483,7 @@ function stepBattle(B, dt) {
       p.dead = true;
       if (p.hit && !out(p.to)) {
         p.to.snare = 3; fxText(B, p.to, 'netted', '#d8c79a'); B.exc += 0.05 * p.from.show;
-        if (p.to.state === 'windup') { p.to.state = 'ready'; p.to.move = null; p.to.flurry = 0; }
+        if (p.to.state === 'windup') { p.to.state = 'ready'; p.to.move = null; }
         feed(B, `${p.from.g.name} nets ${p.to.g.name}`, p.from.team);
       } else if (!out(p.to)) fxText(B, p.to, 'net misses', '#cfc6b4');
     }
@@ -955,7 +880,7 @@ function drawHud(ctx, B) {
     ctx.fillStyle = '#3a1512'; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = B.col[f.team]; ctx.fillRect(bx, by, Math.ceil(bw * f.hp / f.maxHp), bh);
     ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, sy, bw, 1);
-    ctx.fillStyle = '#c9b458'; ctx.fillRect(bx, sy, Math.ceil(bw * f.stam / f.maxStam), 1);
+    ctx.fillStyle = f.charge >= 100 ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(bx, sy, Math.ceil(bw * f.charge / 100), 1);
     let px = bx + bw + 2;
     const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, many ? y + 1 : y + 3, 2, 3); px += 3; };
     if (f.bleed > 0) pip('#ff3a2a');
@@ -1153,14 +1078,15 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, 16, 5);
     ctx.fillStyle = '#3a1512'; ctx.fillRect(x, y, 14, 2);
     ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, Math.ceil(14 * f.hp / f.maxHp), 2);
-    ctx.fillStyle = '#c9b458'; ctx.fillRect(x, y + 2, Math.ceil(14 * f.stam / f.maxStam), 1);
+    ctx.fillStyle = f.charge >= 100 ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(x, y + 2, Math.ceil(14 * f.charge / 100), 1);
     let px = x + 16;
     const pip = col => { ctx.fillStyle = '#000'; ctx.fillRect(px, y - 1, 4, 4); ctx.fillStyle = col; ctx.fillRect(px + 1, y, 2, 2); px += 4; };
     if (f.bleed > 0) pip('#ff3a2a');
     if (f.hamstrung) pip('#ffd24a');
     if (f.armWound) pip('#ff9a3a');
     if (f.open > 0) pip('#e8d7a0');
-    if (orderOf(B, f)) pip(B.order.kind === 'press' ? '#ff6a3a' : '#6aa8ff');
+    if (f.buff) pip('#6aa8ff');
+    if (f.weakT > 0) pip('#8a7a66');
     if (B.fighters.length > 2) continue;   // in team fights the corner panels carry the names
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(f.g.name, fx + 0.4, ny + 0.4);
     ctx.fillStyle = f.team ? '#bcd6ff' : '#ffd9d2'; ctx.fillText(f.g.name, fx, ny);
@@ -1219,11 +1145,11 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = '#3a2a22'; ctx.fillText('CROWD', 160, 170);
   }
   if (B.death && B.intro <= 0) { ctx.fillStyle = '#8e1b14'; ctx.fillText('SINE MISSIONE', 160, 72); }
-  if (B.order) {            // the order in force, and how long it has left
-    const press = B.order.kind === 'press';
-    ctx.fillStyle = '#000'; ctx.fillRect(41, 172, 52, 5);
-    ctx.fillStyle = press ? '#ff6a3a' : '#6aa8ff'; ctx.fillRect(42, 173, Math.round(50 * B.order.t / ORDER_TIME), 3);
-    ctx.fillStyle = press ? '#ff9a6a' : '#9cc4ff'; ctx.fillText(press ? 'PRESSING' : 'HOLDING', 67, 170);
+  if (B.pick && !out(B.pick)) {                     // the man the fight has stopped for
+    const f = B.pick, px = Math.round(f.x * Z), py = Math.round(f.y * Z);
+    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1; ctx.strokeRect(px - 9.5, py - Math.round(f.tall * FINE / SCALE) - 1.5, 19, Math.round(f.tall * FINE / SCALE) + 4);
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(100, 160, 120, 9);
+    ctx.fillStyle = '#ffd24a'; ctx.fillText(`${f.g.name.toUpperCase()} IS READY: CHOOSE`, 160, 166.5);
   }
 
   if (B.over) {

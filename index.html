@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="build" content="3552226e">
+<meta name="build" content="b5c44df6">
 <title>Ludus Magnus</title>
-<link rel="stylesheet" href="css/style.css?v=9b206d70">
+<link rel="stylesheet" href="css/style.css?v=8c8eb5fe">
 </head>
 <body>
 <div id="app">
@@ -28,10 +28,10 @@
 <div id="arena" hidden>
   <div id="arenaHead"></div>
   <canvas id="arenaCanvas" width="1280" height="720"></canvas>
+  <div id="arenaPick" hidden></div>
   <div id="arenaOrders">
-    <button data-act="order" data-v="press" id="ordPress" data-tip="Your men attack faster and hit harder for eight seconds, and will not stop for breath, but they block and dodge less. Key: 1">Press!</button>
-    <button data-act="order" data-v="hold" id="ordHold" data-tip="Your men block and dodge more and get their wind back for eight seconds, but strike slower and softer. Key: 2">Hold!</button>
-    <button data-act="order" data-v="yield" id="ordYield" data-tip="Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once per bout. Key: 3">Throw in the cloth</button>
+    <button data-act="order" data-v="yield" id="ordYield" data-tip="Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once per bout. Key: C">Throw in the cloth</button>
+    <button data-act="abauto" id="autoCast" data-tip="Ask me: the fight stops each time one of your men is charged, and you choose his ability (keys 1 to 4). Auto: they choose for themselves and the fight never stops.">Abilities: ask me</button>
   </div>
   <div id="arenaCtl">
     <button data-act="speed" data-v="1">1x</button>
@@ -47,17 +47,18 @@
 
 <div id="modal" hidden><div id="modalBox"></div></div>
 
-<script src="js/data.js?v=5312aa2a"></script>
-<script src="js/sim.js?v=999175be"></script>
-<script src="js/jobs.js?v=5cb6dff1"></script>
-<script src="js/wilds.js?v=8ac539fe"></script>
-<script src="js/combat.js?v=7f2dbfc8"></script>
+<script src="js/data.js?v=0d385979"></script>
+<script src="js/sim.js?v=52345d21"></script>
+<script src="js/jobs.js?v=a50dda73"></script>
+<script src="js/wilds.js?v=3468dac5"></script>
+<script src="js/combat.js?v=5d173a05"></script>
+<script src="js/abilities.js?v=81f4878d"></script>
 <script src="js/show.js?v=b5132bcf"></script>
 <script src="js/sfx.js?v=38c35b6d"></script>
 <script src="js/yard.js?v=7eead954"></script>
 <script src="js/village.js?v=bd5823b5"></script>
 <script src="js/province.js?v=044c70ec"></script>
 <script src="js/art.js?v=0d9d27b8"></script>
-<script src="js/main.js?v=ac8c05c3"></script>
+<script src="js/main.js?v=dab3b431"></script>
 </body>
 </html>

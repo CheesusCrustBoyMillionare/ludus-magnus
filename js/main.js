@@ -2,7 +2,7 @@
 // Interface: screens, modals, and the arena overlay.
 
 const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {}, dtab: 'stats', noyard: false };
-try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; } catch (e) { /* storage unavailable */ }
+try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; } catch (e) { /* storage unavailable */ }
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
 const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
@@ -19,13 +19,17 @@ const TIPS = {
   endday: 'Every fighter trains or rests, you pay for food and wages, and tomorrow comes. Key: E',
   saves: 'Save slots, backups, export and import.',
   health: 'Carried into the arena as it stands. Resting restores far more than training does.',
-  fatigue: 'Rises with training and with every bout. A tired man enters the arena short of stamina; above three quarters he is exhausted and risks injury if he trains.',
+  fatigue: 'Rises with training and with every bout. A tired man\'s charge fills more slowly, so his abilities come round less often; above three quarters he is exhausted and risks injury if he trains.',
   morale: 'Men in good spirits train faster and hit harder; broken men yield sooner. Raised by better rations, a cook, the Temple and victories. Lowered by defeats and by comrades dying.',
   autorest: 'When ticked, a fighter who is exhausted rests for the day instead of training into an injury. His assignment is kept.',
-  str: 'Strength: harder blows, and a little more health.',
-  agi: 'Agility: faster attacks, faster feet and more dodges. Heavy armour dulls it slightly.',
-  end: 'Endurance: more health and stamina, quicker recovery, and training tires him less.',
-  skl: 'Skill: more blows land, more are blocked if he carries a shield, and more are telling.',
+  str: 'Strength: the weight of his blows. A man whose Strength is his highest skill beats one who lives by Agility, and loses to one who lives by Skill. Teaches an ability at 5, 10 and 16.',
+  agi: 'Agility: faster attacks, faster feet and more dodges. A man whose Agility is highest beats one who lives by Skill, and loses to one who lives by Strength. Teaches an ability at 5, 10 and 16.',
+  rating: 'Power is the sum of his three skills: what he is today. Potential is how fast he learns, the sum of his three talents: a man of low power and high potential is worth the wait.',
+  style: 'His style is his highest skill. Strength beats Agility, Agility beats Skill, Skill beats Strength: against the style his own beats, he deals a tenth more and takes a tenth less. A man with two skills level has no style, and no weakness.',
+  charge: 'The gold bar under his health in a fight. It fills slowly by itself and faster with every blow given or taken. When it is full he uses an ability; if he is yours, the fight stops for you to choose which.',
+  abilities: 'Each skill teaches an ability at 5, at 10 and at 16; which ones depends on how he fights. He carries four into the arena. Once he knows more than four, click one to carry it or put it down.',
+  autocast: 'Ask me: the fight stops each time one of your men is charged, and you choose his ability (keys 1 to 4). Auto: they choose for themselves and the fight never stops.',
+  skl: 'Skill: more blows land, more are blocked if he carries a shield, and more are telling. A man whose Skill is highest beats one who lives by Strength, and loses to one who lives by Agility. Teaches an ability at 5, 10 and 16.',
   talent: 'Talent: how quickly this stat improves with training. One star is slow, five is exceptional.',
   hidden: 'You cannot judge a recruit\'s talent by looking at him. Employ a scout to see it before you buy.',
   rank: 'Fighters earn rank from bouts, wins and kills. Each new rank lets you choose a perk for him.',
@@ -46,7 +50,7 @@ const TIPS = {
   perk: 'He has earned a new rank. Open his dossier to choose a perk.',
   veteran: 'Eight victories or more. You may grant him the wooden sword.',
   bout: 'Favoured, even and underdog describe the opposition the arena has matched to this tier; the strength numbers tell you how it compares with your own fighters.',
-  power: 'A single estimate of how dangerous he is right now: stats, gear, traits, morale and current health. The bookmakers use the same number.',
+  power: 'How dangerous he is right now: skills, gear, traits, spirits and current health. The bookmakers use the same number, and they also know which style beats which.',
   purse: 'Paid only if you win; a loser\'s share is small, and nothing in a bout to the death. Fame grows with the crowd\'s excitement.',
   wager: 'A bet on your own side, at the bookmakers\' odds. You lose the stake if you lose the bout.',
   favour: 'Rises with gifts and with the deeds each patron cares about. Fades a little every games day.',
@@ -76,11 +80,10 @@ const TIPS = {
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
 const ACT_BUTTONS = [
   ['rest', 'Rest', 'Rest: recovers health and sheds fatigue. Raises no stats.'],
-  ['str', 'Strength', 'Train strength: harder blows, and a little more health.'],
-  ['agi', 'Agility', 'Train agility: faster attacks, faster feet and more dodges.'],
-  ['end', 'Endurance', 'Train endurance: more health and stamina, and training tires him less.'],
-  ['skl', 'Skill', 'Train skill: more blows land, more are blocked, more are telling.'],
-  ['spar', 'All (spar)', 'Spar: raises all four stats a little at once, and tires him less than drilling one.'],
+  ['str', 'Strength', 'Train strength: harder blows. Beats Agility.'],
+  ['agi', 'Agility', 'Train agility: faster attacks, faster feet and more dodges. Beats Skill.'],
+  ['skl', 'Skill', 'Train skill: more blows land, more are blocked, more are telling. Beats Strength.'],
+  ['spar', 'All (spar)', 'Spar: raises all three skills a little at once, and tires him less than drilling one.'],
 ];
 const esc = t => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
@@ -131,7 +134,7 @@ const TUTORIAL = [
   { tab: 'ludus', target: '.acts', until: () => G.roster.some(g => g.activity !== 'rest'),
     text: 'These are your fighters. Each trains one thing a day, or rests. <b>Set one of them to train</b> with the small buttons on his line: strength, agility, endurance, skill.' },
   { tab: 'ludus', target: '.statrow',
-    text: 'Click a fighter and his dossier opens here. Four stats decide how he fights. The stars are his talent for each: more stars, faster gains, so train a man where his stars are.' },
+    text: 'Click a fighter and his dossier opens here. Three skills decide how he fights, and each beats one of the others: Strength beats Agility, Agility beats Skill, Skill beats Strength. His highest is his style. The stars are his talent for each: more stars, faster gains.' },
   { tab: 'ludus', target: '[data-act=dtab][data-v=gear]', until: () => ui.tab === 'ludus' && ui.dtab === 'gear',
     text: 'A dossier has four pages. <b>Open Gear.</b>' },
   { tab: 'ludus', target: '.gearlist',
@@ -147,7 +150,7 @@ const TUTORIAL = [
   { target: '#village', go: 'market', until: () => ui.tab === 'market',
     text: 'Now walk to the <b>Market</b>.' },
   { tab: 'market', target: '#view .panel.list',
-    text: 'Fresh stock every games day. The four numbers are a man\'s stats; you cannot see his talent without a scout. Your barracks hold three for now, and every man eats every day. Buy when you can feed him.' },
+    text: 'Fresh stock every games day. The three numbers are a man\'s skills; you cannot see his talent without a scout. Your barracks hold three for now, and every man eats every day. Buy when you can feed him.' },
   { target: '#village', go: 'facilities', until: () => ui.tab === 'facilities',
     text: 'Walk to your own house, <b>Household</b>, at the top left.' },
   { tab: 'facilities', target: '#view .fill > div:last-child .panel.list',
@@ -313,6 +316,20 @@ function keepSel(key, items) {
   return items.find(x => x.id === ui[key]) || null;
 }
 
+// His style as a small mark: the icon of his highest skill, with what it beats and loses to in the tooltip.
+const STYLE_LOSES = { str: 'skl', agi: 'str', skl: 'agi' };
+function styleMark(g) {
+  const st = styleOf(g);
+  return st ? `<span class="stylemark"${tip(`${STAT_NAMES[st]} style: beats ${STAT_NAMES[STYLE_BEATS[st]]}, loses to ${STAT_NAMES[STYLE_LOSES[st]]}.`)}>${ic(st)}</span>`
+    : `<span class="stylemark none"${tip('No style: two of his skills are level, so he has no edge and no weakness.')}>&ndash;</span>`;
+}
+// How his style stands against one opponent's: up, down, or nothing.
+function edgeMark(g, foe) {
+  const e = styleEdge(styleOf(g), styleOf(foe));
+  return e > 1 ? ' <b class="good" title="His style beats this man">&#9650;</b>' : e < 1 ? ' <b class="bad" title="This man\'s style beats his">&#9660;</b>' : '';
+}
+const ratingLine = (g, hide) => `<span${tip('rating')}>Power <b class="num">${rating(g)}</b> &middot; Potential <b class="num">${hide ? '?' : potential(g)}</b></span>`;
+
 function statusChips(g) {
   let s = '';
   if (g.away) s += `<span class="chip gold"${tip('away')}>Away ${daysLeft(jobOf(g))}d</span>`;
@@ -337,7 +354,7 @@ function gladCard(g) {
   const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}</div>`;
   return `<div class="lrow grow-row ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
     <canvas width="48" height="56" style="width:34px;height:40px" data-portrait="${g.id}"></canvas>
-    <div class="grow"><span class="t">${g.name}</span><small>${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</small></div>
+    <div class="grow"><span class="t">${g.name} ${styleMark(g)}</span><small>${CLASSES[g.cls].name} &middot; power ${rating(g)} &middot; ${g.wins}W ${g.losses}L</small></div>
     <div class="chips">${statusChips(g)}</div>
     <div class="gauges"><div${tip('health')}>${bar('hp', g.hp, maxHp(g))}</div><div${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</div><div${tip('morale')}>${bar('mor', g.morale, 100)}</div></div>
     ${work}
@@ -367,7 +384,18 @@ function faceTip(g) {
   return mood + (n ? ` He carries ${n} scar${n === 1 ? '' : 's'} from the arena.` : ' No blade has marked him yet.');
 }
 
-const DTABS = [['stats', 'Stats'], ['gear', 'Gear'], ['story', 'Story'], ['orders', 'Orders']];
+const DTABS = [['stats', 'Stats'], ['abil', 'Abilities'], ['gear', 'Gear'], ['story', 'Story'], ['orders', 'Orders']];
+// Everything his fighting style can learn, skill by skill: what he carries, what he knows, what is still locked.
+function abilityBlock(g) {
+  const known = abilitiesKnown(g), carried = abilitiesOf(g), choose = known.length > 4;
+  const rows = STATS.map(k => `<div class="abgroup"><div class="abhead">${ic(k)} ${STAT_NAMES[k]} <b class="num">${g.stats[k]}</b></div>${ABILITIES[g.cls][k].map(a => {
+    const has = known.includes(a), on = carried.includes(a);
+    return `<div class="ab ${has ? (on ? 'on' : 'known') : 'locked'}" ${has && choose ? `data-act="abil" data-v="${g.id}" data-w="${a.id}"` : ''}>
+      <b>${a.name}</b> <small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small><div class="dim">${a.desc}</div></div>`;
+  }).join('')}</div>`).join('');
+  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''}` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'}</div><div class="abcols">${rows}</div>`;
+}
+
 function gladDetail(g) {
   const c = CLASSES[g.cls];
   if (!DTABS.some(t => t[0] === ui.dtab)) ui.dtab = 'stats';
@@ -375,7 +403,8 @@ function gladDetail(g) {
   const pages = {
     stats: () => `${statRows(g)}<hr class="sep">${traitList(g)}<hr class="sep">
       <div class="dim" style="font-size:13px">${c.desc}</div>
-      <div style="font-size:13px"><b class="gold">${SPECIALS[g.cls].name}.</b> <span class="dim">${SPECIALS[g.cls].desc}</span></div>`,
+      <div class="dim" style="font-size:13px;margin-top:4px">${STATS.map(k => { const a = abilityNext(g, k); return a ? `${STAT_NAMES[k]} ${a.at} teaches <b>${a.name}</b>` : `${STAT_NAMES[k]} has no more to teach`; }).join(' &middot; ')}.</div>`,
+    abil: () => abilityBlock(g),
     gear: () => gearBlock(g),
     story: () => (questBlock(g) + storyBlock(g)).replace(/^<hr class="sep">/, '') || '<div class="dim">Nothing worth telling of him yet.</div>',
     orders: () => `<div class="kv">
@@ -395,6 +424,7 @@ function gladDetail(g) {
       <div style="flex:1;min-width:180px">
         <h2>${g.name}</h2>
         <div>${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin}</div>
+        <div>${ratingLine(g)} &middot; ${styleMark(g)}</div>
         <div style="margin-top:4px">${statusChips(g)}</div>
         <div class="num dim" style="font-size:13px">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills &middot; health ${Math.round(g.hp)}/${maxHp(g)}</div>
         ${g.rank < RANKS.length - 1 ? `<div class="barrow"${tip('rank')} style="grid-template-columns:auto 1fr;margin-top:4px">To ${RANKS[g.rank + 1].name} ${bar('prog', g.xp - RANKS[g.rank].xp, RANKS[g.rank + 1].xp - RANKS[g.rank].xp)}</div>` : ''}
@@ -497,7 +527,8 @@ function showReports() {
 function boutCard(b) {
   const D = DIFF[b.diff];
   const kind = ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1];
-  const foes = boutEnemies(b).map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}${vowNote(e)}</div>`).join('');
+  const them = boutEnemies(b), one = them.length === 1 && !them[0].beast ? them[0] : null;
+  const foes = them.map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name + ' ' + styleMark(e)} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}${vowNote(e)}</div>`).join('');
   let body;
   if (b.done) body = '<div class="dim">This bout has been fought.</div>';
   else {
@@ -505,7 +536,7 @@ function boutCard(b) {
     ui.picks[b.id] = picks;
     const avail = G.roster.filter(canFight);
     const chips = avail.length
-      ? avail.map(g => `<span class="chip pick ${picks.includes(g.id) ? 'on' : ''}" data-act="pick" data-v="${b.id}" data-w="${g.id}"${tip('power')}>${g.name} <span class="num">${Math.round(power(g))}</span></span>`).join('')
+      ? avail.map(g => `<span class="chip pick ${picks.includes(g.id) ? 'on' : ''}" data-act="pick" data-v="${b.id}" data-w="${g.id}"${tip('power')}>${g.name} <span class="num">${Math.round(power(g))}</span>${one ? edgeMark(g, one) : ''}</span>`).join('')
       : '<span class="dim">No one is fit to fight.</span>';
     const mine = picks.map(byId);
     const odds = winOdds(mine, boutEnemies(b));
@@ -557,7 +588,7 @@ function viewArena() {
 function viewMarket() {
   const full = G.roster.length >= capacity(), g = keepSel('msel', G.market), scout = staffLvl('scout');
   const rows = G.market.map(m => lrow('msel', m.id, `<canvas width="48" height="56" style="width:36px;height:42px" data-mportrait="${m.id}"></canvas>
-      <div class="grow"><span class="t">${m.name}</span><small>${CLASSES[m.cls].name} of ${m.origin} &middot; ${STATS.map(s => m.stats[s]).join(' / ')}</small></div>
+      <div class="grow"><span class="t">${m.name} ${styleMark(m)}</span><small>${CLASSES[m.cls].name} of ${m.origin} &middot; power ${rating(m)} (${STATS.map(s => m.stats[s]).join(' / ')})</small></div>
       <span class="end"><b class="num ${G.denarii < m.price ? 'bad' : 'gold'}">${m.price}</b></span>`)).join('')
     || '<div class="listnote">The dealer has nothing left until the next games.</div>';
   const card = g ? `<div class="panel">
@@ -566,6 +597,7 @@ function viewMarket() {
         <div style="flex:1"><h3>${g.name}</h3>
           <div class="dim" style="font-size:13px">${CLASSES[g.cls].name} of ${g.origin}</div>
           <div class="dim" style="font-size:13px">${CLASSES[g.cls].desc}</div>
+          <div style="font-size:13px">${ratingLine(g, !scout)} &middot; ${styleMark(g)}</div>
           <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div></div>
       </div>
       <div style="margin-top:8px">${statRows(g, !scout)}</div>
@@ -575,7 +607,7 @@ function viewMarket() {
   return `<div class="fill even">
     <div><h2>The slave market <small>${G.roster.length} / ${capacity()} cells filled</small></h2>
       <div class="pane" data-pane="market">${full ? '<p class="bad" style="margin:0 0 6px">Your barracks are full. Build more cells or sell a fighter.</p>' : ''}<div class="panel list">${rows}</div>
-      <div class="listnote">New stock every games day. The four numbers are strength, agility, endurance and skill.</div></div></div>
+      <div class="listnote">New stock every games day. The three numbers are strength, agility and skill.</div></div></div>
     <div><h2>The man</h2><div class="pane" data-pane="recruit">${card}</div></div>
   </div>`;
 }
@@ -981,18 +1013,19 @@ function startFight(boutId, tourneyBout) {
   if ((tut.on || tut.hints) && !tut.seen.fight) {
     tut.seen.fight = true; save(); ui.heldFight = [boutId, tourneyBout];
     showModal(`<h2>Before he goes out</h2>
-      <p>Your men fight on their own, as they were trained and as their standing orders say. You can still shout from the rail:</p>
-      <ul><li><b>Press!</b> They hit harder and faster for a few breaths, and guard worse.</li>
-      <li><b>Hold!</b> They guard, and get their wind back.</li>
-      <li><b>Throw in the cloth.</b> Your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once a bout, and never in a fight to the death.</li></ul>
-      <p>The keys are 1, 2 and 3. Below the sand you can run the fight faster or skip to the result. The crowd's bar matters: an exciting fight earns more fame.</p>
+      <p>Your men fight on their own, as they were trained and as their standing orders say. What you decide is their <b>abilities</b>.</p>
+      <ul><li><b>The gold bar</b> under a man's health is his charge. It fills slowly by itself, and faster with every blow given or taken.</li>
+      <li><b>When it is full, the fight stops</b> and you choose which of his abilities he uses: keys 1 to 4, or click. If you would rather they chose for themselves, switch <b>Abilities</b> to auto below the sand.</li>
+      <li><b>Styles.</b> Strength beats Agility, Agility beats Skill, Skill beats Strength. The marks on the bout card show whose style has the edge.</li>
+      <li><b>Throw in the cloth</b> (key C): your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once a bout, and never in a fight to the death.</li></ul>
+      <p>Below the sand you can run the fight faster or skip to the result. The crowd's bar matters: an exciting fight earns more fame.</p>
       <div class="row"><button class="primary" data-act="fightgo">To the sand</button></div>`);
     return;
   }
   const wager = Math.min(ui.wagers[b.id] || 0, Math.max(0, G.denarii));
   const odds = winOdds(picks, boutEnemies(b));
   G.denarii -= wager;
-  const B = createBattle(picks, boutEnemies(b), { death: b.death, mercy: [mercyBonus(), 0], tier: b.final ? 4 : tier(), names: ['Your ludus', b.hunt ? 'The beasts' : b.house], hunt: !!b.hunt,
+  const B = createBattle(picks, boutEnemies(b), { ask: !ui.autoCast, death: b.death, mercy: [mercyBonus(), 0], tier: b.final ? 4 : tier(), names: ['Your ludus', b.hunt ? 'The beasts' : b.house], hunt: !!b.hunt,
     foeCol: b.houseId && houseDef(b.houseId).col, foeColD: b.houseId && houseDef(b.houseId).colD });
   SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { bout: b, B, speed: 1, wager, pay: odds.pay, last: 0, raf: 0 };
@@ -1008,7 +1041,7 @@ function startWildFight() {
   if (!F) return;
   const picks = fieldParty();
   if (!picks.length) { G.field.fight = null; return; }
-  const B = createBattle(picks, F.foes, { wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
+  const B = createBattle(picks, F.foes, { ask: !ui.autoCast, wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
   SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { wild: true, bout: null, B, speed: 1, wager: 0, pay: 0, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your school</span> <span class="dim">against</span> <span style="color:#6fa4e6">${F.title}</span>`;
@@ -1041,18 +1074,21 @@ function villageGate() {
 // The order buttons: greyed while your voice recovers, with the seconds left on them.
 function paintOrders() {
   if (!fight) return;
-  const B = fight.B, wait = Math.ceil(B.orderCd);
-  const state = [canOrder(B, 'press'), canOrder(B, 'yield'), wait, B.order ? B.order.kind : ''].join();
+  const B = fight.B, pick = B.pick && !out(B.pick) ? B.pick : null;
+  const state = [canOrder(B, 'yield'), pick ? pick.g.id : 0, !!ui.autoCast, B.over].join();
   if (state === fight.ordState) return;
   fight.ordState = state;
-  for (const [id, kind, label] of [['ordPress', 'press', 'Press!'], ['ordHold', 'hold', 'Hold!']]) {
-    const b = $('#' + id);
-    b.disabled = !canOrder(B, kind);
-    b.classList.toggle('on', !!B.order && B.order.kind === kind);
-    b.textContent = B.orderCd > 0 && !(B.order && B.order.kind === kind) && !B.over ? `${label} (${wait})` : label;
-  }
   $('#ordYield').disabled = !canOrder(B, 'yield');
-  $('#arenaOrders').style.visibility = B.hunt && B.death ? 'hidden' : 'visible';
+  $('#ordYield').style.visibility = B.hunt ? 'hidden' : 'visible';
+  $('#autoCast').textContent = ui.autoCast ? 'Abilities: auto' : 'Abilities: ask me';
+  // the fight has stopped for one of yours: his abilities, to choose from
+  const el = $('#arenaPick');
+  el.hidden = !pick;
+  if (pick) {
+    el.innerHTML = `<div class="who">${pick.g.name} is charged ${styleMark(pick.g)}</div><div class="abrow">${pick.abl.map((a, i) =>
+      `<button data-act="abpick" data-v="${a.id}"><span class="key">${i + 1}</span><b>${a.name}</b><small>${a.desc}</small></button>`).join('')}</div>`;
+    SFX.ui('chime');
+  }
 }
 function paintSpeed() {
   $('#muteBtn').textContent = SFX.muted ? 'Sound off' : 'Sound on';
@@ -1077,6 +1113,8 @@ function finishFight() {
   if (!f || f.finished) return;
   f.finished = true;
   cancelAnimationFrame(f.raf);
+  f.B.ask = false; f.B.pick = null;             // nobody is asked while the rest is played out unseen
+  $('#arenaPick').hidden = true;
   let guard = 0;
   while ((!f.B.over || f.B.outro <= f.B.outroEnd) && guard++ < 20000) stepBattle(f.B, 1 / 30);
   f.B.snd.length = 0; SFX.quiet();
@@ -1341,6 +1379,9 @@ const ACTIONS = {
   mute() { SFX.toggle(); paintSpeed(); renderTop(); SFX.ui('click'); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
+  abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
+  abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
+  abil(v, w) { const g = byId(v); if (g && toggleAbility(g, w)) { save(); render(); } },
   skip() { finishFight(); },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
@@ -1370,7 +1411,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1501,8 +1542,9 @@ function renderDev() {
 // 1, 2 and 3 shout the orders while a fight is on
 document.addEventListener('keydown', e => {
   if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
-  const kind = { 1: 'press', 2: 'hold', 3: 'yield' }[e.key];
-  if (kind) { e.preventDefault(); ACTIONS.order(kind); }
+  const B = fight.B;
+  if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
+  else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); ACTIONS.order('yield'); }
 });
 // Keys for everything done often, so the hand can stay off the mouse:
 //   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,

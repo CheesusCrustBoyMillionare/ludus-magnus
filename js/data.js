@@ -1,34 +1,35 @@
 'use strict';
 // Static game data: fighting styles, origins, traits, gear, facilities.
 
-const STATS = ['str', 'agi', 'end', 'skl'];
-const STAT_NAMES = { str: 'Strength', agi: 'Agility', end: 'Endurance', skl: 'Skill' };
+// Three skills. Each beats one of the others (see abilities.js): Strength beats Agility, Agility beats Skill, Skill beats Strength.
+const STATS = ['str', 'agi', 'skl'];
+const STAT_NAMES = { str: 'Strength', agi: 'Agility', skl: 'Skill' };
 
 const CLASSES = {
   murmillo: {
     name: 'Murmillo', desc: 'Short sword and a great shield. A wall that hits back.',
-    reach: 15, dmg: 9, speed: 0.95, atkTime: 1.1, block: 0.24, dodge: 0.04, armor: 1.5,
-    shield: 'big', weapon: 'gladius', helm: 'crest', bias: { str: 3, agi: 1, end: 3, skl: 2 },
+    reach: 15, dmg: 9.5, speed: 0.95, atkTime: 1.07, block: 0.26, dodge: 0.04, armor: 1.7,
+    shield: 'big', weapon: 'gladius', helm: 'crest', bias: { str: 3, agi: 1, skl: 2 },
   },
   thraex: {
     name: 'Thraex', desc: 'Curved blade and a small shield. Finds the gaps in armour.',
-    reach: 14, dmg: 10, speed: 1.05, atkTime: 0.95, block: 0.15, dodge: 0.10, crit: 0.12, armor: 1,
-    shield: 'small', weapon: 'sica', helm: 'griffin', bias: { str: 3, agi: 2, end: 1, skl: 3 },
+    reach: 14, dmg: 9.2, speed: 1.05, atkTime: 0.98, block: 0.15, dodge: 0.10, crit: 0.10, armor: 1,
+    shield: 'small', weapon: 'sica', helm: 'griffin', bias: { str: 3, agi: 2, skl: 3 },
   },
   retiarius: {
     name: 'Retiarius', desc: 'Trident and net. Quick and fragile; snares a foe, then strikes from range.',
-    reach: 24, dmg: 9, speed: 1.2, atkTime: 1.05, block: 0, dodge: 0.22, armor: 0,
-    shield: null, weapon: 'trident', helm: null, net: true, bias: { str: 2, agi: 3, end: 2, skl: 3 },
+    reach: 24, dmg: 9.7, speed: 1.2, atkTime: 1.03, block: 0, dodge: 0.23, armor: 0,
+    shield: null, weapon: 'trident', helm: null, net: true, bias: { str: 2, agi: 3, skl: 3 },
   },
   hoplomachus: {
     name: 'Hoplomachus', desc: 'Spear and round shield. Strikes first and keeps his distance.',
     reach: 22, dmg: 10, speed: 1.0, atkTime: 1.12, block: 0.18, dodge: 0.08, armor: 1,
-    shield: 'small', weapon: 'spear', helm: 'plume', bias: { str: 2, agi: 2, end: 2, skl: 3 },
+    shield: 'small', weapon: 'spear', helm: 'plume', bias: { str: 2, agi: 2, skl: 3 },
   },
   dimachaerus: {
     name: 'Dimachaerus', desc: 'Two blades and no shield. Kills quickly or dies quickly.',
-    reach: 13, dmg: 7, speed: 1.1, atkTime: 0.63, block: 0, dodge: 0.15, armor: 0,
-    shield: null, weapon: 'twin', helm: 'band', bias: { str: 3, agi: 3, end: 2, skl: 1 },
+    reach: 13, dmg: 7.9, speed: 1.1, atkTime: 0.61, block: 0, dodge: 0.18, armor: 0,
+    shield: null, weapon: 'twin', helm: 'band', bias: { str: 3, agi: 3, skl: 1 },
   },
 };
 
@@ -67,7 +68,7 @@ const TRAITS = {
   frail:       { name: 'Frail',       good: false, desc: 'Injuries take half again as long to heal.' },
   nervous:     { name: 'Nervous',     good: false, desc: '-5% accuracy before a crowd.' },
   guarded:     { name: 'Guarded',     good: true,  desc: '+5% to dodge and block.' },
-  ironlungs:   { name: 'Iron lungs',  good: true,  desc: '+30% stamina and recovery.' },
+  ironlungs:   { name: 'Iron lungs',  good: true,  desc: 'His charge fills a quarter faster, so his abilities come round sooner.' },
   thickskin:   { name: 'Thick skin',  good: true,  desc: 'Shrugs 2 damage off every blow.' },
   killer:      { name: 'Killer instinct', good: true, desc: 'Telling blows hit far harder.' },
   steady:      { name: 'Steady',      good: true,  desc: 'Morale never falls below half.' },
@@ -144,7 +145,7 @@ const TIERS = [
 const FINAL_FAME = 1100;
 const GAMES_EVERY = 5;
 
-const ACTIVITIES = { rest: 'Rest', str: 'Train strength', agi: 'Train agility', end: 'Train endurance', skl: 'Train skill', spar: 'Spar (needs a doctore)' };
+const ACTIVITIES = { rest: 'Rest', str: 'Train strength', agi: 'Train agility', skl: 'Train skill', spar: 'Spar (needs a doctore)' };
 
 const TACTICS = {
   balanced:   { name: 'Balanced',   desc: 'No orders. Fights as he was taught.' },
@@ -202,13 +203,13 @@ const HOUSES = [
 // Animals for the beast hunts. They use the same combat numbers as a fighting style.
 const BEASTS = {
   boar: { name: 'Boar', beast: true, move: 'charge', reach: 12, dmg: 9, speed: 1.2, atkTime: 1.0, block: 0, dodge: 0.06, armor: 1,
-          shield: null, weapon: 'tusks', bias: { str: 3, agi: 2, end: 3, skl: 1 }, hpMult: 1.2, budget: 1.05, pw: 0.82 },
+          shield: null, weapon: 'tusks', bias: { str: 3, agi: 2, skl: 1 }, hpMult: 1.2, budget: 1.05, pw: 0.82 },
   wolf: { name: 'Wolf', beast: true, move: null, reach: 11, dmg: 10, speed: 1.35, atkTime: 0.72, block: 0, dodge: 0.16, armor: 0,
-          shield: null, weapon: 'bite', bias: { str: 2, agi: 4, end: 2, skl: 2 }, hpMult: 1.0, budget: 0.95, pw: 0.62 },
+          shield: null, weapon: 'bite', bias: { str: 2, agi: 4, skl: 2 }, hpMult: 1.0, budget: 0.95, pw: 0.62 },
   lion: { name: 'Lion', beast: true, move: 'pounce', reach: 13, dmg: 10, speed: 1.25, atkTime: 0.85, block: 0, dodge: 0.12, crit: 0.14, armor: 0,
-          shield: null, weapon: 'claws', bias: { str: 3, agi: 3, end: 2, skl: 2 }, hpMult: 1.1, budget: 1.0, pw: 1.0 },
+          shield: null, weapon: 'claws', bias: { str: 3, agi: 3, skl: 2 }, hpMult: 1.1, budget: 1.0, pw: 1.0 },
   bear: { name: 'Bear', beast: true, move: 'maul', reach: 14, dmg: 11, speed: 0.95, atkTime: 1.25, block: 0, dodge: 0.03, armor: 1.5,
-          shield: null, weapon: 'claws', bias: { str: 4, agi: 1, end: 4, skl: 1 }, hpMult: 1.25, budget: 1.1, pw: 1.0 },
+          shield: null, weapon: 'claws', bias: { str: 4, agi: 1, skl: 1 }, hpMult: 1.25, budget: 1.1, pw: 1.0 },
 };
 
 const FESTIVAL_EVERY = 15;
