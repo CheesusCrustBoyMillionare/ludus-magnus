@@ -108,7 +108,7 @@ function botFight(R) {
   botTourney(R);
   const bouts = G.bouts.filter(b => !b.done).sort((a, b) => (b.final ? 1 : 0) - (a.final ? 1 : 0) || b.fame - a.fame);
   for (const b of bouts) {
-    const avail = G.roster.filter(g => canFight(g) && g.hp > maxHp(g) * 0.7).sort((a, b2) => power(b2) - power(a));
+    const avail = G.roster.filter(g => boutFit(b, g) && g.hp > maxHp(g) * 0.7).sort((a, b2) => power(b2) - power(a));
     if (avail.length < b.size) continue;
     const team = avail.slice(0, b.size);
     const o = winOdds(team, boutEnemies(b));

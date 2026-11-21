@@ -1218,3 +1218,25 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .wearers.twoup .lrow { min-height: 32px; padding-top: 3px; padding-bottom: 3px; }
 .wearers.twoup .lrow small { display: none; }
 .wearers.twoup .lrow { min-height: 28px; padding-top: 2px; padding-bottom: 2px; }
+
+/* ---- the arena: wagers, stakes, standings ---- */
+.wagerrow { flex-wrap: nowrap; }
+.wagerrow button.mini { padding-left: 6px; padding-right: 6px; }
+.wagerrow .kinds { margin-left: auto; }
+.wagernote { font-size: 12px; flex: 1; min-width: 0; }
+.standings { margin-bottom: 10px; }
+.ranks { display: grid; gap: 1px; }
+.rankrow { display: grid; grid-template-columns: 20px minmax(0, 1fr) 150px 70px 34px; gap: 8px; align-items: center; padding: 3px 4px; border-bottom: 1px solid rgba(110, 72, 26, .3); font-size: 13px; }
+.rankrow:last-child { border-bottom: 0; }
+.rankrow > b:first-child { color: var(--dim); }
+.rankrow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rankrow small { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rankrow > b:last-child { text-align: right; }
+.rankrow.yours { background: rgba(214, 170, 80, .1); }
+.rankrow.yours .nm { color: var(--gold); }
+.festline { border-color: var(--gold); margin-bottom: 8px; padding: 4px 10px; font-size: 13px; }
+.festline b { font-family: var(--display); letter-spacing: .06em; color: var(--gold); }
+.festline small { color: var(--dim); margin-left: 6px; }
+.foelist.tight3 .lrow { padding-top: 2px; padding-bottom: 2px; min-height: 0; }
+.panel.bout.many .kvs small { display: none; }
+.panel.list.longcard .lrow { padding-top: 3px; padding-bottom: 3px; min-height: 0; }

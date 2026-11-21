@@ -1224,6 +1224,80 @@ function finishTourneyOffscreen() {
   log(`${c.name} of ${houseDef(c.hid).name} wins the Laurel Tournament.`, 'gold');
 }
 
+// ---------- the arena: the championship, wagers, stakes, the day's laurels ----------
+// Who may be sent to this bout: some are for novices only, and a title is defended by the man who holds it.
+function boutFit(b, g) { return canFight(g) && (!b.novice || g.rank <= 1) && (!b.only || g.id === b.only); }
+// Three ways to bet on your own side. The harder the thing, the more the bookmakers pay.
+const WAGER_KINDS = {
+  win:   { name: 'To win', mult: 1, what: 'Your side wins, however it comes.' },
+  clean: { name: 'Barely touched', mult: 1.6, what: 'Your side wins with every man of yours on his feet and none below a third of his health. Pays 1.6 times the odds.' },
+  swift: { name: 'Swiftly', mult: 1.8, what: 'Your side wins inside 12 seconds of fighting. Pays 1.8 times the odds.' },
+};
+const SWIFT_TIME = 12;
+function wagerWon(kind, B, win) {
+  if (!win) return false;
+  if (kind === 'clean') return B.fighters.filter(f => f.team === 0).every(f => !f.fate && f.hp >= f.maxHp / 3);
+  if (kind === 'swift') return !B.decision && B.time <= SWIFT_TIME;
+  return true;
+}
+// The man who holds the championship, if he is still where he was.
+function titleHolder() {
+  const T = G.title; if (!T) return null;
+  if (T.house === null) return G.roster.find(g => g.id === T.gid) || null;
+  const H = houseOf(T.house);
+  return (H && H.roster.find(g => g.id === T.gid)) || null;
+}
+const titleYours = () => !!G.title && G.title.house === null && !!titleHolder();
+// From the amphitheatre up there is a champion. A rival who holds it can be challenged each games day;
+// if your man holds it, the best of the others comes for it each games day, and only he may answer.
+function titleBout(t, bouts, booked) {
+  if (t < 1) return;
+  const strongest = () => { let best = null; for (const H of G.houses) for (const g of H.roster) if (!booked.has(g.id) && (!best || statSum(g) > statSum(best.g))) best = { g, H }; return best; };
+  if (!G.title || !titleHolder()) {
+    const s = strongest(), was = G.title;
+    if (!s) { G.title = null; return; }
+    G.title = { house: s.H.id, gid: s.g.id, name: s.g.name, defences: 0 };
+    if (was) log(`The championship stands empty, and ${s.g.name} of ${houseDef(s.H.id).name} is named champion.`, 'gold');
+  }
+  const T = G.title;
+  if (T.house !== null) {
+    const c = titleHolder();
+    if (booked.has(c.id)) return;                 // he is answering a challenge or a grudge today
+    booked.add(c.id);
+    bouts.push({ id: ++G.nextId, size: 1, diff: 'hard', death: false, title: true, done: false, houseId: T.house, house: houseDef(T.house).name, enemyIds: [c.id],
+      purse: round5(PURSE[t] * 2.2), fame: Math.round(FAME[t] * 2.2) });
+  } else {
+    const s = strongest(); if (!s) return;
+    booked.add(s.g.id);
+    bouts.push({ id: ++G.nextId, size: 1, diff: 'hard', death: false, title: true, defence: true, only: T.gid, done: false, houseId: s.H.id, house: houseDef(s.H.id).name, enemyIds: [s.g.id],
+      purse: round5(PURSE[t] * (1.5 + 0.25 * Math.min(T.defences, 6))), fame: Math.round(FAME[t] * 1.8) });
+  }
+}
+// Offer to fight a bout without quarter: richer, louder, and somebody may not walk out.
+function stakesBlock(b) {
+  if (b.done) return 'It has been fought.';
+  if (b.death) return 'It is to the death already.';
+  if (b.hunt || b.final || b.tourney || b.melee || b.novice || !b.houseId) return 'The editor will not hear of it for this bout.';
+  if (tier() < 1) return 'The village pits do not fight to the death.';
+  return '';
+}
+function raiseStakes(id) {
+  const b = (G.bouts || []).find(x => x.id === +id);
+  if (!b || stakesBlock(b)) return false;
+  b.death = true; b.raised = true; b.purse = round5(b.purse * 1.3); b.fame = Math.round(b.fame * 1.4);
+  feud(houseOf(b.houseId), 4);
+  return true;
+}
+// The best in the province, yours and theirs, as the town reckons them.
+const rankScore = g => statSum(g) + (g.wins || 0) * 1.5 - (g.losses || 0) * 0.5;
+function arenaRanks(n) {
+  const all = G.roster.map(g => ({ g, h: null }));
+  for (const H of G.houses) for (const g of H.roster) all.push({ g, h: H.id });
+  return all.sort((a, b) => rankScore(b.g) - rankScore(a.g)).slice(0, n);
+}
+// What a run of victories adds to the fame of the next.
+const streakBonus = () => Math.min(G.streak || 0, 10) * 0.02;
+
 function boutEnemies(b) {
   if (b.enemies) return b.enemies;
   const H = houseOf(b.houseId);
@@ -1283,6 +1357,12 @@ function genBouts() {
       fame: Math.round(FAME[t] * D.fame * Math.pow(size, 0.5) * (death ? 1.4 : 1) * (H.prestige > G.fame ? 1.15 : 1)),
     });
   });
+  titleBout(t, bouts, booked);
+  if (t >= 1) {                                   // a bout kept for the new men, against men of their own weight
+    const H = order[sizes.length % order.length], foes = pickRivals(H, 1, ENEMY_BUDGET[t - 1] * 0.92, t - 1, booked);
+    bouts.push({ id: ++G.nextId, size: 1, diff: 'even', death: false, novice: true, done: false, houseId: H.id, house: houseDef(H.id).name, enemyIds: foes.map(g => g.id),
+      purse: round5(PURSE[t] * 0.55), fame: Math.round(FAME[t] * 0.55) });
+  }
   if (G.festival && G.festival.day === G.day) addFestival(t, bouts, booked);
   for (const H of G.houses) {
     while (H.roster.length > 7) {
@@ -1390,6 +1470,13 @@ function endDay() {
     if (ducked.called) G.fame = Math.max(0, G.fame - 5);
     log(ducked.called ? `You called out ${ducked.house} and did not appear. The town will not let you forget it.` : `You left ${ducked.house}'s challenge unanswered. The men heard of it, and so did the town.`, 'bad');
   }
+  const lapsed = (G.bouts || []).find(b => b.defence && !b.done);
+  if (lapsed && G.title && G.title.house === null) {
+    const foe = boutEnemies(lapsed)[0], was = G.title.name;
+    G.title = foe ? { house: lapsed.houseId, gid: foe.id, name: foe.name, defences: 0 } : null;
+    G.fame = Math.max(0, G.fame - 5);
+    log(`${was} did not appear to defend the championship. ${foe ? `It passes to ${foe.name} of ${lapsed.house} without a blow struck.` : 'It stands empty.'}`, 'bad');
+  }
   G.day++;
   if (G.festival.day < G.day) scheduleFestival();
   if (G.festival.day - G.day === 5) log(`Heralds cry it through the town: ${FESTIVALS[G.festival.type].name}, in five days.`, 'gold');
@@ -1409,7 +1496,7 @@ function endDay() {
 
 // ---------- bout resolution ----------
 
-function applyBoutResult(bout, B, wager, pay) {
+function applyBoutResult(bout, B, wager, pay, kind) {
   const mine = B.fighters.filter(f => f.team === 0), foes = B.fighters.filter(f => f.team === 1);
   const win = B.winner === 0;
   const avgExc = B.time > 0 ? B.excSum / B.time : 0;
@@ -1480,9 +1567,9 @@ function applyBoutResult(bout, B, wager, pay) {
   if (win) G.tally.wins++; else G.tally.losses++;
   if (win) {
     purse = boon('laurel') ? Math.round(bout.purse * 1.1 / 5) * 5 : bout.purse;
-    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1));
+    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1) * (1 + streakBonus()) * (titleYours() ? 1.1 : 1));
     mine.forEach(f => { f.g.fame += Math.round(fameGain / mine.length); });
-    if (wager) wagerGain = Math.round(wager * pay * (G.patrons.guild >= 80 ? 1.2 : 1));
+    if (wager && wagerWon(kind, B, win)) wagerGain = Math.round(wager * pay * (WAGER_KINDS[kind] || WAGER_KINDS.win).mult * (G.patrons.guild >= 80 ? 1.2 : 1));
     log(`Victory over ${bout.house}: ${purse} denarii, +${fameGain} fame.`, 'good');
   } else {
     purse = bout.death ? 0 : Math.round(bout.purse * 0.15 / 5) * 5;
@@ -1519,6 +1606,35 @@ function applyBoutResult(bout, B, wager, pay) {
     else { favor('guild', -15); lines.push('<span class="bad">The Guild men who paid for your defeat are ruined, and furious.</span>'); }
     G.fix = null;
   }
+  // a run of victories, and what it is worth
+  if (win) { G.streak = (G.streak || 0) + 1; G.bestStreak = Math.max(G.bestStreak || 0, G.streak); }
+  else { if ((G.streak || 0) >= 3) lines.push(`<span class="dim">A run of ${G.streak} victories ends here.</span>`); G.streak = 0; }
+  // the championship changes hands, or does not
+  if (bout.title && mine.length && foes.length) {
+    const man = mine[0].g, foe = foes[0].g;
+    if (win && !bout.defence) {
+      G.title = { house: null, gid: man.id, name: man.name, defences: 0 };
+      if (G.roster.includes(man)) addStory(man, 'Took the championship of the arena.');
+      favor('magistrate', 3);
+      lines.push(`<span class="gold"><b>${man.name}</b> is champion of the arena. Every games day now, the best of the others will come to take it from him.</span>`);
+    } else if (win) {
+      G.title.defences++;
+      lines.push(`<span class="gold"><b>${man.name}</b> keeps the championship: ${G.title.defences} defence${G.title.defences === 1 ? '' : 's'} made.</span>`);
+    } else if (bout.defence) {
+      G.title = H && H.roster.includes(foe) ? { house: H.id, gid: foe.id, name: foe.name, defences: 0 } : null;
+      lines.push(`<span class="bad">The championship goes to ${foe.name} of ${bout.house}.</span>`);
+    } else if (G.title) G.title.defences++;
+  }
+  // every bout on the card fought and won: the day is yours
+  let sweep = 0;
+  if (G.bouts && G.bouts.includes(bout)) {
+    const R = G.dayRec && G.dayRec.day === G.day ? G.dayRec : (G.dayRec = { day: G.day, w: 0, l: 0 });
+    if (win) R.w++; else R.l++;
+    if (win && !R.l && R.w >= 3 && G.bouts.every(b => b.done || b === bout)) {
+      sweep = round5(PURSE[tier()] * 0.6); purse += sweep; fameGain += Math.round(FAME[tier()] * 0.5); favor('magistrate', 2);
+      lines.push(`<span class="gold">Every bout on the card, fought and won. The editor sends down a wreath and ${sweep} denarii: the day is yours.</span>`);
+    }
+  }
   G.denarii += purse + wagerGain;
   G.fame += fameGain;
   bout.done = true;
@@ -1526,7 +1642,7 @@ function applyBoutResult(bout, B, wager, pay) {
   if (bout.final && win) G.won = true;
   if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
   save();
-  return { win, lines, purse, fameGain, wager, wagerGain, avgExc };
+  return { win, lines, purse, fameGain, wager, wagerGain, avgExc, sweep, kind: kind || 'win' };
 }
 
 // ---------- random events ----------

@@ -275,6 +275,64 @@ test('the market: backgrounds, haggling, holding, sending for a man, and the auc
   assert(won && lost && !badNumber(G), 'both ends of an auction were seen');
 }));
 
+test('the arena: the championship, novices, wagers, stakes, runs and a clean sweep', () => game()(function () {
+  const won = (mine, foes) => { const B = fight(mine, foes); B.winner = 0; B.fighters.forEach(f => { if (f.team === 0) { f.fate = null; f.hp = f.maxHp; } }); return B; };
+  const lost = (mine, foes) => { const B = fight(mine, foes); B.winner = 1; return B; };
+  newGame(); while (G.roster.length < 5) G.roster.push(makeGladiator(25)); G.day = 5; genBouts();
+  assert(!G.title && !G.bouts.some(b => b.title || b.novice), 'the village pits crown no one');
+  // from the second arena there is a champion, and a bout for novices
+  G.fame = TIERS[1].fame; G.day = 10; genBouts();
+  const tb = G.bouts.find(b => b.title), nb = G.bouts.find(b => b.novice);
+  assert(tb && G.title && G.title.house !== null && titleHolder() === boutEnemies(tb)[0] && !tb.defence, 'a rival holds the title and can be challenged');
+  assert(nb && boutEnemies(nb).length === 1, "a novices' bout is on the card");
+  const g = G.roster[0], vet = G.roster[1]; vet.rank = 3; g.rank = 0;
+  assert(boutFit(nb, g) && !boutFit(nb, vet) && boutFit(tb, vet), 'only novices may enter it');
+  // raising the stakes
+  const plain = G.bouts.find(b => !b.death && !b.title && !b.novice && b.houseId), p0 = plain.purse, f0 = plain.fame;
+  assert(stakesBlock(nb) && raiseStakes(plain.id) && plain.death && plain.purse > p0 && plain.fame > f0 && !raiseStakes(plain.id), 'a bout is made to the death, once');
+  // winning the title
+  let r = applyBoutResult(tb, won([g], boutEnemies(tb)), 0, 1);
+  assert(r.win && G.title.house === null && G.title.gid === g.id && titleYours() && titleHolder() === g && G.streak === 1, 'your man takes the title');
+  // the next games: a challenger comes, and only the champion may answer
+  G.day = 15; g.foughtDay = 0; g.injury = 0; g.hp = maxHp(g); genBouts();
+  const db = G.bouts.find(b => b.defence);
+  assert(db && db.only === g.id && boutFit(db, g) && !boutFit(db, vet), 'a title defence, for the holder alone');
+  r = applyBoutResult(db, won([g], boutEnemies(db)), 0, 1);
+  assert(G.title.defences === 1 && titleYours() && G.streak === 2 && G.bestStreak === 2, 'a defence made, and a run building');
+  // losing it
+  G.day = 20; g.foughtDay = 0; g.injury = 0; g.hp = maxHp(g); genBouts();
+  const db2 = G.bouts.find(b => b.defence), ch = boutEnemies(db2)[0];
+  r = applyBoutResult(db2, lost([g], [ch]), 0, 1);
+  assert(!r.win && G.streak === 0 && (!G.title || (G.title.house === db2.houseId && G.title.gid === ch.id)), 'the title goes to the man who took it');
+  // a title left undefended is forfeit at the end of the day
+  G.title = { house: null, gid: vet.id, name: vet.name, defences: 0 }; G.day = 25; genBouts();
+  const db3 = G.bouts.find(b => b.defence), fame0 = G.fame; G.bouts.forEach(b => { if (b !== db3) b.done = true; });
+  endDay();
+  assert(G.title && G.title.house === db3.houseId && G.fame === fame0 - 5, 'a champion who does not appear loses it');
+  // a holder who is gone leaves it empty, and it is filled
+  G.title = { house: null, gid: 999999, name: 'Nobody', defences: 0 }; G.day = 30; genBouts();
+  assert(G.title.house !== null && titleHolder(), 'an empty title is given to the best of the houses');
+  // wagers: three kinds
+  const B1 = won([G.roster[2]], [boutEnemies(G.bouts[0])[0]]); B1.time = 90;
+  assert(wagerWon('win', B1, true) && wagerWon('clean', B1, true) && !wagerWon('swift', B1, true) && !wagerWon('win', B1, false), 'what each wager needs');
+  B1.time = 10; assert(wagerWon('swift', B1, true), 'a quick win');
+  const me = B1.fighters.find(f => f.team === 0); me.hp = me.maxHp * 0.2; assert(!wagerWon('clean', B1, true), 'a man badly hurt loses the clean wager');
+  me.hp = me.maxHp; me.fate = 'spared'; assert(!wagerWon('clean', B1, true), 'and so does a man down');
+  const wb = G.bouts.find(b => !b.done && !b.title), B2 = won([G.roster[2]], [boutEnemies(wb)[0]]); B2.time = 10;
+  r = applyBoutResult(wb, B2, 100, 2, 'swift');
+  assert(r.wagerGain === Math.round(100 * 2 * 1.8) && r.kind === 'swift', 'a swift wager pays 1.8 times the odds');
+  const wb2 = G.bouts.find(b => !b.done && !b.title), B3 = won([G.roster[3]], [boutEnemies(wb2)[0]]); B3.time = 100;
+  r = applyBoutResult(wb2, B3, 100, 2, 'swift');
+  assert(r.win && r.wagerGain === 0, 'and nothing if the win was slow');
+  // every bout on the card won: the day is yours
+  G.day = 35; G.dayRec = null; genBouts(); G.bouts = G.bouts.filter(b => !b.title).slice(0, 3);
+  let last;
+  G.bouts.forEach((b, i) => { const m = G.roster[i % G.roster.length]; last = applyBoutResult(b, won([m], [boutEnemies(b)[0]]), 0, 1); if (i < 2) assert(!last.sweep, 'not before the last bout'); });
+  assert(last.sweep > 0 && last.purse === G.bouts[2].purse + last.sweep, 'a clean sweep pays a bonus');
+  assert(arenaRanks(8).length === 8 && arenaRanks(8)[0].g, 'the province is ranked');
+  assert(!badNumber(G), 'the arena left a bad number');
+}));
+
 test('the smith: reforging, fittings, commissions, a full harness, and clearing the racks', () => game()(function () {
   newGame(); G.denarii = 20000; const g = G.roster[0];
   // reforging: one grade, only as far as the forge can go, once between games
