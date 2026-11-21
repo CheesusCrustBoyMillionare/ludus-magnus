@@ -28,7 +28,8 @@ const THEMES = [
 ];
 
 const out = f => f.down || f.yielded;
-function snd(B, n, v) { if (B.snd.length < 40) B.snd.push([n, v || 1]); }
+// Queues a sound for the page to play: its name, its strength, where across the sand it happens (-1 left to 1 right), and its kind.
+function snd(B, n, v, at, kind) { if (B.snd.length < 40) B.snd.push([n, v || 1, at ? (at.x - (ARENA.x0 + ARENA.x1) / 2) / (ARENA.x1 - ARENA.x0) * 1.5 : 0, kind || '']); }
 
 function makeFighter(g, team, i, n) {
   const c = CLASSES[g.cls] || BEASTS[g.cls], s = g.stats, T = g.tactic || 'balanced';
@@ -138,7 +139,7 @@ function feed(B, str, team) {
 
 function knockDown(B, d, a, how) {
   d.hp = 0; d.down = true; d.downedBy = a || d.downedBy; d.state = 'ready'; d.bleed = 0; B.lastDown = d;
-  d.fallT = 0.35; snd(B, 'down');
+  d.fallT = 0.35; snd(B, 'down', 1, d);
   B.exc += 0.2 * (a ? a.show : 1);
   B.hitstop = 0.12; B.shake = 3; B.flashT = 0.12;
   fxBlood(B, d, 16, a ? a.facing : 1);
@@ -181,10 +182,9 @@ function giveOrder(B, kind) {
     feed(B, `You throw in the cloth for ${f.g.name}`, 0);
     return true;
   }
-  B.order = { kind, t: ORDER_TIME }; B.orderCd = ORDER_WAIT;
+  B.order = { kind, t: ORDER_TIME }; B.orderCd = ORDER_WAIT; snd(B, kind);
   for (const f of mine) fxText(B, f, kind === 'press' ? 'PRESS!' : 'HOLD!', kind === 'press' ? '#ff9a6a' : '#9cc4ff', true);
   feed(B, kind === 'press' ? 'You shout: press him!' : 'You shout: hold, and make him come to you!', 0);
-  snd(B, 'special');
   return true;
 }
 
@@ -205,12 +205,12 @@ function resolveAttack(B, a, d, o) {
   const ordD = orderOf(B, d), ordA = orderOf(B, a);
   const wary = (d.open > 0 ? 0.55 : 1) * (ordD === 'hold' ? 1.25 : ordD === 'press' ? 0.8 : 1);
   d.open = 0;
-  if (Math.random() > a.acc) { fxText(B, d, 'miss', '#cfc6b4'); snd(B, 'miss'); return 'miss'; }
+  if (Math.random() > a.acc) { fxText(B, d, 'miss', '#cfc6b4'); snd(B, 'miss', 1, a); return 'miss'; }
   const dodge = (d.snare > 0 || d.stun > 0) ? 0 : d.dodge * tired * (d.hamstrung ? 0.5 : 1) * wary * (flank ? 0.6 : 1);
   if (Math.random() < dodge) {
     d.stam = Math.max(0, d.stam - 8);
     d.kx = a.facing * 40;
-    fxText(B, d, 'dodge', '#cfe0ff'); snd(B, 'miss');
+    fxText(B, d, 'dodge', '#cfe0ff'); snd(B, 'miss', 1, a);
     B.exc += 0.015 * d.show;
     tryRiposte(B, d);
     return 'dodge';
@@ -241,7 +241,7 @@ function resolveAttack(B, a, d, o) {
   if (crit) { B.hitstop = 0.06; B.flashT = 0.07; }
   if (blocked) {
     fxText(B, d, 'block ' + dmg, '#e8e2d0');
-    d.guard = 0.25; snd(B, 'block');
+    d.guard = 0.25; snd(B, 'block', 1, d, d.c.shield);
     for (let i = 0; i < 4; i++) B.parts.push({ x: d.x - a.facing * 3, y: d.y, h: 10, vx: rand(-30, 30), vh: rand(10, 40), col: '#ffe9a0', spark: true });
     // a shield only takes so much: it splinters, then hangs in pieces (for show; it still turns blows)
     d.shieldHits++;
@@ -253,7 +253,7 @@ function resolveAttack(B, a, d, o) {
   } else {
     fxText(B, d, (crit ? '!' : '') + dmg, crit ? '#ffd24a' : '#ffffff');
     fxBlood(B, d, crit ? 9 : 4, a.facing);
-    snd(B, 'hit', crit ? 1.5 : 1);
+    snd(B, 'hit', crit ? 1.5 : 1, d, a.g.beast ? 'beast' : '');
     // a heavy blow to the head can tear a helmet off; it lies where it lands
     if (crit && !d.noHelm && (d.g.cls === 'murmillo' || d.g.cls === 'thraex' || d.g.cls === 'hoplomachus') && chance(0.4)) {
       d.noHelm = true;
@@ -266,7 +266,7 @@ function resolveAttack(B, a, d, o) {
     }
     if (crit && a.show > 1.2) { a.flourish = 0.7; B.exc += 0.03; }       // a showman plays to the stands
   }
-  if (o.name) snd(B, 'special');
+  if (o.name) snd(B, 'special', 1, a, a.g.beast ? 'beast' : '');
   if (o.name) feed(B, `${a.g.name}: ${o.name}${blocked ? ' (blocked)' : ''}`, a.team);
 
   if (d.hp <= 0) { knockDown(B, d, a); return 'down'; }
@@ -319,7 +319,7 @@ function trySpecial(B, f, t, dist) {
     f.spCd = 9; f.stam -= 8; f.atkAnim = 1;
     const hit = Math.random() < clamp(0.55 + f.g.stats.skl * 0.015 - t.g.stats.agi * 0.015, 0.2, 0.85);
     B.projs.push({ from: f, to: t, x: f.x, y: f.y, t: 0, dur: 0.35, hit });
-    snd(B, 'net');
+    snd(B, 'net', 1, f);
     return true;
   }
   if (k === 'hoplomachus') {
@@ -505,10 +505,10 @@ function stepOutro(B, dt) {
     if (!f.revealAt || f.revealed || B.outro < f.revealAt) continue;
     f.revealed = true;
     if (f.fate === 'spared') {
-      fxText(B, f, B.hunt ? 'DRAGGED CLEAR' : 'MISSIO', '#ffffff', true); snd(B, 'spared');
+      fxText(B, f, B.hunt ? 'DRAGGED CLEAR' : 'MISSIO', '#ffffff', true); snd(B, 'spared', 1, f);
       feed(B, B.hunt ? `${f.g.name} is dragged clear by the handlers` : `The crowd spares ${f.g.name}`, f.team);
     } else {
-      fxText(B, f, B.hunt ? 'MAULED' : 'IUGULA!', '#ff5a4a', true); snd(B, 'killed'); f.fallT = 0.3;
+      fxText(B, f, B.hunt ? 'MAULED' : 'IUGULA!', '#ff5a4a', true); snd(B, 'killed', 1, f); f.fallT = 0.3;
       feed(B, B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
       f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
       fxBlood(B, f, 14, -f.facing);

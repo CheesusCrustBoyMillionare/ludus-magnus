@@ -61,6 +61,7 @@ const TIPS = {
   away: 'Away from the ludus. He does not train or eat at your table, and cannot fight until he is back.',
   flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
   quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
+  sound: 'Turns every sound in the game on or off.',
   yardbtn: 'Hide the picture of your ludus to give the lists more room, or bring it back.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
@@ -191,7 +192,8 @@ function renderTop() {
     ${dg > 1 ? `<button data-act="skipdays"${tip('skip')}>To the games &raquo;&raquo;</button>` : ''}
     <button class="primary" data-act="endday">End day &raquo;</button>
     <button data-act="saves"${tip('saves')}>Saves</button>
-    <button class="yardbtn" data-act="yardtoggle"${tip('yardbtn')}>${ui.noyard ? 'Show yard' : 'Hide yard'}</button>`;
+    <button class="yardbtn" data-act="yardtoggle"${tip('yardbtn')}>${ui.noyard ? 'Show yard' : 'Hide yard'}</button>
+    <button class="yardbtn" data-act="mute"${tip('sound')}>${SFX.muted ? 'Sound off' : 'Sound on'}</button>`;
 }
 
 function renderTabs() {
@@ -408,6 +410,7 @@ function questBlock(g) {
 function showReports() {
   if (!G.reports || !G.reports.length) return;
   G.reports.splice(0).forEach(r => showModal(`<h2>${r.title}</h2>${r.html}${okBtn()}`));
+  SFX.ui('gate');
   save();
 }
 
@@ -860,6 +863,7 @@ function showEvent() {
   const E = EVENTS[pe.id];
   const btns = E.opts.map((o, i) => `<button data-act="evopt" data-v="${i}" ${o.ok && !o.ok(pe.c) ? 'disabled' : ''}>${o.label(pe.c)}</button>`).join('');
   showModal(`<h2>${E.title}</h2><p>${E.text(pe.c)}</p><div class="row">${btns}</div>`);
+  SFX.ui('scroll');
 }
 
 function checkEnd() {
@@ -925,7 +929,7 @@ function fightLoop(ts) {
   const dt = f.last ? Math.min(0.05, (ts - f.last) / 1000) : 0.016;
   f.last = ts;
   for (let i = 0; i < f.speed; i++) stepBattle(f.B, dt);
-  for (const s of f.B.snd) SFX.play(s[0], s[1]);
+  for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
   f.B.snd.length = 0;
   SFX.crowd(f.B.exc + (f.B.over ? 0.3 : 0));
   paintOrders();
@@ -943,6 +947,7 @@ function finishFight() {
   f.B.snd.length = 0; SFX.quiet();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
   const r = applyBoutResult(f.bout, f.B, f.wager, f.pay);
+  SFX.play(r.win ? 'victory' : 'defeat');
   const money = [];
   if (r.purse) money.push(`Purse: <b class="gold num">+${r.purse}</b> denarii`);
   if (r.wager) money.push(r.win ? `Wager pays <b class="gold num">+${r.wagerGain}</b>` : `Wager lost: <b class="bad num">-${r.wager}</b>`);
@@ -983,6 +988,7 @@ const ACTIONS = {
     }
     ui.confirmSkip = false;
     endDay(); render();
+    SFX.ui(G.ruin ? 'thud' : isGamesDay() ? 'herald' : 'day');
     showReports();
     if (G.pendingEvent) showEvent();
     checkEnd();
@@ -1107,6 +1113,7 @@ const ACTIONS = {
     let n = 0;
     do { endDay(); n++; } while (n < GAMES_EVERY && !isGamesDay() && !G.over && !G.pendingEvent && !G.reports.length);
     render();
+    SFX.ui(G.ruin ? 'thud' : isGamesDay() ? 'herald' : 'day');
     showReports();
     if (G.pendingEvent) showEvent();
     checkEnd();
@@ -1184,7 +1191,7 @@ const ACTIONS = {
   },
   reload() { save(); location.reload(); },
   updatelater() { const el = document.getElementById('updatebar'); if (el) el.remove(); },
-  mute() { SFX.toggle(); paintSpeed(); },
+  mute() { SFX.toggle(); paintSpeed(); if (!fight) renderTop(); SFX.ui('click'); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   skip() { finishFight(); },
@@ -1206,10 +1213,20 @@ const CHANGES = {
   autorest(v, val, el) { G.autoRest = el.checked; save(); },
 };
 
+// What each kind of click sounds like. Anything not named here makes the plain click; '' is silent
+// (it makes its own sound, or the thing it starts does).
+const CLICK_SOUND = {
+  tab: 'tick', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', qwith: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
+  buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
+  equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate', qsend: 'gate',
+  endday: '', forceend: '', skipdays: '', fight: '', tfight: '', order: '', mute: '', evopt: 'scroll', skip: '', leavearena: 'tick',
+};
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
-  const fn = ACTIONS[el.dataset.act];
+  const act = el.dataset.act, fn = ACTIONS[act];
+  SFX.init();                                // sound may only begin from a click, so the first one wakes it
+  if (fn && !el.classList.contains('off')) { const s = act in CLICK_SOUND ? CLICK_SOUND[act] : 'click'; if (s) SFX.ui(s); }
   if (fn) fn(el.dataset.v, el.dataset.w, el, e);
 });
 document.addEventListener('change', e => {
