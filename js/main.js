@@ -671,7 +671,7 @@ function gladDetail(g) {
       <div class="dim" style="font-size:13px;margin-top:4px">Worth about <b class="num">${value(g)}</b> denarii.</div>`,
     abil: () => abilityBlock(g),
     gear: () => gearBlock(g),
-    story: () => (questBlock(g) + storyBlock(g)).replace(/^<hr class="sep">/, '') || '<div class="dim">Nothing worth telling of him yet.</div>',
+    story: () => storyBlock(g) + questBlock(g),
     orders: () => `<div class="sendhead"${tip('orders')}><span>How he fights, in every bout until you say otherwise</span></div>
       <div class="tactics">${Object.entries(TACTICS).map(([k, t]) => `<button class="${g.tactic === k ? 'primary' : ''}" data-act="tactic" data-v="${g.id}" data-w="${k}"><b>${t.name}</b><span>${t.desc}</span></button>`).join('')}</div>
       <hr class="sep">
@@ -689,7 +689,7 @@ function gladDetail(g) {
       <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
       <canvas class="portrait figure" width="192" height="224" data-figure="${g.id}"${tip('As he stands on the sand, in the kit he wears now. Change his gear and this changes with it.')}></canvas>
       <div class="dinfo">
-        <div class="dname"><h2>${g.name}</h2><span class="num dim">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</span></div>
+        <div class="dname"><h2>${g.name}</h2>${epithetOf(g) ? `<i class="ep"${tip('What the yard calls him, from what he has done. It changes as he does.')}>${epithetOf(g)}</i>` : ''}<span class="num dim">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</span></div>
         <div class="dline">${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin} &middot; ${ratingLine(g)} &middot; ${styleMark(g)}</div>
         <div class="dchips">${statusChips(g)}${g.perkPending > 0 ? `<button class="primary mini" data-act="perk" data-v="${g.id}">Choose a perk</button>` : ''}</div>
         <div class="vitals four">
@@ -1366,20 +1366,52 @@ function vowNote(e) {
 }
 
 // Bonds, vows, promises and the last few lines of a fighter's history, for the dossier.
+// What the yard calls him, from what he has done.
+function epithetOf(g) {
+  const fought = g.wins + g.losses, scars = scarsOf(g).length;
+  if (g.traits.includes('laureate')) return 'the Laureate';
+  if (g.traits.includes('embittered')) return 'the Embittered';
+  if (!fought) return 'the Untried';
+  if (g.wins >= 5 && !g.losses) return 'the Unbeaten';
+  if (g.kills >= 6) return 'the Butcher';
+  if ((g.fame || 0) >= 80) return 'Darling of the Crowd';
+  if (scars >= 5) return 'the Scarred';
+  if (g.wins >= 10) return 'the Old Hand';
+  if (g.losses > g.wins && fought >= 4) return 'the Survivor';
+  if (g.kills >= 3) return 'the Killer';
+  if (g.wins >= 3 && g.losses <= 1) return 'the Rising';
+  return '';
+}
+// What kind of thing a line of his story is, for the mark beside it.
+function storyKind(t) {
+  if (/^Won|Did good service|Had the man|Stood for a bronze|Was blessed/.test(t)) return 'good';
+  if (/^Rose to|^Learned|freedom after|walk free|Laurel/.test(t)) return 'gold';
+  if (/^Failed|Mourned|denied|refused|sold away|gone\.|too quiet|beaten for|Fell out|Swore to kill|Vowed/.test(t)) return 'bad';
+  return '';
+}
 function storyBlock(g) {
-  const chips = [];
-  for (const b of bondsOf(g)) chips.push(`<span class="chip ${b.type === 'friend' ? 'gold' : 'red'}"${tip(b.type === 'friend' ? 'friend' : 'rivalbond')}>${b.type === 'friend' ? 'Friend of' : 'Rival of'} ${b.other.name}</span>`);
-  if (g.wish) chips.push(`<span class="chip red"${tip('vow')}>${g.wish.type === 'avenge' ? 'Sworn to kill' : 'Wants a rematch with'} ${g.wish.name}</span>`);
-  if (g.promise) { const left = Math.max(0, g.promise.at - g.wins); chips.push(`<span class="chip gold"${tip('promise')}>Promised freedom: ${left} more ${left === 1 ? 'victory' : 'victories'}</span>`); }
-  const scars = scarsOf(g).length, fought = g.wins + g.losses, first = (g.story || [])[0];
-  const facts = `<div class="kvs">
-      <div><span>Record</span><b class="num">${g.wins}&ndash;${g.losses}</b><small>${fought ? Math.round(g.wins / fought * 100) + '% won' : 'not yet blooded'}</small></div>
-      <div><span>Kills</span><b class="num">${g.kills}</b><small>${scars ? `${scars} scar${scars === 1 ? '' : 's'} of his own` : 'no scars yet'}</small></div>
-      <div><span>Fame</span><b class="num">${Math.round(g.fame || 0)}</b><small>his own name in the city</small></div>
-      <div><span>With you</span><b class="num">${first ? Math.max(0, G.day - first.d) : G.day} days</b><small>${g.origin ? 'from ' + g.origin : ''}</small></div>
-    </div>`;
-  const lines = (g.story || []).slice().reverse().map(x => `<div class="entry"><span class="d">Day ${x.d}</span>${x.t}</div>`).join('');
-  return `<hr class="sep">${facts}${chips.length ? `<div style="margin:6px 0 2px">${chips.join('')}</div>` : ''}${lines ? `<div class="log" style="font-size:13px;max-height:none;margin-top:6px">${lines}</div>` : '<div class="dim" style="margin-top:6px">Nothing worth telling of him yet.</div>'}`;
+  const bonds = bondsOf(g), scars = scarsOf(g), fought = g.wins + g.losses, story = g.story || [], first = story[0], days = first ? Math.max(0, G.day - first.d) : G.day;
+  const c = CLASSES[g.cls], ep = epithetOf(g), plural = (n, w, ws) => `${n} ${n === 1 ? w : (ws || w + 's')}`;
+  // who he is, in a few sentences made from what he has done
+  const sc = {}; for (const x of scars) sc[x.k] = (sc[x.k] || 0) + 1;
+  const scarWords = Object.entries(sc).map(([k, n]) => plural(n, { cut: 'cut', deep: 'deep wound', claw: 'claw mark', arm: 'wound to the arm' }[k] || 'scar'));
+  const bio = [`<b>${g.name}</b>${ep ? `, called <b class="gold">${ep}</b>,` : ''} is a ${c.name} from ${g.origin || 'nobody knows where'}, ${RANKS[g.rank].name} of this house for ${plural(days, 'day')}.`,
+    fought ? `He has fought ${plural(fought, 'time')} and won ${g.wins}${g.kills ? `, and killed ${plural(g.kills, 'man', 'men')}` : ''}.` : 'He has not yet stood on the sand for you.',
+    scarWords.length ? `He carries ${scarWords.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : fought >= 3 ? 'No blade has marked him yet.' : '',
+    (g.fame || 0) >= 40 ? 'The city knows his name.' : (g.fame || 0) >= 15 ? 'People in town have begun to know his face.' : ''].filter(Boolean).join(' ');
+  // those he is bound to, and what he has sworn or been promised
+  const people = bonds.map(b => `<div class="sbond ${b.type}" data-act="dossier" data-v="${b.other.id}"${tip(b.type === 'friend' ? 'friend' : 'rivalbond')}><canvas width="48" height="56" data-portrait="${b.other.id}"></canvas><div><small>${b.type === 'friend' ? 'Friend' : 'Rival'}</small><b>${b.other.name}</b></div></div>`).join('');
+  const vows = [];
+  if (g.wish) vows.push(`<div class="svow bad"${tip('vow')}><small>${g.wish.type === 'avenge' ? 'Sworn to kill' : 'Wants again'}</small><b>${g.wish.name}</b>${g.wish.for ? `<span>for ${g.wish.for}</span>` : ''}</div>`);
+  if (g.promise) { const left = Math.max(0, g.promise.at - g.wins); vows.push(`<div class="svow gold"${tip('promise')}><small>Promised his freedom</small><b>${left ? plural(left, 'more victory', 'more victories') : 'it is owed him now'}</b>${bar('prog', Math.max(0, 3 - left), 3)}</div>`); }
+  if (!g.promise && !g.away && g.wins >= 8) vows.push(`<div class="svow gold"${tip('free')}><small>Has earned</small><b>the wooden sword</b><span>on his Orders page</span></div>`);
+  // his history, newest first: the last eight unless more are asked for
+  const all = story.slice().reverse(), open = ui.storyAll === g.id, shown = open ? all : all.slice(0, 8);
+  const lines = shown.map(x => `<div class="sline ${storyKind(x.t)}"><span class="d">Day ${x.d}</span><span>${x.t}</span></div>`).join('');
+  return `<p class="sbio">${bio}</p>
+    ${people || vows.length ? `<div class="sties">${people}${vows.join('')}</div>` : ''}
+    <div class="shead"><span>His story</span>${all.length > 8 ? `<button class="mini" data-act="storyall" data-v="${g.id}">${open ? 'Latest only' : `All ${all.length}`}</button>` : ''}</div>
+    ${lines ? `<div class="slines">${lines}</div>` : '<div class="dim" style="font-size:13px">Nothing worth telling of him yet.</div>'}`;
 }
 
 // ---------- equipment ----------
@@ -2055,6 +2087,7 @@ const ACTIONS = {
   dtab(v) { ui.dtab = v; render(); },
   lfilter(v) { ui.lfilter = v; ui.lpage = 0; render(); },
   lpage(v) { ui.lpage = Math.max(0, (ui.lpage || 0) + (+v)); render(); },
+  storyall(v) { ui.storyAll = ui.storyAll === +v ? null : +v; render(); },
   gearmore(v, w) { const k = v + ':' + w; ui.gearOpen = ui.gearOpen === k ? null : k; render(); },
   yardtoggle() {
     ui.noyard = !ui.noyard;

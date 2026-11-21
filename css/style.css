@@ -1100,3 +1100,21 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .perkcard.armed { box-shadow: 0 0 0 2px #e0aa3e, 0 0 14px rgba(224, 170, 62, .5); }
 .perkcard.armed .take { color: #fff6dc; }
 @media (max-width: 700px) { .perkcards { grid-template-columns: 1fr; } .perkcard { min-height: 0; } }
+
+/* ---- a fighter's story ---- */
+.dossier .dname .ep { font: italic 13px Georgia, serif; color: var(--gold); }
+.dossier .dbody .sbio { margin: 0 0 6px; font-size: 13.5px; line-height: 1.4; }
+.sties { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.sbond, .svow { display: flex; align-items: center; gap: 7px; padding: 3px 9px 3px 4px; background: #1c140f; border: 1px solid var(--bronze-d); border-left: 3px solid var(--gold); min-width: 0; }
+.sbond { cursor: pointer; } .sbond:hover { background: #2a1f16; }
+.sbond.rival, .svow.bad { border-left-color: var(--red); }
+.sbond canvas { width: 24px; height: 28px; image-rendering: pixelated; flex: none; }
+.sbond small, .svow small { display: block; font: 9px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); line-height: 1.2; }
+.sbond b, .svow b { display: block; font-size: 13px; line-height: 1.2; }
+.svow { display: block; padding: 3px 10px; } .svow span { font-size: 11px; color: var(--dim); } .svow .bar { margin: 2px 0 0; height: 4px; width: 110px; }
+.shead { display: flex; align-items: center; justify-content: space-between; font: 700 10px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); border-bottom: 1px solid var(--bronze-d); padding-bottom: 2px; margin-bottom: 3px; }
+.shead button { padding: 0 7px; font-size: 9.5px; }
+.slines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px 16px; }
+.sline { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 6px; padding: 2px 0 2px 7px; border-left: 3px solid rgba(92, 64, 32, .6); font-size: 12.5px; line-height: 1.3; }
+.sline .d { font: 11px Consolas, monospace; color: var(--dim); padding-top: 1px; }
+.sline.good { border-left-color: #5f9a48; } .sline.bad { border-left-color: #b93a2e; } .sline.gold { border-left-color: var(--gold); }
