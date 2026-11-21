@@ -62,7 +62,12 @@ const TIPS = {
   danger: 'How likely a man is to come home wounded. On deadly work that goes badly, he may not come home at all.',
   away: 'Away from the ludus. He does not train or eat at your table, and cannot fight until he is back.',
   flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
-  quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
+  quest: 'Something that matters to him, which you gave your word on. It ends at a place out in the province: take the whole school there. See it through and he comes back changed, and will never desert you.',
+  awaygames: 'Games are held in town every fifth day whether you are there or not. Out here you miss them: no purse, no fame, and a challenge left unanswered still costs you.',
+  minimap: 'The whole province. Coloured where you have walked, parchment where you have not. White is the town, purple is you, gold is a place a clue has marked, red is a place you have seen and not dealt with.',
+  makecamp: 'Ends the day where you stand. The men rest: fatigue falls and wounds mend, though slower than at home. Key: E',
+  fieldrules: 'Walking costs no time. Going into a place takes the day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. Every fit man fights when it comes to it. Walk back into the town to go home.',
+  eagle: 'The hunt for the lost eagle of the Seventeenth Legion. Each clue marks the next place on the map.',
   sound: 'Turns every sound in the game on or off, music included.',
   music: 'Turns the music on or off and leaves the other sounds alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
   yardbtn: 'Shows or hides the picture of your school. Hidden, the list beneath it has the whole height. The village stays: it is how you get about.',
@@ -169,8 +174,10 @@ const HINTS = [
     text: () => 'There is a spare piece in the armoury. Open a fighter\'s dossier, then <b>Gear</b>, to put it on him. A weapon only fits the fighting style it was made for.' },
   { id: 'away', when: () => G.jobs.length > 0,
     text: () => 'Men are away from the house. The <b>Contracts</b> screen shows who, and when they are back. Word may come from the road asking what they should do; I will bring it to you.' },
-  { id: 'quest', when: () => G.roster.find(g => g.quest && !g.away),
-    text: g => `You gave <b>${g.name}</b> your word. His journey waits in his dossier, under <b>Story</b>: send him when you can spare him, and do not leave him waiting more than a few days.` },
+  { id: 'quest', when: () => G.roster.find(g => g.quest && QUESTS[g.quest.id] && !g.away),
+    text: g => `You gave <b>${g.name}</b> your word. The place is ${QUESTS[g.quest.id].where}, out through the east gate, and it is marked on the map of the province. Take the whole school there; do not leave him waiting for weeks.` },
+  { id: 'gate', when: () => gateOpen() && !G.field,
+    text: () => 'The <b>east gate</b> will open for you now, at the end of the upper street. Beyond it is the province: lairs, outlaws, old tombs, and stranger things. The whole school marches out together, walking costs no time, and each place you go into costs a day. Mind the games: they are held without you if you are away.' },
   { id: 'asked', when: () => G.contracts.find(c => c.asked),
     text: c => `${PATRONS[c.patron].name} has asked for your house by name: see <b>Contracts</b>. It is worth more favour than ordinary work, and leaving it on the board until the next games will cost you.` },
   { id: 'festival', when: () => G.festival && G.festival.day - G.day <= 5 && G.festival.day > G.day,
@@ -253,6 +260,7 @@ function render() {
   // a browser may briefly pair a cached page with newer scripts; never let a missing yard stop the game
   if (typeof startYard === 'function') startYard();
   if (typeof startVillage === 'function') startVillage();
+  if (typeof renderWilds === 'function') renderWilds();          // the map of the province, when the school is outside the walls
   renderTutor();
   if (ui.dev) renderDev();
 }
@@ -308,7 +316,7 @@ function keepSel(key, items) {
 function statusChips(g) {
   let s = '';
   if (g.away) s += `<span class="chip gold"${tip('away')}>Away ${daysLeft(jobOf(g))}d</span>`;
-  if (g.quest && !g.away) s += `<span class="chip gold"${tip('quest')}>Journey waiting</span>`;
+  if (g.quest && QUESTS[g.quest.id]) s += `<span class="chip gold"${tip('quest')}>Journey promised</span>`;
   if (g.wish) s += `<span class="chip red"${tip('vow')}>Vow</span>`;
   if (g.perkPending > 0) s += `<span class="chip gold"${tip('perk')}>Perk to choose</span>`;
   if (g.injury > 0) s += `<span class="chip red"${tip('injured')}>Injured ${g.injury}d</span>`;
@@ -380,7 +388,7 @@ function gladDetail(g) {
         ${g.wins >= 8 ? `<button${tip('free')} data-act="free" data-v="${g.id}">Grant the wooden sword</button>` : `<small>Freedom may be granted after 8 victories.</small>`}`}
       </div>`,
   };
-  const mark = { story: g.quest && !g.away ? '!' : '' };
+  const mark = { story: g.quest && QUESTS[g.quest.id] ? '!' : '' };
   return `<div class="panel dossier">
     <div class="dhead">
       <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
@@ -458,7 +466,7 @@ function viewContracts() {
   const away = G.jobs.map(J => prow(`<div class="grow"><span class="t">${jobTitle(J)}</span><small>${J.kind === 'quest' ? 'a journey of his own' : PATRONS[J.patron].name} &middot; back ${backWhen(J)}</small></div>
       <span class="end">${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')}</span>`)).join('')
     || '<div class="listnote">Every man is in the yard.</div>';
-  const waiting = G.roster.filter(g => g.quest && !g.away).map(g => prow(`<div class="grow"><span class="t">${QUESTS[g.quest.id].name}</span><small>next: ${questStep(g).name.toLowerCase()} (${questStep(g).days} days) &middot; send him from his dossier</small></div>
+  const waiting = G.roster.filter(g => g.quest && QUESTS[g.quest.id]).map(g => prow(`<div class="grow"><span class="t">${QUESTS[g.quest.id].name}</span><small>${QUESTS[g.quest.id].where} &middot; take the school there</small></div>
       <span class="end"><span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span></span>`)).join('');
   return `<div class="fill even">
     <div><h2>Work on offer <small>until the next games</small></h2>
@@ -470,21 +478,12 @@ function viewContracts() {
   </div>`;
 }
 
-// A fighter's own journey, in his dossier: where it stands, and the button that sends him on.
+// A fighter's own journey, in his dossier: what you promised him, and where it is.
 function questBlock(g) {
-  if (!g.quest) return '';
-  const Q = QUESTS[g.quest.id], S = questStep(g), J = jobOf(g);
-  const head = `<hr class="sep"><div${tip('quest')}><b class="gold">${Q.name}</b> <small>part ${g.quest.step + 1} of ${Q.steps.length}: ${S.name.toLowerCase()}</small></div>`;
-  if (J && J.kind === 'quest' && J.who === g.id) return `${head}<div class="dim" style="font-size:13px">${S.text} He will be back ${backWhen(J)}.</div>`;
-  if (g.away) return `${head}<div class="dim" style="font-size:13px">It waits until he is home.</div>`;
-  const others = S.with ? G.roster.filter(o => o !== g && canSend(o)) : [];
-  const wid = ui.qwith[g.id] = others.some(o => o.id === ui.qwith[g.id]) ? ui.qwith[g.id] : null;
-  const need = jobNeed(tier(), S.diff), p = questOdds(g, wid), waited = G.day - g.quest.since;
-  const why = g.injury > 0 ? 'He must heal first.' : inTourney(g) ? 'He is entered in the tournament.' : '';
-  return `${head}<div style="font-size:13px">${S.text} <span class="num">${S.days}</span> days away${missesGames(S.days) ? ', <span class="bad">missing the games</span>' : ''}. ${DANGER_WORD(S.danger)}.${g.quest.tries ? ' <span class="bad">He has failed at this once; a second failure ends it.</span>' : ''}${waited >= 6 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>
-    ${S.with ? `<div style="margin-top:6px;font-size:13px">A companion, if you can spare one: ${others.map(o => pickChip('qwith', g.id, o, wid === o.id, S, need, null)).join('') || '<span class="dim">nobody is free.</span>'}</div>` : ''}
-    <div class="row" style="margin-top:6px"><button class="primary" data-act="qsend" data-v="${g.id}" ${why ? 'disabled' : ''}>Send him</button>
-      <span${tip('odds')}>${why || `Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b>`}</span></div>`;
+  if (!g.quest || !QUESTS[g.quest.id]) return '';
+  const Q = QUESTS[g.quest.id], waited = G.day - g.quest.since;
+  return `<hr class="sep"><div${tip('quest')}><b class="gold">${Q.name}</b></div>
+    <div style="font-size:13px">You gave him your word. The place is ${Q.where}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>`;
 }
 
 // What came of the outings that ended this morning.
@@ -915,12 +914,19 @@ function heirIntro() {
     ${okBtn('Open the gates')}`);
 }
 
+function provincePanel() {
+  const M = wildMap(), relics = M.relics.map(k => RELICS[k].name).join(', '), lead = eagleLead();
+  if (!M.cleared && !M.story && wildExplored() < 0.005) return '';
+  return `<h2>The province</h2><div class="panel"><div>${Math.round(wildExplored() * 100)}% of the country walked &middot; ${M.cleared} places dealt with${relics ? ` &middot; found: ${relics}` : ''}.</div>
+    ${lead ? `<div style="margin-top:4px"><b class="gold">The eagle of the Seventeenth.</b> ${lead}</div>` : ''}</div>`;
+}
+
 function viewChronicle() {
   const rows = G.log.slice().reverse().map(e => `<div class="${e.k}"><span class="d">Day ${e.d}</span>${e.t}</div>`).join('');
   const fallen = G.fallen.length ? `<h2>The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
   return `<div class="fill">
     <div><h2>Chronicle</h2><div class="pane" data-pane="log"><div class="panel log">${rows}</div></div></div>
-    <div><h2>The house</h2><div class="pane" data-pane="house">${fallen || '<div class="panel dim">No fighter of this house has died yet.</div>'}${dynastyPanel()}
+    <div><h2>The house</h2><div class="pane" data-pane="house">${fallen || '<div class="panel dim">No fighter of this house has died yet.</div>'}${provincePanel()}${dynastyPanel()}
       <p style="margin-top:14px" class="row"><button data-act="tuton"${tip('steward')}>Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p></div></div>
   </div>`;
 }
@@ -996,6 +1002,42 @@ function startFight(boutId, tourneyBout) {
   drawBattle($('#arenaCanvas').getContext('2d'), B);
   fight.raf = requestAnimationFrame(fightLoop);
 }
+// A fight out in the province: every fit man you have, against whatever was waiting (wilds.js sets it up).
+function startWildFight() {
+  const F = G.field && G.field.fight;
+  if (!F) return;
+  const picks = fieldParty();
+  if (!picks.length) { G.field.fight = null; return; }
+  const B = createBattle(picks, F.foes, { wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
+  SFX.init(); SFX.play('horn'); SFX.music('arena');
+  fight = { wild: true, bout: null, B, speed: 1, wager: 0, pay: 0, last: 0, raf: 0 };
+  $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your school</span> <span class="dim">against</span> <span style="color:#6fa4e6">${F.title}</span>`;
+  $('#arena').hidden = false;
+  paintSpeed(); paintOrders();
+  drawBattle($('#arenaCanvas').getContext('2d'), B);
+  fight.raf = requestAnimationFrame(fightLoop);
+}
+// The east gate of the village: the way out to the province.
+function villageGate() {
+  if (!gateOpen()) { showModal(`<h2>The east gate</h2><p>The gate-captain will not open for a lanista nobody has heard of. Fight your first games, and the road is yours.</p>${okBtn()}`); return; }
+  if (!G.roster.some(g => !g.away)) { showModal(`<h2>The east gate</h2><p>You have nobody to march out with.</p>${okBtn()}`); return; }
+  if (!wildEnter()) return;
+  prov.trail = []; prov.path = null;
+  SFX.ui('gate'); SFX.music('wild');
+  render();
+  const M = wildMap();
+  if (!M.told) {
+    M.told = true; save();
+    showModal(`<h2>Beyond the walls</h2>
+      <p>The whole school marches with you: every man, the mules, the baggage. What lies out there is on no map you own. The country is under parchment until you have walked it.</p>
+      <ul><li><b>Walking costs no time.</b> Steer with W A S D or click where you want to go; roads are quicker, forest, hill and marsh slower.</li>
+      <li><b>Going into a place takes the day</b>, and so does making camp. Nobody trains out here. Marching tires the men; camp rests them.</li>
+      <li><b>Every fit man fights</b> when it comes to it, and there is no crowd to spare the fallen: a man who goes down lives or dies by luck and your medicus.</li>
+      <li><b>The skulls</b> by a place say how hard it is. The country is worse the farther you go from home.</li>
+      <li><b>Games are still held in town</b> every fifth day. If you are not there, you miss them.</li>
+      <li>Nothing out here can be done twice. Walk back into the town to go home.</li></ul>${okBtn('March')}`);
+  }
+}
 // The order buttons: greyed while your voice recovers, with the seconds left on them.
 function paintOrders() {
   if (!fight) return;
@@ -1039,6 +1081,14 @@ function finishFight() {
   while ((!f.B.over || f.B.outro <= f.B.outroEnd) && guard++ < 20000) stepBattle(f.B, 1 / 30);
   f.B.snd.length = 0; SFX.quiet();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
+  if (f.wild) {
+    const w = applyWildResult(f.B);
+    SFX.play(w.win ? 'victory' : 'defeat'); SFX.music(null);
+    showModal(`<h2 class="${w.win ? '' : 'bad'}">${w.win ? 'The field is yours' : 'Driven off'}</h2>
+      <ul>${w.lines.map(l => `<li>${l}</li>`).join('')}</ul>
+      <div class="row"><button class="primary" data-act="leavearena">Back to the column</button></div>`);
+    return;
+  }
   const r = applyBoutResult(f.bout, f.B, f.wager, f.pay);
   SFX.play(r.win ? 'victory' : 'defeat'); SFX.music(null);          // the fanfare has the floor
   const money = [];
@@ -1092,6 +1142,7 @@ const ACTIONS = {
     const pe = G.pendingEvent; if (!pe) { closeModal(); return; }
     const E = EVENTS[pe.id];
     const res = E.opts[+v].run(pe.c);
+    if (G.field && G.field.fight) { G.pendingEvent = null; save(); closeModal(); startWildFight(); return; }       // it has come to blows
     log(`${E.title}: ${res}`);
     G.pendingEvent = null; nextEvent(); save();
     modalQueue[0] = `<h2>${E.title}</h2><p>${res}</p>${okBtn()}`;
@@ -1119,8 +1170,6 @@ const ACTIONS = {
     ui.cpicks[c.id] = p; render();
   },
   csend(v) { if (sendContract(v, ui.cpicks[v] || [])) { delete ui.cpicks[v]; render(); } },
-  qwith(v, w) { ui.qwith[v] = ui.qwith[v] === +w ? null : +w; render(); },
-  qsend(v) { if (sendQuest(v, ui.qwith[v])) { delete ui.qwith[v]; render(); } },
   smithbuy(v) { if (buyItem(v)) { save(); render(); } },
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
   smithup() { if (upgradeSmith()) { save(); render(); } },
@@ -1293,7 +1342,11 @@ const ACTIONS = {
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   skip() { finishFight(); },
-  leavearena() { SFX.stop(); SFX.music('ludus'); $('#arena').hidden = true; fight = null; closeModal(); render(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  wildclick(v, w, el, e) { provClick(el, e); },
+  makecamp() { if (!G.field) return; fieldDay('camp'); SFX.ui('day'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
+  campback() { ui.campSel = null; render(); },
   askreset() {
     showModal(`<h2>Abandon the ludus?</h2><p>Your current game will be lost.</p>
       <div class="row"><button data-act="close">Keep playing</button><button class="primary" data-act="reset">Start anew</button></div>`);
@@ -1314,17 +1367,17 @@ const CHANGES = {
 // What each kind of click sounds like. Anything not named here makes the plain click; '' is silent
 // (it makes its own sound, or the thing it starts does).
 const CLICK_SOUND = {
-  tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', qwith: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
+  tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
-  equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate', qsend: 'gate',
-  endday: '', forceend: '', skipdays: '', fight: '', tfight: '', order: '', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
+  endday: '', forceend: '', makecamp: '', wildclick: '', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const act = el.dataset.act, fn = ACTIONS[act];
   SFX.init();                                // sound may only begin from a click, so the first one wakes it
-  if (!ui.musicBegun) { ui.musicBegun = true; if (!fight) SFX.music('ludus'); }
+  if (!ui.musicBegun) { ui.musicBegun = true; if (!fight) SFX.music(G && G.field ? 'wild' : 'ludus'); }
   if (fn && !el.classList.contains('off')) { const s = act in CLICK_SOUND ? CLICK_SOUND[act] : 'click'; if (s) SFX.ui(s); }
   if (fn) fn(el.dataset.v, el.dataset.w, el, e);
 });
@@ -1467,6 +1520,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
+  if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
   if (k === 'ArrowUp' || k === 'ArrowDown') {

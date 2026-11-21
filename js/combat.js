@@ -31,7 +31,8 @@ const out = f => f.down || f.yielded;
 // Queues a sound for the page to play: its name, its strength, where across the sand it happens (-1 left to 1 right), and its kind.
 function snd(B, n, v, at, kind) { if (B.snd.length < 40) B.snd.push([n, v || 1, at ? (at.x - (ARENA.x0 + ARENA.x1) / 2) / (ARENA.x1 - ARENA.x0) * 1.5 : 0, kind || '']); }
 
-function makeFighter(g, team, i, n) {
+function makeFighter(g, team, i, n, fld) {
+  fld = fld || ARENA;
   const c = CLASSES[g.cls] || BEASTS[g.cls], s = g.stats, T = g.tactic || 'balanced';
   const has = t => g.traits.includes(t);
   const mh = maxHp(g);
@@ -57,13 +58,16 @@ function makeFighter(g, team, i, n) {
   if (has('oldschool')) acc += 0.05;
   if (has('bloodoath')) dmg *= 1.08;
   if (has('pitfighter') && n === 1) dmg *= 1.08;
+  if (has('reaver') && fld.wild) dmg *= 1.1;
+  if (has('eaglesworn')) dmg *= 1.05;
   const lungs = has('ironlungs') ? 1.3 : 1;
   dmg *= 0.94 + g.morale / 1000;
   const maxStam = (60 + s.end * 4) * lungs;
   return {
     g, c, team, tactic: T,
-    x: team === 0 ? 14 : 199, markX: (team === 0 ? 60 : 153) + (n > 3 && i % 2 ? (team ? 9 : -9) : 0),
-    y: 83 + (i - (n - 1) / 2) * Math.min(26, 56 / Math.max(1, n - 1)),
+    // a line down the field; in a crowd they stand three deep, so that nine a side have room
+    x: team === 0 ? 14 : 199, markX: (team === 0 ? 60 : 153) + (n > 5 ? (i % 3) * 11 : n > 3 && i % 2 ? 9 : 0) * (team ? 1 : -1),
+    y: (fld.y0 + fld.y1) / 2 + (i - (n - 1) / 2) * Math.min(26, (fld.y1 - fld.y0 - 2) / Math.max(1, n - 1)),
     hp: Math.min(g.hp, mh), maxHp: mh,
     dmg, atkTime: Math.max(0.35, atk), dodge: Math.max(0, dodge), block, acc, crit, show, critMult: has('killer') ? 2.1 : 1.7,
     armor: c.armor + gs.armor + (has('thickskin') ? 2 : 0), reach: c.reach,
@@ -98,16 +102,18 @@ function createBattle(teamA, teamB, opts) {
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
     parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [],
     order: null, orderCd: 0, towel: false, lastDown: null, finish: null,
+    wild: opts.wild || null,                                     // a fight outside the walls: what stands behind it
+    field: opts.wild ? { x0: 12, x1: 201, y0: 42, y1: 113, wild: true } : ARENA,
   };
-  teamA.forEach((g, i) => B.fighters.push(makeFighter(g, 0, i, teamA.length)));
-  teamB.forEach((g, i) => B.fighters.push(makeFighter(g, 1, i, teamB.length)));
+  teamA.forEach((g, i) => B.fighters.push(makeFighter(g, 0, i, teamA.length, B.field)));
+  teamB.forEach((g, i) => B.fighters.push(makeFighter(g, 1, i, teamB.length, B.field)));
   if (!B.intro) B.fighters.forEach(f => { f.x = f.markX; });
   const cols = ['#e8d7b0', '#b8452e', '#d9a441', '#6f8fb5', '#8a6a4a', '#c9c2b2', '#7a4a6a', '#5f7a4a'];
   const hairs = ['#2a1c14', '#15100d', '#5a3a22', '#8a5a2a', '#b5842d', '#c9c2b2'];
   // spectators and sand specks are placed in sprite pixels (428x240)
   for (let y = 22, r = 0; y <= 64; y += 9, r++) {
     for (let x = 2 + (r % 2) * 3; x < 424; x += 6) {
-      if (Math.random() >= B.theme.crowd) continue;
+      if (B.wild || Math.random() >= B.theme.crowd) continue;
       if (B.theme.box ? x > 164 && x < 258 && y > 20 : x > 184 && x < 240 && y > 31) continue;      // the editor's box
       const col = pick(cols);
       B.crowd.push({ x: x + rint(-1, 1), y, col, colD: shade(col, 0.7), skin: pick(ORIGINS).skin, hair: pick(hairs), ph: rand(0, 6.28), sp: rand(3, 9), arms: chance(0.5) });
@@ -258,7 +264,7 @@ function resolveAttack(B, a, d, o) {
     if (crit && !d.noHelm && (d.g.cls === 'murmillo' || d.g.cls === 'thraex' || d.g.cls === 'hoplomachus') && chance(0.4)) {
       d.noHelm = true;
       const hd = gearLook(d.g).head;
-      B.props.push({ x0: d.x, y0: d.y, x: clamp(d.x + a.facing * rand(10, 22), ARENA.x0, ARENA.x1), y: clamp(d.y + rand(-5, 6), ARENA.y0, ARENA.y1), t: B.clock,
+      B.props.push({ x0: d.x, y0: d.y, x: clamp(d.x + a.facing * rand(10, 22), B.field.x0, B.field.x1), y: clamp(d.y + rand(-5, 6), B.field.y0, B.field.y1), t: B.clock,
         col: hd >= 3 ? '#b4bec8' : hd === 2 ? '#dcae48' : '#b98a34', crest: d.g.cls === 'hoplomachus' ? '#f0ead8' : B.col[d.team] });
       fxText(B, d, 'helmet torn off', '#ffd24a');
       feed(B, `${a.g.name} knocks the helmet from ${d.g.name}'s head`, a.team);
@@ -375,8 +381,8 @@ function updateFighter(B, f, dt) {
   f.moving = false;
   if (!out(f)) fighterAct(B, f, dt);
   if (f.moving && Math.random() < dt * 4) fxDust(B, f.x - f.facing * 2, f.y, 1);
-  f.x = clamp(f.x, ARENA.x0, ARENA.x1);
-  f.y = clamp(f.y, ARENA.y0, ARENA.y1);
+  f.x = clamp(f.x, B.field.x0, B.field.x1);
+  f.y = clamp(f.y, B.field.y0, B.field.y1);
 }
 
 function fighterAct(B, f, dt) {
@@ -490,7 +496,8 @@ function decideVerdicts(B) {
     if (!out(f)) continue;
     if (f.g.beast || (f.down && B.death)) { f.fate = 'dead'; continue; }
     // in a hunt there is no appeal to the crowd: the handlers reach a fallen man in time, or they do not
-    const p = B.hunt ? clamp(0.5 + B.mercy[f.team], 0, 0.9)
+    // in the wild your own are better placed to reach a fallen friend than arena handlers are
+    const p = B.hunt ? clamp((B.wild && f.team === 0 ? 0.65 : 0.5) + B.mercy[f.team], 0, 0.9)
       : clamp((f.yielded ? 0.88 : 0.72) + 0.25 * avg + B.mercy[f.team] + Math.min(0.1, f.dmgDealt / 300) + (f.g.traits.includes('blessed') ? 0.1 : 0), 0, 0.98);
     f.fate = Math.random() < p ? 'spared' : 'dead';
     f.revealAt = 1.2 + i * 0.9; i++;
@@ -505,11 +512,11 @@ function stepOutro(B, dt) {
     if (!f.revealAt || f.revealed || B.outro < f.revealAt) continue;
     f.revealed = true;
     if (f.fate === 'spared') {
-      fxText(B, f, B.hunt ? 'DRAGGED CLEAR' : 'MISSIO', '#ffffff', true); snd(B, 'spared', 1, f);
-      feed(B, B.hunt ? `${f.g.name} is dragged clear by the handlers` : `The crowd spares ${f.g.name}`, f.team);
+      fxText(B, f, B.wild ? 'LIVES' : B.hunt ? 'DRAGGED CLEAR' : 'MISSIO', '#ffffff', true); snd(B, 'spared', 1, f);
+      feed(B, B.wild ? `${f.g.name} is still breathing` : B.hunt ? `${f.g.name} is dragged clear by the handlers` : `The crowd spares ${f.g.name}`, f.team);
     } else {
-      fxText(B, f, B.hunt ? 'MAULED' : 'IUGULA!', '#ff5a4a', true); snd(B, 'killed', 1, f); f.fallT = 0.3;
-      feed(B, B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
+      fxText(B, f, B.wild ? 'DEAD' : B.hunt ? 'MAULED' : 'IUGULA!', '#ff5a4a', true); snd(B, 'killed', 1, f); f.fallT = 0.3;
+      feed(B, B.wild ? `${f.g.name} does not get up` : B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
       f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
       fxBlood(B, f, 14, -f.facing);
       for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
@@ -526,7 +533,7 @@ function stepIntro(B, dt) {
   }
   if (B.intro <= 0) {
     B.fighters.forEach(f => { f.x = f.markX; f.moving = false; });
-    B.texts.push({ x: 107, y: 64, str: 'PUGNATE!', col: '#ffd24a', life: 1.3, big: true });
+    B.texts.push({ x: 107, y: 64, str: B.wild ? 'AT THEM!' : 'PUGNATE!', col: '#ffd24a', life: 1.3, big: true });
     snd(B, 'start');
   }
 }
@@ -929,27 +936,28 @@ function drawSpritePortrait(canvas, g, team, col, colD) {
 }
 
 function drawHud(ctx, B) {
-  const rows = [0, 0];
+  const rows = [0, 0], many = B.fighters.length > 10, rh = many ? 6 : 10, ty = many ? 4.5 : 6.5;      // a crowd gets thinner lines
   ctx.font = 'bold 5px Consolas, monospace';
   ctx.textAlign = 'left';
   for (const f of B.fighters) {
-    const x = f.team ? 226 : 2, y = 2 + rows[f.team]++ * 10, gone = out(f);
-    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x, y, 92, 9);
-    ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, 2, 9);
-    ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, 10), x + 4, y + 6.5);
+    const x = f.team ? 226 : 2, y = 2 + rows[f.team]++ * rh, gone = out(f);
+    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x, y, 92, rh - 1);
+    ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, 2, rh - 1);
+    ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, 10), x + 4, y + ty);
     const bx = x + 36, bw = 44;
     if (gone) {
       const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);
       ctx.fillStyle = slain ? '#e2695c' : '#c9b9a0';
-      ctx.fillText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN', bx, y + 6.5);
+      ctx.fillText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN', bx, y + ty);
       continue;
     }
-    ctx.fillStyle = '#3a1512'; ctx.fillRect(bx, y + 2, bw, 3);
-    ctx.fillStyle = B.col[f.team]; ctx.fillRect(bx, y + 2, Math.ceil(bw * f.hp / f.maxHp), 3);
-    ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, y + 6, bw, 1);
-    ctx.fillStyle = '#c9b458'; ctx.fillRect(bx, y + 6, Math.ceil(bw * f.stam / f.maxStam), 1);
+    const by = many ? y + 1 : y + 2, sy = many ? y + 4 : y + 6, bh = many ? 2 : 3;
+    ctx.fillStyle = '#3a1512'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = B.col[f.team]; ctx.fillRect(bx, by, Math.ceil(bw * f.hp / f.maxHp), bh);
+    ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, sy, bw, 1);
+    ctx.fillStyle = '#c9b458'; ctx.fillRect(bx, sy, Math.ceil(bw * f.stam / f.maxStam), 1);
     let px = bx + bw + 2;
-    const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, y + 3, 2, 3); px += 3; };
+    const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, many ? y + 1 : y + 3, 2, 3); px += 3; };
     if (f.bleed > 0) pip('#ff3a2a');
     if (f.hamstrung) pip('#ffd24a');
     if (f.armWound) pip('#ff9a3a');
@@ -967,7 +975,40 @@ function drawSpectator(ctx, p, up) {
 const ARENA_TORCHES = [24, 132, 294, 402];      // x of each wall torch, in sprite pixels
 
 // Everything that does not move is painted once per fight onto its own canvas (428x240 sprite pixels).
+// A fight outside the walls has no stands and no wall: trees, rock, a palisade or old stones, and open ground.
+function renderWild(B) {
+  const cv = document.createElement('canvas'); cv.width = 428; cv.height = 240;
+  const ctx = cv.getContext('2d'), k = B.wild;
+  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+  const h = i => Math.abs(Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1;
+  const ground = { forest: '#6f8a45', rock: '#8f8a78', camp: '#8a7650', ruin: '#7f8a55' }[k] || '#6f8a45';
+  for (let y = 0; y < 44; y += 4) R(0, y, 428, 4, shade('#a9c8dc', 0.86 + y / 300));                     // sky
+  for (let x = 0; x < 428; x += 2) { const t = 34 + Math.round(Math.sin(x * 0.021) * 7 + Math.sin(x * 0.05 + 2) * 4); R(x, t, 2, 60 - t, '#7f9a8a'); }   // far hills
+  for (let x = 0; x < 428; x += 2) { const t = 50 + Math.round(Math.sin(x * 0.034 + 1) * 6 + Math.sin(x * 0.09) * 3); R(x, t, 2, 40, '#5f7f5a'); }
+  R(0, 78, 428, 162, ground);
+  for (let i = 0; i < 520; i++) R(h(i) * 426, 84 + h(i + 900) * 154, 1 + Math.round(h(i + 5) * 2), 1, shade(ground, i % 2 ? 0.88 : 1.12));
+  const tree = (x, y, s) => { R(x - 2 * s, y - 16 * s, 4 * s, 16 * s, '#4a3320'); R(x - 2 * s, y - 16 * s, s, 16 * s, '#33230f'); for (const [ox, oy, r, c] of [[0, -30, 15, '#2f5226'], [-9, -22, 11, '#35602b'], [9, -24, 12, '#2a4a22'], [-2, -34, 9, '#4a7a36']]) for (let yy = -r; yy <= r; yy++) { const hw = Math.round(r * Math.sqrt(1 - yy * yy / (r * r))) * s; R(x + ox * s - hw, y + (oy + yy) * s, hw * 2, s, c); } };
+  if (k === 'forest') { for (let i = 0; i < 16; i++) tree(10 + i * 28 + h(i) * 10, 80 + h(i + 3) * 8, 1); for (let i = 0; i < 22; i++) { const x = h(i + 60) * 420; R(x, 80 + h(i + 70) * 6, 9, 5, '#3f6a30'); R(x + 1, 79 + h(i + 70) * 6, 6, 2, '#57863a'); } }
+  else if (k === 'rock') {
+    for (let x = 0; x < 428; x += 3) { const t = 22 + Math.round(Math.sin(x * 0.03) * 9 + h(x) * 6); R(x, t, 3, 64 - t + 20, '#77705f'); R(x, t, 3, 2, '#a39c88'); if (h(x + 7) > 0.7) R(x, t + 6 + h(x) * 30, 1, 10, '#5d5749'); }
+    R(176, 46, 76, 40, '#1a1410'); R(182, 40, 64, 8, '#1a1410'); R(190, 36, 48, 5, '#1a1410'); R(172, 84, 84, 3, '#5d5749');
+    for (let i = 0; i < 9; i++) { const x = 20 + h(i + 20) * 390; R(x, 82 + h(i) * 10, 12, 6, '#77705f'); R(x, 82 + h(i) * 10, 12, 1, '#a39c88'); }
+  } else if (k === 'camp') {
+    for (let x = 0; x < 428; x += 6) { const t = 52 + Math.round(h(x) * 6); R(x, t, 5, 86 - t, '#6b4f2c'); R(x, t, 1, 86 - t, '#4a3620'); R(x + 1, t - 3, 3, 3, '#6b4f2c'); }
+    R(190, 58, 48, 28, '#2a1d12');
+    for (const tx of [70, 330]) { for (let i = 0; i < 26; i++) R(tx - i, 60 + i, i * 2, 1, i % 6 < 3 ? '#b8a880' : '#a09068'); R(tx - 4, 72, 8, 14, '#2a1d12'); }
+    R(206, 92, 16, 3, '#3a2a1c'); R(210, 86, 8, 6, '#e2702a'); R(212, 84, 4, 4, '#f5c04a');
+  } else {
+    for (let i = 0; i < 9; i++) tree(24 + i * 50, 76 + h(i) * 6, 1);
+    for (const [x, hh] of [[60, 44], [120, 30], [178, 52], [250, 52], [310, 24], [368, 40]]) { R(x, 86 - hh, 12, hh, '#c9c3ae'); R(x, 86 - hh, 3, hh, '#a8a290'); R(x - 2, 86 - hh, 16, 3, '#dcd6c2'); R(x - 2, 83, 16, 3, '#b5af9b'); }
+    R(176, 30, 88, 6, '#c9c3ae'); R(176, 30, 88, 1, '#e4dfcd'); R(280, 88, 46, 7, '#b5af9b'); R(284, 86, 30, 3, '#c9c3ae');
+  }
+  for (let i = 0; i < 5; i++) R(0, 78 + i * 4, 428, 4, `rgba(20,30,10,${(0.3 * (1 - i / 5)).toFixed(3)})`);
+  return cv;
+}
+
 function renderBackdrop(B) {
+  if (B.wild) return renderWild(B);
   const th = B.theme, cv = document.createElement('canvas');
   cv.width = 428; cv.height = 240;
   const ctx = cv.getContext('2d');
@@ -1077,7 +1118,7 @@ function drawBattle(ctx, B) {
 
   // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
   if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
-  for (const x of ARENA_TORCHES) {
+  for (const x of B.wild ? [] : ARENA_TORCHES) {
     const fl = Math.sin(T * 13 + x) > 0 ? 1 : 0;
     if (dusk) {                       // lit: a flame, a halo, and a pool of light on the sand below
       ctx.globalCompositeOperation = 'lighter';
@@ -1171,10 +1212,12 @@ function drawBattle(ctx, B) {
   // crowd meter
   ctx.textAlign = 'center';
   ctx.font = 'bold 5px Consolas, monospace';
-  ctx.fillStyle = '#000'; ctx.fillRect(109, 172, 102, 5);
-  ctx.fillStyle = '#3a2a22'; ctx.fillRect(110, 173, 100, 3);
-  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(110, 173, Math.round(100 * clamp(B.exc, 0, 1)), 3);
-  ctx.fillStyle = '#3a2a22'; ctx.fillText('CROWD', 160, 170);
+  if (!B.wild) {                 // nobody is watching out here
+    ctx.fillStyle = '#000'; ctx.fillRect(109, 172, 102, 5);
+    ctx.fillStyle = '#3a2a22'; ctx.fillRect(110, 173, 100, 3);
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(110, 173, Math.round(100 * clamp(B.exc, 0, 1)), 3);
+    ctx.fillStyle = '#3a2a22'; ctx.fillText('CROWD', 160, 170);
+  }
   if (B.death && B.intro <= 0) { ctx.fillStyle = '#8e1b14'; ctx.fillText('SINE MISSIONE', 160, 72); }
   if (B.order) {            // the order in force, and how long it has left
     const press = B.order.kind === 'press';

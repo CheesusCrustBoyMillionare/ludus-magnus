@@ -202,7 +202,7 @@ const SFX = (() => {
   // driven by the drum, and grows busier as the crowd grows louder.
 
   const M = { mode: null, want: null, step: 0, next: 0, timer: 0, heat: 0, bar: null };
-  const SCALES = { ludus: [0, 2, 3, 5, 7, 9, 10], arena: [0, 1, 3, 5, 7, 8, 10] };
+  const SCALES = { ludus: [0, 2, 3, 5, 7, 9, 10], arena: [0, 1, 3, 5, 7, 8, 10], wild: [0, 2, 3, 5, 7, 8, 10] };
   const ROOT = 146.83;                                 // D below middle C
   // the pitch of a step of the scale; steps past the seventh climb into the next octave
   const pitch = (mode, deg, oct) => { const sc = SCALES[mode], n = sc.length; return ROOT * Math.pow(2, (sc[((deg % n) + n) % n] + 12 * (Math.floor(deg / n) + (oct || 0))) / 12); };
@@ -256,6 +256,11 @@ const SFX = (() => {
       }
       return bar;
     }
+    if (mode === 'wild') {                            // the open country: a pipe a long way off, and not much else
+      const bar = { root: [0, 0, 5, 0, 3, 0, 6, 4][n % 8], tune: null };
+      if (n % 2 === 0) { let d = bar.root + pick1([4, 7, 9]), at = pick1([0, 1, 2]); bar.tune = []; while (at < 7) { const len = pick1([2, 3, 4, 4]); bar.tune.push({ at, len, d }); at += len + pick1([0, 0, 1]); d += pick1([-2, -1, -1, 1, 2]); } }
+      return bar;
+    }
     return { drums: pick1(ARENA_DRUMS), shift: n % 8 >= 6 ? 3 : 0, fill: n % 4 === 3 };
   }
   function playStep(mode, n, t) {
@@ -269,6 +274,12 @@ const SFX = (() => {
       for (const x of (b.tune || [])) if (x.at === i) pipe(pitch(mode, x.d, 1), 0.07, t, x.len * M.beat * 0.95);
       return;
     }
+    if (mode === 'wild') {
+      if (i === 0) lyre(pitch(mode, b.root, -1), 0.13, t + human(), 3.2);
+      if (i === 4 && Math.random() < 0.5) lyre(pitch(mode, b.root + 4, -1), 0.08, t + human(), 2.4);
+      for (const x of (b.tune || [])) if (x.at === i) pipe(pitch(mode, x.d, 0), 0.075, t, x.len * M.beat * 0.95);
+      return;
+    }
     const heat = M.heat, d = b.drums[i];
     if (d === 'D') dum(t, 0.3); else if (d === 't') tek(t + human(), 0.16);
     if (b.fill && i >= 6) tek(t + M.beat / 2, 0.14);
@@ -280,7 +291,7 @@ const SFX = (() => {
   }
   function setPiece(mode, t) {
     M.mode = mode; M.step = 0; M.bar = null;
-    M.beat = mode === 'arena' ? 60 / 112 / 2 : 60 / 66 / 2;                               // one step is half a beat
+    M.beat = mode === 'arena' ? 60 / 112 / 2 : mode === 'wild' ? 60 / 52 / 2 : 60 / 66 / 2;                               // one step is half a beat
     M.next = t + 0.15;
     const arenaNow = mode === 'arena', f = ROOT / 2;
     drone.root.frequency.setTargetAtTime(f, t, 0.3); drone.fifth.frequency.setTargetAtTime(f * 1.5, t, 0.3); drone.high.frequency.setTargetAtTime(f * 2, t, 0.3);

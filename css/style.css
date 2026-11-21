@@ -484,3 +484,30 @@ h2 .h2opt { float: right; font: 12px Georgia, serif; letter-spacing: 0; text-tra
 }
 #topbar button { font-size: 12px; letter-spacing: .02em; white-space: nowrap; }
 #topbar button.primary { font-size: 14px; }
+
+/* =====================================================================================
+   The province: the map takes the whole window while the school is outside the walls,
+   with the camp in a column beside it.
+   ===================================================================================== */
+#wilds { position: fixed; left: 0; top: 0; z-index: 18; width: var(--vw, 100vw); height: var(--vh, 100vh); zoom: var(--z, 1);
+  display: flex; gap: 12px; padding: 8px 12px 8px 10px; background: #17110e var(--grain); }
+#wildCanvas { flex: none; height: 100%; width: auto; aspect-ratio: 4 / 3; max-width: calc(100% - 300px); image-rendering: pixelated; cursor: crosshair; background: #d7c59c;
+  border: 1px solid var(--edge); box-shadow: 0 0 0 2px var(--bronze), 0 0 0 3px var(--edge); }
+#camp { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+#camp > * { flex: none; }
+#camp > .pane, #camp > .dossier { flex: 1 1 auto; min-height: 0; overflow: auto; }
+#camp .camphead { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+#camp .camphead .title { grid-column: 1 / -1; font: 700 15px var(--display); letter-spacing: .16em; color: var(--gold); text-shadow: 0 2px 0 #000; }
+#camp .stat { display: flex; flex-direction: column; padding: 2px 6px; background: #1c140f; border: 1px solid var(--bronze-d); line-height: 1.2; }
+#camp .stat b { font: bold 15px Consolas, monospace; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+#camp .stat span { font: 9px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+#camp .stat .ic { width: 16px; height: 16px; }
+#camp .games b { color: var(--red); }
+#wildMini { width: 74%; margin: 0 auto; height: auto; aspect-ratio: 4 / 3; image-rendering: pixelated; border: 1px solid var(--edge); box-shadow: 0 0 0 1px var(--bronze-d); display: block; }
+#camp .lead { font-size: 12px; line-height: 1.35; padding: 5px 8px; margin-bottom: 6px; background: #1c140f; border: 1px solid var(--bronze-d); }
+#camp button .key { margin-left: 8px; font: 10px Consolas, monospace; opacity: .5; }
+#camp .grow-row .gauges { width: 62px; }
+#camp h2 { margin-top: 4px; }
+@media (max-width: 1000px) { #wilds { flex-direction: column; overflow: auto; } #wildCanvas { height: auto; width: 100%; max-width: none; } }
+#camp .lrow { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
+#camp .listnote { padding: 5px 8px; font-size: 12px; }

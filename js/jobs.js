@@ -107,8 +107,8 @@ const jobMen = J => J.ids.map(byId).filter(Boolean);
 const jn = J => { const m = J && jobMen(J); return m && m.length ? namesOf(m) : 'your man'; };
 
 // What a contract or a step of a quest asks of a man.
-function jobDef(J) { return J.kind === 'quest' ? QUESTS[J.type].steps[J.step] : CONTRACTS[J.type]; }
-function jobTitle(J) { return J.kind === 'quest' ? QUESTS[J.type].name : CONTRACTS[J.type].name; }
+function jobDef(J) { return CONTRACTS[J.type]; }
+function jobTitle(J) { return CONTRACTS[J.type].name; }
 
 // How well one man suits a piece of work: a score to set against what it needs, and the reasons.
 function aptitude(g, D, land) {
@@ -240,7 +240,7 @@ function roadBonds(men, win, lines) {
 // The work is over, one way or another. Settles every man who went and writes the report.
 function finishJob(J) {
   G.jobs = G.jobs.filter(x => x !== J);
-  const D = jobDef(J), all = jobMen(J), quest = J.kind === 'quest';
+  const D = jobDef(J), all = jobMen(J), quest = false;
   all.forEach(g => { g.away = null; });
   if (!all.length) return;
   const title = jobTitle(J), names = namesOf(all), lines = [];
@@ -280,8 +280,6 @@ function finishJob(J) {
   if (J.abandon) {
     lines.unshift(`${names} ${all.length > 1 ? 'were' : 'was'} called home before the work was done.`);
     if (!quest) { favor(J.patron, -3); lines.push(`${PATRONS[J.patron].name} is not pleased. Favour -3.`); }
-  } else if (quest) {
-    questStepDone(J, D, back, win, lines);
   } else {
     lines.unshift((win ? D.win : D.fail)(names, J));
     if (win) {
@@ -317,9 +315,9 @@ function finishJob(J) {
 // Called each morning: road events fall due, and men come home.
 function jobsTick() {
   for (const g of home()) {
-    if (g.quest && G.day - g.quest.since === 10) {
+    if (g.quest && G.day - g.quest.since > 0 && (G.day - g.quest.since) % 15 === 0) {
       g.morale = clamp(g.morale - 8, 0, 100);
-      log(`${g.name} is still waiting on the leave you promised him.`, 'bad');
+      log(`${g.name} is still waiting for you to take him where you promised.`, 'bad');
     }
   }
   for (const J of G.jobs.slice()) {
@@ -503,111 +501,20 @@ for (const id in FIELD_EVENTS) {
 }
 
 // ---------- journeys of their own ----------
-// A fighter asks leave for something that matters to him. Each is two steps away from the ludus,
-// and ends in a choice that is yours.
+// A fighter asks for something that matters to him. Each ends at a place out in the province (see wilds.js),
+// where the whole school must walk with him, and in a choice that is yours.
 const QUESTS = {
-  brother: {
-    name: 'A brother in chains', finale: 'questBrother',
-    ask: g => `<b>${g.name}</b> was not taken alone. A trader from ${g.origin} has told him that his younger brother is alive, sold the same season, somewhere along the slave road. He asks leave to go and look.`,
-    steps: [
-      { name: 'Ask along the slave road', days: 3, diff: 0.8, danger: 0.15, w: { str: 0, agi: 0.3, end: 0.3, skl: 0.4 }, likes: ['keen', 'travelled'], events: ['dice', 'rivals', 'ambush'],
-        text: 'Three days among the dealers and their ledgers, asking after one boy among thousands.',
-        win: g => `${g.name} found the dealer, and the dealer's ledger. His brother was sold to the stone quarries, a week's walk south. He is alive.`,
-        fail: g => `Nobody on the slave road remembers one boy from ${g.origin}. ${g.name} came home with nothing but sore feet.` },
-      { name: 'The quarries', days: 4, diff: 0.95, danger: 0.3, w: { str: 0.3, agi: 0, end: 0.4, skl: 0.3 }, likes: ['tireless', 'steady', 'travelled'], events: ['ambush', 'wound', 'dice'],
-        text: 'To the quarries, to find one face among the gangs and learn what the overseer wants for him.',
-        win: g => `${g.name} has seen his brother, grey with stone dust, through the bars of the quarry gate.`,
-        fail: g => `The overseers would not let ${g.name} past the gate, nor say who was inside.` },
-    ],
-  },
-  village: {
-    name: 'The men who burned his village', finale: 'questVillage',
-    ask: g => `<b>${g.name}</b> has heard a name in the market: the captain of the slavers who burned his village in ${g.origin} and marched him away in a neck-chain. The man is in the province. He asks leave to find him.`,
-    steps: [
-      { name: 'Pick up the trail', days: 3, diff: 0.85, danger: 0.2, w: { str: 0, agi: 0.4, end: 0.2, skl: 0.4 }, likes: ['keen', 'travelled', 'quick'], events: ['dice', 'rivals', 'ambush'],
-        text: 'Three days of taverns and horse fairs, following a name.',
-        win: g => `${g.name} has found them: a camp in the hills, a dozen men, and the captain grown fat.`,
-        fail: g => `The trail went cold at a river crossing. ${g.name} is not finished with it.` },
-      { name: 'The slavers\' camp', days: 5, diff: 1.05, danger: 0.7, with: 1, w: { str: 0.4, agi: 0, end: 0.3, skl: 0.3 }, likes: ['brute', 'killer', 'lionheart', 'bloodthirsty'], events: ['ambush', 'wound'],
-        text: 'Into the hills to the slavers\' camp. He may take one man with him, if you can spare one.',
-        win: g => `The camp is ash. ${g.name} has the captain on his knees with a rope round his neck, and is waiting on your word.`,
-        fail: g => `There were too many of them. ${g.name} was driven off into the hills, and the camp has moved on.` },
-    ],
-  },
-  shrine: {
-    name: 'A vow to his gods', finale: 'questShrine',
-    ask: g => `The night before he was first sent onto the sand, <b>${g.name}</b> swore that if he lived he would carry an offering to the shrine of his people's gods in ${g.origin}. He has lived. He asks leave to pay what he owes.`,
-    steps: [
-      { name: 'The road to the shrine', days: 4, diff: 0.8, danger: 0.2, w: { str: 0.3, agi: 0.2, end: 0.5, skl: 0 }, likes: ['tireless', 'ironlungs', 'travelled'], events: ['ambush', 'dice', 'wound'],
-        text: 'Four days on foot, carrying what he means to offer.',
-        win: g => `${g.name} has reached the holy place and been allowed in. The priests will hear his vow at the new moon.`,
-        fail: g => `Fever on the road. ${g.name} turned back within sight of the mountains.` },
-      { name: 'The vigil', days: 2, diff: 0.75, danger: 0, w: { str: 0, agi: 0, end: 0.5, skl: 0.5 }, likes: ['steady', 'disciplined', 'blessed'], events: [],
-        text: 'Two nights fasting and standing before the altar.',
-        win: g => `${g.name} stood two nights without food or sleep. The priests say the god has heard him, and ask what is to be offered.`,
-        fail: g => `${g.name} fell asleep on his feet the second night. The priests say the god will wait.` },
-    ],
-  },
-  master: {
-    name: 'The old master', finale: 'questMaster',
-    ask: g => `Every ${CLASSES[g.cls].name} has heard of the old champion who won the wooden sword thirty years ago and went up into the hills to keep bees. <b>${g.name}</b> believes he is still alive, and asks leave to find him and learn what he knows.`,
-    steps: [
-      { name: 'Find the old man', days: 3, diff: 0.8, danger: 0.1, w: { str: 0, agi: 0.5, end: 0, skl: 0.5 }, likes: ['keen', 'travelled'], events: ['dice', 'rivals'],
-        text: 'Three days in the hill villages, asking after a beekeeper with a sword-arm.',
-        win: g => `${g.name} has found him: seventy, half blind, and quicker than any man in your yard. He will teach, if he is asked properly.`,
-        fail: g => `The hill people would not say where the old man lives. ${g.name} will have to ask again.` },
-      { name: 'A season at his door', days: 6, diff: 0.9, danger: 0.15, w: { str: 0, agi: 0, end: 0.4, skl: 0.6 }, likes: ['disciplined', 'tireless', 'steady'], hates: ['lazy'], events: ['wound'],
-        text: 'Six days of hauling water, splitting wood and being knocked down with a stick.',
-        win: g => `${g.name} has been knocked down some hundreds of times and has finally touched the old man once. The old man says he is ready, and names what he is owed.`,
-        fail: g => `The old man sent ${g.name} away on the third day. Come back, he said, when you can listen.` },
-    ],
-  },
+  brother: { name: 'A brother in chains', finale: 'questBrother', where: 'the stone quarries, at the end of the north road',
+    ask: g => `<b>${g.name}</b> was not taken alone. A trader from ${g.origin} has told him that his younger brother is alive, sold the same season, somewhere along the slave road. It can only be the stone quarries in the northern hills. He asks you to take him there.` },
+  village: { name: 'The men who burned his village', finale: 'questVillage', where: 'the slavers\' camp, south-east on the road into the Blackmere',
+    ask: g => `<b>${g.name}</b> has heard a name in the market: the captain of the slavers who burned his village in ${g.origin} and marched him away in a neck-chain. The man is in the province. He asks you to take the school there, and him with it.` },
+  shrine: { name: 'A vow to his gods', finale: 'questShrine', where: 'the shrine on the shore, at the end of the south road',
+    ask: g => `The night before he was first sent onto the sand, <b>${g.name}</b> swore that if he lived he would carry an offering to the shrine his people keep on the southern shore. He has lived. He asks you to take him there to pay what he owes.` },
+  master: { name: 'The old master', finale: 'questMaster', where: 'the beekeeper\'s hut, off the north road',
+    ask: g => `Every ${CLASSES[g.cls].name} has heard of the old champion who won the wooden sword thirty years ago and went up into the hills to keep bees. <b>${g.name}</b> believes he is still alive, and asks you to take him there to learn what the old man knows.` },
 };
 
-function questStep(g) { return g.quest ? QUESTS[g.quest.id].steps[g.quest.step] : null; }
-function questOdds(g, withId) {
-  const S = questStep(g), o = withId ? byId(withId) : null;
-  return jobOdds(S, jobNeed(tier(), S.diff), o ? [g, o] : [g], 0, null);
-}
-function sendQuest(gid, withId) {
-  const g = byId(gid), S = g && questStep(g);
-  if (!S || !canSend(g)) return false;
-  const o = S.with && withId ? byId(withId) : null;
-  if (o && (o === g || !canSend(o))) return false;
-  const J = { id: ++G.nextId, kind: 'quest', type: g.quest.id, step: g.quest.step, ids: o ? [g.id, o.id] : [g.id], who: g.id,
-    start: G.day, end: G.day + S.days, need: jobNeed(tier(), S.diff), land: null, edge: 0 };
-  planEvent(J, S, S.days);
-  jobMen(J).forEach(x => { x.away = J.id; });
-  G.jobs.push(J);
-  log(`${g.name} leaves the ludus${o ? ' with ' + o.name : ''}: ${S.name}. Back in ${S.days} days.`);
-  save();
-  return true;
-}
-
 function endQuest(g, how) { g.quest = null; g.questDone = how; }
-
-function questStepDone(J, S, back, win, lines) {
-  const g = byId(J.who), Q = QUESTS[J.type];
-  if (!g || !g.quest) { lines.unshift('He did not come back to tell how it went.'); return; }
-  lines.unshift((win ? S.win : S.fail)(g));
-  if (win) {
-    addStory(g, `${Q.name}: ${S.name.toLowerCase()}, and it went well.`);
-    g.quest.since = G.day;
-    if (g.quest.step + 1 < Q.steps.length) {
-      g.quest.step++;
-      lines.push(`<span class="dim">When you can spare him again, send him on from his dossier: ${Q.steps[g.quest.step].name.toLowerCase()}.</span>`);
-    } else raiseEvent(Q.finale, { g: g.id, cost: 80 + tier() * 70 });
-    roadBonds(back, true, lines);
-  } else if (!g.quest.tries) {
-    g.quest.tries = 1; g.quest.since = G.day;
-    lines.push('<span class="dim">He asks to try once more, when you can spare him.</span>');
-  } else {
-    endQuest(g, 'failed');
-    g.morale = clamp(g.morale - 15, 0, 100);
-    addStory(g, `${Q.name}: gave it up.`);
-    lines.push(`<span class="bad">${g.name} will not ask again. Something has gone out of him.</span>`);
-  }
-}
 
 // What every finished journey leaves behind: a man who knows what you did for him.
 function questReward(g, trait, story) {
@@ -640,20 +547,14 @@ Object.assign(EVENTS, FIELD_EVENTS, {
     auto: true,                      // offered on its own roll, so that it comes round often enough
     can: () => G.roster.some(questReady) && questsFree().length > 0,
     make: () => ({ g: pick(G.roster.filter(questReady)).id, q: pick(questsFree()) }),
-    text: c => { const g = byId(c.g); return g ? QUESTS[c.q].ask(g) + ` It would be two journeys, some days each, and he would miss whatever games fell while he was gone.` : 'A fighter wants a word.'; },
+    text: c => { const g = byId(c.g); return g ? QUESTS[c.q].ask(g) + ` That is ${QUESTS[c.q].where}: the whole school would have to march out with him, and miss whatever games fell while it was away.` : 'A fighter wants a word.'; },
     opts: [
-      { label: c => `Let him go at once (${QUESTS[c.q].steps[0].days} days)`, ok: c => canSend(byId(c.g)), run: c => {
+      { label: () => 'Give your word', run: c => {
         const g = byId(c.g); if (!g) return 'The moment has passed.';
-        g.quest = { id: c.q, step: 0, since: G.day, tries: 0 }; g.morale = clamp(g.morale + 12, 0, 100);
-        addStory(g, `Was given leave: ${QUESTS[c.q].name.toLowerCase()}.`);
-        sendQuest(g.id);
-        return `${g.name} is on the road before the yard has finished its porridge.`;
-      } },
-      { label: () => 'Give your word: he may go when you can spare him', run: c => {
-        const g = byId(c.g); if (!g) return 'The moment has passed.';
-        g.quest = { id: c.q, step: 0, since: G.day, tries: 0 }; g.morale = clamp(g.morale + 6, 0, 100);
-        addStory(g, `Was promised leave: ${QUESTS[c.q].name.toLowerCase()}.`);
-        return `${g.name} takes you at your word. Send him from his dossier; do not make him wait long.`;
+        g.quest = { id: c.q, since: G.day }; g.morale = clamp(g.morale + 10, 0, 100);
+        wildMark(questPlace(c.q), 'journey');
+        addStory(g, `Was promised his journey: ${QUESTS[c.q].name.toLowerCase()}.`);
+        return `${g.name} takes you at your word. The place is marked on your map of the province: ${QUESTS[c.q].where}. Do not make him wait long.`;
       } },
       { label: () => 'Refuse', run: c => {
         const g = byId(c.g); if (g) { g.questDone = 'refused'; g.morale = clamp(g.morale - 12, 0, 100); addStory(g, `Asked leave of the house, and was refused.`); }

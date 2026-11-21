@@ -158,13 +158,15 @@ function showBack(ctx, B, T) {
       if (p.fan >= 0) R(p.x + 4 + a, p.y - 16 + a, 2, 2, B.col[p.fan]);
     } else if (wave && !bored) drawSpectator(ctx, p, 2);
   }
-  showEditor(ctx, B, T);
   const gust = 1 + (0.5 + 0.5 * Math.sin(T * 0.45)) * 1.4;
+  if (!B.wild) {                      // the editor, the banners and the pennants belong to an arena
+  showEditor(ctx, B, T);
   showBanner(ctx, 48, B.col[0], B.colD[0], T, gust); showBanner(ctx, 368, B.col[1], B.colD[1], T + 2, gust);
   if (th.banners) for (const x of [108, 150, 266, 308]) showBanner(ctx, x, '#d9a441', '#a87a26', T + x, gust);
   if (!th.awning && th.crowd >= 0.7) for (const x of [44, 132, 292, 380]) {          // pennants along the rim
     R(x, 3, 1, 19, '#3a2a1c');
     for (let i = 0; i < 9; i++) { const dy = Math.round(Math.sin(T * 6 - i * 0.9 + x) * 1.3 * (i / 8) * gust * 0.6); R(x + 1 + i, 4 + dy, 1, i > 5 ? 3 : 4, i % 4 < 2 ? '#d9a441' : '#b8452e'); }
+  }
   }
   // blood: bright where it has just fallen, then darkening and spreading as the sand drinks it
   for (const s of B.stains) {
@@ -181,7 +183,7 @@ function showBack(ctx, B, T) {
     R(x - 3, y - 6, 7, 6, p.col); R(x - 3, y - 6, 7, 1, shade(p.col, 1.4)); R(x - 3, y - 6, 1, 6, shade(p.col, 0.68)); R(x + 1, y - 3, 2, 2, '#1c1310'); R(x - 2, y - 8, 4, 2, p.crest);
   }
   // heat: by day the foot of the wall and the far sand swim a little
-  if (B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
+  if (!B.wild && B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
     const cv = ctx.canvas;
     for (let y = 80; y < 100; y++) {
       const a = Math.sin(T * 3.1 + y * 0.83) * (1 - (y - 80) / 26);

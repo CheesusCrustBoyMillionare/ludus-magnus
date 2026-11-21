@@ -4,7 +4,7 @@ const fs = require('fs'), vm = require('vm'), path = require('path');
 const root = process.argv[2], RUNS = +(process.argv[3] || 30), SKILL = process.argv[4] || 'good';
 const ctx = { console, Math, RUNS, SKILL, localStorage: { getItem: () => null, setItem() {} } };
 vm.createContext(ctx);
-const src = ['data', 'sim', 'jobs', 'combat'].map(f => fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8')).join('\n');
+const src = ['data', 'sim', 'jobs', 'wilds', 'combat'].map(f => fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8')).join('\n');
 vm.runInContext(src + `
 const good = SKILL === 'good';
 const WAGERS = [500, 250, 100, 50, 25];
@@ -147,7 +147,6 @@ function botEvent() {
 function botJobs(R) {
   for (const r of G.reports.splice(0)) { R.jobs = (R.jobs || 0) + 1; }
   if (!good) return;
-  for (const g of G.roster) if (g.quest && canSend(g) && !missesGames(questStep(g).days)) sendQuest(g.id);
   if (isGamesDay()) return;
   for (const c of G.contracts.slice()) {
     if (missesGames(c.days)) continue;

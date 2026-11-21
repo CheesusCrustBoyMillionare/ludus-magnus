@@ -85,6 +85,10 @@ const TRAITS = {
   atpeace:     { name: 'At peace',     good: true, special: true, desc: 'The thing that ate at him is settled. Morale never falls below 60, and he will never desert.' },
   bloodoath:   { name: 'Blood-debt paid', good: true, special: true, desc: 'He has killed the men he lived to kill. +8% damage.' },
   oldschool:   { name: 'Old school',   good: true, special: true, desc: 'Taught by a master of the old style. +5% accuracy.' },
+  // earned out in the province
+  gravewise:   { name: 'Grave-wise',   good: true, special: true, desc: 'Knows where the dead kept their silver. While he is with the school, ruins and tombs give up half as much again.' },
+  reaver:      { name: 'Outlaw-hunter', good: true, special: true, desc: 'Has fought where there is no sand and no rules. +10% damage in any fight outside the arena.' },
+  eaglesworn:  { name: 'Eagle-sworn',  good: true, special: true, desc: 'Trains under the eagle of the Seventeenth. +5% damage, and trains 5% faster.' },
 };
 
 // ---------- equipment ----------

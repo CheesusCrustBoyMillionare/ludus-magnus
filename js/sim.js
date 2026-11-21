@@ -221,6 +221,11 @@ function migrate() {
   if (!G.reports) G.reports = [];
   if (!G.eventQueue) G.eventQueue = [];
   if (!G.contracts) { G.contracts = []; genContracts(); }
+  // journeys are places on the map now: anyone who was away on one alone is brought home, and his place marked
+  if (G.field === undefined) G.field = null;
+  G.jobs = G.jobs.filter(J => J.kind !== 'quest');
+  G.roster.forEach(g => { if (g.away && !G.jobs.some(J => J.id === g.away)) g.away = null; if (g.quest && QUESTS[g.quest.id]) wildMark(questPlace(g.quest.id), 'journey'); else if (g.quest) g.quest = null; });
+  wildMap();
 }
 
 const needProg = s => 1.2 + s * 0.35;
@@ -260,6 +265,7 @@ function graceDays() { return GRACE_DAYS + 2 * legacyLevel('credit'); }
 function welcome(g) {
   if (!g.gear) g.gear = emptyGear();
   if (boon('heirblood') && !g.traits.includes('heirblood')) { g.traits.push('heirblood'); g.hp = maxHp(g); }
+  if (G.dynasty.map && G.dynasty.map.eagle === 'kept' && !g.traits.includes('eaglesworn')) g.traits.push('eaglesworn');      // the eagle over the gate
   return g;
 }
 
@@ -276,7 +282,7 @@ function newGame(dynasty, carried) {
     armoury: [], smith: { level: lv('forge'), stock: [] }, contracts: [], jobs: [], reports: [], eventQueue: [],
     patrons: { magistrate: 20 + (has('magistrate') ? 20 : 0), guild: 10 + (has('guild') ? 20 : 0), temple: 10 + (has('temple') ? 20 : 0) },
     gifts: { magistrate: 0, guild: 0, temple: 0 },
-    dynasty: D, tally: { wins: 0, losses: 0 }, ruin: null,
+    dynasty: D, tally: { wins: 0, losses: 0 }, ruin: null, field: null,
   };
   const budget = 2 * lv('blood');
   G.roster.push(makeGladiator(23 + budget));
@@ -468,8 +474,8 @@ function pickRivals(H, size, budget, t, booked) {
 
 function emptyGear() { return { weapon: null, head: null, chest: null, legs: null, arms: null, shoulders: null }; }
 function makeItem(slot, r, cls) { return { id: ++G.nextId, slot, r, cls: slot === 'weapon' ? cls : null }; }
-function itemName(it) { return MATERIAL[it.r] + ' ' + (it.slot === 'weapon' ? WEAPON_NAMES[it.cls] : SLOT_INFO[it.slot].piece); }
-function itemPrice(it) { return Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price / 5) * 5; }
+function itemName(it) { return it.relic ? RELICS[it.relic].name : MATERIAL[it.r] + ' ' + (it.slot === 'weapon' ? WEAPON_NAMES[it.cls] : SLOT_INFO[it.slot].piece); }
+function itemPrice(it) { return Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price * (it.relic ? 2 : 1) / 5) * 5; }
 // what the blacksmith charges you; selling back is always half the full price
 function buyPrice(it) { return boon('bargain') ? Math.round(itemPrice(it) * 0.85 / 5) * 5 : itemPrice(it); }
 function fits(it, g) { return it.slot !== 'weapon' || it.cls === g.cls; }
@@ -485,6 +491,7 @@ function itemStats(it) {
   if (it.slot === 'legs') { z.hamRes = 0.11 * k; z.speed = 0.01 * k; z.dodge = 0; }
   if (it.slot === 'arms') { z.armRes = 0.11 * k; z.block = 0.006 * k; }
   if (it.slot === 'shoulders') z.bleedRes = 0.11 * k;
+  if (it.relic) RELICS[it.relic].add(z);                       // a piece out of the old stories (wilds.js)
   return z;
 }
 function itemEffect(it) {
@@ -496,7 +503,7 @@ function itemEffect(it) {
   if (it.slot === 'legs') bits.push(`${pc(z.hamRes)} chance to shrug off a hamstring`, `moves ${pc(z.speed)} faster`);
   if (it.slot === 'arms') bits.push(`${pc(z.armRes)} chance to shrug off an arm wound`, `+${(z.block * 100).toFixed(1)}% block with a shield`);
   if (it.slot === 'shoulders') bits.push(`${pc(z.bleedRes)} chance to shrug off a bleeding wound`);
-  return bits.join('; ') + '.';
+  return bits.join('; ') + '.' + (it.relic ? ' ' + RELICS[it.relic].note : '');
 }
 
 // Everything a fighter's kit adds up to. Rivals and champions have no individual pieces:
@@ -921,6 +928,7 @@ function endDay() {
   const masters = G.roster.filter(g => !g.away && g.traits.includes('drillmaster')).length;
   for (const g of G.roster) {
     if (g.away) continue;             // men out on contract or on the road are not in the yard
+    if (G.field) { wildDayFor(g); continue; }      // the whole school is out in the country (wilds.js)
     const mh = maxHp(g);
     if (g.activity === 'spar' && !staffLvl('doctore')) g.activity = 'rest';
     const tiredOut = G.autoRest && g.fatigue > 75;
@@ -940,6 +948,7 @@ function endDay() {
       if (g.traits.includes('disciplined')) m *= 1.2;
       if (g.traits.includes('lazy')) m *= 0.8;
       if (g.traits.includes('embittered')) m *= 0.7;
+      if (g.traits.includes('eaglesworn')) m *= 1.05;
       m *= 1 + 0.05 * (masters - (g.traits.includes('drillmaster') ? 1 : 0));
       if (bondsOf(g).some(b => b.type === 'rival')) m *= 1.1;      // nothing drives a man like someone to outdo
       m *= (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
@@ -981,12 +990,12 @@ function endDay() {
   if (isGamesDay()) {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
     genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts();
-    log(`Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, 'gold');
+    log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
   } else { G.bouts = null; G.tourney = null; }
 
   if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
   if (!G.over && !G.ruin) jobsTick();
-  if (!G.over && !isGamesDay() && chance(0.22)) rollEvent();
+  if (!G.over && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
   if (isGamesDay()) backupSlot();
   save();
 }

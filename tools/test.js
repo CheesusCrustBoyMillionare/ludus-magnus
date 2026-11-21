@@ -33,7 +33,7 @@ function game() {
     localStorage: { getItem: k => (k in mem ? mem[k] : null), setItem(k, v) { mem[k] = String(v); }, removeItem(k) { delete mem[k]; } },
   };
   vm.createContext(ctx);
-  vm.runInContext(['data', 'sim', 'jobs', 'combat'].map(f => read('js/' + f + '.js')).join('\n') + HELPERS, ctx);
+  vm.runInContext(['data', 'sim', 'jobs', 'wilds', 'combat'].map(f => read('js/' + f + '.js')).join('\n') + HELPERS, ctx);
   return fn => vm.runInContext('(' + fn.toString() + ')()', ctx);
 }
 // Helpers available inside the game context.
@@ -133,7 +133,7 @@ test('200 days of play keep the books straight', () => game()(function () {
     const free = G.roster.filter(canSend);
     const c = G.contracts.find(x => x.size <= free.length - 1);
     if (c && d % 3 === 0) { assert(sendContract(c.id, free.slice(0, c.size).map(g => g.id)), 'contract should start'); sent++; }
-    for (const g of G.roster) if (g.quest && canSend(g)) { assert(sendQuest(g.id), 'journey should start'); quests++; }
+    for (const g of G.roster) if (g.quest) quests++;
     for (const g of G.roster) assert(!g.away || jobById(g.away), g.name + ' is away on a job that does not exist');
     for (const J of G.jobs) assert(J.end > G.day && jobMen(J).length, 'a job outlived its men or its days');
     assert(!!G.bouts === isGamesDay(), 'bouts exist exactly on games days (day ' + G.day + ')');
@@ -142,7 +142,7 @@ test('200 days of play keep the books straight', () => game()(function () {
     const bad = badNumber(G); assert(!bad, 'bad number at ' + bad + ' on day ' + G.day);
   }
   assert(games === 40 && events > 10, 'expected 40 games days and some events, got ' + games + ' and ' + events);
-  assert(sent > 15 && quests > 0, 'expected contracts and journeys to run, got ' + sent + ' and ' + quests);
+  assert(sent > 15, 'expected contracts to run, got ' + sent);
   assert(G.houses.every(h => h.roster.length >= 3 && h.roster.length <= 9), 'rival rosters stay stocked');
 }));
 
@@ -160,7 +160,9 @@ test('every event and every choice runs', () => game()(function () {
       // something from the road: a contract under way, and a journey at its end
       G.contracts[0].type = 'caravan'; G.contracts[0].size = 1; G.contracts[0].patron = 'guild'; G.contracts[0].land = 'Gaul';
       if (EVENTS[id].field) assert(sendContract(G.contracts[0].id, [G.roster[2].id]), 'contract for ' + id);
-      for (const q in QUESTS) if (QUESTS[q].finale === id) G.roster[1].quest = { id: q, step: 1, since: 1, tries: 0 };
+      for (const q in QUESTS) if (QUESTS[q].finale === id) G.roster[1].quest = { id: q, since: 1 };
+      // something out in the province: the school in the field, a journey to end there, the eagle in the baggage
+      if (EVENTS[id].wild || id === 'eagleHome') { G.tally.wins = 1; G.roster[1].quest = { id: 'village', since: 1 }; assert(wildEnter(), 'the school marches out for ' + id); if (id === 'eagleHome') wildMap().story = 5; }
       G.houses.forEach(h => { h.grudge = 50; });
       assert(EVENTS[id].can(), id + ' should be possible in the test setup');
       G.pendingEvent = { id, c: EVENTS[id].make() };
@@ -170,7 +172,7 @@ test('every event and every choice runs', () => game()(function () {
       n++;
     }
   }
-  assert(n >= 75, 'expected at least 75 event choices, ran ' + n);
+  assert(n >= 115, 'expected at least 115 event choices, ran ' + n);
 }));
 
 test('every style can fight every other, and every fallen fighter gets a verdict', () => game()(function () {
@@ -413,7 +415,7 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
   const fame = G.fame, n = G.roster.length;
   EVENTS.promiseDue.opts[0].run(G.pendingEvent.c);
   assert(G.roster.length === n - 1 && G.fame > fame && !G.roster.includes(c), 'keeping your word frees him and earns fame');
-  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || EVENTS[id].field || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
+  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || EVENTS[id].field || EVENTS[id].wild || id === 'eagleHome' || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
 }));
 
 test('contracts: the board, who suits the work, going away and coming home', () => game()(function () {
@@ -474,48 +476,143 @@ test('contracts: the board, who suits the work, going away and coming home', () 
   return [hurt, dead, ran].join('/') + ' hurt/dead/fled of 300 failed hunts';
 }));
 
-test('journeys: asked for, sent in steps, and ended by your choice', () => game()(function () {
-  for (const q in QUESTS) {
-    const Q = QUESTS[q];
-    assert(EVENTS[Q.finale] && Q.steps.length >= 2, q + ' has steps and an ending');
-    for (const S of Q.steps) assert(Math.abs(STATS.reduce((s, x) => s + (S.w[x] || 0), 0) - 1) < 1e-9 && S.events.every(e => FIELD_EVENTS[e]) && (S.likes || []).every(t => TRAITS[t]), q + ': ' + S.name);
-  }
+test('journeys: asked for, promised, and ended at a place in the province', () => game()(function () {
   newGame();
+  for (const q in QUESTS) assert(EVENTS[QUESTS[q].finale] && questPlace(q) && wildSites().some(s => s.kind === questPlace(q)) && QUESTS[q].where.length > 10, q + ' has an ending and a place');
   assert(!EVENTS.quest.can(), 'raw recruits have no standing to ask');
-  const g = G.roster[0]; g.wins = 4; g.rank = 1;
+  const g = G.roster[0]; g.wins = 4; g.rank = 1; G.tally.wins = 1;
   assert(EVENTS.quest.can(), 'a proven man may ask');
   G.pendingEvent = { id: 'quest', c: { g: g.id, q: 'village' } };
-  answerEvent(1);
-  assert(g.quest && g.quest.id === 'village' && !g.away, 'promised leave: the journey waits in his dossier');
-  assert(!questsFree().includes('village') && !questReady(g), 'one journey at a time, and nobody else is given the same one');
-  assert(sendQuest(g.id) && g.away && G.jobs[0].kind === 'quest', 'he sets out on the first step');
-  G.jobs[0].edge = 9; finishJob(G.jobs[0]);
-  assert(g.quest.step === 1 && !g.away && G.reports.length === 1, 'first step done; the second waits');
-  const o = G.roster[1]; g.injury = 0;
-  assert(sendQuest(g.id, o.id) && o.away === g.away, 'the second step may take a companion');
-  G.jobs[0].edge = 9; G.pendingEvent = null; finishJob(G.jobs[0]);
-  assert(byId(g.id) ? G.pendingEvent && G.pendingEvent.id === 'questVillage' : true, 'the last step ends in a choice');
-  if (byId(g.id)) {
+  answerEvent(0);
+  const place = wildSites().find(s => s.kind === 'slavers');
+  assert(g.quest && g.quest.id === 'village' && !g.away && wildMap().marks[place.id], 'promised: the place is marked on the map');
+  assert(!questsFree().includes('village') && !questReady(g) && siteLive(place), 'one journey at a time; its place is waiting');
+  // the school walks there, and it comes to a fight
+  assert(wildEnter() && G.field, 'the school marches out');
+  G.field.x = place.x; G.field.y = place.y;
+  assert(wildVisit(place) && G.pendingEvent.id === 'wJourney' && G.pendingEvent.c.g === g.id, 'walking up to it raises his journey');
+  const day = G.day;
+  answerEvent(0);
+  assert(G.field.fight && G.field.fight.win === 'slavers' && G.field.fight.foes.length === 5, 'the slavers stand and fight');
+  G.fac.barracks = 3; while (G.roster.length < 8) G.roster.push(welcome(makeGladiator(40)));
+  G.roster.forEach(x => { STATS.forEach(k => { x.stats[k] = 20; }); x.hp = maxHp(x); });
+  let B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0.3, 0] });
+  let guard = 0; while (B.winner !== 0 && guard++ < 20) { G.roster.forEach(x => { x.hp = maxHp(x); x.injury = 0; }); B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0.3, 0] }); }
+  const r = applyWildResult(B);
+  assert(r.win && siteDone(place) && G.day === day + 1 && !G.field.fight, 'won: the place is done and the day has gone');
+  assert(byId(g.id) ? G.pendingEvent && G.pendingEvent.id === 'questVillage' : true, 'and it ends in a choice');
+  if (byId(g.id)) { answerEvent(0); assert(g.traits.includes('bloodoath') && !g.quest && g.questDone === 'village' && g.grateful && !flightRisk(g), 'he is changed by it, and bound to the house'); }
+  // the quiet ones end without a fight
+  for (const [q, kind] of [['brother', 'quarry'], ['shrine', 'vow'], ['master', 'master']]) {
+    newGame(); G.tally.wins = 1; G.denarii = 5000; G.fac.barracks = 1;
+    const k = G.roster[0], n = G.roster.length; k.quest = { id: q, since: 1 }; wildEnter();
+    const s2 = wildSites().find(x => x.kind === kind);
+    assert(wildVisit(s2), q + ': the place answers'); answerEvent(0);
+    assert(G.pendingEvent && G.pendingEvent.id === QUESTS[q].finale && siteDone(s2), q + ': a day there, then the choice');
     answerEvent(0);
-    assert(g.traits.includes('bloodoath') && !g.quest && g.questDone === 'village' && g.grateful && !flightRisk(g), 'he is changed by it, and bound to the house');
+    assert(!k.quest && k.questDone === q, q + ' is finished');
+    if (q === 'brother') { const bro = G.roster[G.roster.length - 1]; assert(G.roster.length === n + 1 && bro.origin === k.origin && bondBetween(k, bro).type === 'friend' && k.traits.includes('atpeace'), 'his brother swears the oath beside him'); }
   }
-  // two failures end it
-  newGame(); const h = G.roster[0];
-  h.quest = { id: 'shrine', step: 0, since: G.day, tries: 0 };
-  sendQuest(h.id); G.jobs[0].edge = -9; finishJob(G.jobs[0]);
-  assert(h.quest && h.quest.tries === 1, 'one failure: he asks to try again');
-  h.injury = 0; sendQuest(h.id); G.jobs[0].edge = -9; finishJob(G.jobs[0]);
-  assert(!h.quest && h.questDone === 'failed', 'a second failure ends it');
-  // a brother joins the house
-  newGame(); G.denarii = 5000; G.fac.barracks = 1; const k = G.roster[0], n = G.roster.length;
-  k.quest = { id: 'brother', step: 1, since: 1, tries: 0 };
-  G.pendingEvent = { id: 'questBrother', c: EVENTS.questBrother.make() }; answerEvent(0);
-  const bro = G.roster[G.roster.length - 1];
-  assert(G.roster.length === n + 1 && bro.origin === k.origin && bondBetween(k, bro).type === 'friend' && k.traits.includes('atpeace'), 'his brother swears the oath beside him');
+  // a place with nobody's journey in it says nothing
+  newGame(); G.tally.wins = 1; wildEnter();
+  assert(!siteLive(wildSites().find(x => x.kind === 'quarry')) && !wildVisit(wildSites().find(x => x.kind === 'quarry')), 'the quarries are only stone to a school with no brother in them');
   // more than one matter can wait for an answer
   newGame(); raiseEvent('feast', EVENTS.feast.make()); raiseEvent('vigil', EVENTS.vigil.make());
   assert(G.pendingEvent.id === 'feast' && G.eventQueue.length === 1, 'the second waits behind the first');
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
+}));
+
+test('the province: land, fog, days in the field, fights, spoils and the eagle', () => game()(function () {
+  newGame();
+  // the land is the same for every house, and everything in it can be walked to
+  const L = wildLand(), sites = wildSites();
+  assert(L.t.length === WILD.TW * WILD.TH && L.sites.length === 40 && sites.length === 51, 'forty shuffled places and eleven fixed ones, got ' + sites.length);
+  assert(sites.every(s => L.reach[Math.floor(s.y / 10) * WILD.TW + Math.floor(s.x / 10)]), 'every place can be reached on foot from the town');
+  assert(wildWalk(WILD.TOWN.x, WILD.TOWN.y) && !wildWalk(5, 900) && wildTier(WILD.TOWN.x + 50, WILD.TOWN.y) === 1 && wildTier(2300, 120) === 5, 'town on dry land, sea to the west, danger grows with distance');
+  for (let t = 1; t <= 5; t++) assert(sites.some(s => s.tier === t), 'there are places of ' + t + ' skulls');
+  const fixedXY = sites.filter(s => s.fixed).map(s => s.x + ',' + s.y).join(';'), kinds1 = sites.map(s => s.kind).join();
+  newGame();
+  assert(wildSites().filter(s => s.fixed).map(s => s.x + ',' + s.y).join(';') === fixedXY && wildSites().map(s => s.kind).join() !== kinds1, 'another house finds the same country with its places shuffled');
+  // the gate, and the fog
+  assert(!gateOpen() && !wildEnter() && !G.field, 'the gate is shut until the first games');
+  G.tally.wins = 1;
+  assert(gateOpen() && wildEnter() && G.field && G.field.packs.length > 5, 'then the whole school may march out, and bands roam the country');
+  const seen0 = wildExplored();
+  assert(seen0 > 0 && wildSeen(G.field.x, G.field.y) && !wildSeen(2000, 300), 'the fog lifts only where you have been');
+  assert(wildReveal(1200, 900) && wildSeen(1200, 900) && wildExplored() > seen0 && !wildReveal(1200, 900), 'walking lifts more of it, once');
+  // days in the field: nothing is learned, marching tires, camp rests
+  const g = G.roster[0]; g.activity = 'str'; g.fatigue = 40; g.hp = maxHp(g) * 0.5;
+  const stats = JSON.stringify(g.stats) + JSON.stringify(g.prog), day = G.day;
+  fieldDay('march');
+  assert(G.day === day + 1 && JSON.stringify(g.stats) + JSON.stringify(g.prog) === stats && g.fatigue > 40, 'a day on the march: no training, more fatigue');
+  const f1 = g.fatigue, h1 = g.hp; fieldDay('camp');
+  assert(g.fatigue < f1 && g.hp > h1 && G.field.days === 2 && !G.pendingEvent, 'a day in camp rests them, and nothing from the town interrupts');
+  // every kind of place answers when walked up to, once
+  for (const kind of ['lair', 'camp', 'ruin', 'shrine', 'hermit', 'hamlet', 'healer', 'merchant']) {
+    const s = wildSites().find(x => x.kind === kind && !siteDone(x));
+    G.denarii = 5000; G.fac.barracks = 2;
+    assert(wildVisit(s) && G.pendingEvent && G.pendingEvent.c.sid === s.id, kind + ' raises its event');
+    assert(typeof EVENTS[G.pendingEvent.id].text(G.pendingEvent.c) === 'string', kind + ' has its words');
+    const out = answerEvent(0);
+    if (G.field.fight) { assert(G.field.fight.foes.length >= 2 && G.field.fight.sid === s.id, kind + ' comes to a fight'); G.field.fight = null; }
+    else assert(typeof out === 'string' && out.length > 10 && (siteDone(s) || kind === 'hermit'), kind + ' is dealt with: ' + out);
+    assert(!badNumber(G), kind + ' left a bad number');
+    G.pendingEvent = null; G.eventQueue = [];
+  }
+  // a fight in the wild: nine a side fits the field, and the result is settled
+  newGame(); G.tally.wins = 1; G.fac.barracks = 3;
+  while (G.roster.length < 9) G.roster.push(welcome(makeGladiator(40)));
+  wildEnter();
+  const lair = wildSites().filter(x => x.kind === 'lair').sort((a, b) => a.tier - b.tier)[0], coin = G.denarii, fame = G.fame;
+  wildVisit(lair); answerEvent(0); G.field.fight.foes = wildBeasts(1);
+  const foes9 = wildMen(1, 9), B9 = createBattle(fieldParty(), foes9, { wild: 'forest', hunt: true, noIntro: true });
+  assert(B9.fighters.length === 18 && B9.fighters.every(f => f.y >= B9.field.y0 && f.y <= B9.field.y1 && f.markX > 10 && f.markX < 204), 'eighteen men all stand on the field');
+  const ys = B9.fighters.filter(f => f.team === 0).map(f => Math.round(f.y)); assert(new Set(ys).size === 9, 'and no two of a side on the same spot');
+  let B = fight(fieldParty(), G.field.fight.foes, { wild: 'forest', hunt: true, mercy: [0.3, 0] });
+  assert(B.winner === 0, 'nine good men beat two wolves');
+  const res = applyWildResult(B);
+  assert(res.win && siteDone(lair) && G.denarii > coin - upkeep() && G.fame > fame && wildMap().cleared === 1 && /denarii/.test(res.lines.join()), 'the lair is cleared, and pays in coin and fame');
+  assert(!wildVisit(lair) && !siteLive(lair), 'and cannot be done again');
+  // defeat: men may die, the place remains
+  newGame(); G.tally.wins = 1; wildEnter();
+  const camp = wildSites().find(x => x.kind === 'camp'); wildVisit(camp); answerEvent(0);
+  G.field.fight.foes = wildMen(5, 8);
+  const n0 = G.roster.length; B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0, 0] });
+  const lost = applyWildResult(B);
+  assert(!lost.win && !siteDone(camp) && G.roster.length <= n0 && G.roster.every(x => x.injury > 0 || x.hp >= 1), 'beaten: the camp stands, and the men are dead or carried off');
+  // relics are real gear with something extra
+  newGame(); const it = wildRelic('crest'), plain = makeItem('head', 5);
+  assert(it.relic === 'crest' && itemName(it) === RELICS.crest.name && itemStats(it).critRes > itemStats(plain).critRes + 0.1 && itemPrice(it) > itemPrice(plain) && /Seventeenth/.test(itemEffect(it)), 'a relic is named, stronger and dearer than its grade');
+  assert(G.armoury.includes(it) && equip(G.roster[0], it.id) && gearStats(G.roster[0]).critRes > 0.15, 'and can be worn');
+  // the eagle: five steps across the map, then a choice at home
+  newGame(); G.tally.wins = 1; G.fac.barracks = 3; wildEnter();
+  const M = wildMap(), find = k => wildSites().find(x => x.kind === k);
+  assert(M.story === 0 && !siteLive(find('deserter')) && eagleLead() === '', 'nothing is known at first');
+  const tomb = wildSites().find(x => x.kind === 'ruin' && x.tier >= 2); ruinLoot(tomb, 1);
+  assert(M.story === 1 && M.marks.deserter && siteLive(find('deserter')) && eagleLead().length > 20, 'a tomb gives the first clue and marks the old soldier');
+  wildVisit(find('deserter')); answerEvent(0);
+  assert(M.story === 2 && M.marks.battlefield && siteDone(find('deserter')), 'the old soldier points to the battlefield');
+  for (const [kind, win, next] of [['battlefield', 'battlefield', 3], ['chief', 'chief', 4], ['barrow', 'barrow', 5]]) {
+    assert(siteLive(find(kind)), kind + ' is open');
+    wildVisit(find(kind)); answerEvent(0);
+    assert(G.field.fight && G.field.fight.win === win && G.field.fight.foes.length >= 6 && G.field.fight.foes.length <= 9, kind + ' is a real fight of ' + G.field.fight.foes.length);
+    const lines = WILD_WINS[win](G.field.fight); G.field.fight = null;
+    assert(M.story === next && lines.length > 0 && siteDone(find(kind)), kind + ' moves the story on');
+  }
+  assert(M.relics.includes('crest') && M.relics.includes('vambrace') && G.armoury.some(x => x.relic === 'crest'), 'One-Eye and the barrow each give up a relic');
+  wildLeave();
+  assert(!G.field && G.pendingEvent && G.pendingEvent.id === 'eagleHome', 'home with the eagle: a choice');
+  answerEvent(1);
+  assert(M.story === 6 && M.eagle === 'kept' && G.roster.every(x => x.traits.includes('eaglesworn')) && welcome(makeGladiator(20)).traits.includes('eaglesworn'), 'kept over the gate, it marks every man of the house');
+  // what the family knows outlives the house
+  const walked = wildExplored(), cleared = M.cleared;
+  G.denarii = -100; G.debtDays = 99; endDay();
+  assert(G.ruin, 'the house falls'); startHeir();
+  assert(wildMap().story === 6 && wildExplored() === walked && wildMap().cleared === cleared && G.field === null && G.roster.every(x => x.traits.includes('eaglesworn')), 'the heir keeps the map, the tale and the eagle');
+  // old saves: a man away on a journey of the old kind is brought home and his place marked
+  newGame(); const old = G.roster[0]; old.quest = { id: 'master', step: 0, since: 1, tries: 0 }; old.away = 77; G.jobs.push({ id: 77, kind: 'quest', type: 'master', ids: [old.id], end: 9 });
+  delete G.field; delete G.dynasty.map; migrate();
+  assert(!old.away && !G.jobs.length && G.field === null && wildMap().marks.master, 'the old journey becomes a mark on the map');
 }));
 
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {

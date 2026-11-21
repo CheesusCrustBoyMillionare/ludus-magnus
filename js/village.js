@@ -73,15 +73,17 @@ function villagePlace(key) {
 }
 // Sends him to a door on his own feet. `then` runs when he gets there.
 function villageWalkTo(key, then) {
+  if (key === 'gate') { vil.then = null; vil.path = vilPath(vil.x, vil.y, 582, 73); return; }
   const p = placeOf(key);
   vil.then = then || null;
   if (vil.at === p.key && Math.hypot(vil.x - p.dx, vil.y - p.dy) < 7) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); return; }
   vil.path = vilPath(vil.x, vil.y, p.dx, p.dy);
 }
-// Which building a click landed on.
+// Which building a click landed on ('gate' for the way out of town).
 function villagePick(cv, e) {
   const r = cv.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width * VILLAGE.W, y = (e.clientY - r.top) / r.height * VILLAGE.H;
+  if (x > 566 && y > 48 && y < 92) return 'gate';
   const p = PLACES.find(b => x >= b.x - 3 && x <= b.x + b.w + 3 && y >= b.y - 9 && y <= b.y + b.h + 10);
   return p ? p.key : null;
 }
@@ -125,6 +127,9 @@ function villageStep(dt, frozen) {
   // a doorstep opens when you step onto it; a man sent somewhere walks past the doors on his way without looking in
   if (here && vil.at !== here.key && !vil.path) { vil.at = here.key; if (typeof villageEnter === 'function') villageEnter(here.key); }
   else if (!here) vil.at = null;
+  // the east gate: walk into it and the school marches out, if it is open
+  if (vil.x > 578 && vil.y > 62 && vil.y < 84) { if (!vil.gated) { vil.gated = true; vil.path = null; villageStill(); if (typeof villageGate === 'function') villageGate(); } }
+  else if (vil.x < 570) vil.gated = false;
 
   // townsfolk, going from door to door about their own business
   if (!vil.npcs.length) {
@@ -250,7 +255,7 @@ function drawVillage(cv, T) {
   const dt = Math.min(0.25, Math.max(0, T - (vil.prev || T))); vil.prev = T;      // a slow frame still moves him its full distance
   const modal = document.getElementById('modal'), frozen = (modal && !modal.hidden) || !!G.ruin;
   if (frozen) villageStill();
-  villageStep(dt, frozen);
+  villageStep(dt, frozen || !!G.field);            // while the school is out in the province the same keys walk the column there, not him here
 
   const ctx = cv.getContext('2d');
   ctx.setTransform(VILLAGE.S, 0, 0, VILLAGE.S, 0, 0); ctx.imageSmoothingEnabled = false;
@@ -267,6 +272,14 @@ function drawVillage(cv, T) {
   const a = placeOf('arena'), acx = a.x + a.w / 2;
   for (const [ox, col] of [[-50, '#8a2a20'], [-28, '#c9a21e'], [28, '#2f6db8'], [50, '#8a2a20']]) { const fy = a.y + 28 - Math.round(26 * Math.sqrt(1 - (ox * ox) / (63 * 63))) - 7; R(acx + ox, fy, 1, 8, '#5a4326'); R(acx + ox + 1, fy + (Math.sin(T * 4 + ox) > 0 ? 0 : 1), 5, 3, col); }
 
+  // the east gate: barred until the school has fought its first games
+  const open = typeof gateOpen === 'function' && gateOpen();
+  R(572, 52, 18, 12, '#b8ab94'); R(572, 82, 18, 12, '#b8ab94'); R(572, 52, 18, 2, '#d8cdb6'); R(572, 82, 18, 2, '#d8cdb6'); R(572, 62, 18, 2, '#8f846e'); R(572, 92, 18, 2, '#8f846e');
+  for (let i = 572; i < 590; i += 4) { R(i, 50, 2, 2, '#d8cdb6'); R(i, 80, 2, 2, '#d8cdb6'); }
+  R(576, 64, 12, 2, '#8f846e'); R(576, 80, 12, 2, '#6f6654');
+  if (!open) { R(578, 66, 9, 14, '#5a3c20'); R(578, 66, 9, 1, '#7a5632'); R(582, 66, 1, 14, '#3a2416'); R(578, 72, 9, 2, '#3a2a1c'); }
+  R(585, 44, 1, 8, '#5a4326'); R(586, 44 + (Math.sin(T * 4) > 0 ? 0 : 1), 4, 3, '#a02d22');
+  if (ui.wayTo === 'gate') { const ay = 46 + Math.round(Math.sin(T * 6) * 2); R(579, ay, 3, 6, '#f5d584'); R(577, ay + 6, 7, 1, '#f5d584'); R(578, ay + 7, 5, 1, '#f5d584'); R(579, ay + 8, 3, 1, '#f5d584'); }
   // the doorstep of the screen now open, and of wherever the steward is sending you
   const cur = PLACES.find(p => p.key === ui.tab);
   if (cur) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 4); R(cur.dx - 6, cur.dy - 4, 12, 5, '#f5d584'); ctx.globalAlpha = 1; }
@@ -281,6 +294,7 @@ function drawVillage(cv, T) {
   // names over the doors, the open one in gold, and how many things wait inside
   const marks = typeof villageMarks === 'function' ? villageMarks() : {};
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 96, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#a8947a'; ctx.fillText('GATE', 590 - w / 2 - 1, 102); }
   for (const p of PLACES) {
     const on = p.key === ui.tab, w = Math.ceil(ctx.measureText(p.name.toUpperCase()).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);
     R(lx, ly, w, 8, on ? '#f5d584' : 'rgba(24,16,10,.82)'); R(lx, ly + 7, w, 1, on ? '#b6832c' : '#000');
