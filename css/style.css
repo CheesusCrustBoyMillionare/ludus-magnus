@@ -773,3 +773,7 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 /* the four scenes are drawn at a whole-number scale at or above what the screen shows (fitScenes in main.js),
    so they are only ever shrunk a little: smoothly, not by dropping rows of pixels */
 #yard, #village, #wildCanvas, #arenaCanvas { image-rendering: auto; }
+
+/* the dossier: the whole man as the arena draws him, beside his face */
+.dossier .dhead .figure { margin-left: -6px; }
+#camp .dossier .dhead .figure { display: none; }

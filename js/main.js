@@ -559,6 +559,7 @@ function gladDetail(g) {
   return `<div class="panel dossier">
     <div class="dhead">
       <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
+      <canvas class="portrait figure" width="192" height="224" data-figure="${g.id}"${tip('As he stands on the sand, in the kit he wears now. Change his gear and this changes with it.')}></canvas>
       <div style="flex:1;min-width:180px">
         <h2>${g.name}</h2>
         <div>${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin}</div>
@@ -1467,9 +1468,24 @@ function viewChronicle() {
   </div>`;
 }
 
+// The whole man as the arena draws him, in what he wears now, against the arena's wall and sand.
+function paintFigure(cv, g) {
+  const ctx = cv.getContext('2d'), k = 4, w = cv.width / k, h = cv.height / k;
+  ctx.setTransform(k, 0, 0, k, 0, 0); ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#54433a'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#483930';
+  for (let y = 4, r = 0; y < h - 8; y += 6, r++) { ctx.fillRect(0, y, w, 1); for (let x = r % 2 ? 4 : 10; x < w; x += 12) ctx.fillRect(x, y - 5, 1, 5); }
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(0, 0, w, 2);
+  ctx.fillStyle = '#c9a763'; ctx.fillRect(0, h - 8, w, 8); ctx.fillStyle = '#a88a52'; ctx.fillRect(0, h - 8, w, 1);
+  drawSprite(ctx, { x: Math.round(w / 2) - 4, y: Math.round(h) - 4, facing: 1, g, team: 0, col: TEAM_COL[0], colD: TEAM_DARK[0],
+    moving: false, walk: 0, clock: 0, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0,
+    hurt: g.hp < maxHp(g) * 0.3 ? 3 : g.hp < maxHp(g) * 0.55 ? 2 : g.hp < maxHp(g) * 0.8 ? 1 : 0 });
+}
+
 function paintPortraits() {
   document.querySelectorAll('[data-item]').forEach(paintItem);
   document.querySelectorAll('[data-portrait]').forEach(cv => { const g = byId(cv.dataset.portrait); if (g) drawPortrait(cv, g, 0); });
+  document.querySelectorAll('[data-figure]').forEach(cv => { const g = byId(cv.dataset.figure); if (g) paintFigure(cv, g); });
   document.querySelectorAll('[data-rportrait]').forEach(cv => {
     const [hid, gid] = cv.dataset.rportrait.split(':');
     const g = houseOf(hid).roster.find(x => x.id === +gid), d = houseDef(hid);
