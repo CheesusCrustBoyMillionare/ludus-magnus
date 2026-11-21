@@ -1615,8 +1615,30 @@ function paintOrders() {
   el.hidden = !pick;
   if (pick) {
     const tg = pick.target && !out(pick.target) ? pick.target : null, edge = tg ? styleEdge(pick.style, tg.style) : 1;
-    el.innerHTML = `<div class="who">${pick.g.name} is charged ${styleMark(pick.g)}${tg ? ` <span class="vs">against ${tg.g.name}, ${Math.max(0, Math.round(tg.hp))} of ${tg.maxHp} health${edge > 1 ? ' <b class="good">&#9650; his style gives way to yours</b>' : edge < 1 ? ' <b class="bad">&#9660; his style beats yours</b>' : ''}</span>` : ''}</div><div class="abrow">${pick.abl.map((a, i) =>
-      `<button data-act="abpick" data-v="${a.id}"><span class="key">${i + 1}</span><b>${a.name}</b><small>${a.desc}</small></button>`).join('')}</div>`;
+    const side = (f, foe) => {
+      const st = [];
+      if (f.stun > 0.3) st.push('Stunned'); if (f.snare > 0) st.push('Netted'); if (f.hamstrung) st.push('Hamstrung'); if (f.armWound) st.push('Arm wounded');
+      if (f.bleed > 0) st.push('Bleeding'); if (f.open > 0) st.push('Exposed'); if (f.weakT > 0) st.push('Weakened'); if (f.buff) st.push('Roused'); if (f.state === 'windup') st.push('Winding up');
+      return `<div class="pside${foe ? ' foe' : ''}"><canvas width="96" height="112" data-rface="${B.fighters.indexOf(f)}"></canvas>
+        <div><b>${f.g.beast ? 'The ' + f.c.name.toLowerCase() : f.g.name}</b> ${f.g.beast ? '' : styleMark(f.g)}<small>${foe ? 'his mark' : 'is charged'}</small>
+        <div class="bar hp"><i style="width:${Math.round(clamp(f.hp / f.maxHp, 0, 1) * 100)}%"></i></div>
+        <div class="st"><span class="num">${Math.max(0, Math.round(f.hp))} / ${f.maxHp}</span>${st.map(w => `<span class="chip">${w}</span>`).join('')}</div></div></div>`;
+    };
+    const reads = pick.abl.map(a => abilityRead(B, pick, a)), bestI = reads.reduce((b, r, i) => r.score > reads[b].score ? i : b, 0);
+    const card = (a, i) => {
+      const r = reads[i], n = pick.used[a.name] || 0;
+      return `<button data-act="abpick" data-v="${a.id}" class="${i === bestI && pick.abl.length > 1 ? 'sug' : ''}" style="--sk:${a.skill ? STYLE_COL[a.skill] : '#e0aa3e'}">
+        <span class="key">${i + 1}</span>${i === bestI && pick.abl.length > 1 ? '<span class="rib">Suggested</span>' : ''}
+        <b>${a.skill ? ic(a.skill) : ''}${a.name}</b>
+        <span class="tags">${abilityTags(a).map(t => `<i>${t}</i>`).join('')}</span>
+        <small>${a.desc}</small>
+        ${r.notes.map(([t, good]) => `<span class="note ${good ? 'good' : 'bad'}">${good ? '&#9650;' : '&#9660;'} ${t}</span>`).join('')}
+        <span class="foot"><span>${r.dmg ? `about <b>${r.dmg}</b> damage` : '&nbsp;'}</span>${n ? `<em>used ${n === 1 ? 'once' : n + ' times'}</em>` : ''}</span></button>`;
+    };
+    el.innerHTML = `<div class="phead">${side(pick)}<div class="pmid"><b>Choose</b>${tg ? (edge > 1 ? '<span class="good">&#9650; his style gives way to yours</span>' : edge < 1 ? '<span class="bad">&#9660; his style beats yours</span>' : '<span>neither style has the edge</span>') : '<span>no one in front of him</span>'}</div>${tg ? side(tg, true) : '<div class="pside foe"></div>'}</div>
+      <div class="abrow">${pick.abl.map(card).join('')}</div>
+      <div class="pfoot"><span>Keys <b>1</b>&ndash;<b>${pick.abl.length}</b> choose</span><button class="mini" data-act="abpickai">Let him choose <span class="k">A</span></button></div>`;
+    paintResultFaces();
     SFX.ui('chime');
   }
 }
@@ -2000,6 +2022,7 @@ const ACTIONS = {
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
+  abpickai() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && !out(B.pick) && pickAbility(B, aiPickAbility(B, B.pick).id)) paintOrders(); },
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
   cutins() { ui.noCut = !ui.noCut; try { localStorage.setItem('ludus-magnus-cutins', ui.noCut ? '0' : '1'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.cutins = !ui.noCut; fight.ordState = ''; paintOrders(); } },
   abil(v, w) { const g = byId(v); if (g && toggleAbility(g, w)) { save(); render(); } },
@@ -2195,6 +2218,7 @@ document.addEventListener('keydown', e => {
   if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
   const B = fight.B;
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
+  else if (B.pick && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); ACTIONS.abpickai(); }
   else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); ACTIONS.order('yield'); }
   else if (e.key === ' ' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) { e.preventDefault(); ACTIONS.pause(); }
 });

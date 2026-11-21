@@ -313,6 +313,53 @@ function aiPickAbility(B, f) {
   }
   return best;
 }
+// What an ability does, in a few short words each, for the player choosing between them.
+function abilityTags(a) {
+  const x = a.fx, t = [];
+  if (x.mult) t.push(`${Math.round(x.mult * 100)}%${(x.n || 1) > 1 ? ' x' + x.n : ''} damage`);
+  if (x.aoe) t.push('All foes near');
+  if (x.lunge) t.push('Rush');
+  if (x.stun) t.push(`Stun ${x.stun}s`);
+  if ((x.kb || 0) >= 60) t.push('Throws back');
+  if (x.bleed) t.push('Bleed');
+  if (x.ham) t.push('Hamstring');
+  if (x.pierce) t.push('Ignores armour');
+  if (x.unblockable) t.push('Unblockable');
+  if (x.nodge) t.push('Cannot be dodged');
+  if (x.crit) t.push('Sure crit');
+  if (x.exec) t.push('Finisher');
+  if (x.net) t.push(`Net ${x.net}s`);
+  if (x.weak) t.push('Weakens');
+  if (x.expose) t.push('Exposes');
+  if (x.back) t.push('Springs back');
+  if (x.heal) t.push(`Heals ${Math.round(x.heal * 100)}%`);
+  if (x.cleanse) t.push('Cleanses');
+  if (x.buff) { const b = x.buff, k = []; if (b.dr > 0) k.push('Toughness'); if (b.block) k.push('Block'); if (b.dodge) k.push('Dodge'); if (b.dmg > 0) k.push('Fury'); if (b.haste) k.push('Haste'); t.push(`${k.join(' + ') || 'Roused'} ${b.t}s`); }
+  return t;
+}
+// How an ability sits with the moment: a score to rank them by, what there is to say for and against it right now,
+// and roughly what it would do to the man in front of him. The same things a man weighs when he chooses for himself
+// (aiPickAbility), without the dice.
+function abilityRead(B, f, a) {
+  const t = f.target && !out(f.target) ? f.target : null, x = a.fx, hurt = f.hp / f.maxHp, notes = [];
+  let s = a.tier || 0;
+  const say = (v, text, good) => { s += v; notes.push([text, good]); };
+  if (x.heal) { if (hurt < 0.45) say(4, 'He is badly hurt', 1); else if (hurt >= 0.7) say(-6, 'He is barely hurt', 0); }
+  if (x.buff && !x.mult) { if (f.buff) say(-6, 'He is already roused', 0); else if ((x.buff.dr > 0 || x.buff.block || x.buff.dodge) && hurt < 0.6) say(1.5, 'He could use the guard', 1); }
+  if (x.aoe && t) { const n = B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe).length; if (n >= 2) say(n >= 3 ? 3 : 1.5, `${n} foes in reach of it`, 1); else say(-1.5, 'Only one foe in reach of it', 0); }
+  if (x.net && t && t.snare > 0) say(-4, 'He is already netted', 0);
+  if (x.exec && t && t.hp < t.maxHp * 0.4) say(2.5, 'He is failing: this hits far harder', 1);
+  if (x.ham && t && t.hamstrung) say(-4, 'He is already hamstrung', 0);
+  if (x.stun && t && t.state === 'windup') say(1, 'Breaks the blow he is winding up', 1);
+  if (x.lunge && t && Math.hypot(t.x - f.x, t.y - f.y) > f.reach * 1.5) say(1.5, 'Closes the distance', 1);
+  let dmg = 0;
+  if (x.mult && t) {
+    const per = Math.max(1, Math.round(f.dmg * x.mult * (x.exec && t.hp < t.maxHp * 0.4 ? x.exec : 1) * styleEdge(f.style, t.style) - (x.pierce ? 0 : t.armor)));
+    dmg = per * (x.n || 1);
+    if (dmg >= t.hp) say(3, 'Enough to put him down, if it lands', 1);
+  }
+  return { score: s, notes, dmg };
+}
 // The player has chosen for the man the fight stopped for.
 function pickAbility(B, id) {
   const f = B.pick;

@@ -821,3 +821,39 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .resthen ul { margin: 4px 0 0; }
 .resthen li { margin: 2px 0; }
 @media (max-width: 560px) { .resmen.two { grid-template-columns: 1fr; } .resfoe { grid-template-columns: 24px minmax(0, 1fr) 60px 60px; } .resfoe .bar { display: none; } }
+
+/* ---- choosing an ability: who is choosing, against whom, and what each choice would do ---- */
+#arenaPick { width: min(960px, 96%); padding: 10px 12px 8px; }
+#arenaPick .phead { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center; margin-bottom: 8px; }
+#arenaPick .pside { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; align-items: center; min-width: 0; }
+#arenaPick .pside.foe { grid-template-columns: minmax(0, 1fr) 36px; text-align: right; }
+#arenaPick .pside.foe canvas { order: 2; }
+#arenaPick .pside canvas { width: 36px; height: 42px; image-rendering: pixelated; border: 1px solid #3a2414; }
+#arenaPick .pside b { font: 700 14px var(--display); letter-spacing: .08em; text-transform: uppercase; color: #7a1f16; }
+#arenaPick .pside.foe b { color: #1f3f6a; }
+#arenaPick .pside small { font: 11px Georgia, serif; color: #6b573c; margin: 0 6px; }
+#arenaPick .pside .bar { margin: 2px 0; height: 7px; }
+#arenaPick .pside.foe .bar i { background: #3f6fb0; margin-left: auto; }
+#arenaPick .pside .st { font-size: 11px; color: #54401f; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+#arenaPick .pside.foe .st { justify-content: flex-end; }
+#arenaPick .pside .chip { margin: 0; font-size: 9px; padding: 0 5px; color: #2c1c10; background: rgba(120, 80, 30, .16); border-color: rgba(90, 60, 20, .6); }
+#arenaPick .pmid { text-align: center; font: 11px Georgia, serif; color: #54401f; white-space: nowrap; }
+#arenaPick .pmid b { display: block; font: 700 15px var(--display); letter-spacing: .16em; text-transform: uppercase; color: #2c1c10; }
+#arenaPick .pmid .good { color: #3a7226; font-weight: bold; } #arenaPick .pmid .bad { color: #a3261b; font-weight: bold; }
+#arenaPick .abrow button { display: flex; flex-direction: column; gap: 3px; padding: 7px 9px 6px; border-top: 3px solid var(--sk, #e0aa3e); }
+#arenaPick .abrow button.sug { box-shadow: 0 0 0 2px #e0aa3e, inset 0 1px 0 rgba(240, 205, 140, .3); }
+#arenaPick .abrow button b { display: flex; align-items: center; gap: 5px; font-size: 14px; padding-right: 18px; }
+#arenaPick .abrow button b .ic { width: 14px; height: 14px; flex: none; }
+#arenaPick .abrow button .rib { align-self: flex-start; font: 700 9px var(--display); letter-spacing: .1em; text-transform: uppercase; color: #24170f; background: #e0aa3e; padding: 0 5px; text-shadow: none; }
+#arenaPick .tags { display: flex; flex-wrap: wrap; gap: 3px; }
+#arenaPick .tags i { font: normal 10px Georgia, serif; text-transform: none; letter-spacing: 0; text-shadow: none; color: #f1e6c8; background: rgba(0, 0, 0, .35); border: 1px solid rgba(232, 194, 122, .25); padding: 0 4px; border-radius: 2px; white-space: nowrap; }
+#arenaPick .abrow button small { margin: 0; }
+#arenaPick .note { font: 11px Georgia, serif; text-transform: none; letter-spacing: 0; text-shadow: none; }
+#arenaPick .note.good { color: #a8d88a; } #arenaPick .note.bad { color: #f0a090; }
+#arenaPick .foot { margin-top: auto; padding-top: 3px; display: flex; justify-content: space-between; gap: 8px; font: 11px Georgia, serif; text-transform: none; letter-spacing: 0; text-shadow: none; color: #cdbf9f; border-top: 1px solid rgba(232, 194, 122, .18); }
+#arenaPick .abrow button .foot b { display: inline; font: bold 13px Georgia, serif; color: #ffd24a; padding: 0; }
+#arenaPick .foot em { font-style: normal; opacity: .8; }
+#arenaPick .pfoot { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; font: 11px Georgia, serif; color: #54401f; }
+#arenaPick .pfoot button.mini { display: inline-block; padding: 2px 9px; font-size: 11px; }
+#arenaPick .pfoot .k { font: bold 10px Consolas, monospace; opacity: .7; margin-left: 4px; }
+@media (max-width: 760px) { #arenaPick .abrow { grid-template-columns: repeat(2, minmax(0, 1fr)); } #arenaPick .pmid span { display: none; } }
