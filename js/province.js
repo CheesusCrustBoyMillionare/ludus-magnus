@@ -164,7 +164,11 @@ function provStep(dt) {
     prov.walk += dt * 10;
     const last = prov.trail[0];
     if (!last || Math.hypot(last.x - F.x, last.y - F.y) > 5) { prov.trail.unshift({ x: F.x, y: F.y }); if (prov.trail.length > 16) prov.trail.pop(); }
+    const knew = prov.known;
     wildReveal(F.x, F.y);
+    prov.known = Object.keys(wildMap().seen).length;
+    if (knew !== undefined && prov.known > knew) SFX.ui('discover');
+    prov.stepT = (prov.stepT || 0) - dt; if (prov.stepT <= 0) { prov.stepT = 0.34; SFX.ui('march'); }
   }
   // roaming bands: they wander their own ground; outlaws come for you if you stray close
   for (const p of F.packs) {

@@ -6,7 +6,7 @@ const SFX = (() => {
   const MUTE_KEY = 'ludus-magnus-mute', LEVEL = 0.7;
   let ctx = null, master = null, bus = null, verb = null, noiseBuf = null, muted = false;
   let murmur = null, roar = null, roarBand = null, boost = 0, voices = 0;
-  let musicBus = null, drone = null, musicOn = true;
+  let musicBus = null, drone = null, musicOn = true, amb = null;
   const MUSIC_KEY = 'ludus-magnus-music', MUSIC_LEVEL = 0.22;      // well under the blows and the crowd
   const last = {};
   try { muted = localStorage.getItem(MUTE_KEY) === '1'; musicOn = localStorage.getItem(MUSIC_KEY) !== '0'; } catch (e) { /* storage unavailable */ }
@@ -154,6 +154,40 @@ const SFX = (() => {
     heal(v, pan) { [392, 494, 587].forEach((f, i) => tone({ f0: f, dur: 0.5, vol: 0.07, attack: 0.02, delay: i * 0.08, pan, wet: 0.5 })); },
     // a weapon swung through a crowd
     sweep(v, pan) { noise({ dur: 0.32, type: 'bandpass', f0: 300, f1: 2600, vol: 0.4, q: 1.3, attack: 0.07, pan, wet: 0.35 }); tone({ f0: 160, f1: 70, dur: 0.22, vol: 0.25, attack: 0.02, delay: 0.1, pan, wet: 0.3 }); },
+    // off the ground and down with his whole weight: the air, then the sand
+    leap(v, pan) {
+      noise({ dur: 0.24, type: 'bandpass', f0: 380, f1: 2100, vol: 0.28, q: 1.4, attack: 0.07, pan, wet: 0.3 });
+      tone({ f0: 104, f1: 34, dur: 0.3, vol: 0.19, attack: 0.004, delay: 0.24, pan, wet: 0.4 });
+      noise({ dur: 0.2, f0: 620, f1: 110, vol: 0.2, delay: 0.24, pan, wet: 0.35 });
+      cheer(0.1);
+    },
+    // one placed stroke: a short hiss of steel and the ring of it
+    thrust(v, pan) {
+      noise({ dur: 0.1, type: 'bandpass', f0: 1500, f1: 4600, vol: 0.4, q: 2.4, attack: 0.02, pan, wet: 0.25 });
+      clang(1250 * rnd(0.94, 1.06), 0.055, 0.3, pan, 0.45, 0.07);
+    },
+    // cut upon cut: quick breaths of air, each a little higher
+    flurry(v, pan) {
+      for (let i = 0; i < 4; i++) noise({ dur: 0.07, type: 'bandpass', f0: 900 + i * 320, f1: 2600 + i * 420, vol: 0.3, q: 2, attack: 0.012, delay: i * 0.075, pan, wet: 0.2 });
+      tone({ f0: 1500, f1: 2300, dur: 0.3, vol: 0.04, attack: 0.05, pan, wet: 0.4 });
+    },
+    // he sets his feet behind his guard: wood and bronze knocked together, and a grunt of breath
+    brace(v, pan) {
+      tone({ f0: 170, f1: 80, dur: 0.12, vol: 0.38, attack: 0.002, pan, wet: 0.3 });
+      clang(470 * rnd(0.96, 1.04), 0.1, 0.5, pan, 0.5, 0.02);
+      noise({ dur: 0.22, type: 'bandpass', f0: 420, f1: 300, vol: 0.12, q: 1.2, attack: 0.05, delay: 0.05, pan, wet: 0.3 });
+    },
+    // he draws himself up: a breath in, and two rising notes
+    surge(v, pan) {
+      noise({ dur: 0.4, type: 'bandpass', f0: 500, f1: 1900, vol: 0.16, q: 1.4, attack: 0.18, pan, wet: 0.4 });
+      [330, 495].forEach((f, i) => tone({ type: 'triangle', f0: f, f1: f * 1.02, dur: 0.38, vol: 0.06, attack: 0.03, delay: 0.05 + i * 0.1, pan, wet: 0.5 }));
+    },
+    // a skip out of reach: two light feet on the sand
+    hop(v, pan) { for (let i = 0; i < 2; i++) noise({ dur: 0.08, type: 'highpass', f0: 2200, vol: 0.1, attack: 0.01, delay: i * 0.17, pan }); noise({ dur: 0.16, type: 'bandpass', f0: 500, f1: 1300, vol: 0.11, q: 1.3, attack: 0.05, pan, wet: 0.2 }); },
+    // a man's wits knocked loose: a dull bell that wavers
+    stun(v, pan) { tone({ f0: 620, f1: 560, dur: 0.5, vol: 0.07, attack: 0.004, vib: 0.03, pan, wet: 0.5 }); tone({ f0: 930, f1: 860, dur: 0.35, vol: 0.035, attack: 0.004, vib: 0.03, pan, wet: 0.5 }); },
+    // your man is charged and the fight waits on you: a rising pair of notes on the horn
+    ready() { brass(392, 0.14, 0.05, 0, 0.5); brass(587, 0.32, 0.06, 0.13, 0.5); },
     special(v, pan, kind) {
       if (kind === 'beast') {                      // a roar, not a flourish
         tone({ type: 'sawtooth', f0: 105, f1: 58, dur: 0.55, vol: 0.3, attack: 0.05, lp: 420, lp1: 900, vib: 0.05, pan, wet: 0.6 });
@@ -198,6 +232,13 @@ const SFX = (() => {
     herald() { brass(294, 0.2, 0.07, 0, 0.5); brass(392, 0.55, 0.08, 0.22, 0.5); },
     chime() { [660, 880, 1320].forEach((f, i) => tone({ f0: f, dur: 0.5, vol: 0.06, attack: 0.004, delay: i * 0.09, wet: 0.3 })); },
     thud() { tone({ f0: 95, f1: 45, dur: 0.2, vol: 0.14, attack: 0.003 }); tone({ f0: 85, f1: 40, dur: 0.25, vol: 0.14, attack: 0.003, delay: 0.16 }); },
+    door() { tone({ f0: 210, f1: 150, dur: 0.07, vol: 0.12, attack: 0.002 }); noise({ dur: 0.16, type: 'bandpass', f0: 340, f1: 620, vol: 0.07, q: 3, attack: 0.05, delay: 0.04 }); },      // a latch, and the hinge
+    step() { noise({ dur: 0.05, type: 'bandpass', f0: 700 * rnd(0.8, 1.25), f1: 300, vol: 0.3, q: 0.9, attack: 0.004 }); },                                                              // one foot on a dirt street
+    march() { noise({ dur: 0.07, f0: 520 * rnd(0.85, 1.2), f1: 160, vol: 0.25, attack: 0.004 }); noise({ dur: 0.05, f0: 420, f1: 150, vol: 0.14, attack: 0.004, delay: 0.09 }); },         // many feet, not in step
+    discover() { [587, 784].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 0.45, vol: 0.05, attack: 0.006, delay: i * 0.12, wet: 0.4 })); },                                       // something new on the map
+    camp() { tone({ f0: 98, dur: 1.0, vol: 0.06, attack: 0.02, wet: 0.5 }); for (let i = 0; i < 9; i++) noise({ dur: 0.03, type: 'highpass', f0: rnd(1800, 4200), vol: rnd(0.03, 0.08), attack: 0.002, delay: 0.25 + i * rnd(0.09, 0.17) }); },     // night comes down, and a fire catches
+    warn() { tone({ type: 'triangle', f0: 196, f1: 185, dur: 0.12, vol: 0.1, attack: 0.004 }); tone({ type: 'triangle', f0: 196, f1: 185, dur: 0.16, vol: 0.1, attack: 0.004, delay: 0.14 }); },                                                // are you sure?
+    hint() { tone({ f0: 523, dur: 0.22, vol: 0.045, attack: 0.01, wet: 0.3 }); tone({ f0: 659, dur: 0.3, vol: 0.04, attack: 0.01, delay: 0.1, wet: 0.3 }); },                                // the steward clears his throat
     gate() { noise({ dur: 0.3, f0: 300, f1: 120, vol: 0.12, attack: 0.05 }); tone({ f0: 70, f1: 50, dur: 0.18, vol: 0.14, attack: 0.003, delay: 0.26 }); },   // a man leaves by the gate
   };
 
@@ -341,7 +382,7 @@ const SFX = (() => {
     },
     // For tuning: writes out some seconds of a piece without playing it and reports how loud it is.
     async probeMusic(mode, seconds, heat) {
-      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn];
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn], keepAmb = amb;
       const keepM = Object.assign({}, M);
       ctx = null; muted = false; musicOn = true;
       try {
@@ -353,7 +394,7 @@ const SFX = (() => {
         for (let i = 44100 * 2; i < L.length; i++) { const a = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (a > peak) peak = a; sum += (L[i] * L[i] + R[i] * R[i]) / 2; n++; }
         return { peak: Math.round(peak * 1000) / 1000, rms: Math.round(Math.sqrt(sum / n) * 1000) / 1000, steps: M.step };
       } finally {
-        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn] = keep;
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn] = keep; amb = keepAmb;
         Object.assign(M, keepM);
       }
     },
@@ -370,6 +411,32 @@ const SFX = (() => {
       roar.gain.setTargetAtTime(exc * 0.05 + boost * 0.55, t, 0.07);
       roarBand.frequency.setTargetAtTime(900 + boost * 1100 + exc * 300, t, 0.1);
     },
+    // The weather and the hour over the town: rain as a wash of noise, night as crickets. Both 0 to 1; called every frame.
+    ambience(rain, night) {
+      if (!ctx) return;
+      if (!amb) {
+        if (!(rain > 0.02 || night > 0.3)) return;            // nothing to build until there is something to hear
+        try {
+          const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+          const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
+          const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 7000;
+          const rg = ctx.createGain(); rg.gain.value = 0;
+          src.connect(hp); hp.connect(lp); lp.connect(rg); rg.connect(bus); src.start(0, Math.random());
+          // crickets: a high thin note, chopped fast, coming and going
+          const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = 4300;
+          const chop = ctx.createGain(); chop.gain.value = 0.5;
+          const fast = ctx.createOscillator(); fast.type = 'square'; fast.frequency.value = 23; const fd = ctx.createGain(); fd.gain.value = 0.5; fast.connect(fd); fd.connect(chop.gain);
+          const swell = ctx.createGain(); swell.gain.value = 0.5;
+          const slow = ctx.createOscillator(); slow.frequency.value = 0.7; const sd = ctx.createGain(); sd.gain.value = 0.5; slow.connect(sd); sd.connect(swell.gain);
+          const cg = ctx.createGain(); cg.gain.value = 0;
+          osc.connect(chop); chop.connect(swell); swell.connect(cg); cg.connect(bus); osc.start(); fast.start(); slow.start();
+          amb = { rg, cg };
+        } catch (e) { amb = { rg: null, cg: null }; }
+      }
+      const t = ctx.currentTime;
+      if (amb.rg) amb.rg.gain.setTargetAtTime(Math.max(0, Math.min(1, rain || 0)) * 0.05, t, 0.6);
+      if (amb.cg) amb.cg.gain.setTargetAtTime(night > 0.5 && !(rain > 0.2) ? (night - 0.5) * 0.012 : 0, t, 1.2);
+    },
     quiet() { if (ctx) { boost = 0; murmur.gain.setTargetAtTime(0.03, ctx.currentTime, 0.5); roar.gain.setTargetAtTime(0.01, ctx.currentTime, 0.8); } },
     stop() { if (ctx) { boost = 0; murmur.gain.setTargetAtTime(0, ctx.currentTime, 0.25); roar.gain.setTargetAtTime(0, ctx.currentTime, 0.25); } },
     toggle() {
@@ -381,7 +448,7 @@ const SFX = (() => {
     // For tuning: renders one sound without playing it and reports how loud it is.
     // Returns { peak, rms, left, right, seconds } for the three seconds after it starts.
     async probe(name, v, pan, kind) {
-      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone];
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone], keepAmb = amb;
       ctx = null; muted = false;
       try {
         init(() => new OfflineAudioContext(2, 44100 * 3, 44100));
@@ -398,7 +465,7 @@ const SFX = (() => {
         const f = x => Math.round(x * 1000) / 1000;
         return { peak: f(peak), rms: f(Math.sqrt(sum / L.length)), left: f(Math.sqrt(l / L.length)), right: f(Math.sqrt(r / L.length)), seconds: f(end / 44100) };
       } finally {
-        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone] = keep;
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone] = keep; amb = keepAmb;
         Object.keys(last).forEach(k => delete last[k]);
       }
     },

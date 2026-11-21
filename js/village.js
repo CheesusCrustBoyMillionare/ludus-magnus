@@ -140,6 +140,7 @@ function villageStep(dt, frozen) {
     if (followPath(vil, dt, VILLAGE.SPEED)) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); }
   }
   vil.moving = Math.hypot(vil.x - x0, vil.y - y0) > 0.01;
+  if (vil.moving) { vil.stepT = (vil.stepT || 0) - dt; if (vil.stepT <= 0) { vil.stepT = 0.27; if (typeof SFX !== 'undefined') SFX.ui('step'); } }
   if (vil.moving) { vil.walk += dt * 11; vil.puffT -= dt; if (vil.puffT <= 0) { vil.puffT = 0.16; vil.puffs.push({ x: vil.x + (Math.random() * 4 - 2), y: vil.y, t: 0 }); } }
   for (const q of vil.puffs) q.t += dt;
   if (vil.puffs.length && vil.puffs[0].t > 0.5) vil.puffs.shift();
@@ -318,6 +319,7 @@ function drawVillage(cv, T) {
   // the same hour and the same weather as over the school next door
   const sky = typeof yardSky === 'function' ? yardSky(T) : { night: 0, tint: '#ffffff' }, wx = typeof yardWeather === 'function' ? yardWeather(T) : { rain: 0, gust: 0, wet: 0, over: 0 };
   const night = sky.night, dark = night > 0.6, games = typeof isGamesDay === 'function' && isGamesDay();
+  if (typeof SFX !== 'undefined') SFX.ambience(wx.rain, night);            // rain on the roofs, crickets after dark
   if (wx.wet > 0) { R(0, 0, 590, 190, `rgba(40,45,60,${(0.13 * wx.wet).toFixed(3)})`); for (let i = 0; i < 9; i++) { const px = (i * 67 + 20) % 560, py = i % 2 ? 70 + (i * 3) % 8 : 156 + (i * 5) % 8, w = Math.round((8 + (i % 3) * 4) * wx.wet); if (w > 3) { R(px, py, w, 2, 'rgba(160,190,215,.55)'); R(px + 1, py + 2, w - 2, 1, 'rgba(160,190,215,.4)'); } } }
 
   // what moves on the buildings: water, smoke, the forge fire, flags
@@ -482,7 +484,7 @@ function villageFrame(ts) {
   if (!cv || !G) { vil.raf = 0; return; }
   const arena = document.getElementById('arena');
   if (ts - vil.last > 15 && !(arena && !arena.hidden)) { vil.last = ts; try { drawVillage(cv, ts / 1000); } catch (e) { console.error(e); vil.raf = 0; return; } }
-  else if (arena && !arena.hidden) { villageStill(); vil.prev = 0; }
+  else if (arena && !arena.hidden) { villageStill(); vil.prev = 0; if (typeof SFX !== 'undefined') SFX.ambience(0, 0); }
   vil.raf = requestAnimationFrame(villageFrame);
 }
 function startVillage() {

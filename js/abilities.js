@@ -179,7 +179,7 @@ function abilityHit(B, f, o, x, res) {
   const size = clamp((x.mult || 0.6) * (x.n ? 0.8 : 1), 0.5, 2.2), col = x.bleed ? '#ff9a8a' : x.pierce ? '#cfe6ff' : '#fff0c0';
   vfx(B, { k: 'arc', x: o.x, y: o.y, dir: f.facing, size, col, col2: x.bleed ? '#c22a1e' : '#e0aa3e', dur: 0.22 + size * 0.06 });
   if (res === 'hit' && (x.mult || 0) >= 1.5) { vfx(B, { k: 'flash', under: true, x: o.x, y: o.y, col: '#fff6d8', dur: 0.25 }); B.shake = Math.max(B.shake, 2.4); }
-  if (x.stun && res !== 'miss' && res !== 'dodge') vfx(B, { k: 'ring', under: true, x: o.x, y: o.y, r: 10, col: '#ffe27a', dur: 0.3 });
+  if (x.stun && res !== 'miss' && res !== 'dodge') { vfx(B, { k: 'ring', under: true, x: o.x, y: o.y, r: 10, col: '#ffe27a', dur: 0.3 }); snd(B, 'stun', 1, o); }
 }
 function abilityStrike(B, f, foes, x) {
   const hit = [];
@@ -215,7 +215,7 @@ function castAbility(B, f, ab) {
   vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 15, col: '#ffd24a', dur: 0.45, fill: true });
   vfx(B, { k: 'banner', f, text: ab.name.toUpperCase(), dur: 1.25 });
   B.hitstop = Math.max(B.hitstop, 0.07);
-  snd(B, x.heal ? 'heal' : x.buff && !x.mult ? 'buff' : x.aoe ? 'sweep' : 'special', 1, f, f.g.beast ? 'beast' : '');
+  snd(B, f.g.beast ? 'special' : x.heal ? 'heal' : x.buff && !x.mult ? (x.buff.block || x.buff.dr > 0 ? 'brace' : 'surge') : x.aoe ? 'sweep' : (x.n || 1) > 1 ? 'flurry' : x.back ? 'hop' : x.net && !x.mult ? 'special' : x.lunge || (x.mult || 0) >= 1.7 ? 'leap' : 'thrust', 1, f, f.g.beast ? 'beast' : '');
   feed(B, `${f.g.name}: ${ab.name}`, f.team);
   B.exc += 0.045 * f.show;
   f.state = 'ready'; f.move = null;

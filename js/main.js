@@ -239,6 +239,7 @@ function renderTutor() {
   }
   if (t.on) {
     const s = TUTORIAL[t.step], away = s.tab && s.tab !== ui.tab, last = t.step === TUTORIAL.length - 1;
+    if (ui.stewardSaid !== 'step' + t.step) { if (ui.stewardSaid) SFX.ui('hint'); ui.stewardSaid = 'step' + t.step; }
     el.innerHTML = stewardSays(`Your steward &middot; ${t.step + 1} of ${TUTORIAL.length}`,
       s.text + (away ? `<br><span class="dim">Walk to ${TAB_NAMES[s.tab]}.</span>` : ''),
       `${s.until ? '<span class="dim" style="font-size:12px">Do it, and I will go on.</span>' : `<button class="primary" data-act="tutnext">${last ? 'Thank you' : 'Next'}</button>`}
@@ -261,6 +262,7 @@ function renderTutor() {
     const about = h.when();
     if (!about) continue;
     el.classList.remove('aside');
+    if (ui.stewardSaid !== 'hint' + h.id) { SFX.ui('hint'); ui.stewardSaid = 'hint' + h.id; }
     el.innerHTML = stewardSays('Your steward', h.text(about), `<button class="primary" data-act="hintok" data-v="${h.id}">Understood</button><button data-act="tutoff" style="margin-left:auto">No more advice</button>`);
     el.hidden = false;
     return;
@@ -317,7 +319,7 @@ const TAB_KEYS = ['ludus', 'arena', 'contracts', 'rivals', 'market', 'smith', 'f
 // The screens are reached on foot now (see village.js); all that is left to do here is hide or show the school picture.
 function renderTabs() { $('#app').classList.toggle('noyard', ui.noyard); }
 // Called by the village when the lanista steps onto a doorstep.
-function villageEnter(key) { if (ui.tab === key) return; ui.tab = key; SFX.ui('tick'); render(); }
+function villageEnter(key) { if (ui.tab === key) return; ui.tab = key; SFX.ui('door'); render(); }
 // What waits inside a building, shown as a number by its name on the map.
 function villageMarks() { return { arena: G.bouts ? G.bouts.filter(b => !b.done).length : 0, contracts: G.contracts.filter(c => c.asked).length }; }
 
@@ -1547,6 +1549,8 @@ function fightLoop(ts) {
   // whoever the mouse is resting on gets a card saying what he is
   f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - 24 && f.hover.y < q.y + 4).sort((a, b) => Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
+  if (f.B.pick && f.askedOf !== f.B.pick) SFX.play('ready');          // the fight has stopped for your man: a call to say so
+  f.askedOf = f.B.pick || null;
   f.B.snd.length = 0;
   SFX.crowd(f.B.exc + (f.B.over ? 0.3 : 0));
   paintOrders();
@@ -1878,7 +1882,7 @@ const ACTIONS = {
     if (path) { prov.path = path; if (prov.big) { prov.big = false; render(); } } else prov.hint = performance.now() + 1600;
   },
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
-  makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); fieldDay('camp'); SFX.ui('day'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); fieldDay('camp'); SFX.ui('camp'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
   campback() { ui.campSel = null; render(); },
   askreset() {
@@ -1905,7 +1909,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
