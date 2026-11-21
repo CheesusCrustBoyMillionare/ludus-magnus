@@ -496,7 +496,7 @@ function stepBattle(B, dt) {
       p.dead = true;
       if (p.hit && !out(p.to)) {
         p.to.snare = Math.max(p.to.snare, p.snare || 3); fxText(B, p.to, 'netted', '#d8c79a'); B.exc += 0.05 * p.from.show;
-        if (p.weak) { p.to.weakT = p.weak.t; p.to.weakAmt = p.weak.amt; }
+        if (p.weak) { p.to.weakT = p.weak.t; p.to.weakAmt = p.weak.amt; vfx(B, { k: 'drip', f: p.to, col: '#c9b458', dur: 0.9 }); }
         vfx(B, { k: 'ring', under: true, x: p.to.x, y: p.to.y, r: 12, col: '#e8dcb4', dur: 0.35 });
         if (p.to.state === 'windup') { p.to.state = 'ready'; p.to.move = null; }
         feed(B, `${p.from.g.name} nets ${p.to.g.name}`, p.from.team);
@@ -1351,6 +1351,49 @@ function drawVfx(ctx, B, under) {
       for (let i = 0; i < 9; i++) { const up = (k * 46 + i * 11) % 44; ctx.globalAlpha = a * (1 - up / 50); R(v.f.x * 2 + Math.sin(i * 2.4 + k * 3) * 11, v.f.y * 2 - 4 - up, 2, 2, v.col); }
     } else if (v.k === 'flash') {              // the sand lights for an instant under a great blow
       ctx.globalAlpha = a * 0.5; for (let i = 0; i < 4; i++) R(v.x * 2 - 22 + i * 3, v.y * 2 - 3 + i, 44 - i * 6, 2, v.col);
+    } else if (v.k === 'burst') {              // a telling blow: light thrown out in rays from where it landed
+      const len = (v.size || 1) * (10 + k * 26); ctx.globalAlpha = Math.min(1, a * 1.5);
+      for (let i = 0; i < 8; i++) { const an = i / 8 * 6.283 + 0.4; for (let q = 0.45; q <= 1; q += 0.18) R(v.x * 2 + Math.cos(an) * len * q, v.y * 2 - 22 + Math.sin(an) * len * q * 0.8, 3, 3, q > 0.8 ? '#ffffff' : v.col); }
+      if (k < 0.3) R(v.x * 2 - 3, v.y * 2 - 25, 6, 6, '#ffffff');
+    } else if (v.k === 'spray') {              // an opened vein: blood thrown the way the blade was going, and falling
+      ctx.globalAlpha = a;
+      for (let i = 0; i < 11; i++) { const an = -0.95 + i * 0.19, sp = 14 + (i * 7) % 13; R(v.x * 2 + v.dir * Math.cos(an) * sp * k * 1.7, v.y * 2 - 22 + Math.sin(an) * sp * k + k * k * 28, i % 3 ? 2 : 3, 2, i % 2 ? '#c22a1e' : '#e8584a'); }
+    } else if (v.k === 'pierce') {             // through armour: a lance of light that goes in one side and out the other
+      const len = 50 * Math.min(1, k * 3.2), x0 = v.dir > 0 ? v.x * 2 - 14 : v.x * 2 + 14 - len; ctx.globalAlpha = a;
+      R(x0, v.y * 2 - 23, len, 2, '#ffffff'); R(x0 + (v.dir > 0 ? 0 : len * 0.3), v.y * 2 - 24, len * 0.7, 1, v.col); R(x0 + (v.dir > 0 ? 0 : len * 0.3), v.y * 2 - 21, len * 0.7, 1, v.col);
+      R(v.dir > 0 ? x0 + len - 3 : x0 - 1, v.y * 2 - 25, 4, 6, '#ffffff');
+    } else if (v.k === 'shards') {             // a guard broken: chips of it flying
+      ctx.globalAlpha = a;
+      for (let i = 0; i < 8; i++) { const an = i * 0.85 + 1, d = k * 19; R(v.x * 2 + Math.cos(an) * d * 1.3, v.y * 2 - 22 + Math.sin(an) * d + k * k * 15, i % 3 ? 3 : 2, 2, i % 2 ? '#b9c2cb' : '#8f979f'); }
+    } else if (v.k === 'slashx') {             // the killing stroke: two cuts crossing, drawn in red
+      ctx.globalAlpha = a; const n = Math.round(15 * Math.min(1, k * 3.2));
+      for (let i = 0; i < n; i++) { const c = i > n - 4 ? '#ffffff' : '#c22a1e'; R(v.x * 2 - 15 + i * 2, v.y * 2 - 38 + i * 2, 3, 3, c); R(v.x * 2 + 13 - i * 2, v.y * 2 - 38 + i * 2, 3, 3, c); }
+    } else if (v.k === 'legcut') {             // low, across the back of the knee
+      ctx.globalAlpha = a; const w = 24 * Math.min(1, k * 3); R(v.x * 2 - 12, v.y * 2 - 9, w, 2, '#ffffff'); R(v.x * 2 - 12, v.y * 2 - 7, w * 0.8, 1, '#c22a1e'); R(v.x * 2 - 2, v.y * 2 - 6 + k * 8, 2, 2, '#c22a1e');
+    } else if (v.k === 'mark' && v.f && !out(v.f)) {       // he is open: a mark closes on him
+      const sz = 18 - 9 * Math.min(1, k * 2.5), cx = v.f.x * 2, cy = v.f.y * 2 - 22; ctx.globalAlpha = Math.min(1, a * 1.6);
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { R(cx + sx * sz + (sx > 0 ? -6 : 0), cy + sy * sz + (sy > 0 ? -1 : 0), 8, 2, v.col); R(cx + sx * sz + (sx > 0 ? 0 : 0), cy + sy * sz + (sy > 0 ? -6 : 0), 2, 8, v.col); }
+      R(cx - 1, cy - 1, 3, 3, '#ffffff');
+    } else if (v.k === 'drip' && v.f && !out(v.f)) {       // his arm fails him: strength running out of it
+      ctx.globalAlpha = a;
+      for (let i = 0; i < 3; i++) { const d = (k * 34 + i * 9) % 24, px = v.f.x * 2 - 8 + i * 8, py = v.f.y * 2 - 42 + d; R(px, py, 1, 5, v.col); R(px - 1, py + 4, 3, 1, v.col); R(px, py + 5, 1, 1, v.col); }
+    } else if (v.k === 'plus' && v.f && !out(v.f)) {       // mending: green crosses going up
+      for (let i = 0; i < 5; i++) { const up = (k * 42 + i * 13) % 38, px = v.f.x * 2 + Math.sin(i * 2.1) * 12, py = v.f.y * 2 - 8 - up; ctx.globalAlpha = a * (1 - up / 44); R(px - 1, py - 3, 2, 6, v.col); R(px - 3, py - 1, 6, 2, v.col); }
+    } else if (v.k === 'shield' && v.f && !out(v.f)) {     // he sets his guard: a shield of light before him, and a gleam down it
+      const cx = v.f.x * 2 + v.f.facing * 10, cy = v.f.y * 2 - 24;
+      ctx.globalAlpha = a * 0.28; R(cx - 6, cy - 9, 12, 14, v.col);
+      ctx.globalAlpha = a; R(cx - 7, cy - 10, 14, 1, v.col); R(cx - 7, cy - 10, 1, 15, v.col); R(cx + 6, cy - 10, 1, 15, v.col);
+      for (let q = 0; q < 7; q++) { R(cx - 7 + q, cy + 5 + q, 1, 1, v.col); R(cx + 6 - q, cy + 5 + q, 1, 1, v.col); }
+      R(cx - 4, cy - 8 + Math.round(k * 14), 8, 1, '#ffffff');
+    } else if (v.k === 'wind' && v.f && !out(v.f)) {       // quickness: the air streaming off him
+      for (let i = 0; i < 7; i++) { const off = (k * 64 + i * 17) % 42; ctx.globalAlpha = a * 0.75 * (1 - off / 46); R(v.f.x * 2 - v.f.facing * (6 + off) - 5, v.f.y * 2 - 6 - i * 6, 11, 1, v.col); }
+    } else if (v.k === 'flame' && v.f && !out(v.f)) {      // fury: fire coming up round his feet
+      for (let i = 0; i < 8; i++) { const up = (k * 54 + i * 9) % 28, px = v.f.x * 2 - 14 + i * 4; ctx.globalAlpha = Math.min(1, a * 1.6) * (1 - up / 32); R(px, v.f.y * 2 - 3 - up, 4, 6, i % 2 ? '#ff6a2a' : '#f5a02a'); R(px + 1, v.f.y * 2 - 6 - up, 2, 4, '#ffe27a'); }
+    } else if (v.k === 'cracks') {             // a blow that takes in everyone near: the sand splits outward from it
+      const len = (v.r || 20) * 2 * Math.min(1, k * 2.6); ctx.globalAlpha = a * 0.85;
+      for (let i = 0; i < 7; i++) { const an = i * 0.9 + 0.3; for (let q = 4; q < len; q += 3) R(v.x * 2 + Math.cos(an) * q + Math.sin(q * 1.3 + i) * 1.5, v.y * 2 + Math.sin(an) * q * 0.45, 2, 1, '#4a3320'); R(v.x * 2 + Math.cos(an) * len - 2, v.y * 2 + Math.sin(an) * len * 0.45 - k * 9, 4, 3, '#e2cf9c'); }
+    } else if (v.k === 'speed') {              // a rush: lines of speed along the way he came
+      for (let i = 0; i < 6; i++) { const q = (k * 1.5 + i * 0.17) % 1, px = v.x + (v.x2 - v.x) * q, py = v.y + (v.y2 - v.y) * q; ctx.globalAlpha = a * 0.8; R(px * 2 - 9, py * 2 - 8 - i * 6, 18, 1, '#fff0c0'); }
     }
   }
   ctx.globalAlpha = 1;
@@ -1366,6 +1409,17 @@ function drawAuras(ctx, B, T) {
       ctx.globalAlpha = 0.75 * Math.min(1, b.t);
       for (let i = 0; i < 6; i++) { const an = T * 3.2 + i * 1.047; R(x + Math.cos(an) * 13, y - 3 + Math.sin(an) * 4 - (i % 2) * 2, 2, 2, col); }
       for (let i = 0; i < 3; i++) { const up = (T * 26 + i * 15) % 40; R(x - 9 + i * 9, y - 6 - up, 1, 3, col); }
+    }
+    if (f.buff) {                               // and by its kind: a brow of light over a guard, flame at the feet of a fury
+      const b = f.buff, al = 0.6 * Math.min(1, b.t);
+      if (b.dr > 0 || b.block) { ctx.globalAlpha = al; for (let i = 0; i <= 10; i++) R(x - 14 + i * 2.8, top + 4 - Math.sin(i / 10 * Math.PI) * 6, 3, 2, i % 5 === 2 ? '#ffffff' : '#8fc0ff'); }
+      else if (b.dmg > 0) { ctx.globalAlpha = al; for (let i = 0; i < 4; i++) { const up = (T * 22 + i * 5) % 8; R(x - 10 + i * 6, y - 3 - up, 3, 4, i % 2 ? '#ff6a2a' : '#f5a02a'); R(x - 9 + i * 6, y - 5 - up, 1, 2, '#ffe27a'); } }
+      else if (b.haste || b.dodge) { ctx.globalAlpha = al * 0.8; for (let i = 0; i < 3; i++) { const off = (T * 40 + i * 13) % 22; R(x - f.facing * (8 + off) - 4, y - 10 - i * 9, 8, 1, '#fff6c0'); } }
+    }
+    if (f.bleed > 0) { ctx.globalAlpha = 0.95; const d = (T * 30 + f.x * 3) % 20; R(x - 3, y - 20 + d, 2, 3, '#c22a1e'); R(x + 4, y - 26 + ((d + 9) % 20), 1, 2, '#e8584a'); if (d > 17) R(x - 4, y - 1, 4, 1, '#8e1b14'); }      // bleeding: it runs off him and spots the sand
+    if (f.open > 0) {                           // open to every blow: the mark stays on him
+      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(T * 9); const sz = 11, cy = y - 22;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { R(x + sx * sz + (sx > 0 ? -4 : 0), cy + sy * sz + (sy > 0 ? -1 : 0), 6, 2, '#ff6a3a'); R(x + sx * sz, cy + sy * sz + (sy > 0 ? -4 : 0), 2, 6, '#ff6a3a'); }
     }
     if (f.stun > 0.35) { ctx.globalAlpha = 1; for (let i = 0; i < 3; i++) { const an = T * 7 + i * 2.094; R(x + Math.cos(an) * 8, top + Math.sin(an) * 2.5, 2, 2, i ? '#ffe27a' : '#ffffff'); } }
     if (f.weakT > 0) { ctx.globalAlpha = 0.8; for (let i = 0; i < 2; i++) { const d = (T * 14 + i * 7) % 12; R(x - 12 + i * 22, y - 30 + d, 3, 1, '#a39a88'); R(x - 11 + i * 22, y - 29 + d, 1, 1, '#a39a88'); } }

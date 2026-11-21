@@ -180,6 +180,14 @@ function abilityHit(B, f, o, x, res) {
   vfx(B, { k: 'arc', x: o.x, y: o.y, dir: f.facing, size, col, col2: x.bleed ? '#c22a1e' : '#e0aa3e', dur: 0.22 + size * 0.06 });
   if (res === 'hit' && (x.mult || 0) >= 1.5) { vfx(B, { k: 'flash', under: true, x: o.x, y: o.y, col: '#fff6d8', dur: 0.25 }); B.shake = Math.max(B.shake, 2.4); }
   if (x.stun && res !== 'miss' && res !== 'dodge') { vfx(B, { k: 'ring', under: true, x: o.x, y: o.y, r: 10, col: '#ffe27a', dur: 0.3 }); snd(B, 'stun', 1, o); }
+  const landed = res !== 'miss' && res !== 'dodge' && res !== 'block';
+  if (!landed) return;
+  if (x.bleed) vfx(B, { k: 'spray', x: o.x, y: o.y, dir: f.facing, dur: 0.5 });
+  if (x.pierce) vfx(B, { k: 'pierce', x: o.x, y: o.y, dir: f.facing, col: '#cfe6ff', dur: 0.32 });
+  if (x.unblockable && !x.pierce) vfx(B, { k: 'shards', x: o.x, y: o.y, dur: 0.45 });
+  if (x.exec && o.hp < o.maxHp * 0.4) vfx(B, { k: 'slashx', x: o.x, y: o.y, dur: 0.5 });
+  else if (x.crit || (x.mult || 0) >= 1.8) vfx(B, { k: 'burst', x: o.x, y: o.y, col: '#ffe27a', size: 1.1, dur: 0.38 });
+  if (x.ham) vfx(B, { k: 'legcut', x: o.x, y: o.y, dur: 0.45 });
 }
 function abilityStrike(B, f, foes, x) {
   const hit = [];
@@ -232,12 +240,16 @@ function castNow(B, f, ab) {
   const pose = (k, dur, o) => { f.pose = Object.assign({ k, t: dur, dur, fx: 0, fy: 0 }, o); };
   if (x.heal) pose('surge', 0.7);
   else if (x.buff && !x.mult) pose(x.buff.block || x.buff.dr > 0 ? 'brace' : 'surge', 0.65);
-  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); vfx(B, { k: 'motes', f, col: '#9fd070', dur: 1.1 }); }
+  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); vfx(B, { k: 'motes', f, col: '#9fd070', dur: 1.1 }); vfx(B, { k: 'plus', f, col: '#b8e890', dur: 1.2 }); }
   if (x.cleanse) { f.bleed = 0; f.snare = 0; f.weakT = 0; }
   if (x.buff) {
     f.buff = Object.assign({}, x.buff);
     vfx(B, { k: 'motes', f, col: x.buff.dmg > 0 && !(x.buff.dr > 0) && !x.buff.block ? '#ff8a5a' : x.buff.dr > 0 || x.buff.block ? '#8fc0ff' : '#ffe27a', dur: 0.9 });
     f.guard = Math.max(f.guard, x.buff.block ? 0.5 : 0);
+    // and a picture of what kind of help it is: a guard set, fury kindled, or quickness
+    if (x.buff.block || x.buff.dr > 0) vfx(B, { k: 'shield', f, col: '#8fc0ff', dur: 0.8 });
+    if (x.buff.dmg > 0) vfx(B, { k: 'flame', f, dur: 0.9 });
+    if (x.buff.haste || x.buff.dodge) vfx(B, { k: 'wind', f, col: '#fff6c0', dur: 0.8 });
   }
   if (!t) return;
   const dx = t.x - f.x, dy = t.y - f.y, dist = Math.hypot(dx, dy) || 0.01, x0 = f.x, y0 = f.y;
@@ -256,7 +268,7 @@ function castNow(B, f, ab) {
   if (go > 0) {
     fxDust(B, f.x, f.y, x.lunge ? 6 : 3); f.x += dx / dist * go; f.y += dy / dist * go;
     if (go > 5) vfx(B, { k: 'trail', under: true, x: x0, y: y0, x2: f.x, y2: f.y, col: x.lunge ? '#fff0c0' : B.col[f.team], dur: x.lunge ? 0.4 : 0.25 });
-    if (x.lunge) fxDust(B, f.x, f.y, 4);
+    if (x.lunge) { fxDust(B, f.x, f.y, 4); vfx(B, { k: 'speed', x: x0, y: y0, x2: f.x, y2: f.y, dur: 0.4 }); }
   }
   // how his body goes into it: a spin for a sweep, in and out for a flurry, a leap for a rush or a killing stroke, a thrust for the rest
   {
@@ -266,7 +278,7 @@ function castNow(B, f, ab) {
     if (k === 'leap') vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 12, r0: 3, col: '#e8d8b0', dur: 0.35, a: 0.7 });
   }
   const foes = x.aoe ? B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe) : [t];
-  if (x.aoe) vfx(B, { k: 'ring', under: true, x: t.x, y: t.y, r: x.aoe, r0: 5, col: '#f2e2b8', dur: 0.4, fill: true, w: 3 });
+  if (x.aoe) { vfx(B, { k: 'ring', under: true, x: t.x, y: t.y, r: x.aoe, r0: 5, col: '#f2e2b8', dur: 0.4, fill: true, w: 3 }); if ((x.mult || 0) >= 0.5) vfx(B, { k: 'cracks', under: true, x: t.x, y: t.y, r: x.aoe, dur: 0.9 }); }
   if (x.net) for (const o of foes) {              // a net swung or hauled, with a blow to follow
     const got = !x.aoe || Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - o.g.stats.agi * 0.012, 0.25, 0.9);
     if (got) { o.snare = Math.max(o.snare, x.net); fxText(B, o, 'netted', '#d8c79a'); snd(B, 'net', 1, o); if (o.state === 'windup') { o.state = 'ready'; o.move = null; } }
@@ -274,8 +286,8 @@ function castNow(B, f, ab) {
   }
   const hit = abilityStrike(B, f, foes, x);
   for (const o of hit) {
-    if (x.weak) { o.weakT = x.weak.t; o.weakAmt = x.weak.amt; fxText(B, o, 'weakened', '#c9b458'); }
-    if (x.expose) o.open = Math.max(o.open, x.expose);
+    if (x.weak) { o.weakT = x.weak.t; o.weakAmt = x.weak.amt; fxText(B, o, 'weakened', '#c9b458'); vfx(B, { k: 'drip', f: o, col: '#c9b458', dur: 0.9 }); }
+    if (x.expose) { o.open = Math.max(o.open, x.expose); vfx(B, { k: 'mark', f: o, col: '#ff6a3a', dur: 0.7 }); }
   }
   if ((x.n || 1) > 1) f.combo = { foes, left: x.n - 1, t: 0.13, x };
   else f.cd = f.atkTime * 0.6;
