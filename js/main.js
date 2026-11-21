@@ -512,6 +512,21 @@ function gladDetail(g) {
   </div>`;
 }
 
+// How things stand behind each door, in a line, for the map of the town.
+function villageStatus(key) {
+  const dg = daysToGames(), when = n => n === 0 ? 'TODAY' : n === 1 ? 'TOMORROW' : `IN ${n} DAYS`, net = stipend() - upkeep();
+  const here = G.roster.filter(g => !g.away), hurt = G.roster.filter(g => g.injury > 0).length, away = G.roster.length - here.length;
+  if (key === 'ludus') return `${G.roster.filter(canFight).length} FIT TO FIGHT${hurt ? `, ${hurt} HURT` : ''}${away ? `, ${away} AWAY` : ''}${G.roster.some(g => g.perkPending > 0) ? ', A PERK TO CHOOSE' : ''}`;
+  if (key === 'facilities') return `PURSE ${G.denarii}, ${net >= 0 ? '+' : ''}${net} A DAY${G.denarii < 0 ? ' - THE CREDITORS ARE AT THE DOOR' : ''}`;
+  if (key === 'arena') { const open = (G.bouts || []).filter(b => !b.done).length; return isGamesDay() ? (open ? `${open} BOUT${open === 1 ? '' : 'S'} WAITING TODAY` : 'THE DAY\'S BOUTS ARE DONE') : `GAMES ${when(dg)}`; }
+  if (key === 'market') return `${G.market.length} FOR SALE, ${Math.max(0, capacity() - G.roster.length)} CELL${capacity() - G.roster.length === 1 ? '' : 'S'} FREE, FRESH STOCK ${when(dg)}`;
+  if (key === 'smith') return `${G.smith.stock.length} PIECE${G.smith.stock.length === 1 ? '' : 'S'} FOR SALE${G.armoury.length ? `, ${G.armoury.length} SPARE ON YOUR RACKS` : ''}`;
+  if (key === 'contracts') return `${G.contracts.length} OFFER${G.contracts.length === 1 ? '' : 'S'} OF WORK${G.contracts.some(c => c.asked) ? ', ONE ASKS FOR YOU BY NAME' : ''}${G.jobs.length ? `, ${G.jobs.length} OUTING${G.jobs.length === 1 ? '' : 'S'} UNDER WAY` : ''}`;
+  if (key === 'patrons') return `MAGISTRATE ${Math.round(G.patrons.magistrate)}, GUILD ${Math.round(G.patrons.guild)}, TEMPLE ${Math.round(G.patrons.temple)}`;
+  if (key === 'rivals') { const hot = G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0]; return `YOU STAND ${ordinal(G.houses.filter(H => H.prestige > G.fame).length + 1).toUpperCase()} OF ${G.houses.length + 1}${hot && hot.grudge >= 25 ? `, ${feudWord(hot.grudge).toUpperCase()} WITH ${houseDef(hot.id).name.toUpperCase()}` : ''}`; }
+  return `DAY ${G.day}, ${G.tally.wins} WON AND ${G.tally.losses} LOST${G.fallen.length ? `, ${G.fallen.length} FALLEN` : ''}`;
+}
+
 function viewLudus() {
   if (!G.roster.length) return `<div class="fill"><div><h2>Gladiators</h2><div class="pane"><div class="panel">Your cells are empty. Visit the market.</div></div></div><div></div></div>`;
   if (!byId(ui.sel)) ui.sel = G.roster[0].id;

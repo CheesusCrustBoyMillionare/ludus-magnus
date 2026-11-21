@@ -330,6 +330,12 @@ function drawVillage(cv, T) {
   const a = placeOf('arena'), acx = a.x + a.w / 2;
   for (const [ox, col] of [[-50, '#8a2a20'], [-28, '#c9a21e'], [28, '#2f6db8'], [50, '#8a2a20']]) { const fy = a.y + 28 - Math.round(26 * Math.sqrt(1 - (ox * ox) / (63 * 63))) - 7; R(acx + ox, fy, 1, 8, '#5a4326'); R(acx + ox + 1, fy + (Math.sin(T * 4 + ox) > 0 ? 0 : 1), 5, 3, col); }
 
+  const lost = (G.fallen || []).some(x => G.day - x.day <= 2), fest = G.festival && G.festival.day >= G.day && G.festival.day - G.day <= 3;
+  if (lost) { const lu = placeOf('ludus'); R(lu.dx + 20, lu.y - 6, 1, 12, '#3a2a1c'); R(lu.dx + 21, lu.y - 6 + (Math.sin(T * 3) > 0 ? 0 : 1), 6, 4, '#16110e'); R(lu.dx + 21, lu.y - 2, 4, 2, '#16110e'); }
+  if (fest) for (let i = 0; i <= 14; i++) {             // a festival is near: garlands over the square
+    const bx = 257 + i * 6, by = 78 + Math.round(Math.sin(i / 14 * Math.PI) * 4);
+    R(bx, by, 6, 1, '#4a6a2a'); R(bx + 2, by + 1, 2, 2, ['#e3b04a', '#c23b2e', '#f1ead8'][i % 3]);
+  }
   if (games) {                                  // games today: bunting over the arena gate
     for (let i = 0; i < 13; i++) { const bx = acx - 36 + i * 6, by = a.y + a.h - 17 + Math.round(Math.sin(i / 12 * Math.PI) * 3); R(bx, by, 6, 1, '#3a2a1c'); R(bx + 1, by + 1, 4, 2 + (Math.sin(T * 5 + i) > 0 ? 1 : 0), ['#c23b2e', '#e3b04a', '#2f6db8'][i % 3]); }
   }
@@ -361,12 +367,37 @@ function drawVillage(cv, T) {
   // people, the nearer drawn over the farther. By night most of the town is indoors.
   const folk = vil.npcs.filter((n, i) => !dark || i < 2).map(n => ({ y: n.y, draw: () => vilPerson(ctx, n.x, n.y, n) }));
   const still = (x, y, o) => folk.push({ y, draw: () => vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o)) });
+  const notes = [];                    // marks over the heads of people who are waiting for you: [x, y, colour]
   // two men on the gate, with spears
   for (const gy of [62, 96]) folk.push({ y: gy, draw: () => { vilPerson(ctx, 568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
   if (!dark) {
     const m = placeOf('market'), tp = placeOf('patrons');
     [[16, '#b93a2e'], [49, '#2f6db8'], [82, '#c9a21e']].forEach(([ox, c], i) => still(m.x + ox, m.y + 30 + (Math.sin(T * 1.5 + i * 2) > 0.6 ? -1 : 0), { tunic: c, hair: '#2a1c14', skin: i % 2 ? '#c9966c' : '#d9a57c' }));      // the stallholders
     still(tp.dx + 15 + Math.round(Math.sin(T * 0.25) * 4), tp.y + tp.h + 3, { tunic: '#f1ead8', hair: '#c9c2b2', skin: '#d9a57c', face: Math.sin(T * 0.25 + 1.5) > 0 ? 'right' : 'left', moving: true, walk: T * 3 });     // a priest on the temple steps
+    // the town knows how your house stands, and shows it at the doors
+    const hh = placeOf('facilities'), forum = placeOf('contracts'), tv = placeOf('rivals');
+    if (G.denarii < 0) {                                                  // creditors at your own door
+      still(hh.dx - 10, hh.dy + 3, { tunic: '#3a3a44', hair: '#2a1c14', face: 'up' }); still(hh.dx + 9, hh.dy + 4, { tunic: '#4a3a3a', hair: '#8a8a8a', face: 'up' });
+      notes.push([hh.dx, hh.dy - 19, '#c23b2e']);
+    }
+    const asked = (G.contracts || []).find(c => c.asked);
+    if (asked) {                                                          // a patron's man waiting at the forum with a message for you
+      still(forum.dx + 13, forum.dy + 2, { tunic: asked.patron === 'temple' ? '#f1ead8' : asked.patron === 'guild' ? '#c9a21e' : '#7a2a8a', hair: '#2a1c14' });
+      notes.push([forum.dx + 13, forum.dy - 20, '#e3b04a']);
+    }
+    const call = (G.bouts || []).find(b => b.grudge && !b.done);
+    if (call) {                                                           // a rival's champion at the arena gate, calling you out
+      const hd = call.houseId && typeof houseDef === 'function' ? houseDef(call.houseId) : null;
+      still(a.dx - 24, a.dy + 6, { tunic: hd ? hd.col : '#55555a', hair: '#2a1c14', face: 'right' }); R(a.dx - 20, a.dy - 12, 1, 18, '#5a4326'); R(a.dx - 21, a.dy - 14, 3, 3, '#c9d1d9');
+      notes.push([a.dx - 24, a.dy - 16, '#c23b2e']);
+    }
+    if (games) (G.market || []).slice(0, 4).forEach((g, i) => {           // games day: the dealer's new men, roped in a line by the stalls
+      const x = m.x + m.w + 5 + i * 6, y = m.dy - 3 + (i % 2);
+      still(x, y, { tunic: '#b8a888', hair: g.look ? g.look.hair : '#2a1c14', skin: g.look ? g.look.skin : '#c9966c', face: 'left' });
+      if (i) folk.push({ y: y + 0.1, draw: () => R(x - 6, y - 9, 6, 1, '#6b5334') });
+    });
+    if (!G.field) G.roster.filter(g => !g.away && g.injury <= 0 && g.activity === 'rest').slice(0, 3).forEach((g, i) =>      // your own men at liberty, outside the tavern
+      still(tv.dx - 17 - i * 7, tv.dy + 3 + (i % 2) * 3, { tunic: '#c23b2e', hair: g.look.hair, skin: g.look.skin, face: i % 2 ? 'right' : 'left' }));
     // children chasing each other round the fountain, and the dog that goes with them
     for (let i = 0; i < 2; i++) { const an = T * 1.3 + i * 0.8, cx = 296 + Math.cos(an) * 24, cy = 124 + Math.sin(an) * 14; folk.push({ y: cy, draw: () => vilChild(ctx, cx, cy, Math.sin(an) > 0 ? 'left' : 'right', T * 16 + i, i ? '#b06a8a' : '#5a8a9a') }); }
     { const an = T * 1.3 - 0.55, dx = 296 + Math.cos(an) * 26, dy = 125 + Math.sin(an) * 15, lf = Math.sin(an) > 0; folk.push({ y: dy, draw: () => { R(dx - 3, dy - 3, 6, 3, '#8a6a4a'); R(dx + (lf ? -5 : 3), dy - 5, 3, 3, '#8a6a4a'); R(dx - 3, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 1 : 0), '#6a4a2a'); R(dx + 2, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 0 : 1), '#6a4a2a'); R(dx + (lf ? 3 : -4), dy - 4, 1, 2, '#8a6a4a'); } }); }
@@ -387,6 +418,10 @@ function drawVillage(cv, T) {
     if (dark || p.path || q.path || Math.hypot(p.x - q.x, p.y - q.y) > 18) continue;
     const who = Math.floor(T / 1.4) % 2 ? p : q, n = 1 + Math.floor(T * 3) % 3;
     R(who.x - 4, who.y - 24, 9, 6, '#f4ecd8'); R(who.x - 1, who.y - 18, 2, 2, '#f4ecd8'); for (let k = 0; k < n; k++) R(who.x - 3 + k * 3, who.y - 22, 1, 2, '#3a2a1c');
+  }
+  for (const [nx, ny, nc] of notes) {                                    // someone here wants a word
+    const nb = Math.round(Math.sin(T * 6) * 1.5);
+    R(nx - 3, ny - 5 + nb, 7, 9, '#1a110c'); R(nx - 2, ny - 4 + nb, 5, 7, nc); R(nx, ny - 3 + nb, 1, 3, '#fff6e0'); R(nx, ny + 1 + nb, 1, 1, '#fff6e0');
   }
   const bob = Math.round(Math.sin(T * 5));                              // a mark over your own head, so you can find him
   R(vil.x - 2, vil.y - 21 + bob, 5, 1, '#f5d584'); R(vil.x - 1, vil.y - 20 + bob, 3, 1, '#f5d584'); R(vil.x, vil.y - 19 + bob, 1, 1, '#f5d584');
@@ -425,9 +460,10 @@ function drawVillage(cv, T) {
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 96, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#a8947a'; ctx.fillText('GATE', 590 - w / 2 - 1, 102); }
   for (const p of PLACES) {
-    const on = p.key === ui.tab, w = Math.ceil(ctx.measureText(p.name.toUpperCase()).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);
+    const label = p.key === 'arena' && typeof daysToGames === 'function' ? (games ? 'ARENA: GAMES TODAY' : `ARENA: GAMES IN ${daysToGames()} DAY${daysToGames() === 1 ? '' : 'S'}`) : p.name.toUpperCase();
+    const on = p.key === ui.tab, w = Math.ceil(ctx.measureText(label).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);
     R(lx, ly, w, 8, on ? '#f5d584' : 'rgba(24,16,10,.82)'); R(lx, ly + 7, w, 1, on ? '#b6832c' : '#000');
-    ctx.fillStyle = on ? '#2a1a0c' : '#f2e6cc'; ctx.fillText(p.name.toUpperCase(), p.dx, ly + 6);
+    ctx.fillStyle = on ? '#2a1a0c' : p.key === 'arena' && games ? '#f5d584' : '#f2e6cc'; ctx.fillText(label, p.dx, ly + 6);
     if (marks[p.key]) { R(lx + w + 1, ly, 8, 8, '#c23b2e'); ctx.fillStyle = '#fff'; ctx.fillText(String(marks[p.key]), lx + w + 5, ly + 6); }
     if (ui.wayTo === p.key && !on) {                                     // the steward's arrow
       const ay = p.dy - 20 + Math.round(Math.sin(T * 6) * 2);
@@ -435,7 +471,7 @@ function drawVillage(cv, T) {
     }
   }
   if (vil.hover) {
-    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hov ? PLACE_INFO[hov] + (marks[hov] ? ` (${marks[hov]} WAITING)` : '') + (hov === ui.tab ? ' - OPEN NOW' : ' - CLICK TO WALK THERE') : 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE  -  STEP ON A DOORSTEP TO GO IN';
+    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE  -  STEP ON A DOORSTEP TO GO IN';
     const w = Math.ceil(ctx.measureText(say).width) + 10;
     R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185);
   }
