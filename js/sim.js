@@ -950,9 +950,25 @@ function winOdds(mine, foes) {
 
 // ---------- day cycle ----------
 
+// How much a day's drilling moves him, before his talent for the skill: the ground, the doctore, his nature, his state.
+function trainRate(g) {
+  const masters = G.roster.filter(x => !x.away && x.traits.includes('drillmaster')).length;
+  let m = (1 + 0.2 * G.fac.ground) * (1 + 0.15 * staffLvl('doctore'));
+  if (g.traits.includes('disciplined')) m *= 1.2;
+  if (g.traits.includes('lazy')) m *= 0.8;
+  if (g.traits.includes('embittered')) m *= 0.7;
+  if (g.traits.includes('eaglesworn')) m *= 1.05;
+  m *= 1 + 0.05 * (masters - (g.traits.includes('drillmaster') ? 1 : 0));
+  if (bondsOf(g).some(b => b.type === 'rival')) m *= 1.1;      // nothing drives a man like someone to outdo
+  return m * (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
+}
+// What a day's drilling costs him in fatigue.
+function trainTire(g, spar) { return (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1); }
+// What a day's rest gives back: [health, fatigue shed].
+function restGain(g) { return [maxHp(g) * (0.22 + 0.08 * G.fac.infirmary + 0.04 * staffLvl('cook')), 30 + 8 * G.fac.baths]; }
+
 function endDay() {
   const F = G.fac;
-  const masters = G.roster.filter(g => !g.away && g.traits.includes('drillmaster')).length;
   for (const g of G.roster) {
     if (g.away) continue;             // men out on contract or on the road are not in the yard
     if (G.field) { wildDayFor(g); continue; }      // the whole school is out in the country (wilds.js)
@@ -966,23 +982,17 @@ function endDay() {
       if (g.injury <= 0) { g.injury = 0; log(`${g.name} is fit to train again.`); }
     }
     if (resting) {
-      g.fatigue -= 30 + 8 * F.baths;
-      g.hp += mh * (0.22 + 0.08 * F.infirmary + 0.04 * staffLvl('cook'));
+      const [heal, shed] = restGain(g);
+      g.fatigue -= shed;
+      g.hp += heal;
       g.morale += 2 + 2 * F.baths;
     } else {
       const spar = g.activity === 'spar';
-      let m = (1 + 0.2 * F.ground) * (1 + 0.15 * staffLvl('doctore'));
-      if (g.traits.includes('disciplined')) m *= 1.2;
-      if (g.traits.includes('lazy')) m *= 0.8;
-      if (g.traits.includes('embittered')) m *= 0.7;
-      if (g.traits.includes('eaglesworn')) m *= 1.05;
-      m *= 1 + 0.05 * (masters - (g.traits.includes('drillmaster') ? 1 : 0));
-      if (bondsOf(g).some(b => b.type === 'rival')) m *= 1.1;      // nothing drives a man like someone to outdo
-      m *= (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
+      const m = trainRate(g);
       for (const st of (spar ? STATS : [g.activity])) {
         if (addProg(g, st, m * g.pot[st] * (spar ? 0.32 : 1))) log(`${g.name}'s ${STAT_NAMES[st].toLowerCase()} rises to ${g.stats[st]}.`, 'good');
       }
-      g.fatigue += (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1);
+      g.fatigue += trainTire(g, spar);
       g.hp += mh * 0.06;
       if (g.fatigue > 75 && chance(0.12)) {
         g.injury = Math.round(rint(2, 4) * (g.traits.includes('frail') ? 1.5 : 1));

@@ -344,21 +344,65 @@ function statusChips(g) {
   return s;
 }
 
-// One fighter on one line: face, name, the three gauges, and today's work as six small buttons.
+// One fighter on one row: face, name and standing, his three skills, the three gauges, and today's work as five small buttons.
 function gladCard(g) {
   // a button that cannot be used stays hoverable so its tooltip can say why
-  const actBtn = ([k, label, what]) => {
+  const actBtn = ([k, label, what], i) => {
     const why = g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one under Household.' : '';
-    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || what)}>${STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : 'All'}</button>`;
+    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || `${what}\nKey: ${i + 1}, for whoever is chosen.`)}>${STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : 'All'}</button>`;
   };
   const J = jobOf(g);
   const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}</div>`;
-  return `<div class="lrow grow-row ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
+  const skills = STATS.map(s => `<span class="sk ${trains(g, s) ? 'up' : ''}"${tip(`${STAT_NAMES[s]} ${g.stats[s]}${trains(g, s) ? ', in training' : ''}`)}>${ic(s)}<b class="num">${g.stats[s]}</b></span>`).join('');
+  return `<div class="lrow grow-row lud ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
     <canvas width="48" height="56" style="width:34px;height:40px" data-portrait="${g.id}"></canvas>
-    <div class="grow"><span class="t">${g.name} ${styleMark(g)}</span><small>${CLASSES[g.cls].name} &middot; power ${rating(g)} &middot; ${g.wins}W ${g.losses}L</small></div>
-    <div class="chips">${statusChips(g)}</div>
-    <div class="gauges"><div${tip('health')}>${bar('hp', g.hp, maxHp(g))}</div><div${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</div><div${tip('morale')}>${bar('mor', g.morale, 100)}</div></div>
+    <div class="grow"><span class="t">${g.name} ${styleMark(g)} <small class="inl">${RANKS[g.rank].name} &middot; ${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</small></span>
+      <div class="l2"><span class="sks"${tip('rating')}><b class="num pw">${rating(g)}</b>${skills}</span>${statusChips(g)}</div></div>
+    <div class="gauges"><div${tip(`Health ${Math.round(g.hp)} of ${maxHp(g)}.\n${TIPS.health}`)}>${bar('hp', g.hp, maxHp(g))}</div><div${tip(`Fatigue ${Math.round(g.fatigue)} of 100.\n${TIPS.fatigue}`)}>${bar('fat', g.fatigue, 100)}</div><div${tip(`Morale ${Math.round(g.morale)} of 100.\n${TIPS.morale}`)}>${bar('mor', g.morale, 100)}</div></div>
     ${work}
+  </div>`;
+}
+
+// What today holds for him, in a sentence or two: what his work will do and when it will pay.
+function todayNote(g) {
+  const J = jobOf(g);
+  if (J) return `Away: ${jobTitle(J).toLowerCase()}, back ${backWhen(J)}.`;
+  const [heal, shed] = restGain(g), need = Math.max(Math.ceil((maxHp(g) - g.hp) / heal), Math.ceil(g.fatigue / shed));
+  const mend = need <= 0 ? 'He is whole and fresh.' : `Whole and fresh in ${need} day${need === 1 ? '' : 's'}.`;
+  if (g.injury > 0) return `<b class="bad">Injured.</b> He can only rest: ${g.injury} more day${g.injury === 1 ? '' : 's'} before he trains or fights.`;
+  const tired = G.autoRest && g.fatigue > 75;
+  if (g.activity === 'rest' || tired) {
+    return `<b>${tired ? 'Too tired to train, so he rests.' : 'Resting.'}</b> Each day gives back ${Math.round(heal)} health and sheds ${shed} fatigue. ${need <= 0 && !tired ? '<span class="bad">Rest is wasted on him today.</span>' : mend}`;
+  }
+  const spar = g.activity === 'spar', rate = trainRate(g), tire = trainTire(g, spar);
+  const days = s => g.stats[s] >= 20 ? 0 : Math.max(1, Math.ceil((needProg(g.stats[s]) - g.prog[s]) / (rate * g.pot[s] * (spar ? 0.32 : 1))));
+  const gains = (spar ? STATS : [g.activity]).map(s => { const d = days(s); return d ? `${STAT_NAMES[s]} ${g.stats[s] + 1} in ${d} day${d === 1 ? '' : 's'}` : `${STAT_NAMES[s]} can go no higher`; }).join(', ');
+  const left = Math.max(0, Math.ceil((75 - g.fatigue) / tire));
+  const warn = g.fatigue > 75 ? '<span class="bad">He is exhausted and may tear something.</span>' : left <= 1 ? '<span class="bad">Exhausted after today.</span>' : `Exhausted in ${left} days at this pace.`;
+  return `<b>${spar ? 'Sparring.' : 'Drilling ' + STAT_NAMES[g.activity].toLowerCase() + '.'}</b> ${gains}. ${warn}`;
+}
+
+// The school at a glance, and one order for everybody.
+const RSORTS = [['cells', 'by cell'], ['power', 'by power'], ['ready', 'by readiness']];
+function rosterSorted() {
+  const r = [...G.roster], fit = g => (canFight(g) ? 2 : g.away ? 0 : 1) + g.hp / maxHp(g) - g.fatigue / 200;
+  if (ui.rsort === 'power') r.sort((a, b) => rating(b) - rating(a));
+  else if (ui.rsort === 'ready') r.sort((a, b) => fit(b) - fit(a));
+  return r;
+}
+function schoolBar() {
+  const here = G.roster.filter(g => !g.away), fit = G.roster.filter(canFight).length, hurt = G.roster.filter(g => g.injury > 0).length, away = G.roster.length - here.length;
+  const spent = here.filter(g => g.injury <= 0 && g.fatigue > 75).length, idle = here.filter(g => g.injury <= 0 && g.activity === 'rest' && g.hp >= maxHp(g) && g.fatigue <= 0).length;
+  const bit = (n, word, cls, t) => n ? `<span class="${cls}"${tip(t)}><b class="num">${n}</b> ${word}</span>` : '';
+  const all = ACT_BUTTONS.map(([k, label]) => {
+    const off = k === 'spar' && !staffLvl('doctore');
+    return `<button class="${off ? 'off' : ''}" data-act="actall" data-w="${k}"${tip(off ? 'Sparring needs a doctore. Hire one under Household.' : `Set every man who is here and whole to: ${label.toLowerCase()}.`)}>${STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : 'All'}</button>`;
+  }).join('');
+  return `<div class="panel schoolbar">
+    <div class="tally">${bit(fit, 'fit to fight', 'good', 'Whole, here, and not yet fought today.') || '<span class="bad">No one fit to fight</span>'}${bit(hurt, 'injured', 'bad', 'Resting until they heal. An infirmary and a medicus shorten it.')}${bit(spent, 'exhausted', 'bad', TIPS.exhausted)}${bit(away, 'away', 'gold', TIPS.away)}${bit(idle, 'idle', 'bad', 'Resting though whole and fresh: a day of training lost.')}
+      <span${tip('Food for every man here, and the wages of your household, each day.')}>upkeep <b class="num">${upkeep()}</b> a day</span></div>
+    <button class="mini" data-act="rsort"${tip('Change the order of the list: by cell, strongest first, or readiest to fight first.')}>${RSORTS.find(s => s[0] === (ui.rsort || 'cells'))[1]}</button>
+    <div class="acts mini"><span class="lbl">Everyone</span>${all}</div>
   </div>`;
 }
 
@@ -368,7 +412,7 @@ function trains(g, s) { return G.roster.includes(g) && g.injury <= 0 && !g.away 
 function statRows(g, hide) {
   return STATS.map(s => `<div class="statrow"${tip(s)}>
       <span class="statname ${trains(g, s) ? 'gold' : ''}">${ic(s)} ${STAT_NAMES[s]}${trains(g, s) ? '<small class="gold">&#9650; training</small>' : ''}</span><b class="num">${g.stats[s]}</b>
-      ${bar('prog', g.prog[s], needProg(g.stats[s]))}
+      <div class="progcell">${bar('prog', g.prog[s], needProg(g.stats[s]))}${(a => g.beast || !ABILITIES[g.cls] ? '' : a ? `<small>${a.name} at ${a.at}</small>` : '<small>nothing more to learn</small>')(g.beast || !ABILITIES[g.cls] ? null : abilityNext(g, s))}</div>
       <span class="stars"${tip(hide ? 'hidden' : 'talent')}>${hide ? '? ? ?' : '★'.repeat(stars(g.pot[s])) + '☆'.repeat(5 - stars(g.pot[s]))}</span>
     </div>`).join('');
 }
@@ -402,9 +446,10 @@ function gladDetail(g) {
   if (!DTABS.some(t => t[0] === ui.dtab)) ui.dtab = 'stats';
   const tac = Object.entries(TACTICS).map(([k, t]) => `<option value="${k}" ${g.tactic === k ? 'selected' : ''}>${t.name}</option>`).join('');
   const pages = {
-    stats: () => `${statRows(g)}<hr class="sep">${traitList(g)}<hr class="sep">
+    stats: () => `<div class="today"><span class="lbl">Today</span><div>${todayNote(g)}</div></div>
+      ${statRows(g)}<hr class="sep">${traitList(g)}<hr class="sep">
       <div class="dim" style="font-size:13px">${c.desc}</div>
-      <div class="dim" style="font-size:13px;margin-top:4px">${STATS.map(k => { const a = abilityNext(g, k); return a ? `${STAT_NAMES[k]} ${a.at} teaches <b>${a.name}</b>` : `${STAT_NAMES[k]} has no more to teach`; }).join(' &middot; ')}.</div>`,
+      <div class="dim" style="font-size:13px;margin-top:4px">Worth about <b class="num">${value(g)}</b> denarii.</div>`,
     abil: () => abilityBlock(g),
     gear: () => gearBlock(g),
     story: () => (questBlock(g) + storyBlock(g)).replace(/^<hr class="sep">/, '') || '<div class="dim">Nothing worth telling of him yet.</div>',
@@ -426,10 +471,14 @@ function gladDetail(g) {
         <h2>${g.name}</h2>
         <div>${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin}</div>
         <div>${ratingLine(g)} &middot; ${styleMark(g)}</div>
-        <div style="margin-top:4px">${statusChips(g)}</div>
-        <div class="num dim" style="font-size:13px">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills &middot; health ${Math.round(g.hp)}/${maxHp(g)}</div>
+        <div style="margin-top:4px">${statusChips(g)}${g.perkPending > 0 ? `<button class="primary mini" data-act="perk" data-v="${g.id}">Choose a perk</button>` : ''}</div>
+        <div class="num dim" style="font-size:13px">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</div>
+        <div class="vitals">
+          <div${tip('health')}><span>Health</span>${bar('hp', g.hp, maxHp(g))}<b class="num">${Math.round(g.hp)}/${maxHp(g)}</b></div>
+          <div${tip('fatigue')}><span>Fatigue</span>${bar('fat', g.fatigue, 100)}<b class="num ${g.fatigue > 75 ? 'bad' : ''}">${Math.round(g.fatigue)}</b></div>
+          <div${tip('morale')}><span>Morale</span>${bar('mor', g.morale, 100)}<b class="num ${g.morale < 30 ? 'bad' : ''}">${Math.round(g.morale)}</b></div>
+        </div>
         ${g.rank < RANKS.length - 1 ? `<div class="barrow"${tip('rank')} style="grid-template-columns:auto 1fr;margin-top:4px">To ${RANKS[g.rank + 1].name} ${bar('prog', g.xp - RANKS[g.rank].xp, RANKS[g.rank + 1].xp - RANKS[g.rank].xp)}</div>` : ''}
-        ${g.perkPending > 0 ? `<button class="primary" data-act="perk" data-v="${g.id}" style="margin-top:4px">Choose a perk</button>` : ''}
       </div>
     </div>
     <div class="subtabs">${DTABS.map(([k, n]) => `<button class="${ui.dtab === k ? 'on' : ''}" data-act="dtab" data-v="${k}">${n}${mark[k] ? `<span class="badge">${mark[k]}</span>` : ''}</button>`).join('')}</div>
@@ -443,7 +492,8 @@ function viewLudus() {
   return `<div class="fill">
     <div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small>
         <label class="h2opt"${tip('autorest')}><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> the exhausted rest on their own</label></h2>
-      <div class="pane" data-pane="roster"><div class="panel list">${G.roster.map(gladCard).join('')}</div></div></div>
+      ${schoolBar()}
+      <div class="pane" data-pane="roster"><div class="panel list">${rosterSorted().map(gladCard).join('')}${capacity() > G.roster.length ? `<div class="lrow emptycell"><span class="dim">${capacity() - G.roster.length} empty cell${capacity() - G.roster.length === 1 ? '' : 's'}. The slave market in the village has men for sale.</span></div>` : ''}</div></div></div>
     <div><h2>Dossier</h2>${gladDetail(byId(ui.sel))}</div>
   </div>`;
 }
@@ -1174,6 +1224,12 @@ const ACTIONS = {
     if (!g || el.classList.contains('off')) return;
     g.activity = w; ui.sel = g.id; save(); render();
   },
+  actall(v, w, el) {
+    if (el.classList.contains('off')) return;
+    for (const g of G.roster) if (!g.away && g.injury <= 0) g.activity = w;
+    save(); render();
+  },
+  rsort() { const i = RSORTS.findIndex(s => s[0] === (ui.rsort || 'cells')); ui.rsort = RSORTS[(i + 1) % RSORTS.length][0]; render(); },
   sel(v, w, el, e) { if (e.target.closest('select')) return; ui.sel = +v; render(); },
   close() { closeModal(); checkEnd(); },
   endday() {
@@ -1430,7 +1486,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1574,7 +1630,7 @@ document.addEventListener('keydown', e => {
 });
 // Keys for everything done often, so the hand can stay off the mouse:
 //   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,
-//   left and right through a fighter's dossier pages, Enter to dismiss a notice, 1-4 to answer an event.
+//   left and right through a fighter's dossier pages, 1-5 to set the chosen fighter's work, Enter to dismiss a notice, 1-4 to answer an event.
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
   const at = document.activeElement || document.body;
@@ -1599,6 +1655,7 @@ document.addEventListener('keydown', e => {
     if (to) { press(to); const now = $('#view .lrow.sel[data-act]'); if (now) now.scrollIntoView({ block: 'nearest' }); } else e.preventDefault();
     return;
   }
+  if (/^[1-5]$/.test(k) && ui.tab === 'ludus') return press($(`#view .lrow.sel .acts button:nth-child(${k})`));
   if ((k === 'ArrowLeft' || k === 'ArrowRight') && ui.tab === 'ludus') {
     const i = DTABS.findIndex(t => t[0] === ui.dtab) + (k === 'ArrowRight' ? 1 : -1);
     if (DTABS[i]) { e.preventDefault(); SFX.ui('tick'); ACTIONS.dtab(DTABS[i][0]); }

@@ -550,3 +550,37 @@ table.report td { padding: 2px 6px 2px 0; border-bottom: 1px solid rgba(110, 72,
 table.report td.num, table.report th:nth-child(2), table.report th:nth-child(3), table.report th:nth-child(4) { text-align: right; padding-right: 10px; }
 table.report tr.foe td { color: #6b573c; }
 table.report small { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* the ludus: the school at a glance, fuller roster rows, and a dossier that says what today will do */
+.schoolbar { display: flex; align-items: center; gap: 10px; padding: 4px 9px; margin-bottom: 6px; font-size: 12px; }
+.schoolbar .tally { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--dim); }
+.schoolbar .tally .good { color: #9fce86; } .schoolbar .tally .bad { color: #f08a7c; } .schoolbar .tally .gold { color: var(--gold); }
+.schoolbar .tally b { color: var(--text); }
+.schoolbar .acts.mini { align-items: center; }
+.schoolbar .acts .lbl { margin-right: 4px; }
+.schoolbar button.mini { flex: none; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; }
+.lrow.lud { align-items: center; min-height: 46px; }
+.lrow.lud small.inl { display: inline; font-size: 11px; color: var(--dim); margin-left: 4px; }
+.lrow.lud .l2 { display: flex; align-items: center; gap: 4px; height: 19px; overflow: hidden; margin-top: 1px; }
+.lrow.lud .l2 .chip { flex: none; margin: 0; }
+.lrow.lud .sks { display: inline-flex; align-items: center; gap: 7px; flex: none; margin-right: 6px; font-size: 12px; }
+.lrow.lud .sks .pw { color: var(--gold); min-width: 18px; font-size: 13px; }
+.lrow.lud .sk { display: inline-flex; align-items: center; gap: 2px; color: var(--dim); }
+.lrow.lud .sk .ic { width: 13px; height: 13px; opacity: .8; }
+.lrow.lud .sk.up, .lrow.lud .sk.up b { color: var(--gold); } .lrow.lud .sk.up .ic { opacity: 1; }
+.lrow.lud .gauges { width: 84px; }
+.lrow.emptycell { cursor: default; min-height: 30px; font-size: 12px; font-style: italic; }
+.lrow.emptycell:hover { background: none; }
+.vitals { display: grid; gap: 1px; margin-top: 4px; max-width: 330px; }
+.vitals > div { display: grid; grid-template-columns: 54px 1fr 62px; gap: 8px; align-items: center; font-size: 12px; }
+.vitals span { font: 10px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.vitals .bar { margin: 2px 0; }
+.vitals b.bad { color: #f08a7c; }
+.today { display: flex; gap: 10px; align-items: baseline; padding: 5px 9px; margin-bottom: 8px; background: rgba(227, 176, 74, .07); border-left: 3px solid var(--gold); font-size: 13px; line-height: 1.35; }
+.today .lbl { flex: none; font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.today .bad { color: #f08a7c; }
+.progcell { min-width: 0; }
+.progcell .bar { margin: 2px 0 0; }
+.progcell small { display: block; font-size: 10px; color: var(--dim); text-transform: none; letter-spacing: 0; line-height: 1.1; margin-top: 1px; }
+.statrow { grid-template-columns: 112px 24px minmax(30px, 1fr) auto; align-items: start; }
+.statrow .statname small { display: block; line-height: 1; margin: 0 0 2px 22px; }
