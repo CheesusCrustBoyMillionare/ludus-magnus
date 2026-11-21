@@ -26,6 +26,13 @@ const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 148, y: 158, w: 8, h:
 const vil = {
   x: 0, y: 0, face: 'down', walk: 0, moving: false, at: null,      // the lanista, and whose doorstep he stands on
   path: null, then: null, keys: {}, npcs: [], raf: 0, last: 0, prev: 0, layer: null, grid: null,
+  hover: null, puffs: [], puffT: 0, flock: 0,          // where the mouse is over the map; dust from his feet; when the pigeons last took fright
+};
+// What each place is, said when the mouse rests on it.
+const PLACE_INFO = {
+  facilities: 'YOUR HOUSE: STAFF, BUILDINGS AND RATIONS', ludus: 'YOUR SCHOOL: THE MEN, THEIR TRAINING AND THEIR GEAR', arena: 'THE ARENA: BOUTS ON GAMES DAYS',
+  patrons: 'THE TEMPLE: THE PATRONS WHOSE FAVOUR YOU NEED', chronicle: 'THE RECORD HOUSE: THE CHRONICLE OF YOUR HOUSE', market: 'THE MARKET: FIGHTERS FOR SALE',
+  smith: 'THE BLACKSMITH: WEAPONS AND ARMOUR', contracts: 'THE FORUM: PAID WORK FOR YOUR MEN', rivals: 'THE TAVERN: NEWS OF THE RIVAL HOUSES',
 };
 
 // ---------- the ground: where a man can walk, and how to get somewhere ----------
@@ -89,12 +96,14 @@ function villageWalkTo(key, then) {
   vil.path = vilPath(vil.x, vil.y, p.dx, p.dy);
 }
 // Which building a click landed on ('gate' for the way out of town).
-function villagePick(cv, e) {
-  const r = cv.getBoundingClientRect();
-  const x = (e.clientX - r.left) / r.width * VILLAGE.W, y = (e.clientY - r.top) / r.height * VILLAGE.H;
+function villageAt(x, y) {
   if (x > 566 && y > 48 && y < 92) return 'gate';
   const p = PLACES.find(b => x >= b.x - 3 && x <= b.x + b.w + 3 && y >= b.y - 9 && y <= b.y + b.h + 10);
   return p ? p.key : null;
+}
+function villagePick(cv, e) {
+  const r = cv.getBoundingClientRect();
+  return villageAt((e.clientX - r.left) / r.width * VILLAGE.W, (e.clientY - r.top) / r.height * VILLAGE.H);
 }
 function villageKey(e, down) {
   const k = { w: 'u', a: 'l', s: 'd', d: 'r' }[e.key.length === 1 ? e.key.toLowerCase() : ''];
@@ -131,7 +140,9 @@ function villageStep(dt, frozen) {
     if (followPath(vil, dt, VILLAGE.SPEED)) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); }
   }
   vil.moving = Math.hypot(vil.x - x0, vil.y - y0) > 0.01;
-  if (vil.moving) vil.walk += dt * 11;
+  if (vil.moving) { vil.walk += dt * 11; vil.puffT -= dt; if (vil.puffT <= 0) { vil.puffT = 0.16; vil.puffs.push({ x: vil.x + (Math.random() * 4 - 2), y: vil.y, t: 0 }); } }
+  for (const q of vil.puffs) q.t += dt;
+  if (vil.puffs.length && vil.puffs[0].t > 0.5) vil.puffs.shift();
   const here = PLACES.find(p => Math.abs(vil.x - p.dx) < 7 && Math.abs(vil.y - p.dy) < 5);
   // a doorstep opens when you step onto it; a man sent somewhere walks past the doors on his way without looking in
   if (here && vil.at !== here.key && !vil.path) { vil.at = here.key; if (typeof villageEnter === 'function') villageEnter(here.key); }
@@ -142,14 +153,29 @@ function villageStep(dt, frozen) {
 
   // townsfolk, going from door to door about their own business
   if (!vil.npcs.length) {
-    const tunics = ['#8a4a3a', '#4a6a8a', '#7a7a3a', '#6a4a7a', '#3f7a5a', '#a8763a', '#8a8a8a'];
-    for (let i = 0; i < 7; i++) { const p = PLACES[(i * 4 + 2) % PLACES.length]; vil.npcs.push({ x: p.dx + (i % 3) * 6 - 6, y: p.dy + 6 + (i % 2) * 4, face: 'down', walk: i, wait: 1 + i * 0.9, path: null, tunic: tunics[i], hair: i % 2 ? '#2a1c14' : '#6a4a2a', skin: ['#d9a57c', '#c9966c', '#8a5a3a', '#e3b48f'][i % 4] }); }
+    const tunics = ['#8a4a3a', '#4a6a8a', '#7a7a3a', '#6a4a7a', '#3f7a5a', '#a8763a', '#8a8a8a', '#b06a8a', '#5a8a9a'];
+    for (let i = 0; i < 9; i++) { const p = PLACES[(i * 4 + 2) % PLACES.length]; vil.npcs.push({ x: p.dx + (i % 3) * 6 - 6, y: p.dy + 6 + (i % 2) * 4, face: 'down', walk: i, wait: 1 + i * 0.9, path: null, tunic: tunics[i], hair: i % 2 ? '#2a1c14' : '#6a4a2a', skin: ['#d9a57c', '#c9966c', '#8a5a3a', '#e3b48f'][i % 4] }); }
   }
   for (const n of vil.npcs) {
     if (n.path) { n.moving = true; n.walk += dt * 8; if (followPath(n, dt, 38)) { n.path = null; n.moving = false; n.wait = 2 + Math.random() * 7; } continue; }
     n.wait -= dt;
-    if (n.wait <= 0) { const p = PLACES[Math.floor(Math.random() * PLACES.length)]; n.path = vilPath(n.x, n.y, p.dx + Math.round(Math.random() * 16 - 8), p.dy + 5 + Math.round(Math.random() * 6)); }
+    if (n.wait <= 0) {
+      // most errands are to a door; some are only to the square, to sit or to talk
+      const sq = Math.random() < 0.3, p = PLACES[Math.floor(Math.random() * PLACES.length)];
+      n.path = sq ? vilPath(n.x, n.y, 262 + Math.round(Math.random() * 70), 132 + Math.round(Math.random() * 14)) : vilPath(n.x, n.y, p.dx + Math.round(Math.random() * 16 - 8), p.dy + 5 + Math.round(Math.random() * 6));
+    }
   }
+  // the pigeons in the square take fright when anyone walks through them
+  if (Math.abs(vil.x - 296) < 34 && Math.abs(vil.y - 132) < 20 && vil.moving) vil.flock = 2.6;
+  vil.flock = Math.max(0, vil.flock - dt);
+}
+
+// A child: half the size of a man and twice as quick.
+function vilChild(ctx, X, Y, face, walk, tunic) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); }, st = Math.sin(walk) > 0 ? 1 : 0;
+  R(-2, -1, 5, 1, 'rgba(0,0,0,.25)'); R(-1, -3 + st, 1, 2, '#d9a57c'); R(1, -3 + (1 - st), 1, 2, '#d9a57c');
+  R(-2, -7, 4, 4, tunic); R(-1, -10, 3, 3, '#d9a57c'); R(-1, -11, 3, 1, '#3a2a1c');
+  if (face !== 'up') R(face === 'left' ? -1 : 1, -9, 1, 1, '#1c1310');
 }
 
 // ---------- drawing ----------
@@ -183,6 +209,10 @@ function villageLayer() {
   R(0, 0, 590, 190, '#7e9a4b');
   for (let i = 0; i < 520; i++) R(rnd(i, 590), rnd(i + 900, 190), 2, 1, i % 3 ? '#718c42' : '#8eab58');
   for (let i = 0; i < 46; i++) R(rnd(i + 50, 590), rnd(i + 70, 190), 1, 1, ['#f2e6a0', '#e8a0a0', '#f4f4f0'][i % 3]);
+  // lighter and darker stretches, so the green is not one flat colour
+  for (let y = 0; y < 190; y += 5) for (let x = 0; x < 590; x += 5) { const n = wildNoise(x / 55, y / 55, 77); if (n > 0.62) R(x, y, 5, 5, 'rgba(255,255,210,.07)'); else if (n < 0.36) R(x, y, 5, 5, 'rgba(0,30,0,.08)'); }
+  // a kitchen garden and an orchard along the south wall
+  for (let i = 0; i < 6; i++) { R(40 + i * 13, 176, 10, 9, '#6b5028'); for (let k = 0; k < 3; k++) R(41 + i * 13 + k * 3, 177 + (k % 2), 2, 6, i % 2 ? '#6f9a3a' : '#8ab04a'); }
   // the two streets and the lanes between them
   const road = (x, y, w, h) => { R(x - 1, y - 1, w + 2, h + 2, '#a98a58'); R(x, y, w, h, '#cdae78'); for (let i = 0; i < w * h / 26; i++) R(x + rnd(i + x, w - 2), y + rnd(i + y + 7, h - 1), 2, 1, i % 2 ? '#bf9f6a' : '#d9bd8a'); };
   road(4, 64, 582, 18); road(4, 152, 582, 16);
@@ -192,6 +222,15 @@ function villageLayer() {
   for (let y = 82; y < 152; y += 7) for (let x = 254 + ((y / 7) % 2 ? 0 : 5); x < 346; x += 10) { R(x, y, 9, 6, (x + y) % 3 ? '#c9c3ae' : '#d4cfbc'); }
   R(254, 82, 92, 1, '#8f8872'); R(254, 151, 92, 1, '#8f8872');
   ell(296, 121, 11, 8, 'rgba(0,0,0,.25)'); ell(296, 119, 11, 8, '#a39d8a'); ell(296, 119, 9, 6, '#5d9ac2'); ell(296, 118, 7, 4, '#7fb6d8'); R(294, 112, 4, 8, '#bdb7a3'); R(293, 111, 6, 2, '#d4cfbc');
+  // the square: a statue of some forgotten magistrate, and benches to argue on
+  R(291, 88, 10, 4, '#a39d8a'); R(292, 87, 8, 1, '#d4cfbc'); R(294, 79, 4, 8, '#c9c3ae'); R(294, 76, 4, 3, '#d9d2bd'); R(293, 80, 1, 5, '#b5af9b'); R(298, 81, 2, 1, '#c9c3ae');
+  for (const [bx, by] of [[262, 136], [322, 136], [262, 96], [322, 96]]) { R(bx, by, 12, 3, '#8a6a3a'); R(bx, by, 12, 1, '#a8834a'); R(bx + 1, by + 3, 1, 2, '#5a4326'); R(bx + 10, by + 3, 1, 2, '#5a4326'); }
+  // flowers by the temple, barrels by the tavern, crates by the market, hay by the school, washing by the forge
+  for (const fx of [374, 460]) { R(fx, 56, 8, 5, '#5a4326'); for (let k = 0; k < 4; k++) R(fx + k * 2, 56 + (k % 2), 2, 2, ['#e06a8a', '#f2e6a0', '#b9a0e0', '#e8a0a0'][k]); }
+  for (const bx of [478, 562]) { R(bx, 142, 6, 7, '#7a5a2a'); R(bx, 142, 6, 1, '#3a2a1c'); R(bx, 145, 6, 1, '#3a2a1c'); R(bx + 1, 141, 4, 1, '#a8834a'); }
+  R(138, 140, 7, 7, '#a8834a'); R(138, 140, 7, 1, '#c9a25a'); R(141, 135, 6, 6, '#a8834a'); R(141, 135, 6, 1, '#c9a25a');
+  R(213, 52, 12, 8, '#c9a24a'); R(214, 50, 10, 2, '#d9bd6a'); R(213, 59, 12, 1, '#a8853a');
+  R(238, 112, 1, 12, '#5a4326'); R(250, 112, 1, 12, '#5a4326'); R(238, 113, 13, 1, '#3a2a1c'); R(240, 114, 3, 4, '#e8e2d0'); R(244, 114, 2, 5, '#b85a48'); R(247, 114, 3, 3, '#8fa8c8');
   // a well, and a cart by the lower street
   R(148, 158, 8, 6, '#8f8872'); R(149, 159, 6, 4, '#2c3f52'); R(147, 154, 1, 5, '#6b4a2a'); R(156, 154, 1, 5, '#6b4a2a'); R(147, 153, 10, 1, '#6b4a2a');
   R(214, 172, 14, 5, '#8a6a3a'); R(214, 171, 14, 1, '#a8834a'); R(216, 176, 3, 3, '#3a2a1c'); R(223, 176, 3, 3, '#3a2a1c'); R(216, 168, 10, 3, '#d9c27a');
@@ -255,6 +294,12 @@ function villageLayer() {
       R(x + 6, y + 40, 5, 6, '#7a5a2a'); R(x + 6, y + 40, 5, 1, '#3a2a1c'); R(x + 6, y + 43, 5, 1, '#3a2a1c');
     }
   }
+  // the town wall, all the way round, with its battlements
+  const stone = '#b8ab94', top = '#d8cdb6', dark = '#8f846e';
+  R(0, 0, 590, 3, stone); R(0, 3, 590, 1, dark); R(0, 186, 590, 4, stone); R(0, 186, 590, 1, top);
+  R(0, 0, 3, 190, stone); R(3, 0, 1, 190, dark); R(586, 0, 4, 52, stone); R(586, 94, 4, 96, stone); R(585, 0, 1, 52, dark); R(585, 94, 1, 96, dark);
+  for (let x = 1; x < 590; x += 6) { R(x, 0, 3, 1, top); R(x, 189, 3, 1, dark); }
+  for (let y = 4; y < 190; y += 6) { R(0, y, 1, 3, top); if (y < 50 || y > 96) R(589, y, 1, 3, top); }
   // trees: a round crown, lit from the upper left, over its own shadow
   for (const [tx, ty] of VIL_TREES) { ell(tx + 1, ty + 1, 7, 3, 'rgba(0,0,0,.25)'); R(tx - 1, ty - 4, 2, 5, '#5a3c20'); ell(tx, ty - 9, 7, 6, '#3f6a2c'); ell(tx - 1, ty - 10, 5, 4, '#57863a'); ell(tx - 2, ty - 11, 2, 2, '#77a64e'); }
   return (vil.layer = cv);
@@ -270,6 +315,10 @@ function drawVillage(cv, T) {
   ctx.setTransform(VILLAGE.S, 0, 0, VILLAGE.S, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(villageLayer(), 0, 0, VILLAGE.W, VILLAGE.H);
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  // the same hour and the same weather as over the school next door
+  const sky = typeof yardSky === 'function' ? yardSky(T) : { night: 0, tint: '#ffffff' }, wx = typeof yardWeather === 'function' ? yardWeather(T) : { rain: 0, gust: 0, wet: 0, over: 0 };
+  const night = sky.night, dark = night > 0.6, games = typeof isGamesDay === 'function' && isGamesDay();
+  if (wx.wet > 0) { R(0, 0, 590, 190, `rgba(40,45,60,${(0.13 * wx.wet).toFixed(3)})`); for (let i = 0; i < 9; i++) { const px = (i * 67 + 20) % 560, py = i % 2 ? 70 + (i * 3) % 8 : 156 + (i * 5) % 8, w = Math.round((8 + (i % 3) * 4) * wx.wet); if (w > 3) { R(px, py, w, 2, 'rgba(160,190,215,.55)'); R(px + 1, py + 2, w - 2, 1, 'rgba(160,190,215,.4)'); } } }
 
   // what moves on the buildings: water, smoke, the forge fire, flags
   for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.6; R(296 + Math.cos(a) * 5, 118 + Math.sin(a) * 3, 2, 1, '#d6ecf8'); }
@@ -280,6 +329,22 @@ function drawVillage(cv, T) {
   ctx.globalAlpha = 1;
   const a = placeOf('arena'), acx = a.x + a.w / 2;
   for (const [ox, col] of [[-50, '#8a2a20'], [-28, '#c9a21e'], [28, '#2f6db8'], [50, '#8a2a20']]) { const fy = a.y + 28 - Math.round(26 * Math.sqrt(1 - (ox * ox) / (63 * 63))) - 7; R(acx + ox, fy, 1, 8, '#5a4326'); R(acx + ox + 1, fy + (Math.sin(T * 4 + ox) > 0 ? 0 : 1), 5, 3, col); }
+
+  if (games) {                                  // games today: bunting over the arena gate
+    for (let i = 0; i < 13; i++) { const bx = acx - 36 + i * 6, by = a.y + a.h - 17 + Math.round(Math.sin(i / 12 * Math.PI) * 3); R(bx, by, 6, 1, '#3a2a1c'); R(bx + 1, by + 1, 4, 2 + (Math.sin(T * 5 + i) > 0 ? 1 : 0), ['#c23b2e', '#e3b04a', '#2f6db8'][i % 3]); }
+  }
+  for (const [key, ox] of [['rivals', 12], ['facilities', 62], ['chronicle', 8]]) {          // hearth smoke
+    const pl = placeOf(key);
+    R(pl.x + ox, pl.y - 3, 4, 5, '#8f8a84'); R(pl.x + ox, pl.y - 3, 4, 1, '#b5b0a8');
+    for (let i = 0; i < 3; i++) { const q = (T * 0.3 + i / 3 + ox) % 1; ctx.globalAlpha = 0.45 * (1 - q); R(pl.x + ox + Math.sin(q * 5 + i) * 2 + q * (4 + wx.gust * 20), pl.y - 5 - q * 14, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); }
+    ctx.globalAlpha = 1;
+  }
+  if (vil.path && vil.path.length) {             // the way he has been sent, dotted
+    for (let i = 1; i < vil.path.length; i += 2) R(vil.path[i].x - 1, vil.path[i].y - 1, 2, 2, 'rgba(245,213,132,.8)');
+    const e = vil.path[vil.path.length - 1]; ctx.globalAlpha = 0.5 + 0.4 * Math.sin(T * 6); R(e.x - 4, e.y - 1, 9, 2, '#f5d584'); ctx.globalAlpha = 1;
+  }
+  for (const q of vil.puffs) { ctx.globalAlpha = 0.5 * (1 - q.t / 0.5); R(q.x - 1, q.y - 1 - q.t * 6, 3, 2, '#e2cf9c'); }
+  ctx.globalAlpha = 1;
 
   // the east gate: barred until the school has fought its first games
   const open = typeof gateOpen === 'function' && gateOpen();
@@ -293,12 +358,67 @@ function drawVillage(cv, T) {
   const cur = PLACES.find(p => p.key === ui.tab);
   if (cur) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 4); R(cur.dx - 6, cur.dy - 4, 12, 5, '#f5d584'); ctx.globalAlpha = 1; }
 
-  // people, the nearer drawn over the farther
-  const folk = vil.npcs.map(n => ({ y: n.y, draw: () => vilPerson(ctx, n.x, n.y, n) }));
+  // people, the nearer drawn over the farther. By night most of the town is indoors.
+  const folk = vil.npcs.filter((n, i) => !dark || i < 2).map(n => ({ y: n.y, draw: () => vilPerson(ctx, n.x, n.y, n) }));
+  const still = (x, y, o) => folk.push({ y, draw: () => vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o)) });
+  // two men on the gate, with spears
+  for (const gy of [62, 96]) folk.push({ y: gy, draw: () => { vilPerson(ctx, 568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
+  if (!dark) {
+    const m = placeOf('market'), tp = placeOf('patrons');
+    [[16, '#b93a2e'], [49, '#2f6db8'], [82, '#c9a21e']].forEach(([ox, c], i) => still(m.x + ox, m.y + 30 + (Math.sin(T * 1.5 + i * 2) > 0.6 ? -1 : 0), { tunic: c, hair: '#2a1c14', skin: i % 2 ? '#c9966c' : '#d9a57c' }));      // the stallholders
+    still(tp.dx + 15 + Math.round(Math.sin(T * 0.25) * 4), tp.y + tp.h + 3, { tunic: '#f1ead8', hair: '#c9c2b2', skin: '#d9a57c', face: Math.sin(T * 0.25 + 1.5) > 0 ? 'right' : 'left', moving: true, walk: T * 3 });     // a priest on the temple steps
+    // children chasing each other round the fountain, and the dog that goes with them
+    for (let i = 0; i < 2; i++) { const an = T * 1.3 + i * 0.8, cx = 296 + Math.cos(an) * 24, cy = 124 + Math.sin(an) * 14; folk.push({ y: cy, draw: () => vilChild(ctx, cx, cy, Math.sin(an) > 0 ? 'left' : 'right', T * 16 + i, i ? '#b06a8a' : '#5a8a9a') }); }
+    { const an = T * 1.3 - 0.55, dx = 296 + Math.cos(an) * 26, dy = 125 + Math.sin(an) * 15, lf = Math.sin(an) > 0; folk.push({ y: dy, draw: () => { R(dx - 3, dy - 3, 6, 3, '#8a6a4a'); R(dx + (lf ? -5 : 3), dy - 5, 3, 3, '#8a6a4a'); R(dx - 3, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 1 : 0), '#6a4a2a'); R(dx + 2, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 0 : 1), '#6a4a2a'); R(dx + (lf ? 3 : -4), dy - 4, 1, 2, '#8a6a4a'); } }); }
+    // a queue at the arena on games days
+    if (games) for (let i = 0; i < 6; i++) still(a.dx + (i % 2 ? 1 : -1) * (12 + Math.floor(i / 2) * 8), a.dy + 4 + (i % 3), { tunic: ['#8a4a3a', '#4a6a8a', '#7a7a3a', '#6a4a7a', '#a8763a', '#3f7a5a'][i], hair: '#2a1c14', face: i % 2 ? 'left' : 'right', skin: i % 2 ? '#c9966c' : '#e3b48f' });
+    // pigeons in the square: pecking, or up and away
+    for (let i = 0; i < 7; i++) {
+      const hx = 268 + (i * 37) % 56, hy = 134 + (i * 23) % 12;
+      if (vil.flock > 0) { const q = 1 - vil.flock / 2.6, fx = hx + (i % 2 ? 1 : -1) * q * (30 + i * 6), fy = hy - q * (50 + i * 5), fl = Math.sin(T * 22 + i) > 0 ? 1 : 0; ctx.globalAlpha = 1 - q * 0.8; R(fx - 2, fy - fl, 2, 1, '#c9d1d9'); R(fx + 1, fy - fl, 2, 1, '#c9d1d9'); R(fx, fy, 1, 1, '#8f97a0'); ctx.globalAlpha = 1; }
+      else { const peck = Math.sin(T * 5 + i * 1.7) > 0.5 ? 1 : 0; R(hx, hy - 2, 3, 2, i % 3 ? '#8f97a0' : '#c9d1d9'); R(hx + 2, hy - 3 + peck, 1, 1, '#6f7780'); }
+    }
+  }
   folk.push({ y: vil.y, draw: () => vilPerson(ctx, vil.x, vil.y, { face: vil.face, walk: vil.walk, moving: vil.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }) });
   folk.sort((p, q) => p.y - q.y).forEach(p => p.draw());
+  // two who have stopped near each other have something to say
+  for (let i = 0; i < vil.npcs.length; i++) for (let j = i + 1; j < vil.npcs.length; j++) {
+    const p = vil.npcs[i], q = vil.npcs[j];
+    if (dark || p.path || q.path || Math.hypot(p.x - q.x, p.y - q.y) > 18) continue;
+    const who = Math.floor(T / 1.4) % 2 ? p : q, n = 1 + Math.floor(T * 3) % 3;
+    R(who.x - 4, who.y - 24, 9, 6, '#f4ecd8'); R(who.x - 1, who.y - 18, 2, 2, '#f4ecd8'); for (let k = 0; k < n; k++) R(who.x - 3 + k * 3, who.y - 22, 1, 2, '#3a2a1c');
+  }
   const bob = Math.round(Math.sin(T * 5));                              // a mark over your own head, so you can find him
   R(vil.x - 2, vil.y - 21 + bob, 5, 1, '#f5d584'); R(vil.x - 1, vil.y - 20 + bob, 3, 1, '#f5d584'); R(vil.x, vil.y - 19 + bob, 1, 1, '#f5d584');
+
+  // the colour of the hour over everything; then, after dark, the lamps
+  if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(0, 0, 590, 190); ctx.globalCompositeOperation = 'source-over'; }
+  if (night > 0.25) {
+    const la = Math.min(1, (night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
+    const glow = (gx, gy, r) => { ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(255,170,80,${(0.07 * la).toFixed(3)})`; ctx.fillRect(Math.round(gx - r + i * r / 4), Math.round(gy - r * 0.7 + i * r / 6), Math.round((r - i * r / 4) * 2), Math.round((r * 0.7 - i * r / 6) * 2)); } ctx.globalCompositeOperation = 'source-over'; };
+    ctx.globalAlpha = la;
+    for (const pl of PLACES) {
+      if (pl.kind === 'market' || pl.kind === 'arena') continue;
+      const wy = pl.y + pl.h - 11;
+      for (const wx2 of pl.kind === 'forum' ? [pl.dx] : [pl.x + 9, pl.x + pl.w - 12]) { R(wx2, wy, 3, 4, '#ffd98a'); R(wx2, wy, 3, 1, '#fff0c0'); }
+      ctx.globalAlpha = 1; glow(pl.dx, pl.y + pl.h + 1, 16); ctx.globalAlpha = la;
+    }
+    for (const [lx, ly] of [[256, 84], [343, 84], [256, 150], [343, 150], [570, 58], [570, 90]]) {       // torches at the corners of the square, and on the gate
+      R(lx, ly - 7, 1, 8, '#3a2a1c'); R(lx - 1, ly - 10 - fl, 3, 4 + fl, '#e2702a'); R(lx, ly - 9 - fl, 1, 2, '#f5c04a');
+      ctx.globalAlpha = 1; glow(lx, ly - 2, 15); ctx.globalAlpha = la;
+    }
+    R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 10, 1, 4, '#3a2a1c');     // he carries a brand
+    ctx.globalAlpha = 1; glow(vil.x, vil.y - 6, 13);
+  }
+  if (wx.rain > 0) {
+    ctx.fillStyle = `rgba(200,215,235,${(0.5 * wx.rain).toFixed(3)})`;
+    for (let i = 0, n = Math.round(70 * wx.rain); i < n; i++) { const x = Math.floor(((i * 97.3 - T * 70) % 620 + 620) % 620 - 15), y = Math.floor((i * 61.7 + T * 340 + (i % 7) * 13) % 200 - 5); ctx.fillRect(x, y, 1, 4); ctx.fillRect(x - 1, y + 4, 1, 2); }
+  }
+  if (wx.gust > 0) { ctx.globalAlpha = wx.gust; for (let i = 0; i < 6; i++) R((i * 211 + T * 120) % 640 - 20, 20 + (i * 43) % 160 - Math.abs(Math.sin(T * 5 + i)) * 8, 2, 1, i % 2 ? '#6f8a3a' : '#a8722e'); ctx.globalAlpha = 1; }
+
+  // what the mouse is resting on: a gold line round it, and a word about it along the foot of the map
+  const hov = vil.hover ? villageAt(vil.hover.x, vil.hover.y) : null, hp = hov && hov !== 'gate' ? placeOf(hov) : null;
+  if (hp) { ctx.globalAlpha = 0.6 + 0.3 * Math.sin(T * 6); R(hp.x - 2, hp.y - 2, hp.w + 4, 1, '#f5d584'); R(hp.x - 2, hp.y + hp.h + 1, hp.w + 4, 1, '#f5d584'); R(hp.x - 2, hp.y - 2, 1, hp.h + 4, '#f5d584'); R(hp.x + hp.w + 1, hp.y - 2, 1, hp.h + 4, '#f5d584'); ctx.globalAlpha = 1; }
 
   // names over the doors, the open one in gold, and how many things wait inside
   const marks = typeof villageMarks === 'function' ? villageMarks() : {};
@@ -314,6 +434,11 @@ function drawVillage(cv, T) {
       R(p.dx - 1, ay, 3, 6, '#f5d584'); R(p.dx - 3, ay + 6, 7, 1, '#f5d584'); R(p.dx - 2, ay + 7, 5, 1, '#f5d584'); R(p.dx - 1, ay + 8, 3, 1, '#f5d584'); R(p.dx, ay + 9, 1, 1, '#f5d584');
     }
   }
+  if (vil.hover) {
+    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hov ? PLACE_INFO[hov] + (marks[hov] ? ` (${marks[hov]} WAITING)` : '') + (hov === ui.tab ? ' - OPEN NOW' : ' - CLICK TO WALK THERE') : 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE  -  STEP ON A DOORSTEP TO GO IN';
+    const w = Math.ceil(ctx.measureText(say).width) + 10;
+    R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185);
+  }
 }
 
 function villageFrame(ts) {
@@ -328,5 +453,10 @@ function startVillage() {
   const cv = document.getElementById('village');
   if (!cv) return;
   if (!vil.x) villagePlace(ui.tab);
+  if (!cv._watched) {                         // where the mouse is over the map, for the gold line and the word about it
+    cv._watched = true;
+    cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); vil.hover = { x: (e.clientX - r.left) / r.width * VILLAGE.W, y: (e.clientY - r.top) / r.height * VILLAGE.H }; });
+    cv.addEventListener('mouseleave', () => { vil.hover = null; });
+  }
   if (!vil.raf) vil.raf = requestAnimationFrame(villageFrame);
 }

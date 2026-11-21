@@ -82,6 +82,16 @@ test('no two scripts declare the same global name', () => {
   }
 });
 
+test('every drawing and screen function that is called exists somewhere', () => {
+  // these are only reached in the browser, so a missing one would not show in the rule tests: check by name
+  const src = {}, declared = new Set();
+  for (const f of fs.readdirSync(path.join(root, 'js'))) { src[f] = read('js/' + f); for (const m of src[f].matchAll(/(?:function|const|let) +([A-Za-z_$][\w$]*)/g)) declared.add(m[1]); }
+  let n = 0;
+  for (const f in src) for (const m of src[f].matchAll(/(?<![.\w$])((?:vil|village|prov|draw|render|view|wild|yard|show|paint|camp|ability)[A-Z]\w*)\(/g)) { n++; assert(declared.has(m[1]), `${f} calls ${m[1]}(), which is not defined in any script`); }
+  assert(n > 150, 'expected to find the calls, found ' + n);
+  return n + ' calls checked';
+});
+
 test('page is stamped: every script and stylesheet address carries its current fingerprint', () => {
   const r = spawnSync(process.execPath, [path.join(__dirname, 'stamp.js'), '--check'], { encoding: 'utf8' });
   assert(r.status === 0, (r.stderr || r.stdout).trim());
@@ -285,7 +295,11 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
   assert(B.fighters.every(f => f.charge === 0 && f.abl.length >= 1 && f.abl.length <= 4 && f.stam === undefined), 'they start uncharged, with their abilities, and no stamina');
   for (let i = 0; i < 30 && !B.over; i++) stepBattle(B, 1 / 30);
   assert(B.fighters.every(f => f.charge > 0 && f.charge < 100), 'a second in, the charge has begun to fill');
-  for (let i = 0; i < 3000 && !B.over && !B.fighters.some(f => f.casts > 0); i++) stepBattle(B, 1 / 30);
+  // (a duel can end before anyone is charged, so a few are tried)
+  for (let tries = 0; tries < 8 && !B.fighters.some(f => f.casts > 0); tries++) {
+    if (tries) B = createBattle([makeGladiator(40, { cls: 'murmillo' })], [makeGladiator(40, { cls: 'murmillo' })], { noIntro: true });
+    for (let i = 0; i < 3000 && !B.over && !B.fighters.some(f => f.casts > 0); i++) stepBattle(B, 1 / 30);
+  }
   assert(B.fighters.some(f => f.casts > 0 && f.charge < 100) && B.time < 40, 'somebody has used an ability, after ' + B.time.toFixed(1) + 's');
   // every ability can be cast without breaking anything
   for (const cls in CLASSES) for (const sk of STATS) for (const ab of ABILITIES[cls][sk]) {
