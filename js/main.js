@@ -1000,18 +1000,30 @@ function fitNotes(m) {
 }
 
 function viewMarket() {
-  const full = G.roster.length >= capacity(), g = keepSel('msel', G.market), scout = staffLvl('scout'), dg = daysToGames(), free = capacity() - G.roster.length;
+  const A = G.auction && !G.auction.won ? G.auction : null, lot = A && !A.done ? A.g : null;
+  const full = G.roster.length >= capacity(), g = keepSel('msel', (lot ? [lot] : []).concat(G.market)), scout = staffLvl('scout'), dg = daysToGames(), free = capacity() - G.roster.length;
+  const bgChip = m => m.bg && BACKGROUNDS[m.bg] && BACKGROUNDS[m.bg].name ? `<span class="chip"${tip(BACKGROUNDS[m.bg].desc)}>${BACKGROUNDS[m.bg].name}</span>` : '';
   const skills = m => STATS.map(k => `<span class="sk"${tip(`${STAT_NAMES[k]} ${m.stats[k]}`)}>${ic(k)}<b class="num">${m.stats[k]}</b></span>`).join('');
   const rows = G.market.map(m => {
     const deal = scout ? dealOf(m) : null, why = buyBlock(m);
     return lrow('msel', m.id, `<canvas width="48" height="56" style="width:34px;height:40px" data-mportrait="${m.id}"></canvas>
       <div class="grow"><span class="t">${m.name} ${styleMark(m)} <small class="inl">${CLASSES[m.cls].name} of ${m.origin}</small></span>
-        <div class="l2"><span class="sks"${tip('rating')}><b class="num pw">${rating(m)}</b>${skills(m)}</span>${scout ? `<span class="chip gold"${tip('talent')}>Potential ${potential(m)}</span>` : ''}${m.gear && m.gear.weapon ? `<span class="chip"${tip('He comes with his own weapon, and it is in the price.')}>Armed</span>` : ''}${m.traits.map(t => `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>`).join('')}${deal ? `<span class="chip ${deal[0] === 'good' ? 'gold' : 'red'}"${tip(deal[2])}>${deal[1]}</span>` : ''}</div></div>
+        <div class="l2"><span class="sks"${tip('rating')}><b class="num pw">${rating(m)}</b>${skills(m)}</span>${bgChip(m)}${m.held ? `<span class="chip gold"${tip('You have paid the dealer to keep him for you past the next games.')}>Held</span>` : m.kept ? `<span class="chip gold"${tip('Kept back for you from the last market. He goes at the next games if you do not buy him.')}>Kept for you</span>` : ''}${m.ordered ? `<span class="chip gold"${tip('The kind of man you sent the dealer for.')}>Sent for</span>` : ''}${scout ? `<span class="chip gold"${tip('talent')}>Potential ${potential(m)}</span>` : ''}${m.gear && m.gear.weapon ? `<span class="chip"${tip('He comes with his own weapon, and it is in the price.')}>Armed</span>` : ''}${m.traits.map(t => `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>`).join('')}${deal ? `<span class="chip ${deal[0] === 'good' ? 'gold' : 'red'}"${tip(deal[2])}>${deal[1]}</span>` : ''}</div></div>
       <span class="end price"${why ? tip(why) : ''}><b class="num ${why ? 'bad' : 'gold'}">${m.price}</b><small>${Math.round(m.price / rating(m))} a point</small></span>`, 'lud');
   }).join('') || '<div class="listnote">The dealer has nothing left until the next games.</div>';
+  const lotRow = lot ? lrow('msel', lot.id, `<canvas width="48" height="56" style="width:34px;height:40px" data-mportrait="${lot.id}"></canvas>
+      <div class="grow"><span class="t gold">${lot.name} ${styleMark(lot)} <small class="inl">${CLASSES[lot.cls].name} of ${lot.origin}</small></span>
+        <div class="l2"><span class="sks"><b class="num pw">${rating(lot)}</b>${skills(lot)}</span><span class="chip gold">The prize lot</span>${bgChip(lot)}</div></div>
+      <span class="end price"><b class="num gold">bid</b><small>against ${houseDef(A.h).name}</small></span>`, 'lud lot') : '';
+  const lotNote = A && A.done ? `<div class="listnote bad">${A.g.name}, the prize lot, went to ${houseDef(A.h).name} for ${A.cap}. You bid ${A.bid}.</div>` : '';
+  const orders = `<div class="orderrow"><span class="lbl"${tip(`Pay the dealer ${orderCost()} denarii and the first man at the next market will be of the kind you name, and a little better than most. The money is spent whether or not you buy him.`)}>Send for a</span>${G.marketOrder ? `<b class="gold">${CLASSES[G.marketOrder].name}</b> <small class="dim">at the next market</small>` : Object.keys(CLASSES).map(k => `<button class="mini" data-act="morder" data-v="${k}" ${G.denarii < orderCost() ? 'disabled' : ''}>${CLASSES[k].name}</button>`).join('') + `<small class="dim num">${orderCost()}</small>`}</div>`;
+  const many = G.roster.length > 6;            // a full barracks is listed three abreast, by name, with the rest on the tip
   const mine = G.roster.map(r => {
-    const armed = ui.sellArm === r.id;
-    return prow(`<div class="grow"><span class="t">${r.name} ${styleMark(r)} <small class="inl">${CLASSES[r.cls].name} &middot; power ${rating(r)} &middot; ${r.wins}W ${r.losses}L</small></span></div>
+    const armed = ui.sellArm === r.id, what = `${CLASSES[r.cls].name}, power ${rating(r)}, ${r.wins}W ${r.losses}L. Worth about ${value(r)}; the dealer pays half.`;
+    return many
+      ? `<div class="lrow" style="cursor:default"${tip(what)}><div class="grow"><span class="t">${r.name} ${styleMark(r)}</span></div>
+          ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}">${armed ? 'Sure?' : 'Sell'} ${Math.round(value(r) / 2)}</button>`}</div>`
+      : prow(`<div class="grow"><span class="t">${r.name} ${styleMark(r)} <small class="inl">${CLASSES[r.cls].name} &middot; power ${rating(r)} &middot; ${r.wins}W ${r.losses}L</small></span></div>
       ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}"${tip('sell')}>${armed ? 'Sure? Sell' : 'Sell'} &mdash; ${Math.round(value(r) / 2)}</button>`}`);
   }).join('');
   const why = g ? buyBlock(g) : '';
@@ -1022,12 +1034,17 @@ function viewMarket() {
           <div>${CLASSES[g.cls].name} of ${g.origin}</div>
           <div>${ratingLine(g, !scout)} &middot; ${styleMark(g)}</div>
           <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div>
-          <div class="buyrow"><button class="primary" data-act="buy" data-v="${g.id}" ${why ? 'disabled' : ''}${tip('Buy him and put him in a cell. Key: B')}>Buy &mdash; ${g.price} denarii</button>
-            <small class="${why ? 'bad' : 'dim'}">${why || `Leaves you ${G.denarii - g.price}. He eats ${Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0))} a day.`}</small></div>
+          ${g === lot ? `<div class="bidrow"><span class="lbl"${tip(`An auction, against ${houseDef(A.h).lanista} of ${houseDef(A.h).name}. You bid once. Bid higher than they are willing to go and he is yours at your price; bid lower and he goes to them, and you will meet him on the sand. Nobody knows how far they will go: somewhere near his worth, perhaps half as much again.`)}>One bid</span>${auctionBids(A).map((b, n) => { const no = auctionBlock(b), armed = ui.bidArm === b; return `<button class="${armed ? 'primary' : ''}" data-act="mbid" data-v="${b}" ${no ? 'disabled' : ''}${tip(no || ['About what he is worth: it will rarely be enough.', 'A quarter over his worth: enough more often than not.', 'Half as much again: nobody will go higher.'][n])}>${armed ? 'Sure? ' : ''}${b}</button>`; }).join('')}</div>
+            <small class="dim">Worth about ${A.worth}. ${houseDef(A.h).name} wants him too.</small>`
+          : `<div class="buyrow"><button class="primary" data-act="buy" data-v="${g.id}" ${why ? 'disabled' : ''}${tip('Buy him and put him in a cell. Key: B')}>Buy &mdash; ${g.price} denarii</button>
+            <button class="mini" data-act="mhaggle" data-v="${g.id}" ${g.haggled ? 'disabled' : ''}${tip(g.haggled ? 'You have had your say on his price.' : `One try a man. About ${Math.round(haggleChance() * 100)} chances in 100 he comes down by 15%; otherwise the price goes up by 5%. A scout and the Guild's favour help.`)}>Haggle</button>
+            <button class="mini" data-act="mhold" data-v="${g.id}" ${g.held || g.kept || G.denarii < holdCost(g) ? 'disabled' : ''}${tip(g.held ? 'He is being held for you.' : g.kept ? 'He has been kept back once already.' : `Pay ${holdCost(g)} now, taken off his price, and the dealer keeps him for you through the next market. The deposit is lost if you never buy him.`)}>${g.held ? 'Held' : `Hold &mdash; ${holdCost(g)}`}</button>
+            <small class="${why ? 'bad' : 'dim'}">${why || `Leaves you ${G.denarii - g.price}.`}</small></div>`}
+          ${ui.mktMsg && ui.mktMsg.id === g.id && ui.mktMsg.day === G.day ? `<div class="dealmsg ${ui.mktMsg.ok ? '' : 'bad'}">${ui.mktMsg.text}</div>` : ''}
         </div>
       </div>
       <div class="dbody" data-pane="recruit">
-        <div class="today"><span class="lbl">In your school</span><div>${fitNotes(g).join(' ')}</div></div>
+        <div class="today"><span class="lbl">In your school</span><div>${g.bg && BACKGROUNDS[g.bg] && BACKGROUNDS[g.bg].name ? `<b>${BACKGROUNDS[g.bg].name}.</b> ${BACKGROUNDS[g.bg].desc} ` : ''}${fitNotes(g).join(' ')}${g.wins ? ` He has fought ${g.wins + g.losses} times and won ${g.wins}.` : ''}</div></div>
         ${statRows(g, !scout)}
         ${scout ? '' : `<div class="dim" style="font-size:12px;margin-top:2px">The stars are hidden: you cannot judge how fast he will learn without a scout.</div>`}
         <hr class="sep">${traitList(g)}<hr class="sep">
@@ -1042,8 +1059,8 @@ function viewMarket() {
         <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
         <span${tip('The dealer brings new men every games day, and takes away whoever was not sold.')}>fresh stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
         <span class="${scout ? 'gold' : ''}"${tip(scout ? 'Your scout shows each man\'s potential and whether the price is fair.' : TIPS.hidden)}>${scout ? 'scout at your side' : 'no scout: talent hidden'}</span></div></div>
-      <div class="pane" data-pane="market"><div class="panel list">${rows}</div>
-      ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight twoup">${mine}</div>` : ''}</div></div>
+      <div class="pane" data-pane="market"><div class="panel list">${lotRow}${rows}</div>${lotNote}${orders}
+      ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight ${many ? 'threeup' : 'twoup'}">${mine}</div>` : ''}</div></div>
     <div><h2>The man</h2>${card}</div>
   </div>`;
 }
@@ -1711,7 +1728,7 @@ function paintPortraits() {
     const g = houseOf(hid).roster.find(x => x.id === +gid), d = houseDef(hid);
     if (g) drawPortrait(cv, g, 1, d.col, d.colD);
   });
-  document.querySelectorAll('[data-mportrait]').forEach(cv => { const g = G.market.find(m => m.id === +cv.dataset.mportrait); if (g) drawPortrait(cv, g, 0); });
+  document.querySelectorAll('[data-mportrait]').forEach(cv => { const g = G.market.find(m => m.id === +cv.dataset.mportrait) || (G.auction && G.auction.g.id === +cv.dataset.mportrait ? G.auction.g : null); if (g) drawPortrait(cv, g, 0); });
 }
 
 // ---------- events and end states ----------
@@ -2211,6 +2228,19 @@ const ACTIONS = {
     G.market = G.market.filter(m => m !== g); G.roster.push(welcome(g));
     log(`${g.name} the ${CLASSES[g.cls].name} is bought at market.`);
     ui.sel = g.id; save(); render();
+  },
+  mhaggle(v) { const m = G.market.find(x => x.id === +v), r = haggle(m); if (r) { ui.mktMsg = { id: +v, day: G.day, ok: r.ok, text: r.text }; SFX.ui(r.ok ? 'coin' : 'thud'); save(); render(); } },
+  mhold(v) { if (holdMan(G.market.find(x => x.id === +v))) { SFX.ui('coin'); save(); render(); } },
+  morder(v) { if (orderMan(v)) { SFX.ui('coin'); save(); render(); } },
+  mbid(v) {                                    // one bid, and it cannot be taken back: asked twice
+    if (ui.bidArm !== +v) { ui.bidArm = +v; SFX.ui('warn'); render(); return; }
+    ui.bidArm = null;
+    const id = G.auction ? G.auction.g.id : 0, r = auctionBid(+v);
+    if (!r) return;
+    SFX.ui(r.ok ? 'chime' : 'thud');
+    if (r.ok) { ui.sel = id; }
+    save(); render();
+    showModal(`<h2>${r.ok ? 'Sold to you' : 'Outbid'}</h2><p>${r.text}</p>${okBtn()}`);
   },
   msell(v) {                                   // from the market: asked twice, since it cannot be undone
     if (ui.sellArm !== +v) { ui.sellArm = +v; render(); return; }

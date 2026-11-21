@@ -246,6 +246,35 @@ test('household: new buildings, new posts and the regimen each do what they say'
   endDay(); assert(G.purseLog && G.purseLog.length === 1 && !badNumber(G), 'the purse is written down each day');
 }));
 
+test('the market: backgrounds, haggling, holding, sending for a man, and the auction', () => game()(function () {
+  newGame(); G.denarii = 5000; G.fac.barracks = 3;
+  // every man on the block has a background that left him sane
+  const seen = {};
+  for (let i = 0; i < 60; i++) { genMarket(); for (const m of G.market) { seen[m.bg] = 1; assert(BACKGROUNDS[m.bg] && m.price >= 5 && m.price % 5 === 0 && STATS.every(k => m.stats[k] >= 2 && m.stats[k] <= 20 && m.pot[k] >= 0.7 - 1e-9 && m.pot[k] <= 1.4 + 1e-9) && m.perkPending === 0, 'a sound man with a background: ' + m.bg); } }
+  assert(Object.keys(BACKGROUNDS).every(k => seen[k]), 'every background turns up');
+  // haggling: once, and it moves the price one way or the other
+  genMarket(); let m = G.market[0], p0 = m.price, r = haggle(m);
+  assert(r && m.haggled && m.price !== p0 && (r.ok ? m.price < p0 : m.price > p0) && haggle(m) === null, 'one try at the price');
+  // holding: a deposit off the price, and he is still there after the next market
+  m = G.market[1]; const d0 = G.denarii, c = holdCost(m), p1 = m.price;
+  assert(holdMan(m) && G.denarii === d0 - c && m.price === p1 - c && m.held, 'a deposit holds him');
+  G.auction = null; genMarket();
+  assert(G.market.includes(m) && m.kept && !m.held && G.market.length === 5 && !holdMan(m), 'he is kept through one market, and no longer');
+  genMarket(); assert(!G.market.includes(m), 'then he is gone');
+  // sending for a man of a kind
+  assert(orderMan('retiarius') && G.marketOrder === 'retiarius' && !orderMan('thraex'), 'the dealer is sent for a net-man');
+  genMarket(); assert(G.market[0].cls === 'retiarius' && G.market[0].ordered && !G.marketOrder, 'and brings one');
+  // the auction: a high bid wins him, a low one sends him to a rival
+  G.day = 6; let won = 0, lost = 0;
+  for (let i = 0; i < 80 && !(won && lost); i++) {
+    do { genMarket(); } while (!G.auction);
+    const A = G.auction, H = houseOf(A.h), n = G.roster.length, hn = H.roster.length, top = auctionBids(A)[2];
+    if (!won) { assert(top >= A.cap, 'the highest bid always wins'); const x = auctionBid(top); assert(x.ok && G.roster.length === n + 1 && G.roster.includes(A.g) && A.done && auctionBid(top) === null, 'won at auction'); won = 1; G.roster.pop(); }
+    else if (A.cap > auctionBids(A)[0]) { const x = auctionBid(auctionBids(A)[0]); assert(!x.ok && G.roster.length === n && H.roster.length === hn + 1 && A.g.house === H.id, 'outbid: he goes to the rival'); lost = 1; }
+  }
+  assert(won && lost && !badNumber(G), 'both ends of an auction were seen');
+}));
+
 test('every event and every choice runs', () => game()(function () {
   let n = 0;
   for (const id of Object.keys(EVENTS)) {

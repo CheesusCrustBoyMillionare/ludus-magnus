@@ -1185,3 +1185,24 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: 5px; padding: 0 2px; border-bottom: 1px solid var(--bronze-d); }
 .spark i { flex: 1; background: linear-gradient(180deg, #e0aa3e, #8a5a10); min-width: 2px; }
 .spark i.neg { background: linear-gradient(180deg, #c8463a, #7e1b14); }
+
+/* ---- the market: the prize lot, haggling, and sending for a man ---- */
+.lrow.lot { box-shadow: inset 3px 0 0 var(--gold); background: rgba(227, 176, 74, .08); }
+.bidrow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 4px; }
+.bidrow .lbl, .orderrow .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-right: 3px; }
+.bidrow button { padding: 3px 12px; font: bold 13px Consolas, monospace; }
+.orderrow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 6px 0 0; font-size: 12px; }
+.orderrow button { padding: 1px 7px; font-size: 10.5px; }
+.buyrow button.mini { padding: 2px 8px; font-size: 11px; }
+[data-pane="market"] .lrow.lud { min-height: 39px; padding-top: 2px; padding-bottom: 2px; }
+[data-pane="market"] > h2 { margin-top: 7px; }
+[data-pane="market"] .lrow.lud canvas { width: 30px !important; height: 35px !important; }
+[data-pane="market"] .listnote.bad { color: #f0a090; }
+
+.panel.list.threeup { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
+.panel.list.threeup .lrow { min-height: 26px; padding: 1px 6px; gap: 5px; }
+.panel.list.threeup .lrow button { padding: 0 6px; font-size: 10px; }
+[data-pane="market"] .lrow.lud { min-height: 0; padding: 2px 9px; }
+[data-pane="market"] .lrow.lud .l2 { height: 17px; margin-top: 0; }
+[data-pane="market"] .lrow.lud .t { line-height: 1.2; }
+[data-pane="market"] .lrow.lud .chip { font-size: 9.5px; padding: 0 5px; }

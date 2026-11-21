@@ -475,17 +475,105 @@ function startHeir() {
   return true;
 }
 
+// ---- the slave market ----
+// Where a man on the block came from. w: how common. price: what it does to the asking price.
+const BACKGROUNDS = {
+  plain:    { name: '', w: 4, desc: '' },
+  captive:  { name: 'Prisoner of war', w: 3, desc: 'Taken in arms on the frontier. He was a fighting man before he was a slave.', make: g => growStats(g, 2) },
+  convict:  { name: 'Condemned man', w: 2, price: 0.7, desc: 'Sold to the sword by a court. Cheap and sullen, with nothing left to lose.', make: g => { g.morale = 35; } },
+  farmboy:  { name: 'Farm boy', w: 3, desc: 'He has never held a sword, but he is strong, and quick to learn.',
+    make: g => { let n = 3, guard = 0; while (n > 0 && guard++ < 50) { const k = pick(STATS); if (g.stats[k] > 2) { g.stats[k]--; n--; } } STATS.forEach(k => { g.pot[k] = Math.min(1.4, g.pot[k] + 0.22); }); } },
+  veteran:  { name: 'Old soldier', w: 1, desc: 'Twenty years under the eagles. He will not learn much more, and he does not need to.',
+    make: g => { g.stats.skl = Math.min(20, g.stats.skl + 2); STATS.forEach(k => { g.pot[k] = Math.max(0.7, g.pot[k] - 0.18); }); if (!g.traits.includes('disciplined')) g.traits.push('disciplined'); g.traits = g.traits.filter(t => t !== 'lazy'); } },
+  fallen:   { name: 'From a fallen school', w: 1, price: 1.1, desc: 'His last lanista went bankrupt. He has stood on the sand before, and has the record to show it.',
+    make: g => { g.wins = rint(2, 5); g.losses = rint(0, 2); g.kills = rint(0, 1); g.xp = g.wins * 5 + g.losses * 2; checkRank(g);
+      while (g.perkPending > 0) { const sp = Object.keys(TRAITS).filter(k => TRAITS[k].good && !TRAITS[k].special && !g.traits.includes(k)); if (sp.length) g.traits.push(pick(sp)); g.perkPending--; } g.fame = g.wins * 2; } },
+  freeborn: { name: 'A free man', w: 1, price: 1.1, desc: 'He sold himself to clear a debt. Nobody put him here but himself.', make: g => { g.morale = 80; } },
+};
+function giveBackground(g) {
+  const bag = []; for (const k in BACKGROUNDS) for (let i = 0; i < BACKGROUNDS[k].w; i++) bag.push(k);
+  g.bg = pick(bag);
+  const B = BACKGROUNDS[g.bg]; if (B.make) B.make(g);
+  g.hp = maxHp(g);
+}
+function marketPrice(g) {
+  const scout = staffLvl('scout'), B = BACKGROUNDS[g.bg] || BACKGROUNDS.plain;
+  return Math.max(5, Math.round((value(g) * rand(1.0, 1.25) * (B.price || 1) + (g.gear && g.gear.weapon ? itemPrice(g.gear.weapon) * 0.6 : 0)) * (scout >= 3 ? 0.9 : 1) / 5) * 5);
+}
 function genMarket() {
-  const t = tier();
+  const t = tier(), scout = staffLvl('scout');
+  const kept = (G.market || []).filter(m => m.held);       // a man you paid the dealer to hold stays one more turn
+  kept.forEach(m => { m.held = false; m.kept = true; });
   G.market = [];
-  const scout = staffLvl('scout');
   for (let i = 0; i < (scout >= 2 ? 5 : 4); i++) {
-    const g = makeGladiator(18 + t * 8 + rint(-3, 6));
+    const order = i === 0 && G.marketOrder && CLASSES[G.marketOrder] ? G.marketOrder : null;        // the kind of man you sent for
+    const g = makeGladiator(18 + t * 8 + rint(-3, 6) + (order ? 2 : 0), order ? { cls: order } : null);
     g.gear = emptyGear();
     if (chance(0.3)) g.gear.weapon = makeItem('weapon', clamp(t + rint(0, 1), 0, 6), g.cls);   // some come with their own blade
-    g.price = Math.round((value(g) * rand(1.0, 1.25) + (g.gear.weapon ? itemPrice(g.gear.weapon) * 0.6 : 0)) * (scout >= 3 ? 0.9 : 1) / 5) * 5;
+    giveBackground(g);
+    if (order) g.ordered = true;
+    g.price = marketPrice(g);
     G.market.push(g);
   }
+  G.marketOrder = null;
+  G.market = kept.concat(G.market);
+  // now and then the dealer has one man too good for the block, and sells him to whoever bids highest
+  G.auction = null;
+  if (G.day > 1 && chance(0.35)) {
+    const g = makeGladiator(18 + t * 8 + rint(8, 12)); g.gear = emptyGear();
+    g.gear.weapon = makeItem('weapon', clamp(t + 1, 0, 6), g.cls);
+    g.bg = pick(['captive', 'fallen', 'veteran']); if (BACKGROUNDS[g.bg].make) BACKGROUNDS[g.bg].make(g); g.hp = maxHp(g);
+    const v = Math.round((value(g) + itemPrice(g.gear.weapon) * 0.6) / 5) * 5;
+    G.auction = { g, h: pick(G.houses).id, worth: v, cap: Math.round(v * rand(0.95, 1.45) / 5) * 5, done: false, won: false };
+  }
+}
+// What may be done about a man on the block besides buying him.
+function haggleChance() { return clamp(0.35 + 0.12 * staffLvl('scout') + G.patrons.guild / 400, 0.1, 0.85); }
+function haggle(m) {
+  if (!m || m.haggled) return null;
+  m.haggled = true;
+  if (chance(haggleChance())) { const was = m.price; m.price = Math.max(5, Math.round(m.price * 0.85 / 5) * 5); return { ok: true, text: `The dealer swears you are robbing him, and takes ${was - m.price} off the price.` }; }
+  m.price = Math.round(m.price * 1.05 / 5) * 5;
+  return { ok: false, text: 'The dealer is insulted, or says he is. The price has gone up.' };
+}
+const holdCost = m => Math.max(5, Math.round(m.price * 0.1 / 5) * 5);
+function holdMan(m) {
+  if (!m || m.held || m.kept || G.denarii < holdCost(m)) return false;
+  const c = holdCost(m); G.denarii -= c; m.price -= c; m.held = true;
+  return true;
+}
+const orderCost = () => 20 + tier() * 15;
+function orderMan(cls) {
+  if (!CLASSES[cls] || G.marketOrder || G.denarii < orderCost()) return false;
+  G.denarii -= orderCost(); G.marketOrder = cls;
+  log(`The dealer is paid to bring a ${CLASSES[cls].name} to the next market.`);
+  return true;
+}
+const auctionBids = A => [1, 1.25, 1.5].map(k => Math.round(A.worth * k / 5) * 5);
+function auctionBlock(amount) {
+  const A = G.auction;
+  if (!A || A.done) return 'The lot is sold.';
+  if (G.roster.length >= capacity()) return 'No cell free: build more barracks or sell a man.';
+  if (G.denarii < amount) return `You are ${amount - G.denarii} denarii short.`;
+  return '';
+}
+function auctionBid(amount) {
+  const A = G.auction;
+  if (auctionBlock(amount)) return null;
+  A.done = true; A.bid = amount;
+  const g = A.g, H = houseOf(A.h), def = houseDef(A.h);
+  if (amount >= A.cap) {
+    A.won = true; G.denarii -= amount;
+    addStory(g, `Won at auction for ${amount} denarii, against ${def.name}.`);
+    G.roster.push(welcome(g)); feud(H, 4);
+    log(`${g.name} the ${CLASSES[g.cls].name} is won at auction for ${amount} denarii.`, 'gold');
+    return { ok: true, text: `${def.lanista} shakes his head and turns away. ${g.name} is yours for ${amount} denarii.` };
+  }
+  g.gear = null; g.weapon = clamp(tier(), 0, 3); g.armor = clamp(tier() - 1, 0, 3);
+  g.house = H.id; g.vs = { w: 0, l: 0 }; g.slew = []; g.hp = maxHp(g);
+  H.roster.push(g);
+  log(`${g.name} goes to ${def.name} at auction. You will meet him again.`, 'bad');
+  return { ok: false, text: `${def.lanista} tops you without looking round. ${g.name} goes to ${def.name} for ${A.cap} denarii.` };
 }
 
 const ENEMY_BUDGET = [20, 29, 40, 51];
