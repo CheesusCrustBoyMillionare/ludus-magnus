@@ -150,6 +150,15 @@ function feed(B, str, team, kind) {
 
 // ---------- resolution ----------
 
+// A man has been killed: everything stops, and the death is shown on its own (drawFatal). Only where the fight is being
+// watched and such things are wanted (B.cutins), only for men, and in a crowd only for your own and for the first.
+function fatal(B, d, by) {
+  if (!B.cutins || B.fatal || d.g.beast) return;
+  if (B.fighters.length > 6 && d.team !== 0 && B.fatalSeen) return;
+  B.fatalSeen = true;
+  B.fatal = { f: d, by: by && by !== d ? by : null, t: 0, dur: 3.1 };
+  snd(B, 'cutin', 0.8, d);
+}
 function knockDown(B, d, a, how) {
   d.hp = 0; d.down = true; d.downedBy = a || d.downedBy; d.state = 'ready'; d.bleed = 0; B.lastDown = d;
   d.fallT = 0.35; snd(B, 'down', 1, d);
@@ -159,6 +168,7 @@ function knockDown(B, d, a, how) {
   fxDust(B, d.x, d.y, 8);
   for (let i = 0; i < 10; i++) B.stains.push({ x: d.x + rand(-7, 7), y: d.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
   feed(B, how || `${d.g.name} is struck down${a ? ' by ' + a.g.name : ''}`, d.team);
+  if (B.death) fatal(B, d, a || d.downedBy);          // in a bout to the death, down is dead
 }
 
 function tryYield(B, d, a) {
@@ -477,6 +487,7 @@ function stepOutro(B, dt) {
       f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
       fxBlood(B, f, 14, -f.facing);
       for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
+      fatal(B, f, f.downedBy);
     }
   }
 }
@@ -503,6 +514,12 @@ function stepIntro(B, dt) {
 }
 
 function stepBattle(B, dt) {
+  if (B.fatal) {                              // a death is being shown: nothing else moves until it has been
+    const was = B.fatal.t; B.fatal.t += dt;
+    if (was < 0.55 && B.fatal.t >= 0.55) { snd(B, 'down', 1, B.fatal.f); snd(B, 'killed', 0.8, B.fatal.f); }
+    if (B.fatal.t < B.fatal.dur && B.cutins) { B.clock += dt; return; }
+    B.fatal = null;
+  }
   if (B.slowmo > 0) { B.slowmo -= dt; dt *= 0.25; }
   stepFx(B, dt);
   if (B.over) { stepOutro(B, dt); return; }
@@ -1241,6 +1258,92 @@ function drawOutro(ctx, B, T) {
     ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = '#f1e6c8'; ctx.fillText(parts.join('   -   '), tx, cy + 46.5);
     if (o > B.cardAt + 1) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 5); ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO GO ON', cx + cw - 3, cy + 6); ctx.globalAlpha = 1; }
   }
+  ctx.restore();
+}
+
+// A death, shown for what it is. The day goes out of the picture and the sand turns the colour of blood; the two of them
+// stand against it as shadows, the blow falls, and the cry the crowd gave for a man who has taken his death-wound -
+// HOC HABET, he has it - comes down over them, running. Then who it was, and by whose hand.
+function drawFatal(ctx, B, T) {
+  const c = B.fatal, f = c.f, by = c.by, t = c.t, d = c.dur, cl = v => clamp(v, 0, 1);
+  const a = Math.min(cl(t / 0.12), cl((d - t) / 0.4)), hit = t - 0.55, slam = t - 0.95;
+  const jolt = (hit >= 0 && hit < 0.3 ? 1 - hit / 0.3 : 0) + (slam >= 0 && slam < 0.3 ? 1 - slam / 0.3 : 0);
+  const shx = Math.round(Math.sin(t * 97) * jolt * 3), shy = Math.round(Math.cos(t * 71) * jolt * 2);
+  const h = i => Math.abs(Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1;
+  ctx.save(); ctx.globalAlpha = a;
+  // the field of it: black at the edges, blood at the heart, and rays turning slowly behind them
+  const g = ctx.createRadialGradient(160, 100, 10, 160, 100, 200); g.addColorStop(0, '#b0160e'); g.addColorStop(0.45, '#5a0806'); g.addColorStop(1, '#0a0202');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 320, 180);
+  for (let i = 0; i < 14; i++) {
+    const an = i / 14 * 6.283 + T * 0.12, w = 0.085; ctx.fillStyle = i % 2 ? 'rgba(255,90,60,.10)' : 'rgba(0,0,0,.16)';
+    ctx.beginPath(); ctx.moveTo(160, 104); ctx.lineTo(160 + Math.cos(an - w) * 300, 104 + Math.sin(an - w) * 300); ctx.lineTo(160 + Math.cos(an + w) * 300, 104 + Math.sin(an + w) * 300); ctx.closePath(); ctx.fill();
+  }
+  ctx.save(); ctx.translate(shx, shy);
+  // the ground they stand on, and what runs out over it once he is down
+  ctx.fillStyle = '#0a0202'; ctx.fillRect(-10, 136, 340, 50);
+  ctx.fillStyle = 'rgba(255,80,50,.35)'; ctx.fillRect(-10, 136, 340, 0.7);
+  const vx = by ? 196 : 160, kx = 118, fallen = hit > 0.22;
+  if (hit > 0.3) { const pw = Math.min(46, (hit - 0.3) * 60); ctx.fillStyle = '#c2180e'; ctx.fillRect(vx - pw, 137, pw * 2, 2); ctx.fillStyle = '#7a0c08'; ctx.fillRect(vx - pw * 0.8, 139, pw * 1.6, 1.5); }
+  // the two of them, as shadows: he who struck, and he who took it
+  const shadow = (o, x, face, extra) => {
+    ctx.save(); ctx.translate(Math.round(x), 136); ctx.scale(1.9, 1.9);
+    drawSprite(ctx, Object.assign({ x: 0, y: 0, facing: face, g: o.g, team: o.team, col: '#000', colD: '#000', moving: false, walk: 0, clock: 0, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: o.noHelm, solid: '#070202' }, extra));
+    ctx.restore();
+  };
+  if (by) shadow(by, kx + (hit >= 0 ? Math.min(10, hit * 60) : -cl(t / 0.5) * 4), 1, hit < 0 ? { windup: true, windP: cl(t / 0.5) } : { atkAnim: Math.max(0.6, 1 - hit) });
+  shadow(f, vx + (hit >= 0 ? Math.min(6, hit * 30) : 0), by ? -1 : 1, hit < 0 ? {} : fallen ? { down: true } : { falling: true, recoil: 1 });
+  // the blow: a white stroke through him that goes red, and what it throws out
+  if (hit >= 0 && hit < 0.45) {
+    const k = hit / 0.45;
+    for (const [w, col] of [[7, '#c2180e'], [3, k < 0.35 ? '#ffffff' : '#ff6a4a']]) {
+      ctx.globalAlpha = a * (1 - k); ctx.strokeStyle = col; ctx.lineWidth = w * (1 - k * 0.5);
+      ctx.beginPath(); ctx.moveTo(vx - 34, 62); ctx.quadraticCurveTo(vx + 6, 96, vx + 30, 134); ctx.stroke();
+    }
+    ctx.globalAlpha = a;
+  }
+  if (hit >= 0) for (let i = 0; i < 34; i++) {
+    const an = -2.6 + h(i) * 2.1, sp = 40 + h(i + 50) * 130, tt = hit, px = vx + Math.cos(an) * sp * tt * (by ? 1 : (i % 2 ? 1 : -1)), py = 100 + Math.sin(an) * sp * tt + 210 * tt * tt;
+    if (py > 137) continue;
+    ctx.fillStyle = i % 3 ? '#e02a1a' : '#ff6a4a'; ctx.fillRect(Math.round(px), Math.round(py), i % 4 ? 2 : 3, i % 4 ? 2 : 3);
+  }
+  ctx.restore();
+  // black above and below, and blood running down from the top of the picture
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 320, 12); ctx.fillRect(0, 168, 320, 12);
+  for (let i = 0; i < 22; i++) {
+    const x = Math.round(h(i + 9) * 316), len = Math.max(0, (t - h(i + 20) * 0.9) * (14 + h(i + 30) * 26)), w = 1 + Math.round(h(i + 40) * 2);
+    if (len <= 0) continue;
+    ctx.fillStyle = '#8e120a'; ctx.fillRect(x, 12, w, len); ctx.fillStyle = '#c2180e'; ctx.fillRect(x, 12 + len - 2, w, 2); ctx.fillRect(x - 0.5, 12 + len - 1, w + 1, 1.5);
+  }
+  ctx.fillStyle = '#8e120a'; ctx.fillRect(0, 12, 320, 1.5);
+  // the word of it, coming down hard, and running
+  if (slam >= 0) {
+    const k = cl(slam / 0.14), sc = 2.6 - 1.6 * k, word = 'HOC HABET!';
+    ctx.save(); ctx.translate(160 + shx, 42 + shy); ctx.scale(sc, sc);
+    ctx.font = 'bold 27px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = '#080101'; ctx.strokeText(word, 0, 0);
+    const tg = ctx.createLinearGradient(0, -20, 0, 2); tg.addColorStop(0, k < 1 ? '#ffffff' : '#ff5a3a'); tg.addColorStop(0.55, '#d81c10'); tg.addColorStop(1, '#7a0c08');
+    ctx.fillStyle = tg; ctx.fillText(word, 0, 0);
+    if (k >= 1) {                               // it runs from the foot of the letters
+      const w = ctx.measureText(word).width;
+      for (let i = 0; i < 9; i++) { const x = -w / 2 + 6 + h(i + 70) * (w - 12), len = Math.min(5 + h(i + 80) * 12, (slam - 0.14 - h(i + 90) * 0.5) * 16); if (len > 0) { ctx.fillStyle = '#b0160e'; ctx.fillRect(x, 0, 1.5, len); ctx.fillRect(x - 0.5, len - 1, 2.5, 1.5); } }
+    }
+    ctx.restore();
+    if (slam < 0.14) { ctx.fillStyle = `rgba(255,220,200,${(0.5 * (1 - k)).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180); }
+  }
+  // who, and by whose hand
+  const sa = cl((t - 1.35) / 0.3);
+  if (sa > 0) {
+    const nm = o => (o.g.beast ? 'the ' + o.c.name : o.g.name).toUpperCase();
+    const line = by ? `${nm(f)}  ${by.g.beast ? 'IS TORN DOWN BY' : 'IS SLAIN BY'}  ${nm(by)}` : `${nm(f)} IS DEAD`;
+    ctx.globalAlpha = a * sa; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 8px Cinzel, Georgia, serif'; ctx.fillStyle = '#000'; ctx.fillText(line, 160.6, 156.6); ctx.fillStyle = '#ffe9dc'; ctx.fillText(line, 160, 156);
+    const w = ctx.measureText(line).width; ctx.fillStyle = '#c2180e'; ctx.fillRect(160 - w / 2 * sa, 158.5, w * sa, 0.8);
+    if (!f.g.beast) {                           // and what he was
+      const wins = f.g.wins || 0, epi = `${f.c.name.toUpperCase()}   -   ${wins} ${wins === 1 ? 'VICTORY' : 'VICTORIES'}${f.g.kills ? `   -   ${f.g.kills} KILLED` : ''}`;
+      ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = f.team === 0 ? '#ff9a8a' : '#c9a8a0'; ctx.fillText(epi, 160, 165);
+    }
+  }
+  if (hit >= 0 && hit < 0.1) { ctx.globalAlpha = 1 - hit / 0.1; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 320, 180); }
   ctx.restore();
 }
 
@@ -2007,6 +2110,7 @@ function drawBattle(ctx, B) {
     ctx.textAlign = 'center';
   }
   if (B.cut) drawCutIn(ctx, B, T);
+  if (B.fatal) drawFatal(ctx, B, T);
   if (B.paused && !B.over) { ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(110, 78, 100, 18); ctx.fillStyle = '#e0aa3e'; ctx.fillText('PAUSED', 160, 91); }
 
   if (B.over) drawOutro(ctx, B, T);

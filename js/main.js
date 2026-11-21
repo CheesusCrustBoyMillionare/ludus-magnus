@@ -2133,7 +2133,8 @@ document.addEventListener('mousemove', e => {
 // A click on the sand while an ability is being announced cuts the announcement short.
 document.addEventListener('click', e => {
   if (!fight || !fight.B || e.target.id !== 'arenaCanvas') return;
-  if (fight.B.cut) fight.B.cut.t = fight.B.cut.dur;
+  if (fight.B.fatal) { if (fight.B.fatal.t > 0.7) fight.B.fatal.t = fight.B.fatal.dur; }      // a click sends a death screen on, once the blow has fallen
+  else if (fight.B.cut) fight.B.cut.t = fight.B.cut.dur;
   else if (fight.B.intro > 0.5) fight.B.intro = 0.5;               // and one during the entrance sends the card away
   else if (fight.B.over && fight.B.outro > 0.8) fight.B.outro = fight.B.outroEnd;      // and one when it is over goes on to the result
 });
