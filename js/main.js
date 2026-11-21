@@ -49,8 +49,8 @@ const TIPS = {
   exhausted: 'Fatigue above three quarters. Rest him.',
   perk: 'He has earned a new rank. Open his dossier to choose a perk.',
   veteran: 'Eight victories or more. You may grant him the wooden sword.',
-  bout: 'Favoured, even and underdog describe the opposition the arena has matched to this tier; the strength numbers tell you how it compares with your own fighters.',
-  power: 'How dangerous he is right now: skills, gear, traits, spirits and current health. The bookmakers use the same number, and they also know which style beats which.',
+  bout: 'Favoured, even and underdog describe the opposition the arena has matched to this tier; the might numbers tell you how it compares with your own fighters.',
+  power: 'Might: how dangerous he is right now: skills, gear, traits, spirits and current health. The bookmakers use the same number, and they also know which style beats which.',
   purse: 'Paid only if you win; a loser\'s share is small, and nothing in a bout to the death. Fame grows with the crowd\'s excitement.',
   wager: 'A bet on your own side, at the bookmakers\' odds. You lose the stake if you lose the bout.',
   favour: 'Rises with gifts and with the deeds each patron cares about. Fades a little every games day.',
@@ -167,7 +167,7 @@ const TUTORIAL = [
   { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
     text: 'It is a games day: the number by the Arena\'s name is the bouts waiting. Walk to the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each line on the left is a bout; the one you choose opens here. Compare power, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>, click a fighter\'s name to enter him, and wager only if you trust him. <b>Send a man to the sand.</b>' },
+    text: 'Each line on the left is a bout; the one you choose opens here. Compare <b>might</b>, the number by each name that says how dangerous a man is today, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>, click a fighter\'s name to enter him, and wager only if you trust him. <b>Send a man to the sand.</b>' },
   { text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. After every fight you are shown what each man dealt, took and used. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
   { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. I will hold my tongue now, and speak up when something new happens.' },
 ];
@@ -657,40 +657,73 @@ function showReports() {
   save();
 }
 
+// The men who give the best chance in this bout, of those fit to fight today: every team is tried.
+function bestBoutTeam(b) {
+  const avail = G.roster.filter(canFight), foes = boutEnemies(b);
+  if (avail.length < b.size) return null;
+  let best = null, bp = -1;
+  const go = (from, team) => {
+    if (team.length === b.size) { const p = winOdds(team, foes).p; if (p > bp) { bp = p; best = team.slice(); } return; }
+    for (let k = from; k < avail.length; k++) { team.push(avail[k]); go(k + 1, team); team.pop(); }
+  };
+  go(0, []);
+  return { men: best, p: bp };
+}
+const might = g => Math.round(power(g));
+
 function boutCard(b) {
   const D = DIFF[b.diff];
   const kind = ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1];
-  const them = boutEnemies(b), one = them.length === 1 && !them[0].beast ? them[0] : null;
-  const foes = them.map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name + ' ' + styleMark(e)} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}${vowNote(e)}${e.beast ? '' : `<div class="dim" style="font-size:12px;margin:-1px 0 3px 0">carries ${abilitiesOf(e).map(a => a.name).join(', ')}</div>`}</div>`).join('');
+  const them = boutEnemies(b).slice().sort((x, y) => power(y) - power(x)), one = them.length === 1 && !them[0].beast ? them[0] : null;
+  const foes = them.map(e => e.beast
+    ? `<div class="lrow foe" style="cursor:default"><div class="grow"><span class="t">${e.name}</span><small>a beast: it cannot be reasoned with, and gives no quarter</small></div><span class="end num"${tip('power')}>${might(e)}</span></div>`
+    : `<div class="lrow lud foe" style="cursor:default"${tip(`${e.name} carries ${abilitiesOf(e).map(a => a.name).join(', ') || 'no abilities'}.${e.traits.length ? '\n' + e.traits.map(t => TRAITS[t].name + ': ' + TRAITS[t].desc).join('\n') : ''}`)}>
+        ${b.houseId ? `<canvas width="48" height="56" style="width:30px;height:35px" data-rportrait="${b.houseId}:${e.id}"></canvas>` : ''}
+        <div class="grow"><span class="t">${e.name} ${styleMark(e)} <small class="inl">${RANKS[e.rank] ? RANKS[e.rank].name + ' &middot; ' : ''}${CLASSES[e.cls].name}${e.wins !== undefined ? ` &middot; ${e.wins}W ${e.losses}L` : ''}</small></span>
+          <div class="l2"><span class="sks">${STATS.map(k => `<span class="sk">${ic(k)}<b class="num">${e.stats[k]}</b></span>`).join('')}</span><small class="notes">${rivalNote(e)}${vowNote(e)}</small></div></div>
+        <span class="end num"${tip('power')}>${might(e)}</span></div>`).join('');
   let body;
   if (b.done) body = '<div class="dim">This bout has been fought.</div>';
   else {
     const picks = (ui.picks[b.id] || []).filter(id => byId(id) && canFight(byId(id)));
     ui.picks[b.id] = picks;
-    const avail = G.roster.filter(canFight);
+    const avail = G.roster.filter(canFight).sort((x, y) => power(y) - power(x));
+    const elsewhere = id => Object.keys(ui.picks).some(k => +k !== b.id && (ui.picks[k] || []).includes(id));
     const chips = avail.length
-      ? avail.map(g => `<span class="chip pick ${picks.includes(g.id) ? 'on' : ''}" data-act="pick" data-v="${b.id}" data-w="${g.id}"${tip('power')}>${g.name} <span class="num">${Math.round(power(g))}</span>${one ? edgeMark(g, one) : ''}</span>`).join('')
+      ? avail.map(g => {
+        const worn = g.hp < maxHp(g) * 0.7 || g.fatigue > 60;
+        return `<span class="chip pick ${picks.includes(g.id) ? 'on' : ''} ${worn ? 'red' : ''}" data-act="pick" data-v="${b.id}" data-w="${g.id}"${tip(`${g.name}: might ${might(g)}. Health ${Math.round(g.hp)} of ${maxHp(g)}, fatigue ${Math.round(g.fatigue)}, spirits ${Math.round(g.morale)}.${worn ? '\nHe is not at his best today.' : ''}${elsewhere(g.id) ? '\nHe is down for another bout: choosing him here takes him out of it.' : ''}`)}>${g.name} <span class="num">${might(g)}</span>${one ? edgeMark(g, one) : ''}${elsewhere(g.id) ? ' <small>busy</small>' : ''}</span>`;
+      }).join('')
       : '<span class="dim">No one is fit to fight.</span>';
     const mine = picks.map(byId);
     const odds = winOdds(mine, boutEnemies(b));
-    const ready = picks.length === b.size;
+    const ready = picks.length === b.size, best = bestBoutTeam(b), isBest = ready && best && Math.abs(best.p - odds.p) < 0.001;
     const wager = Math.min(ui.wagers[b.id] || 0, Math.max(0, G.denarii));
     const wopts = [0, 25, 50, 100, 250, 500].filter(w => w <= Math.max(0, G.denarii))
-      .map(w => `<option value="${w}" ${w === wager ? 'selected' : ''}>${w ? w + ' denarii' : 'No wager'}</option>`).join('');
-    body = `<div>Send ${b.size === 1 ? 'one fighter' : b.size + ' fighters'}:</div><div style="margin:6px 0">${chips}</div>
-      <div class="row">
-        <select data-chg="wager" data-v="${b.id}">${wopts}</select>
-        <span class="dim"${tip('wager')}>${ready ? `Bookmakers pay <b class="gold num">x${odds.pay}</b> on you` : 'Choose your fighters'}</span>
-        <button class="primary" data-act="fight" data-v="${b.id}" ${ready ? '' : 'disabled'} style="margin-left:auto">To the sand</button>
-      </div>`;
+      .map(w => `<button class="mini ${w === wager ? 'on' : ''}" data-act="wagerset" data-v="${b.id}" data-w="${w}">${w || 'None'}</button>`).join('');
+    const sums = `${mine.reduce((n, g) => n + might(g), 0)} against ${them.reduce((n, e) => n + might(e), 0)}`;
+    body = `<div class="sendhead"><span>Send ${b.size === 1 ? 'one fighter' : b.size + ' fighters'}, strongest first</span>
+        ${best ? `<button class="mini" data-act="bbest" data-v="${b.id}" ${isBest ? 'disabled' : ''}${tip('Choose whoever gives the best chance here, of the men fit to fight. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
+      <div style="margin:5px 0">${chips}</div>
+      ${ready ? `<div class="oddsbox"${tip('The bookmakers\' reckoning: each side\'s might, and whose style beats whose. The fight itself is not decided by it.')}><div>Chance of victory <b class="num ${odds.p >= 0.5 ? 'good' : 'bad'}">${asPct(odds.p)}</b> <span class="dim">might ${sums}</span></div>${oddsBar(odds.p)}</div>`
+        : `<div class="dim" style="font-size:13px">${avail.length < b.size ? `It needs ${b.size}, and only ${avail.length} ${avail.length === 1 ? 'is' : 'are'} fit to fight.` : `Choose ${b.size - picks.length} more.`}</div>`}
+      <div class="wagerrow"${tip('wager')}><span class="lbl">Wager</span><div class="acts mini">${wopts}</div>
+        <small class="dim">${ready ? (wager ? `pays <b class="gold num">${Math.round(wager * odds.pay)}</b> at x${odds.pay} if you win, and is lost if you lose` : `the bookmakers pay x${odds.pay} on you`) : ''}</small></div>
+      <div class="row" style="margin-top:6px"><button class="primary" data-act="fight" data-v="${b.id}" ${ready ? '' : 'disabled'}${tip('Key: Enter')}>To the sand</button>
+        ${b.death && ready ? '<small class="bad">A man who falls here will not be spared.</small>' : ''}</div>`;
   }
+  const H = b.houseId && houseOf(b.houseId), above = H && H.prestige > G.fame;
   return `<div class="panel bout ${b.done ? 'done' : ''}">
     <h3${tip('bout')}>${b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + D.name : b.melee ? 'The great melee' : kind + ' &middot; ' + D.name} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
     ${b.death ? `<div class="death">${b.funeral ? 'Funeral games: ' : ''}Sine missione &mdash; to the death</div>` : ''}
     ${b.hunt ? '<div class="death">Beasts give no quarter</div>' : ''}
-    <div class="foes">${foes}</div>
-    <div${tip('purse')}>Purse <b class="gold num">${b.purse}</b> &middot; Fame <b class="num">+${b.fame}</b></div>
-    <hr class="sep">${body}
+    <div class="kvs three">
+      <div${tip('purse')}><span>Purse</span><b class="num gold">${b.purse}</b><small>if you win</small></div>
+      <div><span>Fame</span><b class="num">+${b.fame}</b><small>${above ? 'more for beating a greater house' : 'and more for a good show'}</small></div>
+      <div><span>Against</span><b class="num">${them.length}</b><small>${b.grudge ? 'win or lose, the feud cools' : H && H.grudge >= 25 ? feudWord(H.grudge).toLowerCase() + ' between you' : them.length === 1 ? 'a single opponent' : 'on their side'}</small></div>
+    </div>
+    <div class="list foelist">${foes}</div>
+    ${body}
   </div>`;
 }
 
@@ -698,22 +731,43 @@ const boutTitle = b => b.final ? "The Emperor's Games" : b.grudge ? 'Grudge matc
   : ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1] + ' &middot; ' + DIFF[b.diff].name;
 
 function viewArena() {
-  const t = tier();
+  const t = tier(), dg = daysToGames();
   const road = `<div class="strip"${tip('fame')}>${TIERS.map((x, i) => `<span class="${i === t ? 'cur' : i < t ? 'past' : ''}">${x.name} <b class="num">${x.fame}</b></span>`).join('&rsaquo;')}&rsaquo;<span class="${G.fame >= FINAL_FAME ? 'cur' : ''}">The Emperor's Games <b class="num">${FINAL_FAME}</b></span></div>`;
-  if (!G.bouts) return `<div class="fill even">
-    <div><h2>The arena is quiet</h2><div class="pane">${road}<div class="panel">The next games are in <b>${daysToGames()}</b> ${daysToGames() === 1 ? 'day' : 'days'}. Train, rest and arm your fighters until then.</div></div></div>
-    <div><h2>The road to Rome</h2><div class="pane">${festivalNote()}<div class="panel dim" style="font-size:13px">Fame opens greater arenas with richer purses and deadlier opponents. Reach ${FINAL_FAME} fame to be summoned before the Emperor.</div></div></div>
+  if (!G.bouts) {
+    // between games: who will be ready when they come
+    const ready = G.roster.map(g => {
+      const J = jobOf(g), back = J ? J.end - G.day : 0;
+      const [word, cls] = J ? (back <= dg ? [`away, back in ${back} day${back === 1 ? '' : 's'}`, 'gold'] : ['away over the games', 'bad'])
+        : g.injury > dg ? [`injured: ${g.injury} days, he will miss them`, 'bad'] : g.injury > 0 ? [`injured: ${g.injury} day${g.injury === 1 ? '' : 's'}, healed in time`, 'gold']
+        : g.fatigue > 60 ? ['tired: rest him before the day', 'bad'] : g.hp < maxHp(g) * 0.7 ? ['hurt: rest will mend him', 'gold'] : ['ready', 'good'];
+      return prow(`<div class="grow"><span class="t">${g.name} ${styleMark(g)} <small class="inl">${CLASSES[g.cls].name} &middot; might ${might(g)}</small></span></div><span class="end ${cls}">${word}</span>`);
+    }).join('');
+    return `<div class="fill even">
+    <div><h2>The arena is quiet</h2><div class="pane">${road}<div class="panel">The next games are in <b>${dg}</b> ${dg === 1 ? 'day' : 'days'}. Train, rest and arm your fighters until then.</div>
+      <h2>Who will be ready <small>as things stand</small></h2><div class="panel list tight">${ready || '<div class="listnote">You have no fighters.</div>'}</div></div></div>
+    <div><h2>The road to Rome</h2><div class="pane">${festivalNote()}<div class="panel dim" style="font-size:13px">Fame opens greater arenas with richer purses and deadlier opponents. You have <b class="num">${G.fame}</b>${G.fame < FINAL_FAME ? `; reach ${FINAL_FAME} to be summoned before the Emperor` : ''}. A bout's fame grows with the crowd's excitement, and beating a house that stands above you earns more.</div></div></div>
   </div>`;
+  }
   const items = (G.tourney ? [{ id: 'lists' }] : []).concat(G.bouts);
   let cur = keepSel('bsel', items);
   if (cur && cur.done && G.bouts.some(b => !b.done)) { cur = G.bouts.find(b => !b.done); ui.bsel = cur.id; }   // move on to the next bout still to fight
-  const rows = items.map(b => b.id === 'lists'
-    ? lrow('bsel', 'lists', `<div class="grow"><span class="t gold">The lists</span><small>${FESTIVALS.tourney.name} &middot; eight fighters, three rounds</small></div>`)
-    : lrow('bsel', b.id, `<div class="grow"><span class="t">${boutTitle(b)}${b.death || b.hunt ? ' <span class="chip red">To the death</span>' : ''}</span>
-        <small>vs ${swatch(b.houseId)}${b.house} &middot; ${boutEnemies(b).map(e => Math.round(power(e))).join(' + ')} strength</small></div>
-        <span class="end">${b.done ? '<span class="dim">fought</span>' : `<b class="gold num">${b.purse}</b> <span class="num dim">+${b.fame}</span>`}</span>`, b.done ? 'done' : '')).join('');
+  const rows = items.map(b => {
+    if (b.id === 'lists') return lrow('bsel', 'lists', `<div class="grow"><span class="t gold">The lists</span><small>${FESTIVALS.tourney.name} &middot; eight fighters, three rounds</small></div>`);
+    const bt = b.done ? null : bestBoutTeam(b), chosen = (ui.picks[b.id] || []).map(byId).filter(Boolean);
+    return lrow('bsel', b.id, `<div class="grow"><span class="t">${boutTitle(b)}${b.death || b.hunt ? ' <span class="chip red">To the death</span>' : ''}</span>
+        <small>vs ${swatch(b.houseId)}${b.house} &middot; might ${boutEnemies(b).map(might).join(' + ')}${chosen.length ? ` &middot; <span class="gold">${namesOf(chosen)}</span>` : ''}</small></div>
+        ${b.done ? '' : `<div class="bestodds"${tip(bt ? `The best you could send: ${namesOf(bt.men)}.` : 'You have too few men fit to fight this.')}>${bt ? `${oddsBar(bt.p)}<small>at best ${asPct(bt.p)}</small>` : '<small class="bad">too few fit</small>'}</div>`}
+        <span class="end">${b.done ? '<span class="dim">fought</span>' : `<b class="gold num">${b.purse}</b> <span class="num dim">+${b.fame}</span>`}</span>`, b.done ? 'done' : '');
+  }).join('');
+  const left = G.bouts.filter(b => !b.done), fit = G.roster.filter(canFight).length, purse = left.reduce((n, b) => n + b.purse, 0);
   return `<div class="fill even">
-    <div><h2>Today's games</h2><div class="pane" data-pane="bouts">${road}${G.fix ? '<p class="bad" style="margin:0 0 6px">You have agreed to lose your next bout.</p>' : ''}<div class="panel list">${rows}</div></div></div>
+    <div><h2>Today's games</h2>
+      <div class="panel schoolbar"><div class="tally">
+        <span class="${left.length ? 'gold' : ''}"><b class="num">${left.length}</b> bout${left.length === 1 ? '' : 's'} to fight</span>
+        <span class="${fit ? '' : 'bad'}"${tip('A man fights once a day. Whoever has fought, is hurt or is away cannot be sent.')}><b class="num">${fit}</b> fit to fight</span>
+        ${left.length ? `<span${tip('purse')}><b class="num">${purse}</b> in purses still to win</span>` : '<span>the day is done: end it when you are ready</span>'}
+        ${G.fix ? '<span class="bad"><b>You have agreed to lose your next bout.</b></span>' : ''}</div></div>
+      <div class="pane" data-pane="bouts">${road}<div class="panel list">${rows}</div></div></div>
     <div><h2>${cur && cur.id === 'lists' ? 'The tournament' : 'The bout'}</h2><div class="pane" data-pane="bout">${festivalNote()}${cur ? (cur.id === 'lists' ? tourneyPanel() : boutCard(cur)) : ''}</div></div>
   </div>`;
 }
@@ -1010,7 +1064,7 @@ function tourneyPanel() {
   const entry = e => {
     if (e.you) { const g = byId(T.entrant); return `<b>${g ? g.name : 'Your man'}</b> <span class="dim">(yours)</span>`; }
     const g = tRival(e);
-    return `${swatch(e.hid)}${e.name}` + (g ? ` <span class="dim num">${CLASSES[g.cls].name}, strength ${Math.round(power(g))}</span>` : ' <span class="dim">(dead)</span>');
+    return `${swatch(e.hid)}${e.name}` + (g ? ` <span class="dim num">${CLASSES[g.cls].name}, might ${Math.round(power(g))}</span>` : ' <span class="dim">(dead)</span>');
   };
   let body;
   if (T.state === 'open') {
@@ -1242,7 +1296,7 @@ function ruinModal() {
   }
   if (R.step === 1) {
     const men = G.roster.map(g => `<p><button class="${R.fighter === g.id ? 'primary' : ''}" data-act="ruinpick" data-v="${g.id}">${g.name}</button>
-      <span class="dim">${RANKS[g.rank].name} ${CLASSES[g.cls].name}, ${g.wins} victories, strength ${Math.round(power(g))}</span></p>`).join('');
+      <span class="dim">${RANKS[g.rank].name} ${CLASSES[g.cls].name}, ${g.wins} victories, might ${Math.round(power(g))}</span></p>`).join('');
     return `${steps}<h2>One man goes with him</h2>
       <p>There is time to get one fighter out through the kitchen gate before the seal goes on the doors. He will arrive with nothing but his skill, and less of that than he had: a hard road wears a man down.</p>
       ${men || '<p class="dim">There is nobody left to send.</p>'}
@@ -1658,6 +1712,13 @@ const ACTIONS = {
     }
     ui.picks[b.id] = p; render();
   },
+  bbest(v) {
+    const b = G.bouts.find(x => x.id === +v), t = b && bestBoutTeam(b); if (!t) return;
+    const ids = t.men.map(g => g.id);
+    for (const k in ui.picks) ui.picks[k] = ui.picks[k].filter(x => !ids.includes(x));
+    ui.picks[b.id] = ids; render();
+  },
+  wagerset(v, w) { ui.wagers[v] = +w; render(); },
   fight(v) { startFight(v); },
   hire(v) {
     const h = G.hires.find(x => x.id === +v);
@@ -1822,7 +1883,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -2000,6 +2061,8 @@ document.addEventListener('keydown', e => {
     if (to) { press(to); const now = $('#view .lrow.sel[data-act]'); if (now) now.scrollIntoView({ block: 'nearest' }); } else e.preventDefault();
     return;
   }
+  if (ui.tab === 'arena' && k === 'b') return press($('#view [data-act=bbest]'));
+  if (ui.tab === 'arena' && k === 'Enter' && at.tagName !== 'BUTTON') return press($('#view [data-act=fight]'));
   if (k === 'b' && ui.tab === 'market') return press($('#view [data-act=buy]'));
   if (k === 'b' && ui.tab === 'smith') return press($('#view [data-act=smithbuy]'));
   if (k === 'b' && ui.tab === 'contracts') return press($('#view [data-act=cbest]'));
