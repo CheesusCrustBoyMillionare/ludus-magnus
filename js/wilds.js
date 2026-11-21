@@ -141,7 +141,7 @@ const SITE_NAMES = {
 let wildSiteCache = null;
 function wildSites() {
   const M = wildMap();
-  if (wildSiteCache && wildSiteCache.seed === M.seed) return wildSiteCache.list;
+  if (wildSiteCache && wildSiteCache.seed === M.seed) return bountyLive() ? wildSiteCache.list.concat(bountySite()) : wildSiteCache.list;
   const rnd = wildRng(M.seed), deck = SITE_DECK.slice();
   for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
   const list = wildLand().sites.map((s, i) => {
@@ -150,7 +150,82 @@ function wildSites() {
   });
   for (const f of WILD_FIXED) list.push({ id: f.id, kind: f.kind, x: f.tx * 10 + 5, y: f.ty * 10 + 5, tier: wildTier(f.tx * 10, f.ty * 10), name: f.name, fixed: true });
   wildSiteCache = { seed: M.seed, list };
-  return list;
+  return bountyLive() ? list.concat(bountySite()) : list;
+}
+// ---------- bounties: the Magistrate pays for a head, or a hide ----------
+const BOUNTY_NAMES = {
+  outlaws: ['Brennos the Flayer', 'The Widow-Maker\'s band', 'Old Three-Fingers', 'The Marsh Wolves', 'Dumnorix the Red', 'The tax-collector\'s murderers', 'The Ferrymen'],
+  beast: ['The grey bear of the fells', 'A man-eating lion', 'The great boar of the downs', 'The pack that took the shepherds'],
+};
+const bountyLive = () => !!G.bounty && G.bounty.until >= G.day;
+const bountySite = () => ({ id: 'bounty', kind: 'bounty', x: G.bounty.x, y: G.bounty.y, tier: G.bounty.tier, name: G.bounty.name, fixed: true });
+// A new bounty, somewhere a little beyond what the school has faced. Posted on games days; one stands at a time.
+function postBounty(force) {
+  if (bountyLive() && !force) return null;
+  delete wildMap().marks.bounty;
+  G.bounty = null;
+  if (!force && !gateOpen()) return null;
+  const L = wildLand(), want = clamp(tier() + 1 + (chance(0.4) ? 1 : 0), 1, 5), sites = wildSites();
+  let spot = null;
+  for (let tries = 0; tries < 4000 && !spot; tries++) {
+    const tx = 3 + Math.floor(Math.random() * (WILD.TW - 6)), ty = 3 + Math.floor(Math.random() * (WILD.TH - 6)), x = tx * 10 + 5, y = ty * 10 + 5;
+    if (!L.reach[ty * WILD.TW + tx] || (tries < 3000 && wildTier(x, y) !== want)) continue;
+    if (Math.hypot(x - WILD.TOWN.x, y - WILD.TOWN.y) < 220 || sites.some(q => Math.hypot(q.x - x, q.y - y) < 40)) continue;
+    spot = { x, y };
+  }
+  if (!spot) return null;
+  const kind = chance(0.6) ? 'outlaws' : 'beast', bt = wildTier(spot.x, spot.y);
+  G.bounty = { kind, name: pick(BOUNTY_NAMES[kind]), x: spot.x, y: spot.y, tier: bt, pay: round5(40 * bt + PURSE[tier()] * 0.6), until: G.day + 20, region: wildRegion(spot.x, spot.y) };
+  wildMark('bounty', 'bounty');
+  log(`The Magistrate posts a bounty: ${G.bounty.pay} denarii for ${G.bounty.name}, last seen in ${G.bounty.region}. It stands for twenty days.`, 'gold');
+  return G.bounty;
+}
+function bountyFoes(b) {
+  if (b.kind === 'beast') return wildBeasts(b.tier, [['wolf'], ['boar'], ['bear'], ['lion'], ['bear']][b.tier - 1]);
+  const men = wildMen(b.tier, Math.max(2, wildCount(b.tier) - 1), 3);
+  men[0].name = b.name.replace(/^The |^A |'s band$/g, '').split(' ')[0];
+  return men;
+}
+
+// ---------- the country made safe ----------
+// A region is safe when every lair and outlaw camp in it has been dealt with. The carters pay for safe roads.
+const HOSTILE_SITES = ['lair', 'camp'];
+function regionTally() {
+  const out = {};
+  for (const q of wildSites()) { if (!HOSTILE_SITES.includes(q.kind)) continue; const r = wildRegion(q.x, q.y), o = out[r] = out[r] || { n: 0, done: 0 }; o.n++; if (siteDone(q)) o.done++; }
+  return out;
+}
+const safeRegions = () => Object.keys((G.dynasty && G.dynasty.map && G.dynasty.map.safe) || {});
+const SAFE_TOLL = 3;
+
+// ---------- a day in camp, spent on something other than rest ----------
+// Foraging: the men hunt and gather instead of resting. Coin for the purse, little rest, and now and then a hurt.
+function campForage() {
+  const F = G.field; if (!F) return null;
+  const men = fieldParty(), t = wildTier(F.x, F.y);
+  if (!men.length) { F.note = { day: G.day, ok: false, text: 'Nobody is fit to send out.' }; return null; }
+  F.march = 0; fieldDay('forage');
+  if (!G.field) return null;
+  const coin = round5((6 + 3 * men.length) * t * rand(0.7, 1.3));
+  G.denarii += coin;
+  let text = `The men come back with game, hides and what the hedgerows give: worth <b class="gold num">${coin}</b> denarii.`, ok = true;
+  if (t >= 3 && chance(0.15)) { const g = pick(men.filter(x => G.roster.includes(x))); if (g) { g.injury = rint(1, 2); g.hp = Math.max(1, g.hp - maxHp(g) * 0.2); text += ` <span class="bad">${g.name} met something with teeth, and is hurt for ${g.injury} day${g.injury === 1 ? '' : 's'}.</span>`; ok = false; } }
+  else if (chance(0.12)) { G.roster.filter(x => !x.away).forEach(x => { x.hp = Math.min(maxHp(x), x.hp + maxHp(x) * 0.1); }); text += ' And herbs for the pot: every man is a little better for it.'; }
+  G.field.note = { day: G.day, ok, text };
+  save();
+  return coin;
+}
+// Scouting: the day is spent looking at the country. The fog lifts for a long way round, further with a scout.
+function campScout() {
+  const F = G.field; if (!F) return null;
+  F.march = 0; fieldDay('scout');
+  if (!G.field) return null;
+  const M = wildMap(), r = 300 + 100 * staffLvl('scout'), before = Object.keys(M.seen).length;
+  for (let dy = -r; dy <= r; dy += 60) for (let dx = -r; dx <= r; dx += 60) if (Math.hypot(dx, dy) <= r) wildReveal(G.field.x + dx, G.field.y + dy);
+  const found = Object.keys(M.seen).length - before;
+  G.field.note = { day: G.day, ok: true, text: found ? `From the high ground the country opens out. <b class="gold">${found} new place${found === 1 ? '' : 's'}</b> on the map.` : 'From the high ground the country opens out. Nothing new in it, but you know the lie of it now.' };
+  save();
+  return found;
 }
 const siteById = id => wildSites().find(s => s.id === id) || null;
 const siteDone = s => !!wildMap().done[s.id];
@@ -254,6 +329,8 @@ function wildDayFor(g) {
   const camp = G.field.mode === 'camp', mh = maxHp(g);
   if (g.injury > 0) { g.injury -= 1; if (g.injury <= 0) { g.injury = 0; log(`${g.name} is fit to fight again.`); } }
   if (camp) { g.fatigue -= 24; g.hp += mh * (0.14 + 0.04 * staffLvl('cook')); g.morale += 1; }
+  else if (G.field.mode === 'forage') { g.fatigue -= 6; g.hp += mh * 0.05; }
+  else if (G.field.mode === 'scout') { g.fatigue -= 14; g.hp += mh * 0.08; }
   else { g.fatigue += 11 - statSum(g) * 0.06; g.hp += mh * 0.04; }
   const target = Math.min(100, moraleBase(G.ration) - 6);
   g.morale += clamp(target - g.morale, -3, 3);
@@ -310,20 +387,32 @@ const coinFor = (base, tier) => round5(base * tier * rand(0.8, 1.25) * (G.roster
 function learn(trait, p, lines) {
   for (const g of fieldParty()) if (!g.traits.includes(trait) && chance(p)) { g.traits.push(trait); addStory(g, `Learned: ${TRAITS[trait].name}.`); lines.push(`<span class="gold"><b>${g.name}</b> has learned something out here: ${TRAITS[trait].name}.</span>`); return; }
 }
-function siteFinish(sid) { const M = wildMap(); if (sid && !M.done[sid]) { M.done[sid] = G.day; M.cleared++; delete M.marks[sid]; } }
+function siteFinish(sid) {
+  const M = wildMap();
+  if (!sid || M.done[sid]) return;
+  M.done[sid] = G.day; M.cleared++; delete M.marks[sid];
+  const q = siteById(sid);
+  if (q && HOSTILE_SITES.includes(q.kind)) {                 // the last of them in this country: its roads are safe
+    const r = wildRegion(q.x, q.y), t = regionTally()[r];
+    M.safe = M.safe || {};
+    if (t && t.done >= t.n && !M.safe[r]) { M.safe[r] = G.day; M.justSafe = r; G.fame += 10; favor('guild', 5); log(`${r} is made safe: no lair or outlaw camp is left in it. The carters will pay ${SAFE_TOLL} denarii a day for the roads.`, 'gold'); }
+  }
+}
+// The line for the report when a region has just been made safe.
+function safeLine(lines) { const M = wildMap(); if (M.justSafe) { lines.push(`<span class="gold"><b>${M.justSafe}</b> is safe: nothing that bites or robs is left in it. The carters' guild will pay you <b class="num">${SAFE_TOLL}</b> denarii a day for the roads, and it is worth <b class="num">+10</b> fame.</span>`); delete M.justSafe; } }
 
 // What winning a fight in the wild brings. Each returns the lines of the report.
 const WILD_WINS = {
   lair(F) {
     const s = siteById(F.sid), c = coinFor(22, s.tier), f = 2 * s.tier, lines = [`The hides and teeth will fetch <b class="gold num">${c}</b> denarii. Word of it is worth <b class="num">+${f}</b> fame.`];
-    G.denarii += c; G.fame += f; learn('beastslayer', 0.35, lines); siteFinish(s.id);
+    G.denarii += c; G.fame += f; learn('beastslayer', 0.35, lines); siteFinish(s.id); safeLine(lines);
     return lines;
   },
   camp(F) {
     const s = siteById(F.sid), c = coinFor(55, s.tier), lines = [`Their plunder comes to <b class="gold num">${c}</b> denarii. The Magistrate pays for outlaws' heads, and the Guild's carters will sleep easier.`];
     G.denarii += c; favor('magistrate', 2 + s.tier); favor('guild', 2); G.fame += 3 * s.tier;
     if (chance(0.3 + 0.1 * s.tier)) { const it = wildGear(s.tier); lines.push(`In the leader's tent: ${itemName(it)}, now in your armoury.`); }
-    learn('reaver', 0.3, lines); siteFinish(s.id);
+    learn('reaver', 0.3, lines); siteFinish(s.id); safeLine(lines);
     const M = wildMap();
     if (!M.chain.word && s.tier >= 2) { M.chain.word = 1; wildMark('cacheB', 'dig'); lines.push('<span class="gold">One of them, dying, buys a drink of water with a secret: where the band buried its strongbox, by the lower river road. It is marked on your map.</span>'); }
     return lines;
@@ -331,6 +420,16 @@ const WILD_WINS = {
   guardians(F) {                         // whatever was woken in a tomb
     const s = siteById(F.sid), lines = ruinLoot(s, 1.6);
     siteFinish(s.id);
+    return lines;
+  },
+  bounty(F) {
+    const b = G.bounty, M = wildMap();
+    if (!b) return ['The ground is yours.'];
+    const f = 4 * b.tier, lines = [`Proof enough for any magistrate. The bounty is <b class="gold num">${b.pay}</b> denarii, and the town will hear of it: <b class="num">+${f}</b> fame.`];
+    G.denarii += b.pay; G.fame += f; favor('magistrate', 3 + b.tier); M.bounties = (M.bounties || 0) + 1;
+    if (b.kind === 'outlaws' && chance(0.35)) { const it = wildGear(b.tier); lines.push(`Among their things: ${itemName(it)}, now in your armoury.`); }
+    learn(b.kind === 'beast' ? 'beastslayer' : 'reaver', 0.3, lines);
+    delete M.marks.bounty; G.bounty = null;
     return lines;
   },
   pack(F) { const c = coinFor(8, F.tier), lines = [F.beasts ? `Pelts worth <b class="gold num">${c}</b> denarii.` : `Their purses hold <b class="gold num">${c}</b> denarii.`]; G.denarii += c; G.fame += F.tier; return lines; },
@@ -451,6 +550,14 @@ const WILD_EVENTS = {
     text: c => `<b>${site(c).name}</b> <span class="bad">${skulls(site(c).tier)}</span>. About ${['two', 'three', 'five', 'six', 'eight'][site(c).tier - 1]} armed men, a lookout who has already seen you, and no way to talk. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`,
     opts: [
       { label: () => 'Storm it', ok: canFightNow, run: c => { const s = site(c); return wildFight(s.name, wildMen(s.tier, wildCount(s.tier)), 'camp', 'camp', { sid: s.id, day: true }); } },
+      leaveIt,
+    ],
+  },
+  wBounty: {
+    title: 'The bounty', can: () => !!G.field, make: () => { if (!bountyLive()) postBounty(true); return {}; },
+    text: () => { const b = G.bounty; return `<b>${b.name}</b> <span class="bad">${skulls(b.tier)}</span>. ${b.kind === 'beast' ? 'The carcasses round its ground are fresh, and not all of them are sheep.' : 'They have seen you, and they know why you have come.'} The Magistrate pays <b class="gold num">${b.pay}</b> denarii for proof. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`; },
+    opts: [
+      { label: () => 'Take the bounty', ok: canFightNow, run: () => { const b = G.bounty; return wildFight(b.name, bountyFoes(b), b.kind === 'beast' ? 'forest' : 'camp', 'bounty', { tier: b.tier, day: true }); } },
       leaveIt,
     ],
   },
@@ -674,7 +781,7 @@ const WILD_EVENTS = {
 for (const id in WILD_EVENTS) Object.assign(WILD_EVENTS[id], { auto: true, wild: true });
 Object.assign(EVENTS, WILD_EVENTS);
 
-const SITE_EVENT = { lair: 'wLair', camp: 'wCamp', ruin: 'wRuin', shrine: 'wShrine', hermit: 'wHermit', hamlet: 'wHamlet', healer: 'wHealer', merchant: 'wMerchant', cache: 'wCache', herb: 'wHerb',
+const SITE_EVENT = { bounty: 'wBounty', lair: 'wLair', camp: 'wCamp', ruin: 'wRuin', shrine: 'wShrine', hermit: 'wHermit', hamlet: 'wHamlet', healer: 'wHealer', merchant: 'wMerchant', cache: 'wCache', herb: 'wHerb',
   deserter: 'wDeserter', battlefield: 'wBattlefield', chief: 'wChief', barrow: 'wBarrow', quarry: 'wJourney', slavers: 'wJourney', vow: 'wJourney', master: 'wJourney' };
 // Raises whatever is found at a place. Called by the map when the school walks up to it.
 function wildVisit(s) {

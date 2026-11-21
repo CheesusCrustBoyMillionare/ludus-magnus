@@ -997,6 +997,53 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
 }));
 
+test('the province: bounties, foraging, scouting and regions made safe', () => game()(function () {
+  newGame(); G.tally.wins = 1; G.day = 6; while (G.roster.length < 4) G.roster.push(makeGladiator(30));
+  const base = wildSites().length;
+  // a bounty is posted, marked on the map, and is a place like any other
+  const b = postBounty();
+  assert(b && bountyLive() && b.pay > 0 && b.tier >= 1 && b.tier <= 5 && b.until === G.day + 20 && !postBounty(), 'one bounty stands at a time');
+  const st = siteById('bounty');
+  assert(wildSites().length === base + 1 && st && st.kind === 'bounty' && siteLive(st) && siteShown(st) && wildMap().marks.bounty, 'it is on the map, through the fog');
+  assert(wildLand().reach[Math.floor(b.y / 10) * WILD.TW + Math.floor(b.x / 10)], 'and can be walked to');
+  assert(bountyFoes(b).length >= 2, 'somebody is waiting there');
+  // taking it: the fight, the pay, the favour
+  assert(wildEnter(), 'the school marches out');
+  assert(wildVisit(st) && G.pendingEvent.id === 'wBounty', 'walking up to it raises it');
+  answerEvent(0);
+  assert(G.field.fight && G.field.fight.win === 'bounty', 'a fight is set');
+  const d0 = G.denarii, f0 = G.patrons.magistrate, fame0 = G.fame, B = fight(fieldParty(), G.field.fight.foes, { hunt: true }); B.winner = 0;
+  const r = applyWildResult(B);
+  assert(r.win && !G.bounty && !bountyLive() && wildSites().length === base && G.denarii >= d0 + b.pay - upkeep() && G.patrons.magistrate > f0 && G.fame > fame0 && wildMap().bounties === 1 && !wildMap().marks.bounty, 'the bounty is paid and gone');
+  // an old bounty lapses, and a new one is posted on a games day
+  postBounty(); const old = G.bounty; G.day = old.until + 1;
+  assert(!bountyLive() && wildSites().length === base, 'a bounty lapses after twenty days');
+  assert(postBounty() && G.bounty !== old && bountyLive(), 'and another is posted');
+  // foraging: a day passes, coin comes in, little rest
+  if (!G.field) wildEnter();
+  G.roster.forEach(g => { g.injury = 0; g.fatigue = 50; g.hp = maxHp(g); });
+  const day0 = G.day, d1 = G.denarii, net = stipend() - upkeep();
+  const coin = campForage();
+  assert(coin > 0 && G.day === day0 + 1 && G.denarii === d1 + net + coin && G.field.note && G.field.note.day === G.day, 'a day foraging pays');
+  assert(G.roster.every(g => g.fatigue < 50 && g.fatigue > 30), 'and rests the men a little');
+  // scouting: the fog lifts a long way round
+  const seen0 = wildExplored(), day1 = G.day;
+  campScout();
+  assert(G.day === day1 + 1 && wildExplored() > seen0 + 0.01 && G.field.note.day === G.day, 'a day scouting opens the map');
+  G.staff.scout = { name: 'x', skill: 3, wage: 0 }; G.field.x += 400; const seen1 = wildExplored(); campScout(); const gain = wildExplored() - seen1;
+  assert(gain > 0, 'a scout sees further');
+  // a region is safe when its last lair or camp is dealt with, and pays a toll every day
+  const tally = regionTally(), region = Object.keys(tally)[0];
+  assert(Object.values(tally).every(t => t.n > 0 && t.done === 0) && safeRegions().length === 0, 'nothing is safe at the start');
+  const hostile = wildSites().filter(q => HOSTILE_SITES.includes(q.kind) && wildRegion(q.x, q.y) === region), s0 = stipend(), fame1 = G.fame;
+  hostile.slice(0, -1).forEach(q => siteFinish(q.id));
+  assert(safeRegions().length === 0 && stipend() === s0, 'not until the last of them');
+  siteFinish(hostile[hostile.length - 1].id);
+  assert(safeRegions().length === 1 && safeRegions()[0] === region && stipend() === s0 + SAFE_TOLL && G.fame === fame1 + 10 && wildMap().justSafe === region, 'the region is safe, and pays');
+  const lines = []; safeLine(lines); assert(lines.length === 1 && !wildMap().justSafe, 'and the report says so, once');
+  assert(!badNumber(G), 'the province left a bad number');
+}));
+
 test('the province: land, fog, days in the field, fights, spoils and the eagle', () => game()(function () {
   newGame();
   // the land is the same for every house, and everything in it can be walked to

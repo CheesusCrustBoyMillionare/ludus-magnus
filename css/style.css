@@ -1291,3 +1291,6 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 .schoolbar .facbtn { white-space: nowrap; margin-left: 6px; }
 .facbtn .pips { font-size: 8px; letter-spacing: 1px; color: var(--gold); vertical-align: 1px; }
 .htiles.solo { grid-template-columns: 1fr; }
+
+/* ---- the camp: three ways to spend a day ---- */
+.camprow button { padding-left: 6px; padding-right: 6px; white-space: nowrap; }

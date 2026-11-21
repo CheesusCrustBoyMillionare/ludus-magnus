@@ -170,7 +170,7 @@ const regimen = () => REGIMENS[G.regimen === undefined ? 1 : G.regimen] || REGIM
 // Where morale settles on a given ration: the cook, the Temple, the shrine and how hard the men are worked all count.
 const moraleBase = i => RATIONS[i].morale + 5 * staffLvl('cook') + G.patrons.temple / 10 + 3 * facLvl('shrine') + regimen().morale;
 function wages() { return Object.values(G.staff).reduce((s, x) => s + x.wage, 0); }
-function stipend() { return Math.round(G.patrons.guild / 10 * (1 + tier())); }
+function stipend() { return Math.round(G.patrons.guild / 10 * (1 + tier())) + (typeof safeRegions === 'function' ? SAFE_TOLL * safeRegions().length : 0); }
 function favor(k, d) { G.patrons[k] = clamp(G.patrons[k] + d, 0, 100); }
 function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + 0.02 * facLvl('shrine') + G.patrons.temple * 0.001 - (G.rigged && G.rigged >= G.day ? 0.15 : 0) + (G.blessed && G.blessed >= G.day ? 0.1 : 0); }
 // ---- what may be asked of a patron, and what a patron may ask of you ----
@@ -1636,7 +1636,7 @@ function endDay() {
   if (isGamesDay()) {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
     genRequest();
-    genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts();
+    genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts(); postBounty();
     log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
   } else { G.bouts = null; G.tourney = null; }
 
