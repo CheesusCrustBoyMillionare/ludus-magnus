@@ -1088,33 +1088,67 @@ function gearBlock(g) {
     <div class="dim num" style="font-size:12px;margin-top:6px">Kit in all: +${gs.dmg.toFixed(1)} damage, ${gs.armor.toFixed(1)} off every blow${gs.dodge < 0 ? ', ' + (gs.dodge * 100).toFixed(1) + '% dodge' : ''}</div>`;
 }
 
+// A piece in a few words, and what it would change for a man against what he wears now.
+const itemGist = it => it.slot === 'weapon' ? `+${itemStats(it).dmg} damage` : `${itemStats(it).armor.toFixed(1)} off a blow`;
+function itemDelta(it, g) {
+  const cur = g.gear && g.gear[it.slot], a = itemStats(it), b = cur ? itemStats(cur) : null;
+  const d = it.slot === 'weapon' ? a.dmg - (b ? b.dmg : 0) : a.armor - (b ? b.armor : 0), unit = it.slot === 'weapon' ? 'damage' : 'off a blow';
+  const n = +Math.abs(d).toFixed(1);
+  return { d, text: Math.abs(d) < 0.05 ? 'no change' : `${d > 0 ? '+' : '&minus;'}${n} ${unit}` };
+}
+
 function viewSmith() {
-  const S = G.smith, lv = S.level, odds = SMITH_ODDS[lv];
+  const S = G.smith, lv = S.level, odds = SMITH_ODDS[lv], dg = daysToGames();
   const range = RARITY.filter((_, i) => odds[i] > 0);
   const best = it => G.roster.filter(g => fits(it, g) && (!g.gear[it.slot] || g.gear[it.slot].r < it.r)).map(g => g.name);
   const mine = G.armoury.slice().sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || b.r - a.r);
   const it = keepSel('isel', S.stock.concat(mine)), own = !!it && G.armoury.includes(it);
-  const row = (x, mineToo) => lrow('isel', x.id, `${itemArt(x, 28)}<div class="grow"><span class="t">${itemTag(x)}</span>
-      <small>${SLOT_INFO[x.slot].name}${x.slot === 'weapon' ? ' &middot; ' + CLASSES[x.cls].name : ''}${best(x).length ? ' &middot; <span class="good">better for ' + best(x).join(', ') + '</span>' : ''}</small></div>
-      <span class="end">${mineToo ? '<span class="dim">yours</span>' : `<b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`}</span>`);
+  const row = (x, mineToo) => lrow('isel', x.id, `${itemArt(x, 28)}<div class="grow"><span class="t">${itemTag(x)} <small class="inl">${itemGist(x)}</small></span>
+      <small>${SLOT_INFO[x.slot].name}${x.slot === 'weapon' ? ' &middot; ' + CLASSES[x.cls].name : ''}${best(x).length ? ' &middot; <span class="good">better for ' + best(x).join(', ') + '</span>' : x.slot === 'weapon' && !G.roster.some(g => g.cls === x.cls) ? ' &middot; <span class="dim">no one of yours can use it</span>' : ''}</small></div>
+      <span class="end">${mineToo ? `<span class="dim">sells for ${Math.round(itemPrice(x) / 2)}</span>` : `<b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`}</span>`, 'smithrow');
   const stock = S.stock.map(x => row(x, false)).join('') || '<div class="listnote">He has sold everything he had. Come back after the next games.</div>';
-  const racks = mine.map(x => row(x, true)).join('') || '<div class="listnote">The racks are empty. Pieces you buy wait here until a fighter wears them; open a fighter\'s dossier to equip him.</div>';
-  const who = it ? best(it) : [];
-  const card = it ? `<div class="panel item"><div class="itemhead">${itemArt(it, 60)}<div><h3>${itemTag(it)}</h3>
-      <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div></div></div>
-      <p style="font-size:14px">${itemEffect(it)}</p>
-      <div class="dim" style="font-size:13px;margin-bottom:8px">${who.length ? 'An improvement for ' + who.join(', ') : it.slot === 'weapon' && !G.roster.some(g => g.cls === it.cls) ? 'Nobody in your ludus fights this way' : 'No better than what your men wear'}.${own ? ' To put it on a man, open his dossier.' : ''}</div>
-      ${own ? `<button data-act="smithsell" data-v="${it.id}">Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button>`
-            : `<button class="primary" data-act="smithbuy" data-v="${it.id}" ${G.denarii < buyPrice(it) ? 'disabled' : ''}>Buy &mdash; ${buyPrice(it)} denarii</button>`}
-    </div>` : '';
-  const forge = `<div class="panel" style="margin-top:10px"><div class="row">
+  const racks = mine.map(x => row(x, true)).join('') || '<div class="listnote">The racks are empty. A piece you buy without giving it to a man waits here.</div>';
+  // every man's kit at a glance: one cell a slot
+  const kit = G.roster.map(g => {
+    const gs = gearStats(g);
+    return `<div class="kitrow"><span class="nm">${g.name}</span>${SLOTS.map(slot => { const x = g.gear && g.gear[slot]; return x ? `<span class="rar r${x.r}"${tip(`${itemName(x)}: ${itemEffect(x)}`)}>${RARITY[x.r]}</span>` : `<span class="rar none"${tip(`${SLOT_INFO[slot].name}: ${slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}.`)}>&middot;</span>`; }).join('')}<small class="num">+${gs.dmg.toFixed(0)} dmg &middot; ${gs.armor.toFixed(1)} off</small></div>`;
+  }).join('');
+  const kitHead = `<div class="kitrow head"><span class="nm"></span>${SLOTS.map(slot => `<span${tip(SLOT_INFO[slot].name)}>${ic('slot-' + slot)}</span>`).join('')}<small></small></div>`;
+  let card = '';
+  if (it) {
+    const price = buyPrice(it), short = !own && G.denarii < price;
+    const wearers = G.roster.filter(g => fits(it, g)).map(g => ({ g, dl: itemDelta(it, g) })).sort((a, b) => b.dl.d - a.dl.d).map(({ g, dl }) => {
+      const cur = g.gear[it.slot];
+      return `<div class="lrow wearer" style="cursor:default"><div class="grow"><span class="t">${g.name} <small class="inl">${CLASSES[g.cls].name} &middot; power ${rating(g)}</small></span>
+          <small>now: ${cur ? `${RARITY[cur.r]} ${itemName(cur)}` : it.slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}</small></div>
+        <span class="end num ${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.text}</span>
+        ${own ? `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="equip" data-v="${g.id}" data-w="${it.id}">Give him</button>`
+              : `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="smithgive" data-v="${it.id}" data-w="${g.id}" ${short ? 'disabled' : ''}>Buy for him</button>`}</div>`;
+    }).join('');
+    card = `<div class="panel item"><div class="itemhead">${itemArt(it, 60)}<div style="flex:1"><h3>${itemTag(it)}</h3>
+      <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div>
+      <div style="font-size:13px;margin-top:3px">${itemEffect(it)}</div></div></div>
+      <div class="buyrow" style="margin:0 0 6px">${own ? `<button data-act="smithsell" data-v="${it.id}"${tip('He buys back at half the full price.')}>Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button><small class="dim">It is on your racks. Give it to a man below, or sell it back.</small>`
+            : `<button data-act="smithbuy" data-v="${it.id}" ${short ? 'disabled' : ''}${tip('Buy it for the racks, to give out later. Key: B')}>Buy for the racks &mdash; ${price}</button><small class="${short ? 'bad' : 'dim'}">${short ? `You are ${price - G.denarii} denarii short.` : `Leaves you ${G.denarii - price}. Or buy it straight onto a man below.`}</small>`}</div>
+      ${wearers ? `<div class="sendhead"><span>Who could wear it, best gain first</span></div><div class="list wearers">${wearers}</div>` : `<div class="dim" style="font-size:13px">${it.slot === 'weapon' ? `Only a ${CLASSES[it.cls].name} can use it, and you have none.` : 'You have no one to wear it.'}</div>`}
+    </div>`;
+  }
+  const up = lv < 4 ? SMITH_COST[lv] : 0;
+  const forge = `<div class="panel" style="margin-top:8px"><div class="row">
       <div style="flex:1;min-width:200px"><h3${tip('smithlevel')}>${SMITH_NAMES[lv]} <span class="pips">${'●'.repeat(lv)}${'○'.repeat(4 - lv)}</span></h3>
-      <div class="dim" style="font-size:13px">Offers ${4 + lv} pieces each games day, graded ${range[0]} to ${range[range.length - 1]}.${lv < 4 ? ` Improved, he would offer ${5 + lv}, graded ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0)[0]} to ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0).slice(-1)[0]}.` : ' There is no finer forge in the empire.'}</div></div>
-      ${lv < 4 ? `<button data-act="smithup" ${G.denarii < SMITH_COST[lv] ? 'disabled' : ''}>Improve the forge &mdash; ${SMITH_COST[lv]}</button>` : ''}
+      <div class="dim" style="font-size:13px">Offers ${4 + lv} pieces each games day, graded ${range[0]} to ${range[range.length - 1]}.${lv < 4 ? ` <span class="gold">Improved: ${5 + lv} pieces, graded ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0)[0]} to ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0).slice(-1)[0]}.</span>` : ' There is no finer forge in the empire.'}</div></div>
+      ${lv < 4 ? `<div style="text-align:right"><button data-act="smithup" ${G.denarii < up ? 'disabled' : ''}>Improve the forge &mdash; ${up}</button>${G.denarii < up ? `<small class="bad" style="display:block;font-size:11px">short by ${up - G.denarii}</small>` : ''}</div>` : ''}
     </div></div>`;
   return `<div class="fill even">
-    <div><h2>For sale <small>new stock every games day</small></h2><div class="pane" data-pane="smith"><div class="panel list">${stock}</div>
-      <h2${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="panel list">${racks}</div></div></div>
+    <div><h2>For sale <small>${S.stock.length} piece${S.stock.length === 1 ? '' : 's'}</small></h2>
+      <div class="panel schoolbar"><div class="tally">
+        <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
+        <span${tip('The smith lays out new pieces every games day; what he has not sold is gone.')}>new stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
+        <span${tip('armoury')}><b class="num">${G.armoury.length}</b> spare on your racks</span>
+        <span${tip('rarity')}>grades ${RARITY.map((r, k) => `<span class="rar r${k}">${r}</span>`).join('')}</span></div></div>
+      <div class="pane" data-pane="smith"><div class="panel list">${stock}</div>
+      <h2${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="panel list">${racks}</div>
+      ${kit ? `<h2>What your men wear</h2><div class="panel kit">${kitHead}${kit}</div>` : ''}</div></div>
     <div><h2>The piece</h2><div class="pane" data-pane="piece">${card}${forge}</div></div>
   </div>`;
 }
@@ -1479,6 +1513,7 @@ const ACTIONS = {
   },
   csend(v) { if (sendContract(v, ui.cpicks[v] || [])) { delete ui.cpicks[v]; render(); } },
   smithbuy(v) { if (buyItem(v)) { save(); render(); } },
+  smithgive(v, w) { const g = byId(w); if (g && buyItem(v)) { equip(g, v); save(); render(); } },      // bought and straight onto a man
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
   smithup() { if (upgradeSmith()) { save(); render(); } },
   equip(v, w) { const g = byId(v); if (g && equip(g, w)) { save(); render(); } },
@@ -1687,7 +1722,7 @@ const CHANGES = {
 // (it makes its own sound, or the thing it starts does).
 const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
-  buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
+  buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
   endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
@@ -1859,6 +1894,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (k === 'b' && ui.tab === 'market') return press($('#view [data-act=buy]'));
+  if (k === 'b' && ui.tab === 'smith') return press($('#view [data-act=smithbuy]'));
   if (k === 'b' && ui.tab === 'contracts') return press($('#view [data-act=cbest]'));
   if (/^[1-5]$/.test(k) && ui.tab === 'ludus') return press($(`#view .lrow.sel .acts button:nth-child(${k})`));
   if ((k === 'ArrowLeft' || k === 'ArrowRight') && ui.tab === 'ludus') {
