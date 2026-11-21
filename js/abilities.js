@@ -219,8 +219,8 @@ function comboStep(B, f, dt) {
 function castAbility(B, f, ab) {
   const many = B.fighters.length > 6;
   if (!B.cutins || B.cut || (many && f.team !== 0)) return castNow(B, f, ab);
-  B.cut = { f, ab, t: 0, dur: f.team === 0 ? 5.7 : 3.72 };
-  B.cut.ts = B.cut.dur * 0.45;                                      // when, in the band, he lets the blow go       // your own men get the longer look
+  B.cut = { f, ab, t: 0, dur: f.team === 0 ? 4.7 : 2.72 };
+  B.cut.ts = (B.cut.dur + 1) * 0.45;                                      // when, in the band, he lets the blow go       // your own men get the longer look
   f.charge = 100; f.state = 'ready'; f.move = null;
   snd(B, 'cutin', 1, f, f.g.beast ? 'beast' : '');
 }

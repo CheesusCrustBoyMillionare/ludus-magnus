@@ -1001,7 +1001,8 @@ function drawBeast(ctx, o) {
 function drawSpritePortrait(canvas, g, team, col, colD) {
   const ctx = canvas.getContext('2d');
   const full = canvas.width >= 100;
-  const s = full ? 3 : Math.max(2, Math.round(canvas.width / 18));
+  const low = !full && g.beast;                 // a beast stands low: in a small frame it is shown whole, not cropped as a man is to his head
+  const s = full ? 3 : low ? Math.max(1, Math.round(canvas.width / 30)) : Math.max(2, Math.round(canvas.width / 18));
   const w = canvas.width / s, h = canvas.height / s;
   ctx.setTransform(s, 0, 0, s, 0, 0);
   ctx.imageSmoothingEnabled = false;
@@ -1011,7 +1012,7 @@ function drawSpritePortrait(canvas, g, team, col, colD) {
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(0, 0, w, 2);
   if (full) { ctx.fillStyle = '#c9a763'; ctx.fillRect(0, h - 5, w, 5); ctx.fillStyle = '#a88a52'; ctx.fillRect(0, h - 5, w, 1); }
   drawSprite(ctx, {
-    x: Math.round(w / 2) - (full ? 4 : 2), y: full ? Math.round(h) - 3 : Math.round(h) + 20, facing: 1, g, team: team || 0, col, colD,
+    x: Math.round(w / 2) - (full ? 4 : low ? -5 : 2), y: low ? Math.round(h * 0.74) : full ? Math.round(h) - 3 : Math.round(h) + 20, facing: 1, g, team: team || 0, col, colD,
     moving: false, walk: 0, clock: 0, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0,
   });
 }

@@ -777,3 +777,47 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 /* the dossier: the whole man as the arena draws him, beside his face */
 .dossier .dhead .figure { margin-left: -6px; }
 #camp .dossier .dhead .figure { display: none; }
+
+/* ---- the result of a fight ---- */
+#modalBox.wide { max-width: 680px; }
+.reshead { text-align: center; margin-bottom: 10px; }
+.reshead h2 { font-size: 30px; letter-spacing: .14em; text-transform: uppercase; margin: 0; padding-bottom: 6px; }
+.reshead.won h2 { color: #8a5a10; }
+.reshead p { margin: 6px 0 0; font-size: 13px; color: #6b573c; }
+.restiles { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); margin: 10px 0 12px; }
+.restiles > div { background: rgba(120, 80, 30, .13); border: 1px solid rgba(110, 72, 26, .4); padding: 6px 9px 7px; text-align: center; }
+.restiles span { color: #54401f; font-size: 11px; }
+.restiles b { font-size: 20px; display: block; line-height: 1.2; color: #2c1c10; }
+.restiles .gold b { color: #8a5a10; } .restiles .bad b { color: #a3271b; }
+.restiles small { color: #54401f; }
+.restiles .meter { display: block; height: 5px; background: rgba(60, 36, 12, .3); margin: 2px 0 3px; }
+.restiles .meter i { display: block; height: 100%; background: #b8862a; }
+.resmen { display: grid; gap: 8px; }
+.resmen.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.resman { display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 10px; align-items: start; background: rgba(255, 250, 235, .35); border: 1px solid rgba(110, 72, 26, .45); border-left: 3px solid #b93a2e; padding: 7px 9px; }
+.resman > canvas { grid-row: 1 / span 5; image-rendering: pixelated; border: 1px solid #3a2414; }
+.resman > div { grid-column: 2; min-width: 0; }
+.resman.dead { border-left-color: #2c1c10; background: rgba(60, 20, 14, .12); }
+.resman.dead > canvas { filter: grayscale(1) brightness(.8); }
+.resman .who b { font-size: 15px; } .resman .who small { color: #6b573c; margin-right: 6px; }
+.resman .chip { vertical-align: 1px; margin: 0 0 0 4px; }
+#modalBox .chip.st.ok { color: #2f5a1e; border-color: #4a7a30; background: rgba(80, 130, 50, .14); }
+#modalBox .chip.st.red, .resfoe small.red { color: #a3271b; border-color: #a3271b; }
+#modalBox .chip.gold { color: #8a5a10; border-color: #b8862a; }
+.resman .bar { margin: 4px 0 2px; }
+.resman .bar.dealt, .resfoe .bar.dealt { height: 5px; }
+.bar.dealt i { background: #c9962e; }
+.resman .nums { display: flex; gap: 14px; font-size: 12px; color: #6b573c; margin-top: 3px; }
+.resman .nums b { font-size: 14px; color: #2c1c10; }
+.resman .used { margin-top: 4px; } .resman .used .chip { margin: 0 4px 2px 0; }
+.resfoes, .resthen { margin-top: 10px; }
+.resfoes .lbl, .resthen .lbl { font: 700 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: #6b573c; border-bottom: 1px solid rgba(110, 72, 26, .45); padding-bottom: 2px; margin-bottom: 4px; }
+.resfoe { display: grid; grid-template-columns: 24px minmax(0, 1.3fr) minmax(40px, 1fr) 70px 70px; gap: 8px; align-items: center; font-size: 12px; color: #6b573c; padding: 2px 0; border-bottom: 1px solid rgba(110, 72, 26, .18); }
+.resfoe canvas { image-rendering: pixelated; border: 1px solid #3a2414; }
+.resfoe .nm { color: #2c1c10; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resfoe small { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #6b573c; margin-left: 4px; }
+.resfoe .num { text-align: right; }
+.resfoe .bar { margin: 0; display: block; }
+.resthen ul { margin: 4px 0 0; }
+.resthen li { margin: 2px 0; }
+@media (max-width: 560px) { .resmen.two { grid-template-columns: 1fr; } .resfoe { grid-template-columns: 24px minmax(0, 1fr) 60px 60px; } .resfoe .bar { display: none; } }

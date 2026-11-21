@@ -342,6 +342,8 @@ function paintModal() {
   const m = $('#modal');
   if (!modalQueue.length) { m.hidden = true; return; }
   $('#modalBox').innerHTML = modalQueue[0];
+  $('#modalBox').classList.toggle('wide', modalQueue[0].startsWith('<div class="res">'));
+  if (typeof paintResultFaces === 'function') paintResultFaces();
   m.hidden = false;
 }
 function closeModal() { modalQueue.shift(); paintModal(); }
@@ -1645,11 +1647,49 @@ function fightLoop(ts) {
   f.raf = requestAnimationFrame(fightLoop);
 }
 // After a fight: what each man gave, took and used.
+// What is shown when a fight is done: the word of it and how it went, what it paid, each of your men with how he came
+// out of it and what he did, the other side more briefly, and then whatever followed from it.
 function fightReport(B) {
-  const row = f => `<tr class="${f.team ? 'foe' : ''}"><td>${f.g.name}${out(f) ? ` <small>${f.fate === 'dead' ? 'dead' : f.yielded ? 'yielded' : 'down'}</small>` : ''}</td><td class="num">${Math.round(f.dmgDealt)}</td><td class="num">${Math.round(f.dmgTaken)}</td><td class="num">${f.best || '&ndash;'}</td><td>${Object.entries(f.used).map(([n, c]) => n + (c > 1 ? ' &times;' + c : '')).join(', ') || '<span class="dim">none</span>'}</td></tr>`;
-  const mine = B.fighters.filter(f => f.team === 0), foes = B.fighters.filter(f => f.team === 1).sort((a, b) => b.dmgDealt - a.dmgDealt);
-  return `<table class="report"><tr><th></th><th>Dealt</th><th>Taken</th><th>Best blow</th><th>Abilities used</th></tr>${mine.map(row).join('')}${foes.slice(0, 4).map(row).join('')}${foes.length > 4 ? `<tr class="foe"><td colspan="5" class="dim">and ${foes.length - 4} more</td></tr>` : ''}</table>
-    <p class="dim" style="font-size:12px">It lasted ${Math.round(B.time)} seconds.</p>`;
+  const top = Math.max(1, ...B.fighters.map(f => f.dmgDealt)), mine = B.fighters.filter(f => f.team === 0);
+  const foes = B.fighters.filter(f => f.team === 1).sort((a, b) => b.dmgDealt - a.dmgDealt);
+  const best = mine.length > 1 ? mine.slice().sort((a, b) => b.dmgDealt - a.dmgDealt)[0] : null;
+  const state = f => {
+    const g = f.g;
+    if (f.fate === 'dead') return ['Dead', 'red'];
+    if (f.team === 1) return out(f) ? [f.yielded ? 'Yielded' : 'Down, spared', ''] : ['Standing', ''];
+    const days = g.injury > 0 ? ` &middot; ${g.injury} day${g.injury === 1 ? '' : 's'}` : '';
+    if (f.fate) return [(f.yielded || f.hp > 0 ? 'Yielded' : 'Carried off') + days, 'red'];
+    return g.injury > 0 ? ['Wounded' + days, 'red'] : ['Unhurt', 'ok'];
+  };
+  const used = f => Object.entries(f.used).map(([n, c]) => `<span class="chip">${n}${c > 1 ? ' &times;' + c : ''}</span>`).join('');
+  const face = (f, w, h) => `<canvas width="96" height="112" style="width:${w}px;height:${h}px" data-rface="${B.fighters.indexOf(f)}"></canvas>`;
+  const man = f => {
+    const [word, cls] = state(f), g = f.g, dead = f.fate === 'dead', hp = dead ? 0 : clamp(g.hp / maxHp(g), 0, 1);
+    return `<div class="resman${dead ? ' dead' : ''}">${face(f, 48, 56)}
+      <div class="who"><b>${g.name}</b> <small>${f.c.name}</small>${f === best && f.dmgDealt > 0 ? ' <span class="chip gold">Best of yours</span>' : ''}<span class="chip st ${cls}">${word}</span></div>
+      <div class="bar hp"${tip(dead ? 'He did not leave the sand.' : `Health after the fight: ${Math.round(g.hp)} of ${maxHp(g)}.`)}><i style="width:${Math.round(hp * 100)}%"></i></div>
+      <div class="nums"><span><b class="num">${Math.round(f.dmgDealt)}</b> dealt</span><span><b class="num">${Math.round(f.dmgTaken)}</b> taken</span><span><b class="num">${f.best ? Math.round(f.best) : '&ndash;'}</b> best blow</span></div>
+      <div class="bar dealt"><i style="width:${Math.round(f.dmgDealt / top * 100)}%"></i></div>
+      ${used(f) ? `<div class="used">${used(f)}</div>` : ''}</div>`;
+  };
+  const foe = f => {
+    const [word, cls] = state(f);
+    return `<div class="resfoe">${face(f, 24, 28)}<span class="nm">${f.g.beast ? f.c.name : f.g.name} <small class="${cls}">${word}</small></span>
+      <span class="bar dealt"><i style="width:${Math.round(f.dmgDealt / top * 100)}%"></i></span><span class="num">${Math.round(f.dmgDealt)} dealt</span><span class="num">${Math.round(f.dmgTaken)} taken</span></div>`;
+  };
+  return `<div class="resmen${mine.length > 1 ? ' two' : ''}">${mine.map(man).join('')}</div>
+    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, 4).map(foe).join('')}${foes.length > 4 ? `<div class="dim" style="font-size:12px">and ${foes.length - 4} more</div>` : ''}</div>`;
+}
+// The head of that screen, and the tiles of what it paid.
+function resultHead(B, win, title, tiles) {
+  const secs = Math.round(B.time), how = B.endWord ? B.endWord[0] + B.endWord.slice(1).toLowerCase() : '';
+  return `<div class="reshead ${win ? 'won' : 'lost'}"><h2 class="${win ? '' : 'bad'}">${title}</h2>
+      <p>${[how, `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} on the ${B.wild ? 'field' : 'sand'}`].filter(Boolean).join(' &middot; ')}</p></div>
+    <div class="kvs restiles">${tiles.map(([k, v, note, cls]) => `<div class="${cls || ''}"><span>${k}</span><b class="num">${v}</b>${note ? `<small>${note}</small>` : ''}</div>`).join('')}</div>`;
+}
+function paintResultFaces() {
+  if (typeof fight === 'undefined' || !fight || !fight.B) return;
+  document.querySelectorAll('[data-rface]').forEach(cv => { const f = fight.B.fighters[+cv.dataset.rface]; if (f) drawPortrait(cv, f.g, f.team, fight.B.col[f.team], fight.B.colD[f.team]); });
 }
 
 function finishFight() {
@@ -1663,28 +1703,31 @@ function finishFight() {
   while ((!f.B.over || f.B.outro <= f.B.outroEnd) && guard++ < 20000) stepBattle(f.B, 1 / 30);
   f.B.snd.length = 0; SFX.quiet();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
+  const B = f.B, mine = B.fighters.filter(x => x.team === 0), foes = B.fighters.filter(x => x.team === 1);
+  const standing = [`${mine.filter(x => !out(x)).length} of ${mine.length}`, mine.some(x => x.fate === 'dead') ? `${mine.filter(x => x.fate === 'dead').length} dead` : 'none lost', mine.some(x => x.fate === 'dead') ? 'bad' : ''];
+  const then = lines => lines.length ? `<div class="resthen"><div class="lbl">What followed</div><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul></div>` : '';
   if (f.wild) {
-    const w = applyWildResult(f.B);
+    const w = applyWildResult(B);
     SFX.play(w.win ? 'victory' : 'defeat'); SFX.music(null);
-    showModal(`<h2 class="${w.win ? '' : 'bad'}">${w.win ? 'The field is yours' : 'Driven off'}</h2>
-      <ul>${w.lines.map(l => `<li>${l}</li>`).join('')}</ul>
-      ${fightReport(f.B)}
-      <div class="row"><button class="primary" data-act="leavearena">Back to the column</button></div>`);
+    showModal(`<div class="res">${resultHead(B, w.win, w.win ? 'The field is yours' : 'Driven off', [
+        ['Yours standing', standing[0], standing[1], standing[2]],
+        ['Foes felled', `${foes.filter(out).length} of ${foes.length}`, `${foes.filter(x => x.fate === 'dead').length} dead`]])}
+      ${fightReport(B)}${then(w.lines)}
+      <div class="row"><button class="primary" data-act="leavearena">Back to the column</button></div></div>`);
     return;
   }
-  const r = applyBoutResult(f.bout, f.B, f.wager, f.pay);
+  const r = applyBoutResult(f.bout, B, f.wager, f.pay);
   SFX.play(r.win ? 'victory' : 'defeat'); SFX.music(null);          // the fanfare has the floor
-  const money = [];
-  if (r.purse) money.push(`Purse: <b class="gold num">+${r.purse}</b> denarii`);
-  if (r.wager) money.push(r.win ? `Wager pays <b class="gold num">+${r.wagerGain}</b>` : `Wager lost: <b class="bad num">-${r.wager}</b>`);
-  if (r.fameGain) money.push(`Fame: <b class="num">+${r.fameGain}</b>`);
-  const mood = r.avgExc > 0.55 ? 'The crowd is on its feet, roaring.' : r.avgExc > 0.3 ? 'The crowd is well pleased.' : 'The crowd wanted more.';
-  showModal(`<h2 class="${r.win ? '' : 'bad'}">${r.win ? 'Victory' : 'Defeat'}</h2>
-    <p class="dim">${f.B.decision ? 'The fight drags on; the judges decide it. ' : ''}${mood}</p>
-    ${r.lines.length ? `<ul>${r.lines.map(l => `<li>${l}</li>`).join('')}</ul>` : ''}
-    <p>${money.join(' &middot; ') || 'You leave with nothing.'}</p>
-    ${fightReport(f.B)}
-    <div class="row"><button class="primary" data-act="leavearena">Return to the ludus</button></div>`);
+  const mood = r.avgExc > 0.55 ? ['Roaring', 'on its feet'] : r.avgExc > 0.3 ? ['Pleased', 'a good showing'] : ['Restless', 'it wanted more'];
+  const tiles = [['Purse', r.purse ? `+${r.purse}` : '0', r.purse ? 'denarii' : 'you leave with nothing', r.purse ? 'gold' : '']];
+  if (r.wager) tiles.push(['Wager', r.win ? `+${r.wagerGain}` : `&minus;${r.wager}`, r.win ? 'it pays' : 'lost', r.win ? 'gold' : 'bad']);
+  tiles.push(['Fame', r.fameGain ? `+${r.fameGain}` : '0', r.fameGain ? 'for the school' : 'none for losing']);
+  tiles.push(['The crowd', mood[0], `<i class="meter"><i style="width:${Math.round(clamp(r.avgExc, 0, 1) * 100)}%"></i></i>${mood[1]}`]);
+  if (mine.length > 1) tiles.push(['Yours standing', standing[0], standing[1], standing[2]]);
+  showModal(`<div class="res">${resultHead(B, r.win, r.win ? 'Victory' : 'Defeat', tiles)}
+    ${B.decision ? '<p class="dim">The fight dragged on, and the judges decided it.</p>' : ''}
+    ${fightReport(B)}${then(r.lines)}
+    <div class="row"><button class="primary" data-act="leavearena">Return to the ludus</button></div></div>`);
 }
 
 // ---------- actions ----------
