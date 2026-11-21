@@ -40,7 +40,11 @@ function slotInfo(n, backup) {
   if (!d) return null;
   let t = 0;
   TIERS.forEach((x, i) => { if (d.fame >= x.fame) t = i; });
-  return { day: d.day, fame: d.fame, denarii: d.denarii, roster: d.roster.length, savedAt: d.savedAt || 0, won: !!d.won, over: !!d.over, tier: TIERS[t].name, gen: d.dynasty ? d.dynasty.gen : 1 };
+  const sum = g => g && g.stats ? Object.values(g.stats).reduce((a, b) => a + (+b || 0), 0) : 0;
+  const best = d.roster.slice().sort((a, b) => sum(b) - sum(a))[0];
+  return { day: d.day, fame: d.fame, denarii: d.denarii, roster: d.roster.length, savedAt: d.savedAt || 0, won: !!d.won, over: !!d.over, tier: TIERS[t].name, gen: d.dynasty ? d.dynasty.gen : 1,
+    label: typeof d.label === 'string' ? d.label : '', wins: d.tally ? d.tally.wins : 0, losses: d.tally ? d.tally.losses : 0, best: best ? best.name : '', bestPower: sum(best),
+    size: JSON.stringify(d).length };
 }
 
 function loadSlot(n, backup) {
@@ -64,6 +68,15 @@ function load() {
   } catch (e) { return false; }
 }
 
+// A name of your own for a save, so five campaigns can be told apart.
+function nameSlot(n, label) {
+  label = String(label || '').replace(/[<>&"]/g, '').trim().slice(0, 28);
+  if (n === slot && G) { G.label = label; save(); return true; }
+  const d = readSlot(n);
+  if (!d) return false;
+  d.label = label;
+  try { localStorage.setItem(slotKey(n), JSON.stringify(d)); return true; } catch (e) { return false; }
+}
 function copyToSlot(n) { try { localStorage.setItem(slotKey(n), JSON.stringify(G)); return true; } catch (e) { return false; } }
 function backupSlot() { try { localStorage.setItem(slotKey(slot) + '-backup', JSON.stringify(G)); } catch (e) { /* full */ } }
 function deleteSlot(n) { try { localStorage.removeItem(slotKey(n)); localStorage.removeItem(slotKey(n) + '-backup'); } catch (e) { /* unavailable */ } }

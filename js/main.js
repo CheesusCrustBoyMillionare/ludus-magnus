@@ -1028,33 +1028,52 @@ function tourneyPanel() {
 // ---------- save menu ----------
 
 function savesModal() {
-  const when = t => t ? new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown time';
-  const line = i => `${i.gen > 1 ? ordinal(i.gen)[0].toUpperCase() + ordinal(i.gen).slice(1) + ' generation &middot; ' : ''}Day <b class="num">${i.day}</b> &middot; ${i.tier} &middot; <span class="num">${i.fame}</span> fame &middot; <span class="num">${i.denarii}</span> denarii &middot; ${i.roster} fighter${i.roster === 1 ? '' : 's'}${i.won ? ' &middot; <span class="gold">victor</span>' : ''}${i.over ? ' &middot; <span class="bad">fallen</span>' : ''}`;
-  const rows = [];
+  const ago = t => {
+    if (!t) return 'at an unknown time';
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+    if (m < 60 * 24) { const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; }
+    return 'on ' + new Date(t).toLocaleDateString([], { dateStyle: 'medium' });
+  };
+  const exact = t => t ? new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  const rows = [], empty = [];
+  let used = 0;
   for (let n = 1; n <= SLOT_COUNT; n++) {
     const info = slotInfo(n), bak = slotInfo(n, true), cur = n === slot && !!info;
-    let body;
-    if (info) {
-      body = `<div>${line(info)}</div><div class="dim" style="font-size:12px">Saved ${when(info.savedAt)}</div>
-        <div class="row" style="margin-top:6px">
-          ${cur ? '' : `<button class="primary" data-act="slotload" data-v="${n}">Load</button><button data-act="slotcopy" data-v="${n}">${ui.confirmSlot === 'copy' + n ? 'Overwrite it?' : 'Save current game here'}</button>`}
-          <button data-act="slotexport" data-v="${n}">Export</button>
-          ${bak && bak.day !== info.day ? `<button data-act="slotrestore" data-v="${n}" title="Saved ${when(bak.savedAt)}">${ui.confirmSlot === 'restore' + n ? 'Go back to day ' + bak.day + '?' : 'Restore backup (day ' + bak.day + ')'}</button>` : ''}
-          <button data-act="slotdel" data-v="${n}">${ui.confirmSlot === 'del' + n ? 'Really delete?' : 'Delete'}</button>
-        </div>`;
-    } else {
-      body = `<div class="dim">Empty</div><div class="row" style="margin-top:6px">
-        <button data-act="slotcopy" data-v="${n}">Save current game here</button>
-        <button data-act="slotnew" data-v="${n}">New game</button>
-        <button data-act="slotimport" data-v="${n}">Import a file</button></div>`;
-    }
-    rows.push(`<div class="panel ${cur ? 'sel' : ''}" style="margin:8px 0;padding:10px;${cur ? 'border-color:var(--gold)' : ''}">
-      <b>Slot ${n}</b>${cur ? ' <span class="chip gold">Playing now</span>' : ''}${body}</div>`);
+    if (!info) { empty.push(n); continue; }
+    used += info.size + (bak ? bak.size : 0);
+    const state = info.won ? '<span class="chip gold">Victor</span>' : info.over ? '<span class="chip red">Fallen</span>' : '';
+    const back = bak && bak.day !== info.day;
+    rows.push(`<div class="slot ${cur ? 'cur' : ''}">
+      <div class="slothead"><span class="sn">${n}</span>
+        <input type="text" maxlength="28" value="${esc(info.label)}" placeholder="${info.gen > 1 ? cap1(ordinal(info.gen)) + ' generation' : 'Name this campaign'}" data-chg="slotname" data-v="${n}"${tip('A name of your own for this save.')}>
+        ${cur ? '<span class="chip gold">Playing now</span>' : ''}${state}
+        <span class="when" title="${exact(info.savedAt)}">saved ${ago(info.savedAt)}</span></div>
+      <div class="slotfacts">
+        <div><span>Day</span><b class="num">${info.day}</b></div>
+        <div><span>Arena</span><b>${info.tier}</b></div>
+        <div><span>Fame</span><b class="num">${info.fame}</b></div>
+        <div><span>Purse</span><b class="num ${info.denarii < 0 ? 'bad' : ''}">${info.denarii}</b></div>
+        <div><span>Bouts</span><b class="num">${info.wins}&ndash;${info.losses}</b></div>
+        <div><span>Best of ${info.roster}</span><b>${info.best ? `${info.best} <small class="num">${info.bestPower}</small>` : '&ndash;'}</b></div>
+      </div>
+      <div class="slotacts">
+        ${cur ? '<span class="dim">It saves itself after everything you do.</span>' : `<button class="primary" data-act="slotload" data-v="${n}">Load</button><button data-act="slotcopy" data-v="${n}"${tip('Replaces this save with the game you are playing now. The game you are playing stays in its own slot too.')}>${ui.confirmSlot === 'copy' + n ? 'Overwrite it?' : 'Overwrite with current'}</button>`}
+        <span class="sp"></span>
+        ${back ? `<button class="mini" data-act="slotrestore" data-v="${n}"${tip(`A copy from the morning of the last games day, saved ${exact(bak.savedAt)}. Going back loses everything since.`)}>${ui.confirmSlot === 'restore' + n ? `Go back to day ${bak.day}?` : `Back to day ${bak.day}`}</button>` : ''}
+        <button class="mini" data-act="slotexport" data-v="${n}"${tip('Writes this save to a file you can keep, or carry to another computer.')}>Export</button>
+        <button class="mini ${ui.confirmSlot === 'del' + n ? 'danger' : ''}" data-act="slotdel" data-v="${n}">${ui.confirmSlot === 'del' + n ? 'Really delete?' : 'Delete'}</button>
+      </div></div>`);
   }
+  const free = empty.map(n => `<div class="slot empty"><div class="slothead"><span class="sn">${n}</span><span class="dim">Empty</span><span class="sp"></span>
+      <button class="mini" data-act="slotnew" data-v="${n}"${tip('Begin a new ludus here. The game you are playing stays in its own slot.')}>New game</button>
+      <button class="mini" data-act="slotcopy" data-v="${n}"${tip('Puts a copy of the game you are playing here: a save to come back to.')}>Copy current here</button>
+      <button class="mini" data-act="slotimport" data-v="${n}"${tip('Reads a file written by Export into this slot.')}>Import a file</button></div></div>`).join('');
   return `<h2>Saves</h2>
-    <p class="dim" style="font-size:13px">The game saves itself to the slot you are playing after every action, and keeps a backup from the morning of the last games day. Export writes a slot to a file you can keep or carry to another computer.</p>
-    ${ui.saveMsg ? `<p class="${ui.saveErr ? 'bad' : 'good'}">${ui.saveMsg}</p>` : ''}
-    ${rows.join('')}
+    ${ui.saveMsg ? `<p class="${ui.saveErr ? 'bad' : 'good'}" style="margin:0 0 6px">${ui.saveMsg}</p>` : ''}
+    ${rows.join('')}${free}
+    <p class="dim" style="font-size:12px;margin:8px 0 0">The game saves itself to the slot you are playing after every action, and keeps a copy from the morning of the last games day to go back to. ${rows.length} of ${SLOT_COUNT} slots used${used ? `, about ${Math.max(1, Math.round(used / 1024))} KB in all` : ''}. Saves live in this ${typeof location !== 'undefined' && /^https?:$/.test(location.protocol) ? 'browser' : 'copy of the game'}: export the ones you care about.</p>
     <div class="row"><button class="primary" data-act="close">Done</button></div>`;
 }
 function refreshSaves(msg, err) {
@@ -1773,6 +1792,7 @@ const CHANGES = {
   tactic(v, val) { const g = byId(v); if (g) { g.tactic = val; save(); render(); } },
   wager(v, val) { ui.wagers[v] = +val; },
   autorest(v, val, el) { G.autoRest = el.checked; save(); },
+  slotname(v, val, el) { nameSlot(+v, el.value); },      // no redraw: a click that ended the typing must still land
 };
 
 // What each kind of click sounds like. Anything not named here makes the plain click; '' is silent
@@ -1935,6 +1955,7 @@ document.addEventListener('keydown', e => {
   if (!$('#modal').hidden) {
     const btns = [...document.querySelectorAll('#modalBox button:not(:disabled)')], opts = [...document.querySelectorAll('#modalBox [data-act=evopt]')];
     if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON') press(btns[0]);
+    else if (k === 'Escape' && $('#modalBox [data-act=close]')) press($('#modalBox [data-act=close]'));
     else if (/^[1-9]$/.test(k) && opts[+k - 1]) press(opts[+k - 1]);
     return;
   }
