@@ -762,6 +762,19 @@ test('the province: land, fog, days in the field, fights, spoils and the eagle',
   assert(!old.away && !G.jobs.length && G.field === null && wildMap().marks.master, 'the old journey becomes a mark on the map');
 }));
 
+test('the province: a day passes for each day\'s march', () => game()(function () {
+  newGame();
+  G.day = 7; assert(wildEnter(), 'the gate opens after the first games');
+  const d0 = G.day;
+  assert(!wildMarched(MARCH_DAY * 0.6, 1) && G.day === d0, 'most of a day\'s march: still today');
+  assert(marchDays(MARCH_DAY * 0.3) === 0 && marchDays(MARCH_DAY * 0.5) === 1 && marchDays(MARCH_DAY * 2.3) === 2, 'the forecast counts what is left of today');
+  assert(wildMarched(MARCH_DAY * 0.5, 1) && G.day === d0 + 1 && G.field.days === 1, 'the rest of it: night falls and a day passes');
+  assert(Math.abs(G.field.march - MARCH_DAY * 0.1) < 1e-6, 'what was walked past nightfall counts toward tomorrow');
+  const m0 = G.field.march; wildMarched(100, 1.25); const road = G.field.march - m0; wildMarched(100, 0.55); const marsh = G.field.march - m0 - road;
+  assert(road < 100 && marsh > 100, 'a road is quicker than open ground, and marsh slower');
+  assert(pathCost(0, 0, [{ x: 30, y: 40 }]) > 0, 'a path has a cost');
+}));
+
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {
   assert(load() === false, 'nothing to load at first');
   newGame(); const legacy = JSON.parse(JSON.stringify(G));

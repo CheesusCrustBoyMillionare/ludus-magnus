@@ -71,7 +71,7 @@ const TIPS = {
   bigmap: 'Lays the whole province out at once: everything you have walked and everything marked. Click anywhere on it to set out for that spot. Key: M',
   minimap: 'Click for the whole map. The whole province. Coloured where you have walked, parchment where you have not. White is the town, purple is you, gold is a place a clue has marked, red is a place you have seen and not dealt with.',
   makecamp: 'Ends the day where you stand. The men rest: fatigue falls and wounds mend, though slower than at home. Key: E',
-  fieldrules: 'Walking costs no time. Going into a place takes the day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. Every fit man fights when it comes to it. Walk back into the town to go home.',
+  fieldrules: 'Marching takes time: a day passes for each day\'s march, further by road and less through forest, hill and marsh. Going into a place takes a day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. Every fit man fights when it comes to it. Walk back into the town to go home.',
   eagle: 'The hunt for the lost eagle of the Seventeenth Legion. Each clue marks the next place on the map.',
   sound: 'Turns every sound in the game on or off, music included.',
   music: 'Turns the music on or off and leaves the other sounds alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
@@ -208,7 +208,7 @@ const HINTS = [
   { id: 'thin', when: () => { const net = stipend() - upkeep(); return net < 0 && G.denarii >= 0 && Math.floor(G.denarii / -net) < daysToGames(); },
     text: () => 'At this rate the purse runs dry before the next games, dominus. <b>Household</b> shows where it goes: cheaper rations or one wage less would see us through, or a contract that pays before then.' },
   { id: 'field1', when: () => G.field,
-    text: () => 'This is the province, dominus, and the whole school is with you. <b>W A S D</b> or a click walks the column; the parchment lifts as you go. Walking costs no time. Going into a place takes the day, and so does making camp (<b>E</b>). <b>M</b> lays out the whole map, and you go home by walking back in at the gate.' },
+    text: () => 'This is the province, dominus, and the whole school is with you. <b>W A S D</b> or a click walks the column; the parchment lifts as you go. <b>Marching takes time</b>: the bar at the top left is what is left of today\'s march, and when it is spent night falls and a day passes. Point at anywhere and I will say how many days it is; set out, and the count runs at the foot of the map. Going into a place takes a day, and so does making camp (<b>E</b>). <b>M</b> lays out the whole map, and you go home by walking back in at the gate.' },
   { id: 'field2', when: () => G.field && tutorState().seen.field1 && wildSites().find(st => siteKnown(st) && !siteDone(st)),
     text: st => `Something has come into view: <b>${st.name}</b>. Rest the mouse on a place and it says what it is; the red skulls are how hard it will be. <b>Places known</b>, on the right, walks you to any of them with a click. If it comes to a fight, every man who is fit fights, up to nine.` },
   { id: 'fieldgames', when: () => G.field && daysToGames() <= 1,
@@ -238,7 +238,7 @@ const HINTS = [
   { id: 'quest', when: () => G.roster.find(g => g.quest && QUESTS[g.quest.id] && !g.away),
     text: g => `You gave <b>${g.name}</b> your word. The place is ${QUESTS[g.quest.id].where}, out through the east gate, and it is marked on the map of the province. Take the whole school there; do not leave him waiting for weeks.` },
   { id: 'gate', when: () => gateOpen() && !G.field,
-    text: () => 'The <b>east gate</b> will open for you now, at the end of the upper street. Beyond it is the province: lairs, outlaws, old tombs, and stranger things. The whole school marches out together, walking costs no time, and each place you go into costs a day. Mind the games: they are held without you if you are away.' },
+    text: () => 'The <b>east gate</b> will open for you now, at the end of the upper street. Beyond it is the province: lairs, outlaws, old tombs, and stranger things. The whole school marches out together, a day passes for each day\'s march, and each place you go into costs a day. Mind the games: they are held without you if you are away.' },
   { id: 'asked', when: () => G.contracts.find(c => c.asked),
     text: c => `${PATRONS[c.patron].name} has asked for your house by name: see <b>Contracts</b>. It is worth more favour than ordinary work, and leaving it on the board until the next games will cost you.` },
   { id: 'festival', when: () => G.festival && G.festival.day - G.day <= 5 && G.festival.day > G.day,
@@ -310,6 +310,9 @@ function renderTutor() {
   el.hidden = true;
 }
 
+// A day has passed out in the province: show what it brought.
+function fieldDayDone() { render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); }
+
 // ---------- help: the keys and the rules of the trade, in one place ----------
 function helpModal() {
   const keys = [['W A S D', 'walk: the lanista in town, the column in the province'], ['E', 'end the day; in the province, make camp'], ['G', 'run the days to the next games'],
@@ -323,7 +326,7 @@ function helpModal() {
       ${sec('A fighter', '<b>Strength beats Agility, Agility beats Skill, Skill beats Strength.</b> His highest skill is his style, and a style that beats the other man\'s hits a tenth harder. <b>Power</b> is his three skills added up; <b>potential</b> is how fast he learns; <b>might</b> is how dangerous he is today, with gear, health and spirits counted in.')}
       ${sec('Abilities', 'A skill at 5, 10 and 16 teaches an ability, different for each kind of fighter. He carries four. In a fight his gold bar fills with time and with blows given and taken; when it is full the fight stops and you choose, or switch Abilities to auto and he chooses himself.')}
       ${sec('Money', 'Purses, wagers and contracts bring it in; food, wages, men and steel take it out. Stay in debt past the days of grace and the creditors take the house, though an heir begins again with what the family kept.')}
-      ${sec('The province', 'Out through the east gate once you have fought your first games. Walking is free; going into a place or making camp ends the day. Farther from town is harder and richer. Games are held without you if you are away.')}
+      ${sec('The province', 'Out through the east gate once you have fought your first games. A day passes for each day\'s march, and for going into a place or making camp; the map says how many days anywhere is before you set out. Farther from town is harder and richer. Games are held without you if you are away.')}
     </div><div>
       <h3>Keys</h3><table class="keys">${keys.map(([k, t]) => `<tr><td><b>${k}</b></td><td>${t}</td></tr>`).join('')}</table>
       <p class="dim" style="font-size:12px">Hover over anything, anywhere, for what it means.</p>
@@ -1585,7 +1588,7 @@ function villageGate() {
     M.told = true; save();
     showModal(`<h2>Beyond the walls</h2>
       <p>The whole school marches with you: every man, the mules, the baggage. What lies out there is on no map you own. The country is under parchment until you have walked it.</p>
-      <ul><li><b>Walking costs no time.</b> Steer with W A S D or click where you want to go; roads are quicker, forest, hill and marsh slower.</li>
+      <ul><li><b>Marching takes time.</b> A day passes for each day's march: further by road, less through forest, hill and marsh. Point at a spot and the map says how many days it is; click, and it counts them down as you go.</li>
       <li><b>Going into a place takes the day</b>, and so does making camp. Nobody trains out here. Marching tires the men; camp rests them.</li>
       <li><b>Every fit man fights</b> when it comes to it, and there is no crowd to spare the fallen: a man who goes down lives or dies by luck and your medicus.</li>
       <li><b>The skulls</b> by a place say how hard it is. The country is worse the farther you go from home.</li>
@@ -1964,10 +1967,10 @@ const ACTIONS = {
     const F = G.field; if (!F) return;
     const st = v === 'home' ? { x: WILD.TOWN.x + 12, y: WILD.TOWN.y } : siteById(v); if (!st) return;      // home: right up to the gate, so that arriving takes you in
     const path = provPath(F.x, F.y, st.x, st.y) || (v === 'home' ? provPath(F.x, F.y, WILD.TOWN.x + 22, WILD.TOWN.y) : null);
-    if (path) { prov.path = path; if (prov.big) { prov.big = false; render(); } } else prov.hint = performance.now() + 1600;
+    if (path) { prov.path = path; prov.dest = v === 'home' ? 'Home' : st.name; if (prov.big) { prov.big = false; render(); } } else prov.hint = performance.now() + 1600;
   },
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
-  makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); fieldDay('camp'); SFX.ui('camp'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); G.field.march = 0; fieldDay('camp'); SFX.ui('camp'); fieldDayDone(); },      // a rested column starts tomorrow with a whole day's march
   campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
   campback() { ui.campSel = null; render(); },
   askreset() {

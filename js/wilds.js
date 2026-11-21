@@ -2,8 +2,8 @@
 // The province beyond the town gate: its land, the places hidden in it, and what happens at each.
 // Rules only; the map screen that shows it is province.js.
 //
-// The whole school travels together. Walking costs no time; going into a place costs a day, and so does
-// making camp. Nothing here is fought twice: a place dealt with stays dealt with, even for an heir.
+// The whole school travels together. Marching takes time: a day passes for every day's march (MARCH_DAY,
+// further on a road, less through forest, hill and marsh). Going into a place costs a day, and so does making camp. Nothing here is fought twice: a place dealt with stays dealt with, even for an heir.
 //
 // G.dynasty.map  what the family knows: fog lifted, places seen and done, clues, the hunt for the eagle
 // G.field        where the school is while outside the walls (null in town)
@@ -224,6 +224,24 @@ function wildPacks() {
 }
 
 // A day passes in the country. `how`: 'march' (a place visited: everyone is the wearier for it) or 'camp' (rest).
+// ---------- the day's march ----------
+const MARCH_DAY = 450;       // how far the column goes in a day over open ground, in map units
+// What a stretch of walking costs, in open-ground units: roads are quicker, rough ground slower.
+const marchCost = (x0, y0, x1, y1) => Math.hypot(x1 - x0, y1 - y0) / wildPace((x0 + x1) / 2, (y0 + y1) / 2);
+function pathCost(x, y, path) { let c = 0; for (const p of path) { c += marchCost(x, y, p.x, p.y); x = p.x; y = p.y; } return c; }
+// How many nights will pass on the way, given what is left of today's march.
+function marchDays(cost) { const left = MARCH_DAY - ((G.field && G.field.march) || 0); return cost <= left ? 0 : Math.ceil((cost - left) / MARCH_DAY); }
+// The column has walked d units over ground of this pace. True when that ended the day: night falls, and a day passes.
+function wildMarched(d, pace) {
+  const F = G.field;
+  if (!F) return false;
+  F.march = (F.march || 0) + d / (pace || 1);
+  if (F.march < MARCH_DAY) return false;
+  F.march -= MARCH_DAY;
+  fieldDay('march');
+  return true;
+}
+
 function fieldDay(how) {
   if (!G.field) return;
   G.field.mode = how; G.field.days++;

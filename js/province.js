@@ -137,12 +137,13 @@ function provClick(cv, e) {
   const r = cv.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
   const x = prov.big ? u * WILD.W : prov.camX + u * PROV.VW, y = prov.big ? v * WILD.H : prov.camY + v * PROV.VH;
   const p = provPath(G.field.x, G.field.y, x, y);
-  if (p) { prov.path = p; prov.big = false; } else prov.hint = performance.now() + 1600;
+  if (p) { prov.path = p; prov.dest = null; prov.big = false; } else prov.hint = performance.now() + 1600;
 }
 
 function provStep(dt) {
   const F = G.field, k = vil.keys, kx = (k.r ? 1 : 0) - (k.l ? 1 : 0), ky = (k.d ? 1 : 0) - (k.u ? 1 : 0);
-  const x0 = F.x, y0 = F.y, sp = PROV.SPEED * wildPace(F.x, F.y) * dt;
+  const camped = performance.now() - (prov.night || -1e9) < 1500;                    // night has fallen: nobody walks until it lifts
+  const x0 = F.x, y0 = F.y, sp = camped ? 0 : PROV.SPEED * wildPace(F.x, F.y) * dt;
   if (kx || ky) {
     prov.path = null;
     const n = Math.hypot(kx, ky), dx = kx / n * sp, dy = ky / n * sp;
@@ -160,6 +161,12 @@ function provStep(dt) {
   }
   const moved = Math.hypot(F.x - x0, F.y - y0);
   prov.moving = moved > 0.01;
+  if (moved > 0 && wildMarched(moved, wildPace(F.x, F.y))) {            // a day's march done: night, and tomorrow they go on
+    prov.night = performance.now(); SFX.ui('camp'); save();
+    fieldDayDone();
+    if (!G.field) return;
+    if (G.pendingEvent || !document.getElementById('modal').hidden) { prov.path = null; villageStill(); }
+  }
   if (prov.moving) {
     prov.walk += dt * 10;
     const last = prov.trail[0];
@@ -221,7 +228,28 @@ function siteDanger(s) {
 }
 const siteKnown = s => (!!wildMap().marks[s.id] && !siteDone(s)) || (!!wildMap().seen[s.id] && siteShown(s));
 const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
-const wayTo = (x, y) => { const F = G.field, d = Math.hypot(x - F.x, y - F.y); return d < 40 ? 'close by' : `${Math.max(1, Math.round(d / 100))} mile${Math.round(d / 100) > 1 ? 's' : ''} ${COMPASS[Math.round(Math.atan2(y - F.y, x - F.x) / (Math.PI / 4) + 8) % 8]}`; };
+const daysWord = n => n < 0 ? 'no way there' : n === 0 ? 'there today' : `${n} day${n === 1 ? "'s" : "s'"} march`;
+// Roughly how long to somewhere, and which way: as the crow flies, so the road may prove longer.
+const wayTo = (x, y) => { const F = G.field, d = Math.hypot(x - F.x, y - F.y), n = marchDays(d); return d < 40 ? 'close by' : `${n === 0 ? 'today' : `about ${n} day${n === 1 ? '' : 's'}`} ${COMPASS[Math.round(Math.atan2(y - F.y, x - F.x) / (Math.PI / 4) + 8) % 8]}`; };
+// What the march to wherever the mouse is would take, by the way the column would really go. Worked out a few times a second.
+function provPeek() {
+  const m = prov.mouse, F = G.field;
+  if (!m || !F) { prov.peek = null; return null; }
+  const now = performance.now();
+  if (!prov.peek || now - prov.peek.at > 220 || prov.peek.big !== prov.big) {
+    const x = prov.big ? m.u * WILD.W : prov.camX + m.u * PROV.VW, y = prov.big ? m.v * WILD.H : prov.camY + m.v * PROV.VH;
+    const path = provPath(F.x, F.y, x, y);
+    prov.peek = { at: now, big: prov.big, days: path ? marchDays(pathCost(F.x, F.y, path)) : -1 };
+  }
+  return prov.peek;
+}
+// The word on the march now under way: where to, how long, and whether the games will be missed.
+function marchWord() {
+  const F = G.field;
+  if (!prov.path || !prov.path.length) return null;
+  const n = marchDays(pathCost(F.x, F.y, prov.path)), miss = daysToGames() <= n && n > 0;
+  return { text: `${(prov.dest || 'YOUR MARK').toUpperCase()}: ${n === 0 ? 'THERE TODAY' : `${n} DAY${n === 1 ? '' : 'S'} TO GO, ARRIVING DAY ${G.day + n}`}${miss ? '  -  THE GAMES WILL BE HELD WITHOUT YOU' : ''}`, miss };
+}
 // Whatever the mouse is resting on: a known place, the town, or nothing.
 function provHover() {
   const m = prov.mouse, F = G.field;
@@ -248,7 +276,7 @@ function hoverLines(hv) {
   const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
   if (done) lines.push(['Dealt with.', '#a8947a']);
   else { lines.push([SITE_WHAT[hv.kind] || '', '#d8c8a8']); if (mark) lines.push(['Marked: something sent you here.', '#f5d584']); if (!dz) lines.push(['No danger known.', '#9fce86']); }
-  lines.push([wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO WALK THERE', '#a8947a']);
+  lines.push([wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO MARCH THERE', '#a8947a']);
   return [lines, done ? 0 : dz];
 }
 
@@ -404,6 +432,13 @@ function drawProvince(cv, T) {
   ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 4, ww + 14 + danger * 6, 12);
   ctx.fillStyle = '#f2e6cc'; ctx.fillText(where, 9, 13);
   for (let i = 0; i < danger; i++) { ctx.fillStyle = '#e2695c'; ctx.fillRect(ww + 14 + i * 6, 7, 5, 4); ctx.fillRect(ww + 15 + i * 6, 11, 3, 2); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(ww + 15 + i * 6, 8, 1, 1); ctx.fillRect(ww + 17 + i * 6, 8, 1, 1); }
+  {                                       // today's march: how much walking is left before night
+    const used = clamp((F.march || 0) / MARCH_DAY, 0, 1);
+    ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 18, 92, 11);
+    ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = '#c9b9a0'; ctx.fillText("TODAY'S MARCH", 7, 25.5);
+    ctx.fillStyle = '#2a2418'; ctx.fillRect(52, 21, 40, 5); ctx.fillStyle = used > 0.85 ? '#e2695c' : '#e0aa3e'; ctx.fillRect(52, 21, Math.round(40 * (1 - used)), 5);
+    ctx.font = 'bold 7px Consolas, monospace';
+  }
   // at the edge of the view: which way home is, and which way to anything a clue has marked
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
   const point = (wx, wy, label, col, bg) => {
@@ -437,6 +472,12 @@ function drawProvince(cv, T) {
     ctx.globalAlpha = 1; ctx.font = 'bold 7px Consolas, monospace';
   }
   ctx.textAlign = 'center'; ctx.font = 'bold 7px Consolas, monospace';
+  const mw = marchWord(), pk = !hv && !mw ? provPeek() : (hv ? provPeek() : null);
+  if (mw) { const w = Math.ceil(ctx.measureText(mw.text).width) + 12; ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 32, w, 12); ctx.fillStyle = mw.miss ? '#f08a7c' : '#f5d584'; ctx.fillText(mw.text, PROV.VW / 2, PROV.VH - 23); }
+  if (pk && prov.mouse) {                    // by the mouse: what the march there would take
+    const t = daysWord(pk.days).toUpperCase(), w = Math.ceil(ctx.measureText(t).width) + 8, mx = clamp(prov.mouse.u * PROV.VW + 8, 2, PROV.VW - w - 2), my = clamp(prov.mouse.v * PROV.VH + (hv ? 16 : 10), 12, PROV.VH - 36);
+    ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(mx, my, w, 10); ctx.textAlign = 'left'; ctx.fillStyle = pk.days < 0 ? '#f08a7c' : pk.days === 0 ? '#9fce86' : '#f5d584'; ctx.fillText(t, mx + 4, my + 7.5); ctx.textAlign = 'center';
+  }
   const tip = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : town(F) < 60 ? 'W A S D OR CLICK TO WALK  -  M FOR THE WHOLE MAP  -  R TO GO HOME' : '';
   if (tip) { const w = Math.ceil(ctx.measureText(tip).width) + 12; ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 18, w, 12); ctx.fillStyle = '#f5d584'; ctx.fillText(tip, PROV.VW / 2, PROV.VH - 9); }
 }
@@ -494,7 +535,8 @@ function drawOverview(cv, T) {
   if (hv) { const [lines, sk] = hoverLines(hv); provCard(ctx, hv.x * k / U, hv.y * k / U - 14, lines, sk, 2, 960, 720); }
   ctx.textAlign = 'center';
   ctx.font = 'bold 14px Consolas, monospace';
-  const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = ctx.measureText(msg).width + 24;
+  const mw2 = marchWord(), pk2 = provPeek();
+  const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : mw2 ? mw2.text : pk2 && prov.mouse ? `${daysWord(pk2.days).toUpperCase()}  -  CLICK TO SET OUT  -  M TO CLOSE` : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = ctx.measureText(msg).width + 24;
   ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(960 / 2 - w / 2, 720 - 34, w, 24);
   ctx.fillStyle = '#f5d584'; ctx.fillText(msg, 960 / 2, 720 - 17);
 }
