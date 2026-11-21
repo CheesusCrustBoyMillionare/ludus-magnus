@@ -1642,10 +1642,27 @@ function paintOrders() {
     SFX.ui('chime');
   }
 }
+// The whole telling of a fight, as lines: when, whose, and what.
+function fightLogHtml(B) {
+  const tm = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  return B.log.map(l => `<div class="ll t${l.team} k-${l.kind}"><span class="tm">${tm(l.t)}</span><span>${l.str}</span></div>`).join('') || '<div class="dim">Nothing yet.</div>';
+}
+function paintFightLog() {
+  const el = $('#arenaLog');
+  if (!fight || !ui.flog) { el.hidden = true; return; }
+  const B = fight.B, sig = B.log.length + '|' + B.log.slice(-3).map(l => l.str).join('|');
+  if (!el.hidden && sig === fight.logSig) return;
+  fight.logSig = sig;
+  const stick = el.hidden || el.scrollTop + el.clientHeight >= el.scrollHeight - 12;       // stay at the foot unless he has scrolled back to read
+  el.innerHTML = `<div class="lh">The fight so far <button class="mini" data-act="flog">Close</button></div><div class="lb">${fightLogHtml(B)}</div>`;
+  el.hidden = false;
+  const lb = el.querySelector('.lb'); if (stick) lb.scrollTop = lb.scrollHeight;
+}
 function paintSpeed() {
   $('#muteBtn').textContent = SFX.muted ? 'Sound off' : 'Sound on';
   $('#pauseBtn').textContent = fight && fight.paused ? 'Resume' : 'Pause';
   $('#pauseBtn').classList.toggle('on', !!(fight && fight.paused));
+  $('#logBtn').classList.toggle('on', !!ui.flog);
   document.querySelectorAll('#arenaCtl [data-act="speed"]').forEach(b => b.classList.toggle('on', fight && +b.dataset.v === fight.speed));
 }
 function fightLoop(ts) {
@@ -1663,7 +1680,7 @@ function fightLoop(ts) {
   f.askedOf = f.B.pick || null;
   f.B.snd.length = 0;
   SFX.crowd(f.B.exc + (f.B.over ? 0.3 : 0));
-  paintOrders();
+  paintOrders(); paintFightLog();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
   if (f.B.over && f.B.outro > f.B.outroEnd) { finishFight(); return; }
   f.raf = requestAnimationFrame(fightLoop);
@@ -1700,7 +1717,8 @@ function fightReport(B) {
       <span class="bar dealt"><i style="width:${Math.round(f.dmgDealt / top * 100)}%"></i></span><span class="num">${Math.round(f.dmgDealt)} dealt</span><span class="num">${Math.round(f.dmgTaken)} taken</span></div>`;
   };
   return `<div class="resmen${mine.length > 1 ? ' two' : ''}">${mine.map(man).join('')}</div>
-    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, 4).map(foe).join('')}${foes.length > 4 ? `<div class="dim" style="font-size:12px">and ${foes.length - 4} more</div>` : ''}</div>`;
+    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, 4).map(foe).join('')}${foes.length > 4 ? `<div class="dim" style="font-size:12px">and ${foes.length - 4} more</div>` : ''}</div>
+    ${B.log && B.log.length ? `<details class="reslog"><summary>The fight, line by line (${B.log.length})</summary><div class="lb">${fightLogHtml(B)}</div></details>` : ''}`;
 }
 // The head of that screen, and the tiles of what it paid.
 function resultHead(B, win, title, tiles) {
@@ -1720,7 +1738,7 @@ function finishFight() {
   f.finished = true;
   cancelAnimationFrame(f.raf);
   f.B.ask = false; f.B.pick = null; f.B.cutins = false;             // nobody is asked, and nothing announced, while the rest is played out unseen
-  $('#arenaPick').hidden = true;
+  $('#arenaPick').hidden = true; $('#arenaLog').hidden = true;
   let guard = 0;
   while ((!f.B.over || f.B.outro <= f.B.outroEnd) && guard++ < 20000) stepBattle(f.B, 1 / 30);
   f.B.snd.length = 0; SFX.quiet();
@@ -2022,6 +2040,7 @@ const ACTIONS = {
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
+  flog() { ui.flog = !ui.flog; if (fight) fight.logSig = ''; paintFightLog(); paintSpeed(); },
   abpickai() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && !out(B.pick) && pickAbility(B, aiPickAbility(B, B.pick).id)) paintOrders(); },
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
   cutins() { ui.noCut = !ui.noCut; try { localStorage.setItem('ludus-magnus-cutins', ui.noCut ? '0' : '1'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.cutins = !ui.noCut; fight.ordState = ''; paintOrders(); } },
@@ -2219,6 +2238,7 @@ document.addEventListener('keydown', e => {
   const B = fight.B;
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
   else if (B.pick && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); ACTIONS.abpickai(); }
+  else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); ACTIONS.flog(); }
   else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); ACTIONS.order('yield'); }
   else if (e.key === ' ' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) { e.preventDefault(); ACTIONS.pause(); }
 });

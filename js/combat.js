@@ -90,7 +90,7 @@ function createBattle(teamA, teamB, opts) {
     intro: opts.noIntro ? 0 : 4.6, introDur: 4.6,
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
-    parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [], vfx: [],
+    parts: [], stains: [], texts: [], projs: [], feed: [], log: [], crowd: [], specks: [], props: [], vfx: [],
     towel: false, lastDown: null, finish: null,
     ask: !!opts.ask, pick: null,                  // ask: stop the fight when one of the player's men is charged, and let him choose (pick is who is waiting)
     wild: opts.wild || null,                                     // a fight outside the walls: what stands behind it
@@ -130,9 +130,22 @@ function fxBlood(B, f, n, dir) {
 function fxDust(B, x, y, n) {
   for (let i = 0; i < n; i++) B.parts.push({ x: x + rand(-4, 4), y: y + rand(-1, 1), h: 1, vx: rand(-18, 18), vh: rand(8, 28), col: chance(0.5) ? '#c9a763' : '#ead2a0', spark: true });
 }
-function feed(B, str, team) {
-  B.feed.push({ str, team, life: 6 });
+// A line of the telling of the fight. The last few are shown over the sand for a while; all of them are kept (B.log),
+// with when they happened and what kind of thing they are, to be read back during the fight or after it.
+function feedKind(str) {
+  if (/dies|does not get up|too late for/.test(str)) return 'dead';
+  if (/spares|still breathing|dragged clear/.test(str)) return 'spared';
+  if (/struck down|is down|goes down|falls/.test(str)) return 'down';
+  if (/yields|the cloth/.test(str)) return 'yield';
+  if (/: /.test(str)) return 'ability';
+  if (/hamstrings|vein|sword arm|helmet|nets |from behind/.test(str)) return 'wound';
+  return 'note';
+}
+function feed(B, str, team, kind) {
+  const e = { str, team, life: 6, t: B.time, kind: kind || feedKind(str) };
+  B.feed.push(e); if (B.log) B.log.push(e);
   if (B.feed.length > 5) B.feed.shift();
+  return e;
 }
 
 // ---------- resolution ----------
@@ -223,6 +236,14 @@ function resolveAttack(B, a, d, o) {
   dmg = Math.max(1, Math.round(dmg - armor));
   d.hp -= dmg;
   a.dmgDealt += dmg; d.dmgTaken += dmg; if (dmg > a.best) a.best = dmg;
+  if (o.ability && a.ablEntry) {                // the line that named his ability now says what it did
+    const e = a.ablEntry; e.dmg = (e.dmg || 0) + dmg; (e.who = e.who || {})[d.g.name] = 1;
+    const who = Object.keys(e.who);
+    e.str = `${e.base}: ${e.dmg} to ${who.length > 1 ? who.length + ' foes' : who[0]}${blocked ? ' (blocked)' : ''}`; e.life = Math.max(e.life, 4.5);
+  } else if (!o.ability) {
+    if (!B.firstBlood && !blocked) { B.firstBlood = true; feed(B, `First blood to ${a.g.name}`, a.team, 'hit'); }
+    else if (crit && !blocked && dmg >= d.maxHp * 0.12 && d.hp > 0) feed(B, `${a.g.name} lands a telling blow on ${d.g.name}: ${dmg}`, a.team, 'hit');
+  }
   d.flash = 0.12;
   // blows fill the charge: more for landing one than for taking one, and nothing from an ability's own strokes
   if (!o.ability) chargeUp(a, blocked ? 4 : 9);
@@ -1369,6 +1390,14 @@ const HUD_MARKS = {
   weak:  ['#b0a690', '.###.', '.###.', '#####', '.###.', '..#..'],
   buff:  ['#6aa8ff', '..#..', '.###.', '#####', '.###.', '.###.'],
   open:  ['#ff8a4a', '#####', '#...#', '#.#.#', '#...#', '#####'],
+  // and for the lines of the telling: an ability, a wound, a telling blow, a man down, a man dead, a yielding, a sparing
+  l_ability: ['#ffd24a', '.#.#.', '#####', '.###.', '#####', '.#.#.'],
+  l_wound:   ['#ff8a5a', '..#..', '.###.', '#####', '#####', '.###.'],
+  l_hit:     ['#fff0c8', '..#..', '.###.', '#####', '.###.', '..#..'],
+  l_down:    ['#ff9a8a', '#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
+  l_dead:    ['#ff4a3a', '.###.', '#.#.#', '#####', '.###.', '.#.#.'],
+  l_yield:   ['#c9b9a0', '####.', '####.', '####.', '#....', '#....'],
+  l_spared:  ['#ffffff', '.#.#.', '#####', '#####', '.###.', '..#..'],
 };
 function hudMarks(f) {
   const m = [];
@@ -1892,19 +1921,27 @@ function drawBattle(ctx, B) {
 
   drawHud(ctx, B);
 
-  // running commentary, top centre
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 5px Consolas, monospace';
+  // running commentary, top centre: the last few lines, the newest lowest and brightest, each with a mark for what
+  // kind of thing it is, and never wider than the gap between the two corner panels
+  ctx.textBaseline = 'alphabetic';
   let fy = 8;
-  for (const l of B.feed.slice(-4)) {
-    if (l.life <= 0) continue;
-    ctx.globalAlpha = Math.min(1, l.life);
-    const w = ctx.measureText(l.str).width;
-    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(160 - w / 2 - 4, fy - 5, w + 8, 7);
-    ctx.fillStyle = B.col[l.team]; ctx.fillRect(160 - w / 2 - 4, fy - 5, 2, 7);
-    ctx.fillStyle = '#f2e6cc'; ctx.fillText(l.str, 160, fy);
+  const FEED_COL = { ability: '#ffd24a', wound: '#f2c8a0', hit: '#fff0c8', down: '#ff9a8a', dead: '#ff6a5a', yield: '#c9b9a0', spared: '#ffffff', note: '#f2e6cc' };
+  const shown = B.feed.slice(-4).filter(l => l.life > 0);
+  shown.forEach((l, i) => {
+    const age = 6 - l.life, inK = clamp(age / 0.18, 0, 1), mark = HUD_MARKS['l_' + l.kind], pad = mark ? 5 : 0, max = 116 - pad;
+    let size = 5, str = l.str; ctx.font = `bold ${size}px Consolas, monospace`;
+    while (size > 4 && ctx.measureText(str).width > max) { size -= 0.5; ctx.font = `bold ${size}px Consolas, monospace`; }
+    while (str.length > 8 && ctx.measureText(str).width > max) str = str.slice(0, -2).trimEnd() + '…';
+    const w = ctx.measureText(str).width + pad, x0 = 160 - w / 2 - 4, last = i === shown.length - 1;
+    ctx.globalAlpha = Math.min(1, l.life) * inK * (last ? 1 : 0.82);
+    ctx.fillStyle = last ? 'rgba(0,0,0,.84)' : 'rgba(0,0,0,.66)'; ctx.fillRect(x0, fy - 5, w + 8, 7);
+    ctx.fillStyle = B.col[l.team]; ctx.fillRect(x0, fy - 5, 2, 7);
+    if (age < 0.5) { ctx.fillStyle = `rgba(255,255,255,${(0.35 * (1 - age / 0.5)).toFixed(3)})`; ctx.fillRect(x0 + 2, fy - 5, w + 6, 7); }      // it has just been said
+    if (mark) drawMark(ctx, 'l_' + l.kind, x0 + 4, fy - 3.2, 0.5);
+    ctx.textAlign = 'left'; ctx.fillStyle = FEED_COL[l.kind] || '#f2e6cc'; ctx.fillText(str, x0 + 4 + pad, fy - (5 - size) * 0.4);
     fy += 8;
-  }
+  });
+  ctx.textAlign = 'center'; ctx.font = 'bold 5px Consolas, monospace';
   ctx.globalAlpha = 1;
 
   // entrance: who is fighting whom, what each is, and whose style has the edge

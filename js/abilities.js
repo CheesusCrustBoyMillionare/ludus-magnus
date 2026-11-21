@@ -235,13 +235,13 @@ function castNow(B, f, ab) {
   vfx(B, { k: 'banner', f, text: ab.name.toUpperCase(), dur: 1.25 });
   B.hitstop = Math.max(B.hitstop, 0.07);
   snd(B, f.g.beast ? 'special' : x.heal ? 'heal' : x.buff && !x.mult ? (x.buff.block || x.buff.dr > 0 ? 'brace' : 'surge') : x.aoe ? 'sweep' : (x.n || 1) > 1 ? 'flurry' : x.back ? 'hop' : x.net && !x.mult ? 'special' : x.lunge || (x.mult || 0) >= 1.7 ? 'leap' : 'thrust', 1, f, f.g.beast ? 'beast' : '');
-  feed(B, `${f.g.name}: ${ab.name}`, f.team);
+  f.ablEntry = feed(B, `${f.g.name}: ${ab.name}`, f.team, 'ability'); f.ablEntry.base = f.ablEntry.str;
   B.exc += 0.045 * f.show;
   f.state = 'ready'; f.move = null;
   const pose = (k, dur, o) => { f.pose = Object.assign({ k, t: dur, dur, fx: 0, fy: 0 }, o); };
   if (x.heal) pose('surge', 0.7);
   else if (x.buff && !x.mult) pose(x.buff.block || x.buff.dr > 0 ? 'brace' : 'surge', 0.65);
-  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); vfx(B, { k: 'motes', f, col: '#9fd070', dur: 1.1 }); vfx(B, { k: 'plus', f, col: '#b8e890', dur: 1.2 }); }
+  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); if (f.ablEntry) f.ablEntry.str = `${f.ablEntry.base}: +${h} health`; fxText(B, f, '+' + h, '#9fd070'); vfx(B, { k: 'motes', f, col: '#9fd070', dur: 1.1 }); vfx(B, { k: 'plus', f, col: '#b8e890', dur: 1.2 }); }
   if (x.cleanse) { f.bleed = 0; f.snare = 0; f.weakT = 0; }
   if (x.buff) {
     f.buff = Object.assign({}, x.buff);
