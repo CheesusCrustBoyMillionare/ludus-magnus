@@ -849,26 +849,68 @@ function rivalNote(e) {
     + (e.slew.length ? ` <span class="bad">slew ${e.slew.join(', ')}</span>` : '');
 }
 
+// What a house's way of fighting means on the sand, as the rules have it.
+const HOUSE_WAYS = {
+  butchers: 'Every man attacks without pause, and more than a third of their bouts are to the death.',
+  quick: 'They field only net-men, twin-blades and Thracians: light, fast classes.',
+  savage: () => `Every man is a brute: ${TRAITS.brute.desc.replace(/\.$/, '').toLowerCase()}.`,
+  fanatics: () => `Every man is lionhearted: ${TRAITS.lionheart.desc.replace(/\.$/, '').toLowerCase()}.`,
+  wealthy: 'Every man carries a weapon one grade better than his standing would buy.',
+};
+const feudWord = g => g >= 70 ? 'Blood feud' : g >= 40 ? 'Open feud' : g >= 25 ? 'Bad blood' : g > 0 ? 'A grievance' : 'No quarrel';
+
 function viewRivals() {
   const H = keepSel('hsel', G.houses), d = H && houseDef(H.id);
   const rows = G.houses.map(X => ({ id: X.id, name: houseDef(X.id).name, p: X.prestige, H: X }))
     .concat([{ name: 'Your ludus', p: G.fame, you: true }]).sort((a, b) => b.p - a.p);
+  const top = Math.max(1, rows[0].p), mine = rows.findIndex(r => r.you), above = rows[mine - 1], below = rows[mine + 1];
+  const today = (G.bouts || []).filter(b => !b.done && b.houseId);
   const table = rows.map((r, i) => r.you
-    ? prow(`<div class="grow"><span class="t gold">${i + 1}. Your ludus</span></div><span class="end num gold">${r.p}</span>`)
-    : lrow('hsel', r.id, `<div class="grow"><span class="t">${i + 1}. ${swatch(r.id)}${r.name}</span>
-        <small>${r.H.won} won, ${r.H.lost} lost against you${r.H.grudge >= 40 ? ' &middot; <span class="bad">their champion will call you out</span>' : ''}</small></div>
-        <div style="flex:none;width:90px"${tip('feud')}>${bar('hp', r.H.grudge, 100)}</div><span class="end num">${r.p}</span>`)).join('');
-  const men = H ? H.roster.slice().sort((a, b) => statSum(b) - statSum(a)).map(e => `<div class="rival">
-      <canvas width="48" height="56" data-rportrait="${H.id}:${e.id}"></canvas>
-      <div>${e.name} <span class="dim">${RANKS[e.rank].name} ${CLASSES[e.cls].name}</span><br>
-      <span class="dim num">strength ${Math.round(power(e))}</span>${rivalNote(e)}</div></div>`).join('') : '';
+    ? prow(`<span class="rk gold">${i + 1}</span><div class="grow"><span class="t gold">Your ludus</span><small>${above ? `${above.p - r.p} behind ${above.name}` : 'First in the province'}${below ? ` &middot; ${r.p - below.p} ahead of ${below.name}` : ''}</small></div>
+        <div class="ren"${tip('Your renown is your fame.')}>${bar('prog', r.p, top)}</div><span class="end num gold">${r.p}</span>`)
+    : lrow('hsel', r.id, `<span class="rk">${i + 1}</span><div class="grow"><span class="t">${swatch(r.id)}${r.name}</span>
+        <small>${r.H.won + r.H.lost ? `${r.H.lost}&ndash;${r.H.won} to you` : 'never met'} &middot; <span class="${r.H.grudge >= 40 ? 'bad' : ''}">${feudWord(r.H.grudge).toLowerCase()}</span>${today.some(b => b.houseId === r.id) ? ' &middot; <span class="gold">on today\'s card</span>' : ''}</small></div>
+        <div class="feudbar"${tip(`Feud ${Math.round(r.H.grudge)} of 100.\n${TIPS.feud}`)}><div class="bar hp"><i style="width:${pct(r.H.grudge, 100)}%"></i><u style="left:40%"></u></div></div>
+        <div class="ren"${tip(`Renown ${r.p}. A house gains about ${houseDef(r.id).rate} every games, and more for beating you.`)}>${bar('prog', r.p, top)}</div><span class="end num">${r.p}</span>`)).join('');
+  const hot = G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0], call = (G.bouts || []).find(b => b.grudge && !b.done);
+  let detail = '';
+  if (H) {
+    const men = H.roster.slice().sort((a, b) => rating(b) - rating(a)), way = HOUSE_WAYS[d.trait], best = G.roster.slice().sort((a, b) => rating(b) - rating(a))[0];
+    const styles = STATS.map(k => [k, men.filter(e => styleOf(e) === k).length]).filter(x => x[1]).map(([k, n]) => `<span class="sk">${ic(k)}<b class="num">${n}</b></span>`).join('');
+    const mineBeat = k => G.roster.filter(g => styleOf(g) === STYLE_LOSES[k]).length;
+    const lead = men.length ? STATS.map(k => [k, men.filter(e => styleOf(e) === k).length]).sort((a, b) => b[1] - a[1])[0] : null;
+    const list = men.map((e, n) => {
+      const sworn = G.roster.find(g => g.wish && g.wish.gid === e.id), lost = G.roster.filter(g => g.lostTo && g.lostTo.gid === e.id);
+      return `<div class="lrow lud rivalrow" style="cursor:default"${tip(`${e.name} carries ${abilitiesOf(e).map(a => a.name).join(', ') || 'no abilities'}.${e.traits.length ? '\n' + e.traits.map(t => TRAITS[t].name + ': ' + TRAITS[t].desc).join('\n') : ''}`)}>
+        <canvas width="48" height="56" style="width:34px;height:40px" data-rportrait="${H.id}:${e.id}"></canvas>
+        <div class="grow"><span class="t">${e.name} ${styleMark(e)} <small class="inl">${RANKS[e.rank].name} &middot; ${CLASSES[e.cls].name} &middot; ${e.wins}W ${e.losses}L</small></span>
+          <div class="l2"><span class="sks"><b class="num pw">${rating(e)}</b>${STATS.map(k => `<span class="sk">${ic(k)}<b class="num">${e.stats[k]}</b></span>`).join('')}</span>${n === 0 ? '<span class="chip gold">Champion</span>' : ''}${e.vs.w || e.vs.l ? `<span class="chip">${e.vs.w}&ndash;${e.vs.l} against you</span>` : ''}${e.exYours ? '<span class="chip gold">Once yours</span>' : ''}${e.slew.length ? `<span class="chip red">Slew ${e.slew.join(', ')}</span>` : ''}${sworn ? `<span class="chip red">${sworn.name} has sworn to face him</span>` : lost.length ? `<span class="chip">Beat ${lost.map(g => g.name).join(', ')}</span>` : ''}</div></div>
+        ${best ? `<span class="end num ${rating(e) > rating(best) ? 'bad' : 'dim'}"${tip(`Against ${best.name}, your strongest, at power ${rating(best)}.`)}>${rating(e) > rating(best) ? '+' : ''}${rating(e) - rating(best) || '='}</span>` : ''}
+      </div>`;
+    }).join('');
+    const card = today.filter(b => b.houseId === H.id);
+    detail = `<div class="panel housecard" style="border-left:6px solid ${d.col}">
+        <div><b>${d.lanista}.</b> <span class="dim">${d.blurb}</span></div>
+        <div class="today"><span class="lbl">Their way</span><div>${typeof way === 'function' ? way() : way}</div></div>
+        <div class="kvs">
+          <div><span>Renown</span><b class="num">${H.prestige}</b><small>${H.prestige > G.fame ? `${H.prestige - G.fame} above you: beating them earns extra fame` : `${G.fame - H.prestige} below you`}</small></div>
+          <div><span>Against you</span><b class="num">${H.won}&ndash;${H.lost}</b><small>${H.won + H.lost ? 'bouts they won and lost' : 'you have not met on the sand'}</small></div>
+          <div><span>Feud</span><b class="num ${H.grudge >= 40 ? 'bad' : ''}">${Math.round(H.grudge)}</b><small>${feudWord(H.grudge)}${H.grudge >= 40 ? ': their champion will call you out' : `, ${Math.ceil(40 - H.grudge)} short of a challenge`}</small></div>
+          <div><span>Styles</span><b class="sks">${styles || '&ndash;'}</b><small>${lead && lead[1] ? (mineBeat(lead[0]) ? `${mineBeat(lead[0])} of yours beat their ${STAT_NAMES[lead[0]].toLowerCase()} men` : `none of yours beats ${STAT_NAMES[lead[0]].toLowerCase()}: train ${STAT_NAMES[STYLE_LOSES[lead[0]]].toLowerCase()}`) : ''}</small></div>
+        </div>
+        ${card.length ? `<div class="gold" style="font-size:13px">On today's card: ${card.map(b => `${b.grudge ? 'a grudge match' : b.size === 1 ? 'a duel' : b.size + ' a side'}${b.death ? ', to the death' : ''}`).join('; ')}.</div>` : ''}
+      </div>
+      <div class="panel list">${list}</div>`;
+  }
   return `<div class="fill even">
-    <div><h2>Standing <small>renown, and the feud with each house</small></h2><div class="pane" data-pane="houses"><div class="panel list">${table}</div>
-      <div class="listnote">Renown of every school in the province; yours is your fame. Beating a house that stands above you earns extra fame.
-      Killing a house's fighters, or losing your own to them, deepens the feud. At 40 their champion challenges you to a grudge match, and leaving it unanswered costs you with the Magistrate and your own men.</div></div></div>
-    <div><h2>${d ? d.name : 'Rival houses'}</h2><div class="pane" data-pane="house-${H ? H.id : ''}">${H ? `<div class="panel" style="border-left:6px solid ${d.col}">
-      <div class="dim" style="font-size:13px">${d.lanista}. ${d.blurb}</div>
-      <div class="rivalgrid">${men}</div></div>` : ''}</div></div>
+    <div><h2>Standing <small>renown, and the feud with each house</small></h2>
+      <div class="panel schoolbar"><div class="tally">
+        <span class="${mine === 0 ? 'gold' : ''}"><b class="num">${ordinal(mine + 1)}</b> of ${rows.length}</span>
+        ${above ? `<span${tip('Renown comes from fame: win bouts, and beat houses that stand above you.')}><b class="num">${above.p - G.fame + 1}</b> fame to pass ${above.name}</span>` : '<span class="gold">no one stands above you</span>'}
+        ${call ? `<span class="bad"><b>${call.house} has called you out today.</b> Leave it unanswered and it costs you.</span>` : hot && hot.grudge >= 25 ? `<span class="${hot.grudge >= 40 ? 'bad' : ''}"${tip('feud')}>${feudWord(hot.grudge).toLowerCase()} with ${houseDef(hot.id).name}</span>` : '<span>no feud worth the name</span>'}</div></div>
+      <div class="pane" data-pane="houses"><div class="panel list standing">${table}</div>
+      <div class="listnote">Killing a house's fighters, or losing your own to them, deepens the feud; the mark on the red bar is 40, where their champion challenges you. A grudge match answered cools it, whoever wins.</div></div></div>
+    <div><h2>${d ? d.name : 'Rival houses'} <small>${H ? H.roster.length + ' fighters' : ''}</small></h2><div class="pane" data-pane="house-${H ? H.id : ''}">${detail}</div></div>
   </div>`;
 }
 

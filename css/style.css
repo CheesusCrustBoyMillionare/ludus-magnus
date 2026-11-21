@@ -630,3 +630,21 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .patron .work { font-size: 12px; } .patron .work.gold { color: var(--gold); }
 .patron .buyrow { margin-top: auto; padding-top: 4px; }
 .buyrow button { flex: none; white-space: nowrap; }
+
+/* the rivals: the table of houses, and what each one is and sends against you */
+.standing .rk { flex: none; width: 16px; text-align: center; font: 700 13px var(--display); color: var(--dim); }
+.standing .rk.gold { color: var(--gold); }
+.standing .ren { flex: none; width: 84px; } .standing .feudbar { flex: none; width: 60px; }
+.standing .bar { height: 7px; margin: 0; }
+.standing .end { width: 38px; }
+.bar u { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: #cdb98f; }
+.housecard { display: grid; gap: 6px; margin-bottom: 6px; font-size: 13px; }
+.housecard .today { margin: 0; }
+.kvs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.kvs > div { min-width: 0; }
+.kvs span { display: block; font: 10px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.kvs b { font-size: 15px; } .kvs b.bad { color: #f08a7c; }
+.kvs b.sks { display: inline-flex; gap: 7px; font-size: 13px; } .kvs .sk { display: inline-flex; align-items: center; gap: 2px; } .kvs .sk .ic { width: 14px; height: 14px; }
+.kvs small { display: block; font-size: 11px; color: var(--dim); line-height: 1.25; }
+.rivalrow .end { width: 30px; font-size: 13px; }
+.rivalrow .end.bad { color: #f08a7c; }
