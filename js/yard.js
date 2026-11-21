@@ -205,7 +205,19 @@ function drawYard(cv, T) {
   ctx = yardLayer.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0); ctx.imageSmoothingEnabled = false;
+  for (let x = -30; x < 590; x += 64) { const h = 20 + ((x * 5) % 13); R(x, 72 - h, 90, h, '#93b0a0'); R(x + 14, 68 - h, 58, 5, '#a3bcad'); }      // far hills, paler
   for (let x = -20; x < 590; x += 46) { const h = 14 + ((x * 7) % 11); R(x, 74 - h, 60, h, '#7fa27a'); R(x + 8, 70 - h, 40, 5, '#8fb287'); }
+  if (t >= 1) {                                 // a town of some standing has water brought to it
+    R(60, 44, 330, 3, '#b7b3a4'); R(60, 44, 330, 1, '#cfcbbc');
+    for (let x = 64; x < 388; x += 18) { R(x, 47, 4, 30, '#aaa697'); R(x + 4, 47, 14, 3, '#aaa697'); R(x + 5, 50, 12, 2, '#9c988a'); }
+  }
+  for (const [cx, ch] of [[36, 30], [164, 24], [232, 34], [306, 26], [444, 32], [462, 22], [488, 28]]) {      // cypresses beyond the wall
+    R(cx, 78 - ch + 4, 2, ch, '#3a2a1c');
+    for (let q = 0; q < ch; q++) { const w = Math.round(Math.sin(q / ch * Math.PI) * 4) + 1; R(cx + 1 - w, 76 - q, w * 2, 1, q % 3 ? '#35543a' : '#416446'); }
+  }
+  for (const [rx, rw, rh] of [[520, 26, 12], [548, 30, 16], [500, 18, 9]]) {       // the town's roofs, off toward the arena
+    R(rx, 76 - rh, rw, rh, '#d8c9a2'); R(rx - 2, 76 - rh - 4, rw + 4, 4, '#b5522e'); R(rx - 2, 76 - rh - 4, rw + 4, 1, '#cf6a40'); R(rx + 4, 76 - rh + 3, 3, 4, '#5a4334');
+  }
 
   // ---- outer wall: grows grander with fame ----
   const W = [{ c: '#7a5a34', d: '#5e4426', l: '#94703f' }, { c: '#a88f66', d: '#8f7650', l: '#c4ab7c' }, { c: '#b89b6e', d: '#a3875c', l: '#d8c08e' }, { c: '#d6ccb8', d: '#b5aa94', l: '#f0e8d6' }][t];
@@ -364,6 +376,17 @@ function drawYard(cv, T) {
 
   // ---- the yard ----
   R(0, GY, 590, YARD.H - GY, '#d9b877'); R(0, GY, 590, 3, 'rgba(60,35,10,.3)'); R(0, GY + 3, 590, 3, 'rgba(60,35,10,.12)');
+  {
+    const oval = (cx, cy, rx, ry, c) => { ctx.fillStyle = c; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
+    for (let i = 0; i < 12; i++) oval(30 + (i * 149) % 540, GY + 14 + (i * 37) % 40, 26 + (i % 4) * 10, 3 + (i % 3) * 2, i % 3 ? 'rgba(255,244,205,.08)' : 'rgba(90,60,20,.07)');      // lights and darks in the sand
+    R(0, GY + 6, 590, 7, 'rgba(255,244,205,.10)'); for (let x = 0; x < 590; x += 7) R(x + (x % 3), GY + 8 + (x % 4), 3, 1, 'rgba(120,85,40,.14)');      // the way worn along the doors
+    R(0, GY, 590, 3 + Math.round(sky.shadow.len * 0.9), `rgba(50,28,8,${(0.1 + sky.shadow.len * 0.008).toFixed(3)})`);      // the buildings' shade, longer when the sun is low
+    for (let i = 0; i < 46; i++) {              // grass and weeds where the wall meets the ground
+      const x = (i * 131) % 586, tall = i % 5 === 0;
+      R(x, GY - (tall ? 4 : 2), 1, tall ? 5 : 3, '#5f7f3f'); R(x + 1, GY - 1, 1, 2, '#7a9a4b'); if (tall) { R(x - 1, GY - 2, 1, 3, '#4f6f34'); R(x, GY - 5, 1, 1, i % 2 ? '#e8a0a0' : '#f2e6a0'); }
+    }
+    for (let i = 0; i < 26; i++) { const x = (i * 211 + 40) % 580, y = GY + 16 + (i * 29) % 42; R(x, y, 2, 1, '#a8905c'); R(x, y - 1, 1, 1, '#c8b078'); }      // pebbles
+  }
   for (let i = 0; i < 90; i++) { const sx = (i * 97) % 588, sy = GY + 6 + (i * 53) % (YARD.H - GY - 8); R(sx, sy, 1 + (i % 3), 1, i % 2 ? '#c9a763' : '#e6c98a'); }
   if (wx.wet > 0) {
     R(0, GY, 590, YARD.H - GY, `rgba(70,45,20,${(0.22 * wx.wet).toFixed(3)})`);
@@ -385,6 +408,41 @@ function drawYard(cv, T) {
   // ---- who is where ----
   const names = [];
   const things = posts.map(p => ({ y: p[1], draw: () => drawPost(p) }));
+  {
+    const shadow = (x, y, w) => { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(x - 1, y - 1, w + 2 + Math.round(sky.shadow.len / 3), 2); };
+    const jar = (x, y, c) => { R(x - 2, y - 9, 5, 8, c); R(x - 1, y - 12, 3, 3, c); R(x - 3, y - 11, 1, 3, shade(c, 0.7)); R(x + 3, y - 11, 1, 3, shade(c, 0.7)); R(x - 2, y - 9, 1, 8, shade(c, 0.8)); R(x - 1, y - 1, 3, 1, shade(c, 0.6)); };
+    // the stores: jars of oil and wine, more of them the better the house eats
+    things.push({ y: GY + 3, draw: () => { shadow(446, GY + 3, 8 + G.ration * 7); for (let i = 0; i <= G.ration + 1; i++) jar(449 + i * 7, GY + 3 - (i % 2), i % 2 ? '#b8703c' : '#c98a4a'); } });
+    // a handcart and a heap of straw against the wall by the gate
+    things.push({ y: GY + 2, draw: () => {
+      shadow(472, GY + 2, 30);
+      R(474, GY - 9, 22, 6, '#7a5a34'); R(474, GY - 9, 22, 1, '#94703f'); R(472, GY - 4, 30, 1, '#5e4426'); R(496, GY - 6, 8, 1, '#5e4426');
+      R(478, GY - 5, 6, 6, '#3a2a1c'); R(479, GY - 4, 4, 4, '#6b4f2c'); R(480, GY - 3, 2, 2, '#3a2a1c');
+      R(476, GY - 14, 18, 5, '#d9c070'); R(478, GY - 16, 14, 2, '#e6d088'); for (let i = 0; i < 6; i++) R(477 + i * 3, GY - 13 + (i % 2), 1, 3, '#b89a4a');
+    } });
+    if (sky.night < 0.5 && wx.rain < 0.3) {       // hens about the kitchen door, by day and in the dry
+      for (let i = 0; i < 3; i++) {
+        const ph = T * 0.35 + i * 2.1, hx = 340 + Math.sin(ph) * 16 + i * 14, hy = GY + 9 + i * 4 + Math.round(Math.sin(ph * 1.7) * 2), d = Math.cos(ph) > 0 ? 1 : -1, peck = Math.sin(T * 3 + i * 1.3) > 0.6 ? 1 : 0;
+        things.push({ y: hy, draw: () => {
+          ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(hx - 3, hy - 1, 6, 1);
+          R(hx - 2, hy - 4, 5, 3, i === 1 ? '#8a5a32' : '#f1ead8'); R(hx - 3 * d - (d < 0 ? 0 : 1), hy - 5, 2, 2, i === 1 ? '#6b4526' : '#d8d0bc');      // body and tail
+          R(hx + 2 * d, hy - 6 + peck * 2, 2, 2, i === 1 ? '#8a5a32' : '#f1ead8'); R(hx + 2 * d + (d > 0 ? 2 : -1), hy - 5 + peck * 2, 1, 1, '#e3b04a'); R(hx + 2 * d, hy - 7 + peck * 2, 1, 1, '#c23b2e');
+          R(hx - 1, hy - 1, 1, 1, '#e3b04a'); R(hx + 1, hy - 1, 1, 1, '#e3b04a');
+        } });
+      }
+    }
+    {                                           // the yard dog: lies by the barracks door, lifts his head by day, sleeps at night
+      const dx = 126, dy = GY + 13, awake = sky.night < 0.5, wag = awake && Math.sin(T * 7) > 0 ? 1 : 0, look = awake && Math.sin(T * 0.4) > 0.3;
+      things.push({ y: dy, draw: () => {
+        ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(dx - 8, dy - 1, 18, 2);
+        R(dx - 6, dy - 5, 12, 4, '#8a6a4a'); R(dx - 6, dy - 2, 12, 1, '#6b4f36'); R(dx - 5, dy - 6, 9, 1, '#9a7a58');
+        R(dx - 9, dy - 4 - wag, 3, 1, '#8a6a4a'); R(dx - 10, dy - 5 - wag, 1, 1, '#8a6a4a');                    // tail
+        R(dx + 5, dy - (look ? 9 : 6), 5, 4, '#8a6a4a'); R(dx + 9, dy - (look ? 7 : 4), 2, 2, '#6b4f36'); R(dx + 5, dy - (look ? 10 : 7), 2, 2, '#6b4f36');      // head, muzzle, ear
+        if (awake) R(dx + 8, dy - (look ? 8 : 5), 1, 1, '#1c1310');
+        R(dx + 4, dy - 2, 4, 1, '#9a7a58'); R(dx - 4, dy - 2, 3, 1, '#9a7a58');                                 // paws
+      } });
+    }
+  }
   const place = (g, x, y, o) => {
     things.push({ y, draw: () => {
       drawSprite(ctx, Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o));
