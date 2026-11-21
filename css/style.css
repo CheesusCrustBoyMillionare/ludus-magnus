@@ -1118,3 +1118,22 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .sline { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 6px; padding: 2px 0 2px 7px; border-left: 3px solid rgba(92, 64, 32, .6); font-size: 12.5px; line-height: 1.3; }
 .sline .d { font: 11px Consolas, monospace; color: var(--dim); padding-top: 1px; }
 .sline.good { border-left-color: #5f9a48; } .sline.bad { border-left-color: #b93a2e; } .sline.gold { border-left-color: var(--gold); }
+
+/* ---- rival houses: dealings, form, and word of the other schools ---- */
+.deals { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.deals .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-right: 3px; }
+.deals button { padding: 2px 9px; font-size: 11px; }
+.dealmsg { font-size: 12.5px; line-height: 1.35; padding: 4px 8px; background: rgba(227, 176, 74, .07); border-left: 3px solid var(--gold); }
+.dealmsg.bad { border-left-color: var(--red); color: #f0b0a4; }
+.kvs small.form { display: flex; gap: 2px; align-items: center; }
+.kvs small.form i { font: bold 9px/13px Consolas, monospace; font-style: normal; width: 13px; text-align: center; border-radius: 2px; color: #1c140f; }
+.kvs small.form i.w { background: #7fb85a; } .kvs small.form i.l { background: #c8584a; }
+.rivalrow button.mini { padding: 1px 6px; font-size: 10px; white-space: nowrap; }
+.panel.rnews { padding: 6px 10px; display: grid; gap: 2px; font-size: 12.5px; }
+.rnews > div { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 6px; align-items: baseline; }
+.rnews .d { font: 11px Consolas, monospace; color: var(--dim); }
+.rnews small { color: var(--dim); margin-left: 4px; }
+.rnews .swatch { margin-right: 4px; }
+[data-pane^="house-"] .housecard { gap: 5px; }
+
+[data-pane="houses"] > h2 { margin-top: 6px; } .panel.rnews { padding: 4px 10px; }

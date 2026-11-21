@@ -156,6 +156,37 @@ test('200 days of play keep the books straight', () => game()(function () {
   assert(G.houses.every(h => h.roster.length >= 3 && h.roster.length <= 9), 'rival rosters stay stocked');
 }));
 
+test('rival houses: dealings, challenges, and the houses fighting each other', () => game()(function () {
+  newGame(); G.denarii = 5000; G.fac.barracks = 1;
+  const H = G.houses[0];
+  // a gift needs a quarrel, and mends one
+  assert(dealBlock(H, 'gift') && !houseDeal(H, 'gift').ok, 'no gift without a quarrel');
+  H.grudge = 50; const d0 = G.denarii;
+  assert(houseDeal(H, 'gift').ok && H.grudge === 30 && G.denarii < d0, 'a gift costs money and eases the feud');
+  assert(dealBlock(H, 'challenge'), 'one dealing with a house between games');
+  // calling a house out puts its champion on the next card
+  const H2 = G.houses[1];
+  assert(houseDeal(H2, 'challenge').ok && H2.called, 'a house is called out');
+  G.day = GAMES_EVERY; genBouts();
+  const b = G.bouts.find(x => x.called);
+  assert(b && b.houseId === H2.id && b.size === 1 && !H2.called, 'the challenge is on the card');
+  assert(G.rivalNews && G.rivalNews.length === 2 && G.houses.filter(X => X.form && X.form.length).length === 4, 'the houses fought each other, and it is told');
+  // buying a man: not the champion, and he comes over whole
+  const H3 = G.houses[2], champ = houseChampion(H3), man = H3.roster.find(g => g !== champ && !G.bouts.some(x => x.enemyIds && x.enemyIds.includes(g.id)));
+  assert(dealBlock(H3, 'buy', champ), 'a champion is not for sale');
+  if (man) {
+    const n = G.roster.length, r = houseDeal(H3, 'buy', man.id);
+    assert(r.ok && G.roster.length === n + 1 && G.roster.includes(man) && !H3.roster.includes(man) && man.gear && !man.house, 'a rival\'s man is bought and becomes yours');
+    assert(!badNumber(G), 'buying a man left a bad number');
+  }
+  // sabotage either works or is found out
+  const H4 = G.houses[3], p0 = H4.prestige, g0 = H4.grudge, r4 = houseDeal(H4, 'sabotage');
+  assert(H4.dealt === dealCycle() && (r4.ok ? H4.prestige < p0 : H4.grudge > g0), 'sabotage tells one way or the other');
+  // a challenge left unanswered is paid for
+  const f0 = G.fame = 50; endDay();
+  assert(G.fame < f0 + 1, 'ducking your own challenge costs fame');
+}));
+
 test('every event and every choice runs', () => game()(function () {
   let n = 0;
   for (const id of Object.keys(EVENTS)) {
@@ -182,7 +213,9 @@ test('every event and every choice runs', () => game()(function () {
       n++;
     }
   }
-  assert(n >= 210, 'expected at least 210 event choices, ran ' + n);
+  assert(n >= 228, 'expected at least 228 event choices, ran ' + n);
+  // an event at the ludus must not share its name with one from the road or the province, or one of the two is lost
+  for (const id of ['editorsEar', 'diceGame', 'foundersDay', 'slander', 'arson', 'defector']) assert(EVENTS[id] && !EVENTS[id].field && !EVENTS[id].wild, id + ' is a ludus event of its own');
 }));
 
 test('every style can fight every other, and every fallen fighter gets a verdict', () => game()(function () {

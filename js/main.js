@@ -229,6 +229,8 @@ const HINTS = [
     text: g => `<b>${g.name}</b> is resting though he is whole and fresh: a day of training lost. Set him to a skill on his line, or with keys 1 to 5.` },
   { id: 'full', when: () => G.roster.length >= capacity() && G.day >= 2,
     text: () => 'Every cell is taken. To buy another man, improve the <b>Barracks</b> under Household, or sell one: the dealer at the <b>Market</b> will tell you what he would pay.' },
+  { id: 'called', when: () => (G.bouts || []).find(b => b.called && !b.done),
+    text: b => `Your challenge to <b>${b.house}</b> is on today's card at the <b>Arena</b>: their champion, for a double purse. You called it, dominus. If no man of ours appears, the town will not let us forget it.` },
   { id: 'grudge', when: () => (G.bouts || []).find(b => b.grudge && !b.done),
     text: b => `<b>${b.house}</b> has called you out: there is a grudge match on today\'s card at the <b>Arena</b>. Answer it, win or lose, and the feud cools. Leave it and the Magistrate and your own men will think less of you.` },
   { id: 'gear', when: () => G.armoury.length > 0,
@@ -907,20 +909,20 @@ function boutCard(b) {
   }
   const H = b.houseId && houseOf(b.houseId), above = H && H.prestige > G.fame;
   return `<div class="panel bout ${b.done ? 'done' : ''}">
-    <h3${tip('bout')}>${b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + D.name : b.melee ? 'The great melee' : kind + ' &middot; ' + D.name} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
+    <h3${tip('bout')}>${b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.called ? 'Your challenge' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + D.name : b.melee ? 'The great melee' : kind + ' &middot; ' + D.name} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
     ${b.death ? `<div class="death">${b.funeral ? 'Funeral games: ' : ''}Sine missione &mdash; to the death</div>` : ''}
     ${b.hunt ? '<div class="death">Beasts give no quarter</div>' : ''}
     <div class="kvs three">
       <div${tip('purse')}><span>Purse</span><b class="num gold">${b.purse}</b><small>if you win</small></div>
       <div><span>Fame</span><b class="num">+${b.fame}</b><small>${above ? 'more for beating a greater house' : 'and more for a good show'}</small></div>
-      <div><span>Against</span><b class="num">${them.length}</b><small>${b.grudge ? 'win or lose, the feud cools' : H && H.grudge >= 25 ? feudWord(H.grudge).toLowerCase() + ' between you' : them.length === 1 ? 'a single opponent' : 'on their side'}</small></div>
+      <div><span>Against</span><b class="num">${them.length}</b><small>${b.grudge ? 'win or lose, the feud cools' : b.called ? 'you called them out: do not fail to appear' : H && H.grudge >= 25 ? feudWord(H.grudge).toLowerCase() + ' between you' : them.length === 1 ? 'a single opponent' : 'on their side'}</small></div>
     </div>
     <div class="list foelist">${foes}</div>
     ${body}
   </div>`;
 }
 
-const boutTitle = b => b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + DIFF[b.diff].name : b.melee ? 'The great melee'
+const boutTitle = b => b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.called ? 'Your challenge' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + DIFF[b.diff].name : b.melee ? 'The great melee'
   : ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1] + ' &middot; ' + DIFF[b.diff].name;
 
 function viewArena() {
@@ -1214,19 +1216,28 @@ function viewRivals() {
         <div class="grow"><span class="t">${e.name} ${styleMark(e)} <small class="inl">${RANKS[e.rank].name} &middot; ${CLASSES[e.cls].name} &middot; ${e.wins}W ${e.losses}L</small></span>
           <div class="l2"><span class="sks"><b class="num pw">${rating(e)}</b>${STATS.map(k => `<span class="sk">${ic(k)}<b class="num">${e.stats[k]}</b></span>`).join('')}</span>${n === 0 ? '<span class="chip gold">Champion</span>' : ''}${e.vs.w || e.vs.l ? `<span class="chip">${e.vs.w}&ndash;${e.vs.l} against you</span>` : ''}${e.exYours ? '<span class="chip gold">Once yours</span>' : ''}${e.slew.length ? `<span class="chip red">Slew ${e.slew.join(', ')}</span>` : ''}${sworn ? `<span class="chip red">${sworn.name} has sworn to face him</span>` : lost.length ? `<span class="chip">Beat ${lost.map(g => g.name).join(', ')}</span>` : ''}</div></div>
         ${best ? `<span class="end num ${rating(e) > rating(best) ? 'bad' : 'dim'}"${tip(`Against ${best.name}, your strongest, at power ${rating(best)}.`)}>${rating(e) > rating(best) ? '+' : ''}${rating(e) - rating(best) || '='}</span>` : ''}
+        ${n === 0 ? '' : (why => `<button class="mini ${ui.dealArm === H.id + ':buy:' + e.id ? 'primary' : ''}" data-act="hdeal" data-v="${H.id}" data-w="buy:${e.id}" ${why ? 'disabled' : ''}${tip(why ? `Buy him out of his house.\n${why}` : `Buy him out of ${d.name} for ${dealCost('buy', e)} denarii: well over his worth, and they will resent it (feud +8). He brings his own kit.`)}>${ui.dealArm === H.id + ':buy:' + e.id ? 'Sure?' : 'Buy ' + dealCost('buy', e)}</button>`)(dealBlock(H, 'buy', e))}
       </div>`;
     }).join('');
     const card = today.filter(b => b.houseId === H.id);
+    const form = (H.form || []).map(r => `<i class="${r === 'W' ? 'w' : 'l'}">${r}</i>`).join('') || '<span class="dim">no word yet</span>';
+    const deal = (kind, label, what) => { const why = dealBlock(H, kind), cost = dealCost(kind), armed = ui.dealArm === H.id + ':' + kind; return `<button class="${armed ? 'primary' : ''}" data-act="hdeal" data-v="${H.id}" data-w="${kind}" ${why ? 'disabled' : ''}${tip(why ? `${what}\n${why}` : what)}>${armed ? 'Sure?' : label}${cost && !armed ? ` &mdash; ${cost}` : ''}</button>`; };
+    const said = ui.dealMsg && ui.dealMsg.hid === H.id && ui.dealMsg.day === G.day ? `<div class="dealmsg ${ui.dealMsg.ok ? 'good' : 'bad'}">${ui.dealMsg.text}</div>` : '';
+    const deals = `<div class="deals"><span class="lbl"${tip('One dealing with each house between one games and the next.')}>Dealings</span>
+        ${deal('gift', 'Send a gift', 'Wine and hounds for their lanista: the feud eases by 20.')}
+        ${deal('challenge', H.called ? 'Called out' : 'Call them out', 'Their champion against a man of yours at the next games, for a double purse and double fame. The feud deepens by 10; win, and their renown falls. Fail to appear and it costs you fame, favour and your men\'s respect.')}
+        ${deal('sabotage', 'Sabotage', 'Two chances in three: their best man misses the next games and their renown falls. Otherwise your man is caught: Magistrate favour -10, fame -5, and the feud deepens by 25.')}</div>${said}`;
     detail = `<div class="panel housecard" style="border-left:6px solid ${d.col}">
         <div><b>${d.lanista}.</b> <span class="dim">${d.blurb}</span></div>
         <div class="today"><span class="lbl">Their way</span><div>${typeof way === 'function' ? way() : way}</div></div>
         <div class="kvs">
           <div><span>Renown</span><b class="num">${H.prestige}</b><small>${H.prestige > G.fame ? `${H.prestige - G.fame} above you: beating them earns extra fame` : `${G.fame - H.prestige} below you`}</small></div>
-          <div><span>Against you</span><b class="num">${H.won}&ndash;${H.lost}</b><small>${H.won + H.lost ? 'bouts they won and lost' : 'you have not met on the sand'}</small></div>
+          <div><span>Against you</span><b class="num">${H.won}&ndash;${H.lost}</b><small class="form"${tip('Their last five results against anyone, oldest first: W won, L lost.')}>${form}</small></div>
           <div><span>Feud</span><b class="num ${H.grudge >= 40 ? 'bad' : ''}">${Math.round(H.grudge)}</b><small>${feudWord(H.grudge)}${H.grudge >= 40 ? ': their champion will call you out' : `, ${Math.ceil(40 - H.grudge)} short of a challenge`}</small></div>
           <div><span>Styles</span><b class="sks">${styles || '&ndash;'}</b><small>${lead && lead[1] ? (mineBeat(lead[0]) ? `${mineBeat(lead[0])} of yours beat their ${STAT_NAMES[lead[0]].toLowerCase()} men` : `none of yours beats ${STAT_NAMES[lead[0]].toLowerCase()}: train ${STAT_NAMES[STYLE_LOSES[lead[0]]].toLowerCase()}`) : ''}</small></div>
         </div>
-        ${card.length ? `<div class="gold" style="font-size:13px">On today's card: ${card.map(b => `${b.grudge ? 'a grudge match' : b.size === 1 ? 'a duel' : b.size + ' a side'}${b.death ? ', to the death' : ''}`).join('; ')}.</div>` : ''}
+        ${deals}
+        ${card.length ? `<div class="gold" style="font-size:13px">On today's card: ${card.map(b => `${b.grudge ? 'a grudge match' : b.called ? 'your challenge' : b.size === 1 ? 'a duel' : b.size + ' a side'}${b.death ? ', to the death' : ''}`).join('; ')}.</div>` : ''}
       </div>
       <div class="panel list">${list}</div>`;
   }
@@ -1237,7 +1248,8 @@ function viewRivals() {
         ${above ? `<span${tip('Renown comes from fame: win bouts, and beat houses that stand above you.')}><b class="num">${above.p - G.fame + 1}</b> fame to pass ${above.name}</span>` : '<span class="gold">no one stands above you</span>'}
         ${call ? `<span class="bad"><b>${call.house} has called you out today.</b> Leave it unanswered and it costs you.</span>` : hot && hot.grudge >= 25 ? `<span class="${hot.grudge >= 40 ? 'bad' : ''}"${tip('feud')}>${feudWord(hot.grudge).toLowerCase()} with ${houseDef(hot.id).name}</span>` : '<span>no feud worth the name</span>'}</div></div>
       <div class="pane" data-pane="houses"><div class="panel list standing">${table}</div>
-      <div class="listnote">Killing a house's fighters, or losing your own to them, deepens the feud; the mark on the red bar is 40, where their champion challenges you. A grudge match answered cools it, whoever wins.</div></div></div>
+      <div class="listnote">Killing a house's men, or losing yours to them, deepens the feud. At the mark on the red bar (40) their champion calls you out; answer it and the feud cools, whoever wins.</div>
+      ${(G.rivalNews || []).length ? `<h2>Word from the other schools</h2><div class="panel rnews">${G.rivalNews.slice().reverse().slice(0, 3).map(x => `<div><span class="d">Day ${x.d}</span><span>${swatch(x.w)}<b>${houseDef(x.w).name}</b> beat ${swatch(x.l)}${houseDef(x.l).name} <small>${x.by} carried it</small></span></div>`).join('')}</div>` : ''}</div></div>
     <div><h2>${d ? d.name : 'Rival houses'} <small>${H ? H.roster.length + ' fighters' : ''}</small></h2><div class="pane" data-pane="house-${H ? H.id : ''}">${detail}</div></div>
   </div>`;
 }
@@ -1670,9 +1682,9 @@ const EVENT_SCENE = {
   market: ['volunteer', 'merchant', 'fugitive', 'cargo', 'coins', 'hound', 'thief'],
   smith: ['smithCart', 'dig'],
   facilities: ['healer', 'masseur', 'fever', 'meat', 'rats', 'tax'],
-  patrons: ['feast', 'dinner', 'vigil', 'omen', 'rites', 'sponsor', 'fix', 'procession', 'noble', 'widow'],
+  patrons: ['feast', 'dinner', 'vigil', 'omen', 'rites', 'sponsor', 'fix', 'foundersDay', 'noble', 'widow'],
   arena: ['gift', 'graffiti', 'poet', 'sculptor', 'admirers', 'tout'],
-  rivals: ['poach', 'poison', 'truce', 'sparring', 'boast', 'spy'],
+  rivals: ['poach', 'poison', 'truce', 'sparring', 'boast', 'spy', 'slander', 'editorsEar', 'defector'],
 };
 function eventScene(id) {
   const E = EVENTS[id];
@@ -1686,6 +1698,7 @@ let evFaces = [];
 function eventPeople(c) {
   evFaces = [];
   for (const k of ['g', 'a', 'b']) { const v = c && c[k], g = typeof v === 'number' ? byId(v) : v && v.stats && v.name ? v : null; if (g && !evFaces.includes(g)) evFaces.push(g); }
+  if (c && c.h && c.r) { const H = houseOf(c.h), g = H && H.roster.find(x => x.id === c.r); if (g) evFaces.push(g); }
   if (!evFaces.length) return '';
   return `<div class="evwho">${evFaces.map((g, i) => `<div><canvas width="96" height="112" data-evface="${i}"></canvas><div><b>${g.name}</b><small>${CLASSES[g.cls] ? CLASSES[g.cls].name : ''} &middot; power ${rating(g)}${G.roster.includes(g) ? ` &middot; ${g.wins}W ${g.losses}L` : ' &middot; a stranger'}</small>
       ${G.roster.includes(g) ? `<div class="evbars"><span${tip('health')}>${bar('hp', g.hp, maxHp(g))}</span><span${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</span><span${tip('morale')}>${bar('mor', g.morale, 100)}</span></div>` : ''}</div></div>`).join('')}</div>`;
@@ -2088,6 +2101,17 @@ const ACTIONS = {
   lfilter(v) { ui.lfilter = v; ui.lpage = 0; render(); },
   lpage(v) { ui.lpage = Math.max(0, (ui.lpage || 0) + (+v)); render(); },
   storyall(v) { ui.storyAll = ui.storyAll === +v ? null : +v; render(); },
+  // A dealing with a house: those that cannot be taken back are asked twice.
+  hdeal(v, w) {
+    const H = houseOf(v); if (!H) return;
+    const [kind, id] = w.split(':'), key = v + ':' + w;
+    if (kind !== 'gift' && ui.dealArm !== key) { ui.dealArm = key; SFX.ui('warn'); render(); return; }
+    ui.dealArm = null;
+    const r = houseDeal(H, kind, id ? +id : 0);
+    ui.dealMsg = { hid: v, day: G.day, ok: r.ok, text: r.text };
+    SFX.ui(r.ok ? (kind === 'buy' ? 'coin' : 'chime') : 'thud');
+    save(); render();
+  },
   gearmore(v, w) { const k = v + ':' + w; ui.gearOpen = ui.gearOpen === k ? null : k; render(); },
   yardtoggle() {
     ui.noyard = !ui.noyard;

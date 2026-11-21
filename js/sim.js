@@ -168,7 +168,7 @@ function staffLvl(role) { return G.staff[role] ? G.staff[role].skill : 0; }
 function wages() { return Object.values(G.staff).reduce((s, x) => s + x.wage, 0); }
 function stipend() { return Math.round(G.patrons.guild / 10 * (1 + tier())); }
 function favor(k, d) { G.patrons[k] = clamp(G.patrons[k] + d, 0, 100); }
-function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + G.patrons.temple * 0.001; }
+function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + G.patrons.temple * 0.001 - (G.rigged && G.rigged >= G.day ? 0.15 : 0); }
 function giftCost(k) { return Math.round((40 + 25 * G.gifts[k]) * (1 + tier() * 0.5) / 5) * 5; }
 
 function genHires() {
@@ -438,6 +438,83 @@ function makeEnemy(budget, t, o) {
 const houseDef = id => HOUSES.find(h => h.id === id);
 const houseOf = id => G.houses.find(h => h.id === id);
 const feud = (H, d) => { H.grudge = clamp(H.grudge + d, 0, 100); };
+// how a house has fared lately, against anyone: its last five results
+const houseForm = (H, r) => { (H.form = H.form || []).push(r); if (H.form.length > 5) H.form.shift(); };
+
+// ---- dealings ----
+// Once between each games you may have one dealing with each house: mend the quarrel with a gift, call their champion
+// out, buy one of their men from under them, or do them harm in the dark.
+const dealCycle = () => Math.floor(G.day / GAMES_EVERY);
+const houseChampion = H => H.roster.slice().sort((a, b) => statSum(b) - statSum(a))[0] || null;
+function dealCost(kind, g) {
+  const t = tier();
+  return kind === 'gift' ? 40 + t * 40 : kind === 'sabotage' ? 60 + t * 50 : kind === 'buy' && g ? Math.round(value(g) * 1.6 / 5) * 5 : 0;
+}
+// Why a dealing cannot be had just now, or nothing if it can.
+function dealBlock(H, kind, g) {
+  if (H.dealt === dealCycle()) return 'You have had your dealing with this house since the last games.';
+  const cost = dealCost(kind, g);
+  if (kind === 'gift' && H.grudge <= 0) return 'There is no quarrel to mend.';
+  if (kind === 'challenge') {
+    if (H.called) return 'You have called them out already: it is on the next card.';
+    if (!G.roster.some(x => !x.away && x.injury <= 0)) return 'You have no one fit to stand behind it.';
+  }
+  if (kind === 'buy') {
+    if (!g || !H.roster.includes(g)) return 'He is not theirs to sell.';
+    if (g === houseChampion(H)) return 'No house sells its champion.';
+    if (H.roster.length <= 3) return 'They have too few men to part with one.';
+    if (G.roster.length >= capacity()) return 'You have no cell free.';
+    if ((G.bouts || []).some(b => !b.done && b.enemyIds && b.enemyIds.includes(g.id))) return 'He is on today\'s card.';
+    if (G.tourney && G.tourney.state !== 'done') return 'Not while the tournament is being fought.';
+    if (isWanted(g)) return 'One of your own men has business with him on the sand.';
+  }
+  if (cost > G.denarii) return `You are ${cost - G.denarii} denarii short.`;
+  return '';
+}
+// A man of another house becomes one of yours: his kit is turned into pieces, and what tied him to them is cut.
+function takeRival(g) {
+  const H = g.house && houseOf(g.house), from = H ? houseDef(H.id).name : 'another house';
+  if (H) H.roster = H.roster.filter(x => x !== g);
+  const w = g.weapon || 0, a = g.armor || 0;
+  delete g.house; delete g.vs; delete g.slew; delete g.exYours; delete g.outUntil;
+  g.gear = null; welcome(g);
+  if (w > 0) g.gear.weapon = makeItem('weapon', clamp(w, 0, 6), g.cls);
+  if (a > 0) g.gear.chest = makeItem('chest', clamp(a, 0, 6));
+  g.weapon = 0; g.armor = 0; g.activity = 'rest'; g.foughtDay = -1; g.kills = g.kills || 0; g.fame = g.fame || 0;
+  g.xp = Math.max(g.xp || 0, RANKS[g.rank || 0].xp); g.perkPending = 0; g.perkOffer = null;
+  g.wish = null; g.lostTo = null; g.promise = null; g.story = []; g.hp = maxHp(g); g.injury = 0; g.fatigue = 0; g.morale = 55;
+  G.roster.push(g); addStory(g, `Came over from ${from}.`);
+  return g;
+}
+function houseDeal(H, kind, gid) {
+  const g = gid ? H.roster.find(x => x.id === gid) : null, why = dealBlock(H, kind, g), def = houseDef(H.id), cost = dealCost(kind, g);
+  if (why) return { ok: false, text: why };
+  H.dealt = dealCycle();
+  if (kind === 'gift') {
+    G.denarii -= cost; feud(H, -20);
+    log(`A gift to ${def.name}: the feud eases.`);
+    return { ok: true, text: `Wine and a pair of good hounds go to ${def.lanista}. Nothing is forgiven, but the feud eases.` };
+  }
+  if (kind === 'challenge') {
+    H.called = true; feud(H, 10);
+    log(`You have called out ${def.name}: their champion will be on the next card.`, 'gold');
+    return { ok: true, text: `Your herald reads it in the forum: ${def.name} is called out. Their champion will answer at the next games, for a double purse. Do not be the one who fails to appear.` };
+  }
+  if (kind === 'buy') {
+    G.denarii -= cost; feud(H, 8); takeRival(g);
+    log(`${g.name} is bought out of ${def.name} for ${cost} denarii.`, 'gold');
+    return { ok: true, text: `${def.lanista} takes the money with a face like a shut door. ${g.name} is yours.` };
+  }
+  G.denarii -= cost;                           // sabotage
+  if (chance(0.65)) {
+    const c = houseChampion(H); H.prestige = Math.max(0, H.prestige - (20 + tier() * 10));
+    if (c) c.outUntil = dealCycle() + 1;
+    return { ok: true, text: `Something in the stew, a cut girth, a word in the wrong ear. ${c ? `${c.name}, their best man, will not fight at the next games, and t` : 'T'}he town is laughing at ${def.name}.` };
+  }
+  favor('magistrate', -10); feud(H, 25); G.fame = Math.max(0, G.fame - 5);
+  log(`Your man was caught in ${def.name}'s kitchen. The Magistrate has heard.`, 'bad');
+  return { ok: false, done: true, text: `Your man is caught with his hand in their meal sack and names you before he is asked twice. Magistrate favour -10, fame -5, and ${def.name} will not forget it.` };
+}
 
 function makeRival(H, budget, t) {
   const def = houseDef(H.id);
@@ -468,9 +545,23 @@ function growStats(g, n) {
 // Between games the rival schools train, fight each other and replace their dead.
 function houseTick() {
   const t = tier(), target = ENEMY_BUDGET[t];
+  // the houses meet each other too: two pairs at each games, and the better champion more often wins
+  {
+    const order = G.houses.slice().sort(() => Math.random() - 0.5), news = [];
+    for (let i = 0; i + 1 < order.length; i += 2) {
+      const A = order[i], B = order[i + 1], a = houseChampion(A), b = houseChampion(B);
+      if (!a || !b) continue;
+      const pA = clamp(0.5 + (statSum(a) - statSum(b)) * 0.03 + (A.prestige - B.prestige) / 2000, 0.2, 0.8), W = chance(pA) ? A : B, L = W === A ? B : A;
+      const gain = Math.round(houseDef(W.id).rate * 0.6);
+      W.prestige += gain; L.prestige = Math.max(0, L.prestige - Math.round(gain * 0.5));
+      houseForm(W, 'W'); houseForm(L, 'L');
+      news.push({ d: G.day, w: W.id, l: L.id, by: (W === A ? a : b).name });
+    }
+    G.rivalNews = (G.rivalNews || []).concat(news).slice(-8);
+  }
   for (const H of G.houses) {
     const def = houseDef(H.id);
-    H.prestige += Math.round(def.rate * rand(0.6, 1.4));
+    H.prestige += Math.round(def.rate * 0.9 * rand(0.6, 1.4));
     for (const g of H.roster.slice()) {
       if (chance(0.5)) {
         if (chance(0.6)) g.wins++;
@@ -897,6 +988,20 @@ function genBouts() {
   const sizes = t === 0 ? [1, 1, 1] : t === 1 ? [1, 1, 2] : t === 2 ? [1, 2, 2, 3] : [1, 2, 3, 3];
   if (G.patrons.magistrate >= 60) sizes.push(t >= 1 ? 2 : 1);
   const diffs = ['easy', 'even', 'hard', 'even', 'hard'];
+  for (const H of G.houses) for (const g of H.roster) if (g.outUntil !== undefined) { if (g.outUntil >= dealCycle()) booked.add(g.id); else delete g.outUntil; }
+  // a house you have called out sends its best man to answer
+  for (const H of G.houses) {
+    if (!H.called) continue;
+    H.called = false;
+    const c = H.roster.filter(g => !booked.has(g.id)).sort((a, b) => statSum(b) - statSum(a))[0];
+    if (!c) continue;
+    booked.add(c.id);
+    bouts.push({
+      id: ++G.nextId, size: 1, diff: 'hard', death: false, called: true, done: false,
+      houseId: H.id, house: houseDef(H.id).name, enemyIds: [c.id],
+      purse: Math.round(PURSE[t] * 2 / 5) * 5, fame: FAME[t] * 2,
+    });
+  }
   // a house with a serious feud sends its best man to call you out
   const foe = G.houses.filter(H => H.grudge >= 40).sort((a, b) => b.grudge - a.grudge)[0];
   const champ = foe && foe.roster.filter(g => !booked.has(g.id)).sort((a, b) => statSum(b) - statSum(a))[0];
@@ -1028,11 +1133,12 @@ function endDay() {
   } else G.debtDays = 0;
 
   if (G.tourney && G.tourney.state !== 'done') finishTourneyOffscreen();
-  const ducked = (G.bouts || []).find(b => b.grudge && !b.done);
+  const ducked = (G.bouts || []).find(b => (b.grudge || b.called) && !b.done);
   if (ducked) {
     favor('magistrate', -5);
     G.roster.forEach(g => { g.morale = clamp(g.morale - 6, 0, 100); });
-    log(`You left ${ducked.house}'s challenge unanswered. The men heard of it, and so did the town.`, 'bad');
+    if (ducked.called) G.fame = Math.max(0, G.fame - 5);
+    log(ducked.called ? `You called out ${ducked.house} and did not appear. The town will not let you forget it.` : `You left ${ducked.house}'s challenge unanswered. The men heard of it, and so did the town.`, 'bad');
   }
   G.day++;
   if (G.festival.day < G.day) scheduleFestival();
@@ -1133,7 +1239,11 @@ function applyBoutResult(bout, B, wager, pay) {
   }
   if (H) {
     for (const f of foes) { if (!f.g.vs) continue; if (win) { f.g.vs.l++; f.g.losses++; } else { f.g.vs.w++; f.g.wins++; } }
-    if (win) { H.lost++; feud(H, 3); H.prestige = Math.max(0, H.prestige - 4); } else { H.won++; H.prestige += 8; }
+    if (win) { H.lost++; feud(H, 3); H.prestige = Math.max(0, H.prestige - 4); houseForm(H, 'L'); } else { H.won++; H.prestige += 8; houseForm(H, 'W'); }
+    if (bout.called) {                        // you called them out: more is staked on it than a purse
+      if (win) { H.prestige = Math.max(0, H.prestige - 12); lines.push(`You called ${bout.house} out and made it good before the whole town.`); }
+      else { H.prestige += 10; G.roster.forEach(g => { g.morale = clamp(g.morale - 4, 0, 100); }); lines.push(`<span class="bad">You called ${bout.house} out, and lost. They will dine on it for a month.</span>`); }
+    }
     if (bout.grudge) { feud(H, -30); lines.push(win ? `The feud with ${bout.house} cools. For now.` : `${bout.house} consider the debt paid.`); }
   }
   if (win && mine.length > 1 && chance(0.3)) {             // men who win side by side sometimes become friends
@@ -1437,6 +1547,56 @@ const EVENTS = {
     ],
   },
 
+  // ---- what a feud brings to your door ----
+  slander: {
+    title: 'Talk in the taverns',
+    can: () => G.houses.some(H => H.grudge >= 25),
+    make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 30 + tier() * 30 }),
+    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} has men in every tavern saying your fighters are drugged before the games and your victories bought. People are beginning to repeat it.`,
+    opts: [
+      { label: c => `Pay criers to answer it (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 12); feud(H, 6); return `By the week's end the town has a new story, and it is about ${houseDef(c.h).name}. They know who paid for it.`; } },
+      { label: () => 'Let the sand answer: call them out', ok: c => !houseOf(c.h).called, run: c => { const H = houseOf(c.h); H.called = true; feud(H, 8); G.fame += 2; return `Your herald reads the challenge in the forum. Their champion will be on the next card, for a double purse. Fame +2.`; } },
+      { label: () => 'Ignore it', run: () => { const f = 4 + tier() * 2; G.fame = Math.max(0, G.fame - f); return `It runs its course, and leaves a stain. Fame -${f}.`; } },
+    ],
+  },
+  editorsEar: {
+    title: 'The editor\'s ear',
+    can: () => fit().length > 0 && daysToGames() <= 3 && G.houses.some(H => H.grudge >= 40),
+    make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 50 + tier() * 50 }),
+    text: c => `Your steward has it from a clerk: ${houseDef(c.h).name} has paid the man who stands at the editor's elbow. At the next games, when one of yours is down, the thumb will turn more easily.`,
+    opts: [
+      { label: c => `Pay him more (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'He takes both purses, as such men do, and whispers nothing to anyone.'; } },
+      { label: () => 'Lay it before the Magistrate', ok: () => G.patrons.magistrate >= 40, run: c => { const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 20); feud(H, 10); favor('magistrate', -3); return `The clerk is flogged and ${houseDef(c.h).name} fined before the council. The Magistrate does not enjoy being made to notice such things. Magistrate favour -3.`; } },
+      { label: () => 'Let it stand', run: () => { G.rigged = G.day + daysToGames(); return 'Then your men had better stay on their feet. At the next games, the fallen will find less mercy.'; } },
+    ],
+  },
+  arson: {
+    title: 'Fire in the night',
+    can: () => G.houses.some(H => H.grudge >= 45),
+    make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 50 + tier() * 40 }),
+    text: c => `The fodder store went up after midnight. It was out before it reached the barracks, but a boy saw a man running, and he wore the colours of ${houseDef(c.h).name}.`,
+    opts: [
+      { label: c => `Rebuild, and say nothing (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'New timber, new thatch, and a second man on the wall at night.'; } },
+      { label: c => `Answer fire with fire (${Math.round(c.cost / 2)})`, run: c => {
+        const H = houseOf(c.h); G.denarii -= Math.round(c.cost / 2); feud(H, 20); H.prestige = Math.max(0, H.prestige - 20); evAllMor(5);
+        if (chance(0.3)) { favor('magistrate', -8); return `Their stable burns two nights later. The watch comes asking where your men were. Magistrate favour -8.`; }
+        return `Their stable burns two nights later, and nobody saw anything. Your men are grimly pleased.`;
+      } },
+      { label: () => 'Patch it and make do', run: c => { G.denarii -= Math.round(c.cost / 3); evAllMor(-5); return 'The men mend what they can. They would have liked an answer made.'; } },
+    ],
+  },
+  defector: {
+    title: 'A knock at the back gate',
+    can: () => G.houses.some(H => H.roster.length >= 3),
+    make: () => { const H = pick(G.houses.filter(X => X.roster.length >= 3)), g = H.roster.slice().sort((a, b) => statSum(a) - statSum(b))[0]; return { h: H.id, r: g.id, pay: Math.round(value(g) * 0.5 / 5) * 5 }; },
+    text: c => { const g = houseOf(c.h).roster.find(x => x.id === c.r); return g ? `<b>${g.name}</b>, a ${CLASSES[g.cls].name} of ${houseDef(c.h).name}, is at the back gate with a cloak over his head. He says ${houseDef(c.h).lanista} works men to death, and that he would sooner fight for you.` : 'There was a man at the back gate. He is gone now.'; },
+    opts: [
+      { label: () => 'Take him in', ok: c => G.roster.length < capacity() && !!houseOf(c.h).roster.find(x => x.id === c.r), run: c => { const H = houseOf(c.h), g = H.roster.find(x => x.id === c.r); takeRival(g); feud(H, 15); return `${g.name} swears to you before dawn. ${houseDef(c.h).name} will know where he went by noon.`; } },
+      { label: c => `Sell him back to them (+${c.pay})`, run: c => { G.denarii += c.pay; feud(houseOf(c.h), -5); evAllMor(-3); return `${houseDef(c.h).lanista} pays for the return of his property. Your men watched him led away.`; } },
+      { label: () => 'Send him back with an escort', run: c => { feud(houseOf(c.h), -10); return `He is walked home between two of your men. ${houseDef(c.h).lanista} sends a stiff word of thanks.`; } },
+    ],
+  },
+
   // ---- the yard and the barracks ----
   roof: {
     title: 'The barracks roof',
@@ -1493,7 +1653,7 @@ const EVENTS = {
       { label: () => 'Train at dawn and dusk only', run: () => { fit().forEach(g => evTire(g, -5)); return 'The yard is empty at noon and loud at first light. Nothing is lost.'; } },
     ],
   },
-  dice: {
+  diceGame: {
     title: 'Dice after dark',
     can: () => home().length >= 2,
     make: () => { const f = home().slice().sort(() => Math.random() - 0.5); return { a: f[0].id, b: f[1].id }; },
@@ -1598,7 +1758,7 @@ const EVENTS = {
   },
 
   // ---- the town ----
-  procession: {
+  foundersDay: {
     title: 'The procession',
     can: () => fit().length > 0,
     make: () => ({ g: evBest(fit(), g => g.wins * 3 + evPower(g)).id }),
