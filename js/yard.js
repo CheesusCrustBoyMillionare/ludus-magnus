@@ -578,18 +578,23 @@ function drawYard(cv, T) {
   sceneVignette(ctx, 590, 190, 0.3);
 }
 
+// The picture is the yard at your own school, and the place itself at any other door in the village (places.js).
+function drawScene(cv, T) {
+  const tab = typeof ui !== 'undefined' ? ui.tab : 'ludus';
+  if (tab !== 'ludus' && typeof PLACE_SCENES !== 'undefined' && PLACE_SCENES[tab]) drawPlace(cv, T, tab); else drawYard(cv, T);
+}
 function yardFrame(ts) {
   const cv = document.getElementById('yard');
   if (!cv || !G) { yardRaf = 0; return; }
   const arena = document.getElementById('arena');
-  if (ts - yardLast > 30 && !(arena && !arena.hidden)) { yardLast = ts; try { drawYard(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
+  if (ts - yardLast > 30 && !(arena && !arena.hidden)) { yardLast = ts; try { drawScene(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
   yardRaf = requestAnimationFrame(yardFrame);
 }
 // Draw once at once, then keep it moving while the canvas is on the page.
 function startYard() {
   const cv = document.getElementById('yard');
   if (!cv) return;
-  drawYard(cv, performance.now() / 1000);
+  drawScene(cv, performance.now() / 1000);
   if (!yardRaf) yardRaf = requestAnimationFrame(yardFrame);
 }
 // What was clicked: a fighter (nearest the front wins) or a building.

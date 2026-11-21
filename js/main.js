@@ -351,6 +351,7 @@ const okBtn = (label) => `<div class="row"><button class="primary" data-act="clo
 
 function render() {
   hideTip();
+  { const y = $('#yard'); if (y) { if (!y.dataset.home) y.dataset.home = y.dataset.tip; y.dataset.tip = ui.tab !== 'ludus' && PLACE_TIPS[ui.tab] ? PLACE_TIPS[ui.tab] : y.dataset.home; } }      // the picture's tooltip follows the picture
   if (G) SFX.mood({ tense: G.denarii < 0, festive: isGamesDay() });       // the yard's tune darkens in debt, and gains a drum on games days
   renderTop(); renderTabs(); renderView(); paintPortraits();
   // a browser may briefly pair a cached page with newer scripts; never let a missing yard stop the game
