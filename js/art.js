@@ -88,6 +88,62 @@ function drawItemArt(ctx, slot, r, cls) {
     }
     R(6, 3, 4, 3, ink); R(7, 4, 2, 1, M.t);
   }
+  // ---- what its grade has done to it: rust and damage at the bottom, rivets and polish in the middle, gold and gems at the top ----
+  const P = (pts, c) => { for (const [x, y] of pts) R(x, y, 1, 1, c); };
+  const rust = '#a0522d', pit = '#3a1c10', gold = '#e8b545', goldL = '#fbe08a', gem = r === 6 ? '#b77be8' : '#d8402e', gemL = r === 6 ? '#f0e0ff' : '#ff9a8a';
+  const long = slot === 'weapon' && ['spear', 'trident'].includes(WEAPON_NAMES[cls]), twin = slot === 'weapon' && WEAPON_NAMES[cls] === 'twin blades';
+  if (slot === 'weapon') {
+    if (long) {
+      if (r <= 1) { P([[11, 4], [12, 2]], rust); if (r === 0) P([[12, 4], [4, 11]], pit); }
+      if (r >= 2) P([[9, 6], [10, 6]], M.t);                                     // a binding under the head
+      if (r >= 3) P([[5, 10], [7, 8]], M.d);                                     // iron bands on the shaft
+      if (r >= 4) P([[12, 3]], '#ffffff');
+      if (r >= 5) { P([[9, 6], [10, 6], [9, 7]], gold); P([[8, 8], [7, 9]], '#c23b2e'); P([[2, 14], [3, 14]], gold); }      // gilt, a tassel, a shod butt
+      if (r === 6) P([[11, 5]], gem);
+    } else if (twin) {
+      if (r <= 1) { P([[6, 9], [9, 9]], rust); if (r === 0) P([[8, 7], [7, 7], [10, 5]], pit); }
+      if (r >= 3) P([[6, 10], [9, 10]], M.d);
+      if (r >= 4) P([[10, 4], [5, 4]], '#ffffff');
+      if (r >= 5) { P([[2, 12], [4, 12], [11, 12], [13, 12]], gold); P([[3, 13], [12, 13]], gem); }
+      if (r === 6) P([[7, 8], [8, 8]], goldL);
+    } else {
+      if (r <= 1) { P([[7, 8], [10, 5]], rust); if (r === 0) P([[8, 8], [11, 5], [9, 5]], pit); }      // rust, and a notch out of the edge
+      if (r >= 3) P([[6, 10], [8, 8], [10, 6]], M.d);                             // a fuller down the blade
+      if (r >= 4) P([[7, 8], [9, 6], [11, 4]], '#ffffff');                        // polished
+      if (r >= 5) { R(2, 9, 5, 1, gold); R(3, 9, 2, 1, goldL); P([[1, 13], [2, 14]], gold); P([[1, 14]], gem); }      // a gilt guard, a jewelled pommel
+      if (r === 6) P([[6, 9], [8, 7], [10, 5]], goldL);                           // gold let into the steel
+    }
+  } else if (slot === 'head') {
+    if (r <= 1) { P([[6, 6], [10, 5], [5, 11]], rust); R(5, 1, 6, 1, ink); R(6, 2, 4, 1, M.d); if (r === 0) P([[9, 7], [10, 12], [7, 5]], pit); }      // rusted, its crest long gone
+    if (r >= 3) P([[4, 9], [7, 9], [11, 9]], M.d);                                // rivets along the brim
+    if (r >= 4) { R(6, 0, 4, 1, M.t); R(7, 0, 2, 1, shade(M.t, 1.3)); P([[10, 5]], '#ffffff'); }      // a full crest
+    if (r >= 5) { R(4, 7, 8, 1, gold); R(5, 7, 2, 1, goldL); P([[4, 11], [11, 11]], gold); }           // a band of gold round the bowl
+    if (r === 6) { P([[7, 6], [8, 6]], gem); P([[7, 5]], gemL); P([[5, 6], [10, 6]], '#8fc35a'); }     // a jewel at the brow, between laurel
+  } else if (slot === 'chest') {
+    if (r <= 1) { P([[5, 8], [10, 9], [6, 12]], rust); if (r === 0) { P([[9, 6], [10, 7], [10, 8]], ink); P([[4, 9], [8, 12]], pit); } else R(9, 8, 2, 2, '#6b4526'); }      // rust and a crack; or a leather patch
+    if (r >= 3) P([[4, 6], [11, 6], [4, 9], [11, 9], [5, 12], [10, 12]], M.d);    // rivets
+    if (r >= 5) { R(4, 13, 8, 1, gold); R(7, 8, 2, 2, gold); P([[7, 8]], goldL); P([[3, 2], [12, 2]], gold); }      // a gilt hem, and a boss on the breast
+    if (r === 6) { P([[5, 7], [6, 8], [9, 8], [10, 7]], gold); P([[7, 9], [8, 9]], gem); P([[8, 8]], gemL); }       // an eagle's wings round it, and a jewel
+  } else if (slot === 'legs') {
+    for (const x of [2, 9]) {
+      if (r <= 1) { P([[x + 2, 5], [x + 1, 10]], rust); if (r === 0) P([[x + 3, 8], [x + 2, 11]], pit); }
+      if (r >= 3) P([[x + 2, 4]], M.l);                                           // a boss at the knee
+      if (r >= 5) { R(x + 1, 2, 3, 1, gold); R(x + 1, 7, 3, 1, gold); P([[x + 2, 4]], goldL); }
+      if (r === 6) P([[x + 2, 9]], gem);
+    }
+  } else if (slot === 'arms') {
+    if (r <= 1) { P([[4, 8], [10, 7]], rust); if (r === 0) P([[7, 9], [3, 6], [12, 10]], pit); }
+    if (r >= 3) for (let i = 0; i < 4; i++) P([[3 + i * 3, 8]], M.d);             // a rivet in every plate
+    if (r >= 5) { R(3, 5, 11, 1, gold); R(3, 11, 11, 1, gold); P([[4, 5], [8, 5]], goldL); }
+    if (r === 6) P([[6, 8], [9, 8]], gem);
+  } else {
+    for (const x of [1, 9]) {
+      if (r <= 1) { P([[x + 2, 6], [x + 3, 10]], rust); if (r === 0) P([[x + 1, 9], [x + 4, 7]], pit); }
+      if (r >= 3) P([[x + 1, 9], [x + 4, 9], [x + 1, 11], [x + 4, 11]], M.l);     // rivets
+      if (r >= 5) { R(x + 1, 5, 4, 1, gold); R(x + 1, 12, 4, 1, gold); }
+      if (r === 6) { R(x + 2, 6, 2, 2, gold); P([[x + 2, 6]], gem); }             // a lion's mask on each
+    }
+  }
   if (r === 6) { R(1, 1, 1, 1, '#ffffff'); R(14, 3, 1, 1, '#ffffff'); R(13, 13, 1, 1, '#fbe08a'); R(2, 12, 1, 1, '#fbe08a'); }   // an imperial piece glints
 }
 
@@ -99,6 +155,12 @@ function paintItem(cv) {
   ctx.fillStyle = '#17110f'; ctx.fillRect(1, 1, 18, 18);
   ctx.fillStyle = '#2c211c'; ctx.fillRect(2, 2, 16, 16);
   ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fillRect(2, 2, 16, 8);
+  if (+r >= 3) {                                 // a glow behind the better pieces, in the colour of their grade
+    const c = RARITY_COL[+r], n = parseInt(c.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(${rgb},${(0.05 + (+r - 3) * 0.015).toFixed(3)})`; ctx.fillRect(4 + i, 4 + i, 12 - i * 2, 12 - i * 2); }
+  }
+  if (+r >= 5) { ctx.fillStyle = '#fff6d8'; for (const [x, y] of [[0, 0], [19, 0], [0, 19], [19, 19]]) ctx.fillRect(x, y, 1, 1); ctx.fillStyle = shade(RARITY_COL[+r], 1.3); ctx.fillRect(1, 0, 3, 1); ctx.fillRect(0, 1, 1, 3); ctx.fillRect(16, 19, 3, 1); ctx.fillRect(19, 16, 1, 3); }
+  if (+r === 0) { ctx.fillStyle = 'rgba(160,82,45,.10)'; ctx.fillRect(2, 12, 16, 6); }      // and the worst sit in their own rust
   ctx.translate(2, 2);
   drawItemArt(ctx, slot, +r, cls);
 }
