@@ -226,18 +226,19 @@ function wildPacks() {
 // A day passes in the country. `how`: 'march' (a place visited: everyone is the wearier for it) or 'camp' (rest).
 // ---------- the day's march ----------
 const MARCH_DAY = 450;       // how far the column goes in a day over open ground, in map units
+const marchDay = () => MARCH_DAY * (1 + 0.12 * facLvl('stables'));      // further with mules and a wagon
 // What a stretch of walking costs, in open-ground units: roads are quicker, rough ground slower.
 const marchCost = (x0, y0, x1, y1) => Math.hypot(x1 - x0, y1 - y0) / wildPace((x0 + x1) / 2, (y0 + y1) / 2);
 function pathCost(x, y, path) { let c = 0; for (const p of path) { c += marchCost(x, y, p.x, p.y); x = p.x; y = p.y; } return c; }
 // How many nights will pass on the way, given what is left of today's march.
-function marchDays(cost) { const left = MARCH_DAY - ((G.field && G.field.march) || 0); return cost <= left ? 0 : Math.ceil((cost - left) / MARCH_DAY); }
+function marchDays(cost) { const left = marchDay() - ((G.field && G.field.march) || 0); return cost <= left ? 0 : Math.ceil((cost - left) / marchDay()); }
 // The column has walked d units over ground of this pace. True when that ended the day: night falls, and a day passes.
 function wildMarched(d, pace) {
   const F = G.field;
   if (!F) return false;
   F.march = (F.march || 0) + d / (pace || 1);
-  if (F.march < MARCH_DAY) return false;
-  F.march -= MARCH_DAY;
+  if (F.march < marchDay()) return false;
+  F.march -= marchDay();
   fieldDay('march');
   return true;
 }
@@ -254,7 +255,7 @@ function wildDayFor(g) {
   if (g.injury > 0) { g.injury -= 1; if (g.injury <= 0) { g.injury = 0; log(`${g.name} is fit to fight again.`); } }
   if (camp) { g.fatigue -= 24; g.hp += mh * (0.14 + 0.04 * staffLvl('cook')); g.morale += 1; }
   else { g.fatigue += 11 - statSum(g) * 0.06; g.hp += mh * 0.04; }
-  const target = Math.min(100, RATIONS[G.ration].morale + 5 * staffLvl('cook') + G.patrons.temple / 10 - 6);
+  const target = Math.min(100, moraleBase(G.ration) - 6);
   g.morale += clamp(target - g.morale, -3, 3);
   g.fatigue = clamp(g.fatigue, 0, 100);
   g.morale = clamp(g.morale, g.traits.includes('atpeace') ? 60 : g.traits.includes('steady') ? 50 : 0, 100);

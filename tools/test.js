@@ -120,7 +120,7 @@ test('new game starts in a sane state', () => game()(function () {
     newGame();
     assert(G.roster.length === 2 && G.roster[0].name !== G.roster[1].name, 'two starters with different names');
     assert(G.houses.length === 5 && G.houses.every(h => h.roster.length >= 3), 'five rival houses with fighters');
-    assert(G.market.length === 4 && G.hires.length === 3, 'market and hiring hall stocked');
+    assert(G.market.length === 4 && G.hires.length === 4, 'market and hiring hall stocked');
     assert(G.festival.day === 15 && G.festival.type === 'hunt', 'first festival is a hunt on day 15');
     assert(G.denarii === 250 && G.day === 1 && !badNumber(G), 'starting numbers');
   }
@@ -214,6 +214,36 @@ test('patrons: petitions spend favour, requests are asked and settled', () => ga
   genRequest();
   assert(G.patrons.guild === f0 - 4, 'a request left undone costs favour');
   assert(!badNumber(G), 'patrons left a bad number');
+}));
+
+test('household: new buildings, new posts and the regimen each do what they say', () => game()(function () {
+  newGame();
+  assert(Object.keys(FACILITIES).length === 7 && Object.keys(FACILITIES).every(k => G.fac[k] === 0 || k === 'barracks' || k === 'ground') && Object.keys(STAFF_ROLES).length === 7, 'seven buildings and seven posts');
+  const g = G.roster[0];
+  // the granary and the dispensator make the house cheaper to run
+  const f0 = foodCost(); G.fac.stores = 2; assert(foodCost() < f0 && foodCost() === Math.round(f0 * 0.8), 'the granary cuts the cost of food');
+  G.staff.cook = { name: 'X', skill: 2, wage: 5 }; const u0 = upkeep(); G.staff.dispensator = { name: 'Y', skill: 3, wage: 0 };
+  assert(thrift() > 0 && upkeep() === u0 - thrift(), 'the dispensator saves on food and wages');
+  // the shrine: spirits and mercy
+  const m0 = moraleBase(1), c0 = mercyBonus(); G.fac.shrine = 3; assert(moraleBase(1) === m0 + 9 && Math.abs(mercyBonus() - c0 - 0.06) < 1e-9, 'the shrine lifts morale and mercy');
+  // the regimen: learning, weariness and spirits
+  g.fatigue = 0; g.morale = 60; const r1 = trainRate(g), t1 = trainTire(g, false), b1 = moraleBase(1);
+  G.regimen = 2; assert(trainRate(g) > r1 * 1.15 && trainTire(g, false) > t1 * 1.25 && moraleBase(1) === b1 - 5, 'a hard regimen teaches faster, tires more and sours the men');
+  G.regimen = 0; assert(trainRate(g) < r1 && trainTire(g, false) < t1 && moraleBase(1) === b1 + 3, 'a light one the reverse');
+  G.regimen = 1;
+  // the unctor: rest and drill
+  const rest0 = restGain(g)[1]; G.staff.unctor = { name: 'U', skill: 2, wage: 5 };
+  assert(restGain(g)[1] === rest0 + 10 && Math.abs(trainTire(g, false) - t1 * 0.88) < 1e-9, 'the unctor eases rest and drill');
+  // the armourer: only worn kit, and only your own men's
+  g.gear.weapon = makeItem('weapon', 2, g.cls); g.gear.chest = makeItem('chest', 2); const s0 = gearStats(g);
+  G.staff.faber = { name: 'F', skill: 2, wage: 5 }; const s1 = gearStats(g), foe = G.houses[0].roster[0], e0 = gearStats(foe).dmg;
+  assert(Math.abs(s1.dmg - s0.dmg - 0.6) < 1e-9 && Math.abs(s1.armor - s0.armor - 0.5) < 1e-9 && gearStats(foe).dmg === e0, 'the armourer betters your kit and nobody else\'s');
+  // stables: a longer day's march
+  G.fac.stables = 0; const d0 = marchDay(); G.fac.stables = 2; assert(Math.abs(marchDay() - d0 * 1.24) < 1e-9, 'mules lengthen the march');
+  // four faces in the hall; an old save gains the new buildings
+  genHires(); assert(G.hires.length === 4, 'four in the hiring hall');
+  delete G.fac.shrine; delete G.regimen; migrate(); assert(G.fac.shrine === 0 && G.regimen === 1, 'an older save is brought up to date');
+  endDay(); assert(G.purseLog && G.purseLog.length === 1 && !badNumber(G), 'the purse is written down each day');
 }));
 
 test('every event and every choice runs', () => game()(function () {

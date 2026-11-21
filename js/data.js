@@ -127,7 +127,16 @@ const FACILITIES = {
   ground:    { name: 'Training ground', desc: 'Posts, weights and a doctore to shout at them.', effect: l => l ? `Every man trains ${20 * l}% faster` : 'Bare sand: no help to training' },
   infirmary: { name: 'Infirmary',       desc: 'A medicus, clean linen, sour wine.', effect: l => l ? `A day's rest restores ${22 + 8 * l}% of health, wounds mend sooner, the fallen are ${4 * l}% likelier to live` : `A day's rest restores 22% of health` },
   baths:     { name: 'Baths',           desc: 'Hot water does what the whip cannot.', effect: l => `A day's rest sheds ${30 + 8 * l} fatigue and lifts morale by ${2 + 2 * l}` },
+  shrine:    { name: 'Household shrine', desc: 'A niche for the gods of the house, and for Nemesis.', effect: l => l ? `Morale settles ${3 * l} higher, and the fallen are ${2 * l}% likelier to live` : 'No shrine: the men pray where they can' },
+  stores:    { name: 'Granary & garden', desc: 'Dry storage, a kitchen garden, a pig.', effect: l => l ? `Food costs ${10 * l}% less` : 'Everything is bought at the gate, at the gate\'s price' },
+  stables:   { name: 'Stables & carts', desc: 'Mules, a wagon, and a boy who knows the roads.', effect: l => l ? `In the province the column goes ${12 * l}% further in a day` : 'The school marches on its own feet' },
 };
+// How hard the men are worked. rate: how fast they learn. tire: what a day's drill costs them. morale: where spirits settle.
+const REGIMENS = [
+  { name: 'Light',  rate: 0.85, tire: 0.7, morale: 3,  what: 'Short days and long meals.' },
+  { name: 'Steady', rate: 1,    tire: 1,   morale: 0,  what: 'The usual round.' },
+  { name: 'Hard',   rate: 1.18, tire: 1.3, morale: -5, what: 'Dawn to dark, and the whip for stragglers.' },
+];
 const FAC_COST = [150, 400, 900];
 
 const RATIONS = [
@@ -167,6 +176,9 @@ const STAFF_ROLES = {
   medicus: { name: 'Medicus', desc: s => `Injuries often mend a day sooner (${15 * s}% each day). The fallen are ${3 * s}% likelier to live.` },
   cook:    { name: 'Cook',    desc: s => `Morale settles ${5 * s} higher. A day's rest restores ${4 * s}% more health.` },
   scout:   { name: 'Scout',   desc: s => `Reveals a recruit's talent before you buy${s >= 2 ? ', finds an extra recruit' : ''}${s >= 3 ? ', haggles prices down 10%' : ''}.` },
+  unctor:  { name: 'Unctor',  desc: s => `A day's rest sheds ${5 * s} more fatigue. Training tires ${6 * s}% less.` },
+  dispensator: { name: 'Dispensator', desc: s => `Keeps the books: food and wages cost ${6 * s}% less.` },
+  faber:   { name: 'Armourer', desc: s => `Blades he keeps do ${(0.3 * s).toFixed(1)} more damage, and armour takes ${(0.25 * s).toFixed(2)} more off a blow.` },
 };
 const STAFF_GRADES = ['', 'Journeyman', 'Seasoned', 'Master'];
 const STAFF_NAMES = ['Sabinus', 'Rufus', 'Felix', 'Priscus', 'Macer', 'Celer', 'Dama', 'Hermes', 'Eros', 'Niger', 'Philo', 'Syrus', 'Glaucus', 'Stichus', 'Onesimus', 'Tertius'];

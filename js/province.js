@@ -288,7 +288,7 @@ const wayTo = (x, y) => { const F = G.field, d = Math.hypot(x - F.x, y - F.y), n
 // ---------- the hour, out in the country ----------
 // Out here the day is as long as the day's march: dawn when the column sets out fresh, dusk as the march runs out,
 // night when it is spent. dayPart is 0 at dawn and 1 at nightfall.
-const dayPart = () => clamp(((G.field && G.field.march) || 0) / MARCH_DAY, 0, 1);
+const dayPart = () => clamp(((G.field && G.field.march) || 0) / marchDay(), 0, 1);
 const HOURS = [[0.1, 'DAWN'], [0.38, 'MORNING'], [0.6, 'MIDDAY'], [0.86, 'AFTERNOON'], [2, 'DUSK']];
 const hourWord = () => HOURS.find(h => dayPart() < h[0])[1];
 // The light for that hour, from the same sky as the yard's (its day runs dawn to dusk over the first 0.7 of its clock).

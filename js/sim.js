@@ -165,10 +165,14 @@ function canFight(g) { return g.injury <= 0 && !g.away && g.foughtDay !== G.day;
 // ---------- staff, patrons, ranks ----------
 
 function staffLvl(role) { return G.staff[role] ? G.staff[role].skill : 0; }
+const facLvl = k => (G.fac && G.fac[k]) || 0;
+const regimen = () => REGIMENS[G.regimen === undefined ? 1 : G.regimen] || REGIMENS[1];
+// Where morale settles on a given ration: the cook, the Temple, the shrine and how hard the men are worked all count.
+const moraleBase = i => RATIONS[i].morale + 5 * staffLvl('cook') + G.patrons.temple / 10 + 3 * facLvl('shrine') + regimen().morale;
 function wages() { return Object.values(G.staff).reduce((s, x) => s + x.wage, 0); }
 function stipend() { return Math.round(G.patrons.guild / 10 * (1 + tier())); }
 function favor(k, d) { G.patrons[k] = clamp(G.patrons[k] + d, 0, 100); }
-function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + G.patrons.temple * 0.001 - (G.rigged && G.rigged >= G.day ? 0.15 : 0) + (G.blessed && G.blessed >= G.day ? 0.1 : 0); }
+function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + 0.02 * facLvl('shrine') + G.patrons.temple * 0.001 - (G.rigged && G.rigged >= G.day ? 0.15 : 0) + (G.blessed && G.blessed >= G.day ? 0.1 : 0); }
 // ---- what may be asked of a patron, and what a patron may ask of you ----
 // A petition spends favour for something now. One may be put to each patron between one games and the next, and only
 // by a house he knows well enough to listen to.
@@ -246,7 +250,7 @@ function giftCost(k) { return Math.round((40 + 25 * G.gifts[k]) * (1 + tier() * 
 
 function genHires() {
   const maxS = clamp(1 + tier(), 1, 3);
-  const roles = Object.keys(STAFF_ROLES).sort(() => Math.random() - 0.5).slice(0, 3);
+  const roles = Object.keys(STAFF_ROLES).sort(() => Math.random() - 0.5).slice(0, 4);
   G.hires = roles.map(role => {
     const skill = rint(1, maxS);
     return { id: ++G.nextId, role, skill, name: pick(STAFF_NAMES), fee: 40 * skill * skill + rint(0, 4) * 5, wage: 1 + 2 * skill };
@@ -288,6 +292,8 @@ function fixSkills(g) {
 // bring a save from an earlier version up to date
 function migrate() {
   G.staff = G.staff || {};
+  for (const k in FACILITIES) if (G.fac[k] === undefined) G.fac[k] = 0;      // buildings added since this save was made
+  if (G.regimen === undefined) G.regimen = 1;
   G.hires = G.hires || [];
   G.patrons = G.patrons || { magistrate: 20, guild: 10, temple: 10 };
   G.gifts = G.gifts || { magistrate: 0, guild: 0, temple: 0 };
@@ -359,8 +365,10 @@ function tier() {
 function capacity() { return 3 + 2 * G.fac.barracks; }
 function isGamesDay() { return G.day % GAMES_EVERY === 0; }
 function daysToGames() { return isGamesDay() ? 0 : GAMES_EVERY - (G.day % GAMES_EVERY); }
-function foodCost() { return G.grainUntil && G.grainUntil > G.day ? 0 : G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)); }
-function upkeep() { return foodCost() + wages(); }
+function foodCost() { return G.grainUntil && G.grainUntil > G.day ? 0 : Math.round(G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)) * (1 - 0.1 * facLvl('stores'))); }
+// What the dispensator saves on the day's outgoings.
+function thrift() { return Math.round((foodCost() + wages()) * 0.06 * staffLvl('dispensator')); }
+function upkeep() { return foodCost() + wages() - thrift(); }
 
 // ---------- the dynasty: ruin, heirs and what the family keeps ----------
 
@@ -384,7 +392,7 @@ function newGame(dynasty, carried) {
   G = {
     v: 1, day: 1, denarii: 250 + 50 * lv('purse'), fame: 25 * lv('name'), nextId: 0, debtDays: 0,
     roster: [], market: [], bouts: null, log: [],
-    fac: { barracks: lv('cells'), ground: lv('yard'), infirmary: 0, baths: 0 },
+    fac: { barracks: lv('cells'), ground: lv('yard'), infirmary: 0, baths: 0, shrine: 0, stores: 0, stables: 0 }, regimen: 1,
     ration: 1, pendingEvent: null, won: false, over: false, fallen: [],
     staff: {}, hires: [], autoRest: true, fix: null, tourney: null, festival: null, tut: { step: 0, on: false }, bonds: [],
     armoury: [], smith: { level: lv('forge'), stock: [] }, contracts: [], jobs: [], reports: [], eventQueue: [],
@@ -722,6 +730,7 @@ function gearStats(g) {
     s.dmg += z.dmg; s.armor += z.armor; s.dodge += z.dodge; s.block += z.block; s.speed += z.speed;
     s.stunRes += z.stunRes; s.critRes += z.critRes; s.bleedRes += z.bleedRes; s.hamRes += z.hamRes; s.armRes += z.armRes;
   }
+  { const fb = staffLvl('faber'); if (fb && G.roster.includes(g)) { if (g.gear.weapon) s.dmg += 0.3 * fb; if (ARMOR_SLOTS.some(a => g.gear[a])) s.armor += 0.25 * fb; } }      // the armourer keeps what your men wear
   return s;
 }
 function gearPower(g) { const s = gearStats(g); return 1 + 0.07 * (s.dmg / 2) + 0.07 * (s.armor / 1.5); }
@@ -1152,12 +1161,12 @@ function trainRate(g) {
   if (g.traits.includes('eaglesworn')) m *= 1.05;
   m *= 1 + 0.05 * (masters - (g.traits.includes('drillmaster') ? 1 : 0));
   if (bondsOf(g).some(b => b.type === 'rival')) m *= 1.1;      // nothing drives a man like someone to outdo
-  return m * (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
+  return m * regimen().rate * (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
 }
 // What a day's drilling costs him in fatigue.
-function trainTire(g, spar) { return (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1); }
+function trainTire(g, spar) { return (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1) * regimen().tire * (1 - 0.06 * staffLvl('unctor')); }
 // What a day's rest gives back: [health, fatigue shed].
-function restGain(g) { return [maxHp(g) * (0.22 + 0.08 * G.fac.infirmary + 0.04 * staffLvl('cook')), 30 + 8 * G.fac.baths]; }
+function restGain(g) { return [maxHp(g) * (0.22 + 0.08 * G.fac.infirmary + 0.04 * staffLvl('cook')), 30 + 8 * G.fac.baths + 5 * staffLvl('unctor')]; }
 
 function endDay() {
   const F = G.fac;
@@ -1191,7 +1200,7 @@ function endDay() {
         log(`${g.name}, worked past exhaustion, tears a muscle. Out for ${g.injury} day${g.injury === 1 ? "" : "s"}.`, 'bad');
       }
     }
-    const target = Math.min(100, RATIONS[G.ration].morale + 5 * staffLvl('cook') + G.patrons.temple / 10);
+    const target = Math.min(100, moraleBase(G.ration));
     g.morale += clamp(target - g.morale, -3, 3);
     g.fatigue = clamp(g.fatigue, 0, 100);
     g.morale = clamp(g.morale, g.traits.includes('atpeace') ? 60 : g.traits.includes('steady') ? 50 : 0, 100);
@@ -1199,6 +1208,7 @@ function endDay() {
   }
 
   G.denarii += stipend() - upkeep();
+  (G.purseLog = G.purseLog || []).push(G.denarii); if (G.purseLog.length > 30) G.purseLog.shift();      // the purse, day by day, for the ledger
   if (G.denarii < 0) {
     G.debtDays++;
     G.roster.forEach(g => { g.morale = clamp(g.morale - 5, 0, 100); });
