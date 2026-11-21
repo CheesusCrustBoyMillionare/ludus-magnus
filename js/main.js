@@ -424,7 +424,7 @@ function helpModal() {
     town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every games day.')
       + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
       + sec('The school', 'At the <b>Ludus</b>, the button <b>The school</b> shows its own buildings: barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. The regimen is set there too.')
-      + sec('Household', 'Staff are hired by the day. Rations trade coin for morale. The shrine, the granary and the stables are built here.')
+      + sec('Household', 'Staff are hired by the day. Rations trade coin for morale, and the granary makes them cheaper. Other buildings stand where they are used: the shrine with the <b>Patrons</b>, the stables with the <b>Contracts</b>, and the armourer is hired at the <b>Blacksmith</b>.')
       + sec('Patrons', 'The <b>Magistrate</b> fattens purses and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts and the right choices win favour.')
       + sec('Rival houses', 'Killing their men, or losing yours to them, deepens a feud. At open feud a house calls you out: answer the grudge match and it cools; refuse and it costs you.')
       + sec('Contracts', 'Work away from the ludus for pay and favour: guard duty, caravans, hunts. A man sent out is gone until he comes home, and some come home changed.')
@@ -840,7 +840,7 @@ function viewContracts() {
         <span${tip('The board is cleared and filled again every games day.')}>new offers ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
         ${asked ? `<span class="gold"${tip('asked')}>${PATRONS[asked.patron].name} asks for you by name</span>` : ''}
         <span${tip(`What the town thinks of your house's work away from the sand: ${Math.round(workRep())} of 100. Good service raises it; failures and men called home lower it. It adds ${Math.round((workPay(workRep()) - 1) * 100)}% to what every contract pays. At Reliable (35) the board carries one more offer, and at First choice (85) another.`)}>name for work <b class="${workRep() >= 35 ? 'gold' : ''}">${workWord(workRep())}</b>${workRep() >= 1 ? ` <small class="num">+${Math.round((workPay(workRep()) - 1) * 100)}% pay</small>` : ''}</span></div>
-        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`A few coins in the right taverns turn up one more piece of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}</div>
+        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`A few coins in the right taverns turn up one more piece of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}${facButton('stables')}</div>
       <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
@@ -1099,6 +1099,23 @@ function facTile(k) {
       <small>${f.effect(l)}.</small>
       ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < cost ? 'disabled' : ''}>Improve &mdash; ${cost}</button>` : '<span class="done">Fully built</span>'}</div>`;
 }
+// Buildings that stand somewhere else in town, and the post that goes with the forge.
+const ELSEWHERE_FACS = { shrine: 'Patrons', stables: 'Contracts' }, SMITH_POSTS = ['faber'];
+function facButton(k) {
+  const f = FACILITIES[k], l = G.fac[k] || 0, cost = FAC_COST[l], short = l < 3 && G.denarii < cost;
+  return `<button class="mini facbtn" data-act="build" data-v="${k}" ${l >= 3 || short ? 'disabled' : ''}${tip(`${f.name}: ${f.desc}\nNow: ${f.effect(l)}.${l < 3 ? `\nNext, for ${cost} denarii: ${f.effect(l + 1)}.${short ? `\nYou are ${cost - G.denarii} denarii short.` : ''}` : '\nFully built.'}`)}>${f.name.split(' ')[0]} ${grade(l)}${l < 3 ? ` &mdash; ${cost}` : ''}</button>`;
+}
+// The armourer's post, kept at the forge: who holds it, or who would take it.
+function armourerRow() {
+  const k = 'faber', r = STAFF_ROLES[k], st = G.staff[k], armed = ui.fireArm === k;
+  const offers = G.hires.filter(h => h.role === k).map(h => {
+    const better = st && h.skill > st.skill, worse = st && h.skill < st.skill;
+    return `<button class="mini ${worse ? '' : 'primary'}" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}${tip(`${h.name}, ${STAFF_GRADES[h.skill].toLowerCase()}: ${r.desc(h.skill)}\n${h.fee} denarii now and ${h.wage} a day.${st ? `\n${better ? 'Better' : worse ? 'Worse' : 'No better'} than ${st.name}.` : ''}`)}>${st ? 'Replace with' : 'Hire'} ${h.name} ${grade(h.skill)} &mdash; ${h.fee}</button>`;
+  }).join('');
+  return `<div class="workrow" style="margin-top:4px"><span class="lbl"${tip(`A man of your own at the forge. ${r.desc(1)} A better one does more.`)}>Armourer</span>
+    ${st ? `<span${tip(r.desc(st.skill))}><b>${st.name}</b> ${grade(st.skill)} <small class="dim num">${st.wage ? st.wage + ' a day' : 'no wage'}</small></span><button class="mini ${armed ? 'primary' : ''}" data-act="fire" data-v="${k}"${tip('Dismissing him saves his wage, but the fee you paid is gone and the post stands empty.')}>${armed ? 'Sure?' : 'Dismiss'}</button>` : ''}
+    ${offers || (st ? '' : '<small class="dim">post vacant, and no one is asking for it: new faces come every games day</small>')}</div>`;
+}
 const regimenButtons = () => REGIMENS.map((r, i) => `<button class="ration ${(G.regimen === undefined ? 1 : G.regimen) === i ? 'primary' : ''}" data-act="regimen" data-v="${i}"${tip(`${r.what}\nTraining ${Math.round(r.rate * 100)}% as fast, ${Math.round(r.tire * 100)}% as tiring; morale settles ${r.morale > 0 ? r.morale + ' higher' : r.morale < 0 ? -r.morale + ' lower' : 'where the table puts it'}.`)}><b>${r.name}</b><span>${r.rate === 1 ? 'as usual' : `${r.rate > 1 ? '+' : '&minus;'}${Math.abs(Math.round((r.rate - 1) * 100))}% learning`}</span></button>`).join('');
 // The school's own buildings and how hard the men are worked: the other face of the Ludus screen.
 function schoolPanel() {
@@ -1111,13 +1128,13 @@ function schoolPanel() {
       <span class="${hurt ? 'bad' : ''}"><b class="num">${hurt}</b> injured</span></div></div>
     <div class="pane" data-pane="school"><div class="htiles">${SCHOOL_FACS.map(facTile).join('')}</div>
       <h2${tip('How hard the men are worked: it sets how fast they learn, how tired a day\'s drill leaves them, and where their spirits settle.')}>Regimen <small>${here.length} in the yard</small></h2><div class="rations">${regimenButtons()}</div>
-      <div class="panel dim" style="font-size:13px;margin-top:10px">These are the school's own walls: cells, the ground the men drill on, and where they are mended and rested. The house across the way keeps the staff, the table, the shrine, the stores and the stables.</div></div>`;
+      <div class="panel dim" style="font-size:13px;margin-top:10px">These are the school's own walls: cells, the ground the men drill on, and where they are mended and rested. The house across the way keeps the staff, the table and the stores; the shrine is with the Patrons, the stables with the Contracts, and the armourer at the Blacksmith.</div></div>`;
 }
 
 function viewFacilities() {
   const dg = daysToGames(), net = stipend() - upkeep(), fed = G.roster.filter(g => !g.away).length;
   // the household: a tile to each post, filled or vacant
-  const staff = Object.entries(STAFF_ROLES).map(([k, r]) => {
+  const staff = Object.entries(STAFF_ROLES).filter(([k]) => !SMITH_POSTS.includes(k)).map(([k, r]) => {
     const st = G.staff[k], armed = ui.fireArm === k, offers = G.hires.filter(h => h.role === k).length;
     return st
       ? `<div class="htile"${tip(r.desc(st.skill))}><div class="hh"><b>${r.name}</b>${grade(st.skill)}<span class="end num dim">${st.wage ? st.wage + ' a day' : 'no wage'}</span></div>
@@ -1126,14 +1143,15 @@ function viewFacilities() {
       : `<div class="htile vacant"${tip(`A journeyman would give: ${r.desc(1)}`)}><div class="hh"><b>${r.name}</b><span class="end ${offers ? 'gold' : 'dim'}">${offers ? 'one in the hall' : 'post vacant'}</span></div>
           <small>${r.desc(1)}</small></div>`;
   }).join('');
-  const hall = G.hires.map(h => {
+  const hallMen = G.hires.filter(h => !SMITH_POSTS.includes(h.role));
+  const hall = hallMen.map(h => {
     const cur = G.staff[h.role], better = cur && h.skill > cur.skill, worse = cur && h.skill < cur.skill, dw = cur ? h.wage - cur.wage : h.wage;
     const note = cur ? `${better ? 'Better' : worse ? 'Worse' : 'No better'} than ${cur.name}, your ${STAFF_GRADES[cur.skill].toLowerCase()}; wages ${dw > 0 ? 'rise by ' + dw : dw < 0 ? 'fall by ' + -dw : 'stay the same'}.` : 'Fills an empty post.';
     return `<div class="htile hire"${tip(`${STAFF_ROLES[h.role].desc(h.skill)}\n${note}`)}><div class="hh"><b>${STAFF_ROLES[h.role].name}</b>${grade(h.skill)}<span class="end num dim">${h.wage} a day</span></div>
       <small>${h.name}. <span class="${cur ? (better ? 'good' : worse ? 'bad' : '') : 'good'}">${note}</span></small>
       <button class="mini ${worse ? '' : 'primary'}" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}>${cur ? 'Replace' : 'Hire'} &mdash; ${h.fee}</button></div>`;
   }).join('') || '<div class="listnote">No one is looking for work.</div>';
-  const fac = Object.keys(FACILITIES).filter(k => !SCHOOL_FACS.includes(k)).map(facTile).join('');
+  const fac = Object.keys(FACILITIES).filter(k => !SCHOOL_FACS.includes(k) && !ELSEWHERE_FACS[k]).map(facTile).join('');
   const avg = fed ? Math.round(G.roster.filter(g => !g.away).reduce((n, g) => n + g.morale, 0) / fed) : 0;
   const rations = RATIONS.map((r, i) => {
     const each = Math.max(1, r.cost - (boon('grain') ? 1 : 0)), on = G.ration === i;
@@ -1148,8 +1166,8 @@ function viewFacilities() {
         ${last >= 0 ? `<span class="${last < dg ? 'bad' : ''}"${tip('How long the purse lasts at this rate if nothing comes in. Purses, wagers and contracts are what fill it.')}>purse lasts <b class="num">${last}</b> day${last === 1 ? '' : 's'}</span>` : ''}
         <span${tip('The hiring hall changes its faces every games day.')}>new faces ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span></div></div>
       <div class="pane" data-pane="staff"><div class="htiles">${staff}</div>
-      <h2>Hiring hall <small>${G.hires.length} looking for a place</small></h2><div class="htiles">${hall}</div></div></div>
-    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen.')}>the school's own buildings are at the Ludus</small></h2><div class="pane" data-pane="fac"><div class="htiles">${fac}</div>
+      <h2>Hiring hall <small>${hallMen.length} looking for a place${hallMen.length < G.hires.length ? ' &middot; an armourer is asking at the Blacksmith' : ''}</small></h2><div class="htiles">${hall}</div></div></div>
+    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen. The shrine is with the Patrons, the stables with the Contracts, and the armourer at the Blacksmith.')}>the rest stands where it is used</small></h2><div class="pane" data-pane="fac"><div class="htiles solo">${fac}</div>
       <h2${tip('rations')}>Rations <small>${fed} at table &middot; morale ${avg}</small></h2><div class="rations">${rations}</div>
       ${ledger()}</div></div>
   </div>`;
@@ -1257,7 +1275,8 @@ function viewPatrons() {
       <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
       <span class="good"${tip('What the Guild pays you every day, set by their favour and your standing.')}>stipend <b class="num">+${stipend()}</b> a day</span>
       <span${tip('favour')}>favour fades by one ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
-      ${G.fix ? `<span class="bad"><b>You have agreed to lose your next bout for ${G.fix.pay} denarii.</b> Win it and the Guild will not forgive you.</span>` : ''}</div></div>
+      ${G.fix ? `<span class="bad"><b>You have agreed to lose your next bout for ${G.fix.pay} denarii.</b> Win it and the Guild will not forgive you.</span>` : ''}</div>
+      ${facButton('shrine')}</div>
     <div class="preqs ${patronRequest() && patronBoons() ? 'two' : ''}">${patronRequest()}${patronBoons()}</div>
     <div class="pane" data-pane="patrons"><div class="threecol">${cards}</div></div></div></div>`;
 }
@@ -1658,6 +1677,7 @@ function viewSmith() {
         : [...new Set(G.roster.map(g => g.cls))].map(k => `<button class="mini" data-act="smithorder" data-v="weapon" data-w="${k}" ${orderItemBlock('weapon') ? 'disabled' : ''}${tip(`A grade ${RARITY[forgeMax()]} ${WEAPON_NAMES[k]} for ${orderItemCost('weapon')}.`)}>${WEAPON_NAMES[k]}</button>`).join('')
           + ARMOR_SLOTS.map(k => `<button class="mini" data-act="smithorder" data-v="${k}" ${orderItemBlock(k) ? 'disabled' : ''}${tip(`A grade ${RARITY[forgeMax()]} ${SLOT_INFO[k].piece} for ${orderItemCost(k)}.`)}>${SLOT_INFO[k].piece}</button>`).join('')}</div>
     ${outclassed().length ? `<div class="workrow" style="margin-top:4px"><span class="lbl">Racks</span><button class="mini ${ui.clearArm ? 'primary' : ''}" data-act="smithclear"${tip(`Sells the ${outclassed().length} spare piece${outclassed().length === 1 ? '' : 's'} that would better nobody you have and are not the best of their kind on the racks: ${outclassed().map(x => RARITY[x.r] + ' ' + itemName(x)).join(', ')}.`)}>${ui.clearArm ? 'Sure? ' : ''}Sell what no one needs &mdash; ${outclassed().reduce((n, x) => n + Math.round(itemPrice(x) / 2), 0)}</button></div>` : ''}
+    ${armourerRow()}
     </div>`;
   return `<div class="fill even">
     <div><h2>For sale <small>${S.stock.length} piece${S.stock.length === 1 ? '' : 's'}</small></h2>

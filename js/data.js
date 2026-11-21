@@ -127,7 +127,7 @@ const FACILITIES = {
   ground:    { name: 'Training ground', desc: 'Posts, weights and a doctore to shout at them.', effect: l => l ? `Every man trains ${20 * l}% faster` : 'Bare sand: no help to training' },
   infirmary: { name: 'Infirmary',       desc: 'A medicus, clean linen, sour wine.', effect: l => l ? `A day's rest restores ${22 + 8 * l}% of health, wounds mend sooner, the fallen are ${4 * l}% likelier to live` : `A day's rest restores 22% of health` },
   baths:     { name: 'Baths',           desc: 'Hot water does what the whip cannot.', effect: l => `A day's rest sheds ${30 + 8 * l} fatigue and lifts morale by ${2 + 2 * l}` },
-  shrine:    { name: 'Household shrine', desc: 'A niche for the gods of the house, and for Nemesis.', effect: l => l ? `Morale settles ${3 * l} higher, and the fallen are ${2 * l}% likelier to live` : 'No shrine: the men pray where they can' },
+  shrine:    { name: 'Shrine', desc: 'An altar of your own in the Temple precinct, for the gods of the house, and for Nemesis.', effect: l => l ? `Morale settles ${3 * l} higher, and the fallen are ${2 * l}% likelier to live` : 'No shrine: the men pray where they can' },
   stores:    { name: 'Granary & garden', desc: 'Dry storage, a kitchen garden, a pig.', effect: l => l ? `Food costs ${10 * l}% less` : 'Everything is bought at the gate, at the gate\'s price' },
   stables:   { name: 'Stables & carts', desc: 'Mules, a wagon, and a boy who knows the roads.', effect: l => l ? `In the province the column goes ${12 * l}% further in a day` : 'The school marches on its own feet' },
 };
