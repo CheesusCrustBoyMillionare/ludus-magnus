@@ -479,6 +479,7 @@ function stepBattle(B, dt) {
   if (B.pick) { if (out(B.pick) || !B.ask) B.pick = null; else return; }      // stopped, waiting for the player to choose an ability
   if (B.cut) {                                // an ability is being announced: everything waits until the band has crossed
     B.cut.t += dt;
+    if (!B.cut.struck && B.cut.t >= B.cut.ts && B.cutins) { B.cut.struck = true; snd(B, 'hop', 0.7, B.cut.f); }
     if (B.cut.t < B.cut.dur && B.cutins) return;
     const c = B.cut; B.cut = null;
     if (!out(c.f)) castNow(B, c.f, c.ab);
@@ -1017,48 +1018,136 @@ const STYLE_COL = { str: '#e2695c', agi: '#ffd24a', skl: '#8fc0ff' };
 // his likeness close up at one end and the ability's name at the other, and it is gone again in under a second.
 // Drawn on the interface layer (320 by 180). Your side comes in from the left, the other from the right.
 function drawCutIn(ctx, B, T) {
-  const c = B.cut, f = c.f, p = clamp(c.t / c.dur, 0, 1), dir = f.team === 0 ? 1 : -1;
-  const inK = Math.min(1, p / 0.2), e = 1 - (1 - inK) * (1 - inK), outK = p > 0.84 ? (p - 0.84) / 0.16 : 0, o2 = outK * outK;
-  const off = dir * (-(1 - e) * 360 + o2 * 360);                 // where the band is: in from its own side, out the other
-  const top = 52, bot = 124, skew = 14, col = B.col[f.team], colD = B.colD[f.team];
+  // In beats, so that the whole of its time is used: the band slams across, the man draws back while the name of the
+  // thing is struck out a letter at a time, then he lets fly - and the one it is meant for is seen to take it.
+  const c = B.cut, f = c.f, ab = c.ab, t = c.t, d = c.dur, dir = f.team === 0 ? 1 : -1, cl = v => clamp(v, 0, 1);
+  const e = 1 - Math.pow(1 - cl(t / 0.28), 2), o2 = Math.pow(cl((t - (d - 0.4)) / 0.4), 2);
+  const ts = c.ts || d * 0.45, hit = t - ts;                     // when the blow is let go, and how long since
+  const jolt = hit >= 0 && hit < 0.3 ? 1 - hit / 0.3 : 0, slam = t > 0.24 && t < 0.5 ? 1 - (t - 0.24) / 0.26 : 0;
+  const shx = Math.round(Math.sin(t * 95) * (jolt * 3 + slam * 2)), shy = Math.round(Math.cos(t * 75) * (jolt * 2 + slam * 1.5));
+  const off = dir * (-(1 - e) * 360 + o2 * 360) + shx;           // where the band is: in from its own side, out the other
+  const top = 52 + shy, bot = 124 + shy, skew = 14, col = B.col[f.team], colD = B.colD[f.team];
+  const acc = ab.skill ? STYLE_COL[ab.skill] : '#ffd24a', live = Math.min(e, 1 - o2);
+  const tg = f.target && !out(f.target) && f.target.team !== f.team && (ab.fx.mult || ab.fx.net || ab.fx.weak) ? f.target : null;
+  const fig = (g, team, facing, o) => Object.assign({ x: 0, y: 0, facing, g, team, col: B.col[team], colD: B.colD[team], moving: false, walk: 0, clock: T, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 } }, o);
   ctx.save();
-  ctx.fillStyle = `rgba(8,5,2,${(0.55 * Math.min(e, 1 - o2)).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180);
-  // the band, slanted
-  const band = () => { ctx.beginPath(); ctx.moveTo(-30 + off + skew, top); ctx.lineTo(350 + off + skew, top); ctx.lineTo(350 + off - skew, bot); ctx.lineTo(-30 + off - skew, bot); ctx.closePath(); };
+  ctx.fillStyle = `rgba(8,5,2,${(0.6 * live).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180);
+
+  // ---- under the band: what the thing does, in words, and the one it is meant for ----
+  const sa = cl((t - 0.8) / 0.3) * (1 - o2);
+  if (sa > 0 && ab.desc) {
+    ctx.font = '5px Consolas, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    const lines = []; let line = '';
+    for (const w of ab.desc.split(' ')) { if (line && ctx.measureText(line + ' ' + w).width > 176) { lines.push(line); line = w; } else line = line ? line + ' ' + w : w; }
+    if (line) lines.push(line);
+    const sw = 190, sh = lines.length * 7 + 6, sx = dir > 0 ? 16 : 320 - 16 - sw, sy = bot + 2 - (1 - sa) * (sh + 2);
+    ctx.globalAlpha = sa;
+    ctx.fillStyle = 'rgba(14,8,4,.92)'; ctx.fillRect(sx, sy, sw, sh); ctx.fillStyle = acc; ctx.fillRect(dir > 0 ? sx : sx + sw - 2, sy, 2, sh); ctx.fillStyle = '#e0aa3e'; ctx.fillRect(sx, sy + sh - 0.5, sw, 0.5);
+    ctx.fillStyle = '#f1e6c8'; lines.forEach((ln, i) => ctx.fillText(ln, sx + 7, sy + 8.5 + i * 7));
+    ctx.globalAlpha = 1;
+  }
+  const ta = cl((t - 0.65) / 0.3) * (1 - o2);
+  if (tg && ta > 0) {
+    const pw = 64, ph = 40, px0 = (dir > 0 ? 320 - 20 - pw : 20) + dir * (1 - ta) * 90 + (jolt > 0 ? Math.round(Math.sin(t * 110) * jolt * 3) : 0), py0 = bot + 5;
+    ctx.save(); ctx.globalAlpha = ta;
+    ctx.fillStyle = B.colD[tg.team]; ctx.fillRect(px0, py0, pw, ph);
+    const g2 = ctx.createLinearGradient(0, py0, 0, py0 + ph); g2.addColorStop(0, 'rgba(255,255,255,.14)'); g2.addColorStop(1, 'rgba(0,0,0,.4)'); ctx.fillStyle = g2; ctx.fillRect(px0, py0, pw, ph);
+    ctx.beginPath(); ctx.rect(px0, py0, pw, ph); ctx.clip();
+    ctx.save(); ctx.translate(Math.round(px0 + pw / 2 + dir * jolt * 5), py0 + ph + 8); ctx.scale(1.45, 1.45);
+    drawSprite(ctx, fig(tg.g, tg.team, -dir, { flash: hit >= 0 && hit < 0.12 ? 1 : 0, recoil: jolt, noHelm: tg.noHelm }));
+    ctx.restore();
+    if (jolt > 0) {                             // and the blow arriving on him
+      ctx.fillStyle = `rgba(255,240,210,${(jolt * 0.55).toFixed(3)})`; ctx.fillRect(px0, py0, pw, ph);
+      ctx.strokeStyle = `rgba(255,255,255,${jolt.toFixed(3)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px0 + pw / 2 - dir * 22, py0 + 4); ctx.lineTo(px0 + pw / 2 + dir * 14, py0 + ph - 4); ctx.stroke();
+    }
+    ctx.font = 'bold 4.5px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(10,6,3,.75)'; ctx.fillRect(px0, py0 + ph - 8, pw, 8); ctx.fillStyle = '#f1e6c8'; ctx.fillText(tg.g.name.toUpperCase().slice(0, 20), px0 + pw / 2, py0 + ph - 2.2);
+    ctx.restore();
+    ctx.globalAlpha = ta; ctx.fillStyle = '#e0aa3e'; ctx.fillRect(px0, py0 - 1, pw, 1); ctx.fillRect(px0, py0 + ph, pw, 1); ctx.globalAlpha = 1;
+  }
+
+  // ---- the band, slanted ----
+  const band = () => { ctx.beginPath(); ctx.moveTo(-40 + off + skew, top); ctx.lineTo(360 + off + skew, top); ctx.lineTo(360 + off - skew, bot); ctx.lineTo(-40 + off - skew, bot); ctx.closePath(); };
   band(); ctx.fillStyle = colD; ctx.fill();
   const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(0.5, col); g.addColorStop(1, 'rgba(0,0,0,.35)');
   band(); ctx.globalAlpha = 0.85; ctx.fillStyle = g; ctx.fill(); ctx.globalAlpha = 1;
   ctx.save(); band(); ctx.clip();
-  // streaks of speed, running the way he is going
-  for (let i = 0; i < 16; i++) {
-    const y = top + 3 + (i * 37) % (bot - top - 6), len = 26 + (i % 4) * 16, x = ((i * 83 + T * dir * 520) % 420 + 420) % 420 - 50;
-    ctx.fillStyle = `rgba(255,255,255,${(0.1 + (i % 3) * 0.07).toFixed(2)})`; ctx.fillRect(x, y, len, i % 5 ? 1 : 2);
+  const px = (dir > 0 ? 62 : 258) + off * 1.15, cy = (top + bot) / 2;
+  // the light gathers on him while he draws back, and bursts from him when he lets go
+  {
+    const wind = hit < 0 ? cl((t - 0.4) / Math.max(0.2, ts - 0.4)) : 0, n = 14;
+    for (let i = 0; i < n; i++) {
+      const an = i / n * 6.283 + (hit < 0 ? T * 0.5 : 0.2), r0 = hit < 0 ? 150 - wind * 95 - ((T * 60 + i * 23) % 40) : 26 + hit * 240, r1 = r0 + (hit < 0 ? 46 : 70), w = 0.045;
+      const al = hit < 0 ? 0.05 + wind * 0.1 : Math.max(0, 0.3 - hit * 0.55);
+      if (al <= 0) continue;
+      ctx.fillStyle = i % 3 ? `rgba(255,255,255,${al.toFixed(3)})` : acc; ctx.globalAlpha = i % 3 ? 1 : al * 1.6;
+      ctx.beginPath(); ctx.moveTo(px + Math.cos(an) * r0, cy + Math.sin(an) * r0 * 0.6); ctx.lineTo(px + Math.cos(an - w) * r1, cy + Math.sin(an - w) * r1 * 0.6); ctx.lineTo(px + Math.cos(an + w) * r1, cy + Math.sin(an + w) * r1 * 0.6); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
-  // his likeness, close up: the same figure the sand shows, three times the size, caught in mid-blow
-  const px = (dir > 0 ? 62 : 258) + off * 1.15, zoom = 2.5;
-  ctx.save();
-  ctx.translate(Math.round(px), bot + 44); ctx.scale(zoom, zoom);
-  ctx.globalAlpha = 0.28; drawSprite(ctx, { x: -dir * 7, y: 0, facing: dir, g: f.g, team: f.team, col, colD, moving: false, walk: 0, clock: T, atkAnim: 0.9, flash: 1, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: f.noHelm });
-  ctx.globalAlpha = 1; drawSprite(ctx, { x: 0, y: 0, facing: dir, g: f.g, team: f.team, col, colD, moving: false, walk: 0, clock: T, atkAnim: 0.9, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: f.noHelm });
+  // streaks of speed, running the way he is going: idling while he gathers himself, tearing past once he is loosed
+  const rush = hit < 0 ? 150 : 150 + Math.min(1, hit / 0.15) * 620;
+  c.sx = (c.sx || 0) + rush * dir * Math.max(0, t - (c.lt || 0)); c.lt = t;
+  for (let i = 0; i < 18; i++) {
+    const y = top + 3 + (i * 37) % (bot - top - 6), len = (26 + (i % 4) * 16) * (hit < 0 ? 0.7 : 1.5), x = ((i * 83 + c.sx) % 440 + 440) % 440 - 60;
+    ctx.fillStyle = `rgba(255,255,255,${(0.08 + (i % 3) * 0.06 + (hit >= 0 ? 0.05 : 0)).toFixed(2)})`; ctx.fillRect(x, y, len, i % 5 ? 1 : 2);
+  }
+  // sparks going up through it, in the colour of his school of fighting
+  for (let i = 0; i < 12; i++) {
+    const life = ((T * 0.5 + i * 0.137) % 1), x = ((i * 97) % 340) - 10 + off * 0.3 + Math.sin(T * 2 + i) * 3, y = bot - life * (bot - top + 6);
+    ctx.globalAlpha = (1 - life) * 0.8 * live; ctx.fillStyle = i % 4 ? acc : '#fff6dc'; ctx.fillRect(Math.round(x), Math.round(y), i % 3 ? 1 : 2, i % 3 ? 1 : 2);
+  }
+  ctx.globalAlpha = 1;
+  // his likeness, close up: the same figure the sand shows, drawing back and then letting fly
+  {
+    const wind = hit < 0 ? cl((t - 0.5) / Math.max(0.2, ts - 0.5)) : 0, lunge = hit < 0 ? -wind * 5 : 12 * Math.max(0.45, 1 - hit * 1.4);
+    const zoom = 2.5 + (hit >= 0 ? 0.3 * Math.max(0, 1 - hit / 0.5) : wind * 0.08), fx = Math.round(px + dir * lunge), breath = hit < 0 ? Math.sin(T * 5) * 0.4 : 0;
+    const pose = hit < 0 ? (t > 0.5 ? { windup: true, windP: wind } : {}) : { atkAnim: Math.max(0.6, 1 - hit * 0.9) };
+    ctx.save(); ctx.translate(fx, bot + 44 + Math.round(breath)); ctx.scale(zoom, zoom);
+    if (hit >= 0 && hit < 0.6) for (let q = 2; q >= 1; q--) { ctx.globalAlpha = 0.3 * (1 - hit / 0.6) / q; drawSprite(ctx, fig(f.g, f.team, dir, Object.assign({ x: -dir * 6 * q, flash: 1, noHelm: f.noHelm }, pose))); }
+    ctx.globalAlpha = 1; drawSprite(ctx, fig(f.g, f.team, dir, Object.assign({ flash: hit >= 0 && hit < 0.07 ? 1 : 0, noHelm: f.noHelm }, pose)));
+    ctx.restore();
+    if (hit >= 0 && hit < 0.32) {               // the stroke itself, across the whole band
+      const k = hit / 0.32, x0 = px + dir * (18 + k * 60);
+      ctx.globalAlpha = 1 - k;
+      for (const [w, cc, dx] of [[9, acc, -dir * 5], [5, '#ffffff', 0]]) { ctx.strokeStyle = cc; ctx.lineWidth = w * (1 - k * 0.6); ctx.beginPath(); ctx.moveTo(x0 + dx + dir * 26, top - 4); ctx.quadraticCurveTo(x0 + dx + dir * 46, cy, x0 + dx - dir * 6, bot + 4); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+  }
   ctx.restore();
-  ctx.restore();
-  // gold along both edges
-  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(Math.min(0, off), top - 2, 320 + Math.abs(off), 2); ctx.fillRect(Math.min(0, off), bot, 320 + Math.abs(off), 2);
-  ctx.fillStyle = '#fff0b0'; ctx.fillRect(Math.min(0, off), top - 2, 320 + Math.abs(off), 0.5);
-  // the name of it, coming in from the other side
-  const tx = (dir > 0 ? 204 : 116) - off * 0.55, name = c.ab.name.toUpperCase();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  // gold along both edges, a line of his style's colour inside them, and the time it has left running along the foot
+  const ex = Math.min(0, off) - 4, ew = 328 + Math.abs(off);
+  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(ex, top - 2, ew, 2); ctx.fillRect(ex, bot, ew, 2);
+  ctx.fillStyle = '#fff0b0'; ctx.fillRect(ex, top - 2, ew, 0.5);
+  ctx.globalAlpha = 0.8 * live; ctx.fillStyle = acc; ctx.fillRect(ex, top + 1.5, ew, 0.7); ctx.fillRect(ex, bot - 2.2, ew, 0.7); ctx.globalAlpha = 1;
+  { const w = 320 * cl(t / d); ctx.fillStyle = '#fff6dc'; ctx.globalAlpha = live; ctx.fillRect(dir > 0 ? 0 : 320 - w, bot + 0.5, w, 1); ctx.globalAlpha = 1; }
+  // the name of it, struck out a letter at a time
+  const tx = (dir > 0 ? 204 : 116) - off * 0.55, name = ab.name.toUpperCase(), ny = 92 + shy;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   let size = 19; ctx.font = `bold ${size}px Cinzel, Georgia, serif`;
   while (size > 9 && ctx.measureText(name).width > 176) { size--; ctx.font = `bold ${size}px Cinzel, Georgia, serif`; }
-  ctx.fillStyle = 'rgba(20,10,4,.85)'; ctx.fillText(name, tx + 1, 92 + 1.5);
-  ctx.fillStyle = '#fff6dc'; ctx.fillText(name, tx, 92);
-  ctx.font = 'bold 6px Consolas, monospace';
-  const sub = f.g.beast ? f.g.name.toUpperCase() : `${f.g.name.toUpperCase()}${c.ab.skill ? '  -  ' + STAT_NAMES[c.ab.skill].toUpperCase() : ''}`, sw = ctx.measureText(sub).width;
-  ctx.fillStyle = 'rgba(20,10,4,.6)'; ctx.fillRect(tx - sw / 2 - 9, 99, sw + 18, 10);
-  if (c.ab.skill) drawIcon(ctx, c.ab.skill, tx - sw / 2 - 7, 101.5, 0.5);
-  ctx.fillStyle = c.ab.skill ? STYLE_COL[c.ab.skill] : '#ffd24a'; ctx.fillText(sub, tx + 3, 106.5);
-  // and a blink of light as it goes
-  if (p > 0.86) { ctx.fillStyle = `rgba(255,248,228,${(0.5 * (1 - (p - 0.86) / 0.14)).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180); }
+  const nw = ctx.measureText(name).width, step = Math.min(0.045, 0.6 / name.length), t0 = 0.4, done = t0 + name.length * step;
+  for (let i = 0; i < name.length; i++) {
+    const age = t - t0 - i * step; if (age < 0) break;
+    const pop = age < 0.14 ? 1 - age / 0.14 : 0, x = tx - nw / 2 + ctx.measureText(name.slice(0, i)).width, y = ny - pop * 4;
+    ctx.fillStyle = 'rgba(20,10,4,.85)'; ctx.fillText(name[i], x + 1, y + 1.5);
+    ctx.fillStyle = pop > 0.4 || (hit >= 0 && hit < 0.12) ? '#ffffff' : '#fff6dc'; ctx.fillText(name[i], x, y);
+  }
+  const ua = cl((t - done) / 0.25);
+  if (ua > 0) {                                 // ruled off beneath, from the middle outward, and then who and by what art
+    ctx.fillStyle = acc; ctx.fillRect(tx - nw / 2 * ua, ny + 3, nw * ua, 1); ctx.fillStyle = '#fff6dc'; ctx.fillRect(tx - nw / 4 * ua, ny + 3, nw / 2 * ua, 0.5);
+    ctx.globalAlpha = ua; ctx.textAlign = 'center';
+    ctx.font = 'bold 6px Consolas, monospace';
+    const sub = f.g.beast ? f.g.name.toUpperCase() : `${f.g.name.toUpperCase()}${ab.skill ? '  -  ' + STAT_NAMES[ab.skill].toUpperCase() : ''}`, sw = ctx.measureText(sub).width;
+    ctx.fillStyle = 'rgba(20,10,4,.6)'; ctx.fillRect(tx - sw / 2 - 9, ny + 8, sw + 18, 10);
+    if (ab.skill) drawIcon(ctx, ab.skill, tx - sw / 2 - 7, ny + 10.5, 0.5);
+    ctx.fillStyle = acc; ctx.fillText(sub, tx + 3, ny + 15.5);
+    ctx.globalAlpha = 1;
+  }
+  // light: as the band lands, as the blow goes, and as the band leaves
+  const fl = Math.max(slam * 0.3, hit >= 0 && hit < 0.18 ? 0.5 * (1 - hit / 0.18) : 0, o2 > 0.1 ? 0.45 * (1 - o2) * (o2 < 0.5 ? o2 * 2 : 1) : 0);
+  if (fl > 0.01) { ctx.fillStyle = `rgba(255,248,228,${fl.toFixed(3)})`; ctx.fillRect(0, 0, 320, 180); }
+  if (t > 1.2 && !o2) { ctx.globalAlpha = 0.5; ctx.font = '4px Consolas, monospace'; ctx.textAlign = dir > 0 ? 'right' : 'left'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO SKIP', dir > 0 ? 316 : 4, top - 5); ctx.globalAlpha = 1; }
   ctx.restore();
 }
 
