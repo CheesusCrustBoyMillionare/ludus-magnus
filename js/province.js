@@ -83,6 +83,59 @@ function provLand() {
       else if (a < 0.02) { R(x + 4, y + 5, 3, 2, '#9a958a'); R(x + 4, y + 5, 3, 1, '#bdb8ac'); }                                                   // a stone
     }
   }
+  // ---- depth: high ground throws its shade to the south and east, and the shore has a strand ----
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const k = at(tx, ty), x = tx * 10, y = ty * 10;
+    if (k === T_PEAK) continue;
+    const n = at(tx, ty - 1), w = at(tx - 1, ty), nw = at(tx - 1, ty - 1);
+    if (!wet(k) && (n === T_PEAK || w === T_PEAK || nw === T_PEAK)) R(x, y, 10, 10, 'rgba(18,20,40,.17)');
+    else if ((k === T_GRASS || k === T_MEADOW || k === T_SAND || k === T_ROAD) && (n === T_HILL || w === T_HILL)) { R(x, y, 10, 5, 'rgba(18,20,40,.07)'); R(x, y, 5, 10, 'rgba(18,20,40,.05)'); }
+    else if ((k === T_GRASS || k === T_MEADOW || k === T_ROAD) && (n === T_FOREST || w === T_FOREST)) { if (n === T_FOREST) R(x, y, 10, 4, 'rgba(10,30,10,.12)'); if (w === T_FOREST) R(x, y, 3, 10, 'rgba(10,30,10,.09)'); }
+    if (k === T_GRASS || k === T_MEADOW || k === T_HILL) {          // a strand of sand or shingle wherever the land meets water
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], q) => {
+        if (!wet(at(tx + dx, ty + dy))) return;
+        for (let i = 0; i < 10; i += 2) { if (h(tx * 3 + i, ty * 3 + q, 80) < 0.22) continue; const d = 1 + Math.floor(h(tx + i, ty + q, 81) * 2); R(dx ? x + (dx > 0 ? 10 - d - 1 : 1) : x + i, dy ? y + (dy > 0 ? 10 - d - 1 : 1) : y + i, dx ? d : 2, dy ? d : 2, i % 4 ? '#d2c08a' : '#bfae78'); }
+      });
+    }
+  }
+  // ---- each part of the country has its own look ----
+  const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3;
+  prov.boats = [];
+  for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) {
+    const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 90), b = h(tx, ty, 91), reg = wildRegion(x + 5, y + 5);
+    const sh = (sx, sy, sw) => R(sx, sy, sw, 1, 'rgba(0,0,0,.2)');
+    if (reg === 'The Barrow Downs' && (k === T_GRASS || k === T_HILL || k === T_MEADOW)) {
+      if (a > 0.965) { sh(x + 3, y + 8, 5); R(x + 4, y + 2, 2, 6, '#a8a290'); R(x + 4, y + 2, 1, 6, '#c9c3ae'); R(x + 3, y + 7, 4, 1, '#8f8876'); }                         // a standing stone
+      else if (a > 0.945) { sh(x, y + 8, 11); R(x + 1, y + 5, 9, 3, '#6f8f48'); R(x + 2, y + 4, 7, 1, '#7f9f56'); R(x + 3, y + 3, 5, 1, '#8aa862'); R(x + 5, y + 6, 1, 2, '#2a1d12'); }   // a barrow, with its door
+    } else if (reg === 'Blackmere') {
+      if (k === T_MARSH || wet(k)) R(x, y, 10, 10, 'rgba(14,26,30,.16)');                    // black water
+      if (k === T_MARSH && a > 0.86) { sh(x + 3, y + 9, 5); R(x + 4, y + 1, 1, 8, '#4a4038'); R(x + 2, y + 3, 2, 1, '#4a4038'); R(x + 5, y + 2, 2, 1, '#4a4038'); R(x + 6, y + 1, 1, 1, '#4a4038'); R(x + 2, y + 2, 1, 1, '#4a4038'); }      // a drowned tree
+    } else if (reg === 'The Quarry Hills' && k === T_HILL) {
+      if (a > 0.972) { sh(x + 1, y + 9, 9); R(x + 1, y + 5, 4, 4, '#e8e4d8'); R(x + 1, y + 5, 4, 1, '#f8f6ee'); R(x + 6, y + 6, 3, 3, '#d8d4c6'); R(x + 3, y + 2, 4, 3, '#e8e4d8'); R(x + 3, y + 4, 4, 1, '#b8b2a0'); }      // cut blocks, left where they were dressed
+      else if (a > 0.955) { R(x + 2, y + 3, 6, 5, '#b8b2a0'); R(x + 2, y + 3, 6, 1, '#d8d4c6'); R(x + 3, y + 5, 4, 3, '#8f8a78'); }                                                                        // a cutting in the hillside
+    } else if (reg === 'The Salt Shore' && k === T_SAND) {
+      if (a > 0.9) { R(x + 1, y + 2, 8, 6, '#a39a7a'); R(x + 2, y + 3, 6, 4, '#eef0ee'); R(x + 2, y + 3, 6, 1, '#ffffff'); R(x + 5, y + 3, 1, 4, '#a39a7a'); }       // a salt pan
+      else if (a > 0.86) { sh(x + 2, y + 8, 7); R(x + 2, y + 3, 1, 5, '#6b4f2c'); R(x + 7, y + 3, 1, 5, '#6b4f2c'); R(x + 2, y + 3, 6, 1, '#6b4f2c'); R(x + 3, y + 4, 1, 3, '#c9c3ae'); R(x + 5, y + 4, 1, 2, '#c9c3ae'); }      // fish drying on a rack
+    } else if (reg === 'The Long Meadows' && (k === T_MEADOW || k === T_GRASS) && !farmland(tx, ty)) {
+      if (a > 0.972) { sh(x + 2, y + 8, 7); R(x + 3, y + 4, 5, 4, '#d9c070'); R(x + 4, y + 3, 3, 1, '#e6d088'); R(x + 3, y + 7, 5, 1, '#b89a4a'); }                // a haycock
+      else if (a > 0.94) for (let q = 0; q < 3; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 92 + q) * 7), sy = y + 2 + q * 3; R(sx, sy, 3, 2, '#f1ead8'); R(sx + 3, sy, 1, 1, '#2a1c14'); R(sx, sy + 2, 1, 1, '#2a1c14'); R(sx + 2, sy + 2, 1, 1, '#2a1c14'); }      // sheep
+    } else if (reg === 'The High Fells' && k === T_HILL) {
+      if (a > 0.9) { R(x + 2, y + 3, 6, 2, '#f2efe6'); R(x + 3, y + 5, 4, 1, '#d8d4c8'); }       // snow lying in the hollows
+      else if (a > 0.84) { sh(x + 2, y + 8, 6); R(x + 2, y + 4, 5, 4, '#8a8478'); R(x + 3, y + 3, 3, 1, '#a39c88'); R(x + 2, y + 4, 2, 1, '#bdb8ac'); }
+    } else if (reg === 'The Home Fields' && k === T_GRASS && !farmland(tx, ty)) {
+      const d = Math.hypot(tx - tx0, ty - ty0), plot = h(Math.floor(tx / 3), Math.floor(ty / 3), 93);
+      if (d > 10.5 && d < 17 && plot > 0.78) {                        // vineyards and olive groves beyond the fields
+        if (plot > 0.9) { R(x, y, 10, 10, '#8a9a5a'); for (const [ox, oy] of [[2, 2], [7, 2], [2, 7], [7, 7]]) { R(x + ox - 1, y + oy, 3, 2, '#6f8a5a'); R(x + ox - 1, y + oy - 1, 2, 1, '#8aa672'); R(x + ox, y + oy + 2, 1, 1, '#4a3320'); } }
+        else { R(x, y, 10, 10, '#8a7a4a'); for (let q = 1; q < 10; q += 3) { R(x, y + q, 10, 2, '#557a36'); for (let v = 1; v < 10; v += 3) R(x + v, y + q, 1, 1, '#7a3a6a'); } }
+      }
+    }
+    // poplars along the roads near the town
+    if (k === T_GRASS && !farmland(tx, ty) && b > 0.86 && Math.hypot(tx - tx0, ty - ty0) < 30 && (at(tx, ty + 1) === T_ROAD || at(tx, ty - 1) === T_ROAD || at(tx + 1, ty) === T_ROAD || at(tx - 1, ty) === T_ROAD)) {
+      sh(x + 3, y + 9, 5); R(x + 4, y + 6, 1, 3, '#4a3320'); for (let q = 0; q < 8; q++) { const w2 = q < 2 || q > 5 ? 1 : 2; R(x + 4 - (w2 >> 1), y - 2 + q, w2 + 1, 1, q % 3 ? '#3f6a2c' : '#57863a'); }
+    }
+    // fishing boats lie off the Salt Shore (they are drawn live, bobbing): open water, a little way out
+    if (reg === 'The Salt Shore' && wet(k) && a > 0.992 && wet(at(tx + 1, ty)) && wet(at(tx - 1, ty)) && prov.boats.length < 9) prov.boats.push([x + 5, y + 5]);
+  }
   // farmsteads among the fields
   for (const [dx, dy] of [[-6, -5], [7, 6], [-8, 4], [6, -7], [-3, 8]]) {
     const tx = tx0 + dx, ty = ty0 + dy, k = at(tx, ty);
@@ -109,6 +162,7 @@ function provLand() {
       if (snow) { R(px + 3, y + 7 - hgt, 2, 2, '#f2efe6'); R(px + 2, y + 9 - hgt, 2, 1, '#f2efe6'); R(px + 4, y + 9 - hgt, 2, 1, '#d8d4c8'); }
     }
   }
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) if (at(tx, ty) === T_FOREST && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood') R(tx * 10, ty * 10 - 4, 10, 12, 'rgba(128,132,136,.16)');      // an old wood, gone grey
   return (prov.land = cv);
 }
 
@@ -340,6 +394,18 @@ function drawProvince(cv, T) {
   const inView = (x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
   const M = wildMap();
 
+  // boats off the Salt Shore, riding the swell
+  for (const [bx, by0] of (prov.boats || [])) {
+    if (!inView(bx, by0, 20) || !wildSeen(bx, by0)) continue;
+    const by = by0 + Math.round(Math.sin(T * 1.6 + bx) * 1), tilt = Math.sin(T * 1.6 + bx) > 0 ? 1 : 0;
+    R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); R(bx - 5, by - 2, 10, 3, '#6b4f2c'); R(bx - 4, by + 1, 8, 1, '#4a3620'); R(bx - 5, by - 2, 10, 1, '#8a6a3a');
+    R(bx, by - 10, 1, 8, '#3a2a1c'); R(bx + 1, by - 9 + tilt, 5, 6, '#e8dcc0'); R(bx + 1, by - 9 + tilt, 5, 1, '#f8f0dc'); R(bx + 5, by - 7 + tilt, 1, 3, '#c9bfa6');
+  }
+  // the wind going over the meadows: a lighter streak that travels
+  for (let i = 0; i < 14; i++) {
+    const wx2 = camX + ((i * 71 + T * 26) % (PROV.VW + 40)) - 20, wy2 = camY + (i * 47 + Math.floor(T * 0.5 + i) * 13) % PROV.VH, kk = wildTile(wx2, wy2);
+    if (kk === T_MEADOW || kk === T_GRASS) { R(wx2, wy2, 7, 1, 'rgba(255,255,220,.16)'); R(wx2 + 2, wy2 + 2, 5, 1, 'rgba(255,255,220,.10)'); }
+  }
   // water moves a little
   for (let i = 0; i < 40; i++) { const x = camX + ((i * 97 + Math.floor(T * 8)) % PROV.VW), y = camY + (i * 53) % PROV.VH; if (wildTile(x, y) === T_WATER) R(x, y, 3, 1, 'rgba(214,236,248,.55)'); }
 
