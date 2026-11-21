@@ -878,3 +878,17 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .reslog .ll:nth-child(odd) { background: rgba(110, 72, 26, .08); }
 .reslog .k-ability { color: #7a5208; } .reslog .k-dead, .reslog .k-down { color: #a3271b; font-weight: bold; } .reslog .k-spared { font-weight: bold; } .reslog .k-yield { color: #6b573c; }
 @media (max-width: 900px) { #arenaLog { width: 230px; } }
+
+/* ---- the fight's controls: one bar, in groups, each with its name over it and its key on it ---- */
+#arenaBar { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: flex-end; justify-content: center; }
+#arenaCtl { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: flex-end; justify-content: center; }
+#arenaBar .grp { display: grid; grid-auto-flow: column; grid-template-rows: auto auto; gap: 2px 6px; align-items: center; }
+#arenaBar .grp .gl { grid-row: 1; grid-column: 1 / -1; font: 700 9px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); padding-left: 1px; }
+#arenaBar .grp button { grid-row: 2; white-space: nowrap; }
+#arenaBar button[data-key]::after { content: attr(data-key); margin-left: 7px; font: bold 10px Consolas, monospace; letter-spacing: 0; text-transform: none; text-shadow: none; padding: 0 4px; border: 1px solid currentColor; border-radius: 2px; opacity: .6; }
+#arenaBar button.armed { background: linear-gradient(180deg, #d8503a, #8e1b14); color: #fff0e0; border-color: #ff9a8a; box-shadow: 0 0 0 2px rgba(255, 120, 100, .4); animation: armed .5s steps(2) infinite; }
+@keyframes armed { 50% { filter: brightness(1.25); } }
+#arenaBar #muteBtn.off { opacity: .6; }
+#arenaBar #keysBtn { cursor: help; }
+#arenaOrders button { min-width: 150px; }
+@media (max-width: 900px) { #arenaBar .grp .gl { display: none; } #arenaBar button[data-key]::after { display: none; } }

@@ -2,7 +2,7 @@
 // Interface: screens, modals, and the arena overlay.
 
 const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {}, dtab: 'stats', noyard: false };
-try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
+try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.fspeed = +localStorage.getItem('ludus-magnus-fspeed') || 1; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
 const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
@@ -1555,7 +1555,7 @@ function startFight(boutId, tourneyBout) {
     foeCol: b.houseId && houseDef(b.houseId).col, foeColD: b.houseId && houseDef(b.houseId).colD });
   B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
   SFX.init(); SFX.play('horn'); SFX.music('arena');
-  fight = { bout: b, B, speed: 1, wager, pay: odds.pay, last: 0, raf: 0 };
+  fight = { bout: b, B, speed: ui.fspeed || 1, wager, pay: odds.pay, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your ludus</span> <span class="dim">vs</span> <span style="color:${b.houseId ? houseDef(b.houseId).col : '#6fa4e6'}">${b.house}</span>${b.death ? ' &middot; <span class="death">to the death</span>' : ''}`;
   $('#arena').hidden = false;
   paintSpeed(); paintOrders();
@@ -1571,7 +1571,7 @@ function startWildFight() {
   const B = createBattle(picks, F.foes, { ask: !ui.autoCast, wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
   B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
   SFX.init(); SFX.play('horn'); SFX.music('arena');
-  fight = { wild: true, bout: null, B, speed: 1, wager: 0, pay: 0, last: 0, raf: 0 };
+  fight = { wild: true, bout: null, B, speed: ui.fspeed || 1, wager: 0, pay: 0, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your school</span> <span class="dim">against</span> <span style="color:#6fa4e6">${F.title}</span>`;
   $('#arena').hidden = false;
   paintSpeed(); paintOrders();
@@ -1603,11 +1603,25 @@ function villageGate() {
 function paintOrders() {
   if (!fight) return;
   const B = fight.B, pick = B.pick && !out(B.pick) ? B.pick : null;
+  // the cloth and the skip cannot be taken back, so each is armed by one press and done by a second within three seconds
+  if (fight.armed && performance.now() - fight.armT > 3000) fight.armed = null;
+  const can = canOrder(B, 'yield'), worst = can ? B.fighters.filter(x => x.team === 0 && !out(x)).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] : null;
+  const sig = [can, worst ? worst.g.id : 0, fight.armed || '', B.towel, B.over].join();
+  if (sig !== fight.armSig) {
+    fight.armSig = sig;
+    const y = $('#ordYield'), sk = $('#skipBtn');
+    y.textContent = fight.armed === 'yield' ? `Sure? ${worst ? worst.g.name + ' yields' : 'Yield'}` : worst && B.fighters.filter(x => x.team === 0).length > 1 ? `Throw in the cloth: ${worst.g.name}` : 'Throw in the cloth';
+    y.classList.toggle('armed', fight.armed === 'yield');
+    y.dataset.tip = B.death ? 'There is no yielding in a bout to the death.' : B.towel ? 'The cloth has been thrown once already; it cannot be thrown again.' : B.over ? 'It is over.'
+      : 'Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once per bout, and it cannot be taken back, so it asks you twice.';
+    sk.textContent = fight.armed === 'skip' ? 'Sure? Skip it' : 'Skip to result';
+    sk.classList.toggle('armed', fight.armed === 'skip');
+  }
   const state = [canOrder(B, 'yield'), pick ? pick.g.id : 0, !!ui.autoCast, B.over, !!ui.noCut].join();
   if (state === fight.ordState) return;
   fight.ordState = state;
   $('#ordYield').disabled = !canOrder(B, 'yield');
-  $('#ordYield').style.visibility = B.hunt ? 'hidden' : 'visible';
+  $('#arenaOrders').style.display = B.hunt ? 'none' : '';
   $('#autoCast').textContent = ui.autoCast ? 'Abilities: auto' : 'Abilities: ask me';
   $('#cutBtn').textContent = ui.noCut ? 'Cut-ins: off' : 'Cut-ins: on';
   // the fight has stopped for one of yours: his abilities, to choose from
@@ -1661,6 +1675,7 @@ function paintFightLog() {
 function paintSpeed() {
   $('#muteBtn').textContent = SFX.muted ? 'Sound off' : 'Sound on';
   $('#pauseBtn').textContent = fight && fight.paused ? 'Resume' : 'Pause';
+  $('#muteBtn').classList.toggle('off', !!SFX.muted);
   $('#pauseBtn').classList.toggle('on', !!(fight && fight.paused));
   $('#logBtn').classList.toggle('on', !!ui.flog);
   document.querySelectorAll('#arenaCtl [data-act="speed"]').forEach(b => b.classList.toggle('on', fight && +b.dataset.v === fight.speed));
@@ -1671,7 +1686,7 @@ function fightLoop(ts) {
   const dt = f.last ? Math.min(0.05, (ts - f.last) / 1000) : 0.016;
   f.last = ts;
   f.B.paused = !!f.paused;
-  if (!f.paused) for (let i = 0; i < f.speed; i++) stepBattle(f.B, dt);
+  if (!f.paused) for (let i = 0; i < Math.max(1, f.speed); i++) stepBattle(f.B, f.speed < 1 ? dt * f.speed : dt);
   // whoever the mouse is resting on gets a card saying what he is
   f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - 24 && f.hover.y < q.y + 4).sort((a, b) => Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
@@ -2037,15 +2052,28 @@ const ACTIONS = {
   updatelater() { const el = document.getElementById('updatebar'); if (el) el.remove(); },
   musictoggle() { SFX.toggleMusic(); renderTop(); },
   mute() { SFX.toggle(); paintSpeed(); renderTop(); SFX.ui('click'); },
-  speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
-  order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
+  speed(v) { if (fight) { fight.speed = +v; ui.fspeed = +v; try { localStorage.setItem('ludus-magnus-fspeed', v); } catch (e) { /* storage unavailable */ } if (fight.paused) fight.paused = false; paintSpeed(); } },
+  fstep() {                                   // stop it, or if it is stopped move it on a tenth of a second
+    if (!fight || fight.finished || fight.B.over) return;
+    if (!fight.paused) fight.paused = true; else for (let i = 0; i < 3; i++) stepBattle(fight.B, 1 / 30);
+    paintSpeed();
+  },
+  order(v) {
+    if (!fight || fight.finished || !canOrder(fight.B, v)) return;
+    if (fight.armed !== v) { fight.armed = v; fight.armT = performance.now(); SFX.ui('warn'); paintOrders(); return; }
+    fight.armed = null; if (giveOrder(fight.B, v)) paintOrders();
+  },
   abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
   flog() { ui.flog = !ui.flog; if (fight) fight.logSig = ''; paintFightLog(); paintSpeed(); },
   abpickai() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && !out(B.pick) && pickAbility(B, aiPickAbility(B, B.pick).id)) paintOrders(); },
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
   cutins() { ui.noCut = !ui.noCut; try { localStorage.setItem('ludus-magnus-cutins', ui.noCut ? '0' : '1'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.cutins = !ui.noCut; fight.ordState = ''; paintOrders(); } },
   abil(v, w) { const g = byId(v); if (g && toggleAbility(g, w)) { save(); render(); } },
-  skip() { finishFight(); },
+  skip() {
+    if (!fight || fight.finished) return;
+    if (!fight.B.over && fight.armed !== 'skip') { fight.armed = 'skip'; fight.armT = performance.now(); paintOrders(); return; }
+    finishFight();
+  },
   pause() { if (fight && !fight.finished && !fight.B.over) { fight.paused = !fight.paused; paintSpeed(); } },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
@@ -2239,6 +2267,8 @@ document.addEventListener('keydown', e => {
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
   else if (B.pick && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); ACTIONS.abpickai(); }
   else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); ACTIONS.flog(); }
+  else if (e.key === '.') { e.preventDefault(); ACTIONS.fstep(); }
+  else if (e.key === '[' || e.key === ']') { e.preventDefault(); const sp = [0.5, 1, 2, 4], i = clamp(sp.indexOf(fight.speed) + (e.key === ']' ? 1 : -1), 0, 3); ACTIONS.speed(sp[i]); }
   else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); ACTIONS.order('yield'); }
   else if (e.key === ' ' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) { e.preventDefault(); ACTIONS.pause(); }
 });
