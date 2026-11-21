@@ -300,7 +300,7 @@ function villageMarks() { return { arena: G.bouts ? G.bouts.filter(b => !b.done)
 function renderView() {
   const v = { ludus: viewLudus, arena: viewArena, contracts: viewContracts, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
   const el = $('#view'), keep = {};
-  if (ui.shown !== ui.tab) ui.sellArm = null;       // a sale half-agreed is forgotten when you walk away
+  if (ui.shown !== ui.tab) ui.sellArm = ui.fireArm = null;       // a sale half-agreed is forgotten when you walk away
   if (ui.shown === ui.tab) el.querySelectorAll('[data-pane]').forEach(p => { keep[p.dataset.pane] = p.scrollTop; });
   el.innerHTML = v();
   el.querySelectorAll('[data-pane]').forEach(p => { if (keep[p.dataset.pane]) p.scrollTop = keep[p.dataset.pane]; });
@@ -710,31 +710,51 @@ function viewMarket() {
   </div>`;
 }
 
+// Where morale settles on these rations, with the cook and the Temple counted in.
+const moraleAt = i => Math.min(100, RATIONS[i].morale + 5 * staffLvl('cook') + G.patrons.temple / 10);
+const grade = n => `<span class="pips">${'●'.repeat(n)}${'○'.repeat(3 - n)}</span>`;
+
 function viewFacilities() {
-  const wrap = 'style="white-space:normal"';
+  const wrap = 'style="white-space:normal"', dg = daysToGames(), net = stipend() - upkeep(), fed = G.roster.filter(g => !g.away).length;
+  const short = cost => G.denarii < cost ? `<small class="bad short">short by ${cost - G.denarii}</small>` : '';
   const staff = Object.entries(STAFF_ROLES).map(([k, r]) => {
-    const s = G.staff[k];
-    return prow(s
-      ? `<div class="grow"><span class="t"><b>${r.name}</b> ${s.name} <span class="dim">&middot; ${STAFF_GRADES[s.skill]}</span></span><small ${wrap}>${r.desc(s.skill)}</small></div>
-         <span class="end num dim">${s.wage}/day</span><button class="mini" data-act="fire" data-v="${k}">Dismiss</button>`
-      : `<div class="grow"><span class="t"><b>${r.name}</b> <span class="dim">post vacant</span></span><small ${wrap}>${r.desc(1)}</small></div>`);
+    const st = G.staff[k], armed = ui.fireArm === k, offers = G.hires.filter(h => h.role === k).length;
+    return prow(st
+      ? `<div class="grow"><span class="t"><b>${r.name}</b> ${st.name} ${grade(st.skill)} <span class="dim">${STAFF_GRADES[st.skill]}</span></span><small ${wrap}>${r.desc(st.skill)}</small></div>
+         <span class="end num dim">${st.wage ? st.wage + ' a day' : 'no wage'}</span><button class="mini ${armed ? 'primary' : ''}" data-act="fire" data-v="${k}"${tip('Dismissing him saves his wage, but the fee you paid is gone and the post stands empty.')}>${armed ? 'Sure? Dismiss' : 'Dismiss'}</button>`
+      : `<div class="grow vacant"><span class="t"><b>${r.name}</b> <span class="dim">post vacant</span></span><small ${wrap}>A journeyman would give: ${r.desc(1)}</small></div>
+         <span class="end ${offers ? 'gold' : 'dim'}">${offers ? 'one in the hall' : 'none looking'}</span>`);
   }).join('');
-  const hall = G.hires.map(h => prow(`<div class="grow"><span class="t">${h.name} <span class="dim">&middot; ${STAFF_GRADES[h.skill]} ${STAFF_ROLES[h.role].name.toLowerCase()}</span></span><small ${wrap}>${STAFF_ROLES[h.role].desc(h.skill)}</small></div>
-      <span class="end num dim">${h.wage}/day</span>
-      <button class="mini primary" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}>${G.staff[h.role] ? 'Replace' : 'Hire'} &mdash; ${h.fee}</button>`)).join('')
-    || '<div class="listnote">No one is looking for work.</div>';
+  const hall = G.hires.map(h => {
+    const cur = G.staff[h.role], better = cur && h.skill > cur.skill, worse = cur && h.skill < cur.skill, dw = cur ? h.wage - cur.wage : h.wage;
+    const note = cur ? `${better ? '<b class="good">Better</b>' : worse ? '<b class="bad">Worse</b>' : 'No better'} than ${cur.name}, your ${STAFF_GRADES[cur.skill].toLowerCase()}; wages ${dw > 0 ? 'rise by ' + dw : dw < 0 ? 'fall by ' + -dw : 'stay the same'}.` : '<b class="good">Fills an empty post.</b>';
+    return prow(`<div class="grow"><span class="t"><b>${STAFF_ROLES[h.role].name}</b> ${h.name} ${grade(h.skill)} <span class="dim">${STAFF_GRADES[h.skill]}</span></span><small ${wrap}>${STAFF_ROLES[h.role].desc(h.skill)} ${note}</small></div>
+      <span class="end num dim">${h.wage} a day${short(h.fee)}</span>
+      <button class="mini ${worse ? '' : 'primary'}" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}>${cur ? 'Replace' : 'Hire'} &mdash; ${h.fee}</button>`);
+  }).join('') || '<div class="listnote">No one is looking for work.</div>';
   const fac = Object.entries(FACILITIES).map(([k, f]) => {
     const l = G.fac[k];
-    return prow(`<div class="grow"><span class="t"><b>${f.name}</b> <span class="pips">${'●'.repeat(l)}${'○'.repeat(3 - l)}</span></span>
-      <small ${wrap}>${f.effect(l)}${l < 3 ? `. <span class="gold">Next: ${f.effect(l + 1)}</span>` : ''}</small></div>
-      ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < FAC_COST[l] ? 'disabled' : ''}${tip(f.desc)}>Improve &mdash; ${FAC_COST[l]}</button>` : '<span class="end dim">Fully built</span>'}`);
+    return prow(`<div class="grow"><span class="t"><b>${f.name}</b> ${grade(l)}</span>
+      <small ${wrap}>${f.effect(l)}.${l < 3 ? `<br><span class="gold">Next: ${f.effect(l + 1).replace(/^./, c => c.toLowerCase())}.</span>` : ''}</small></div>
+      ${l < 3 ? `<span class="end">${short(FAC_COST[l])}</span><button class="mini" data-act="build" data-v="${k}" ${G.denarii < FAC_COST[l] ? 'disabled' : ''}${tip(f.desc)}>Improve &mdash; ${FAC_COST[l]}</button>` : '<span class="end dim">Fully built</span>'}`);
   }).join('');
-  const rations = RATIONS.map((r, i) => `<button class="${G.ration === i ? 'primary' : ''}" data-act="ration" data-v="${i}">${r.name} &middot; ${r.cost}/man/day</button>`).join('');
+  const avg = fed ? Math.round(G.roster.filter(g => !g.away).reduce((n, g) => n + g.morale, 0) / fed) : 0;
+  const rations = RATIONS.map((r, i) => {
+    const each = Math.max(1, r.cost - (boon('grain') ? 1 : 0)), on = G.ration === i;
+    return `<button class="ration ${on ? 'primary' : ''}" data-act="ration" data-v="${i}"${tip(`${each} denarii a man each day. Morale drifts towards ${Math.round(moraleAt(i))}, three points a day.`)}><b>${r.name}</b><span class="num">${each * fed} a day</span><span>morale to ${Math.round(moraleAt(i))}</span></button>`;
+  }).join('');
+  const last = net < 0 ? Math.floor(Math.max(0, G.denarii) / -net) : -1;
   return `<div class="fill even">
-    <div><h2>Staff</h2><div class="pane" data-pane="staff"><div class="panel list">${staff}</div>
-      <h2>Hiring hall <small>new faces every games day</small></h2><div class="panel list">${hall}</div></div></div>
+    <div><h2>Staff</h2>
+      <div class="panel schoolbar"><div class="tally">
+        <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
+        <span class="${net < 0 ? 'bad' : 'good'}"${tip('Food and wages against the Guild stipend, on a day with no games.')}><b class="num">${net > 0 ? '+' : ''}${net}</b> a day</span>
+        ${last >= 0 ? `<span class="${last < dg ? 'bad' : ''}"${tip('How long the purse lasts at this rate if nothing comes in. Purses, wagers and contracts are what fill it.')}>purse lasts <b class="num">${last}</b> day${last === 1 ? '' : 's'}</span>` : ''}
+        <span${tip('The hiring hall changes its faces every games day.')}>new faces ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span></div></div>
+      <div class="pane" data-pane="staff"><div class="panel list">${staff}</div>
+      <h2>Hiring hall <small>the fee once, the wage every day</small></h2><div class="panel list">${hall}</div></div></div>
     <div><h2>Facilities</h2><div class="pane" data-pane="fac"><div class="panel list">${fac}</div>
-      <h2${tip('rations')}>Rations</h2><div class="panel"><div class="row">${rations}</div></div>
+      <h2${tip('rations')}>Rations <small>${fed} at table &middot; morale now ${avg}</small></h2><div class="rations">${rations}</div>
       ${ledger()}</div></div>
   </div>`;
 }
@@ -757,10 +777,13 @@ function staffSection() {
 }
 
 function ledger() {
-  const rows = [['Food', -foodCost()], ['Wages', -wages()], ['Guild stipend', stipend()], ['Net', stipend() - upkeep()]];
+  const fed = G.roster.filter(g => !g.away).length, each = Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0));
   const cell = v => `<b class="num ${v < 0 ? 'bad' : v > 0 ? 'good' : 'dim'}">${v > 0 ? '+' : ''}${v}</b>`;
+  const who = Object.entries(G.staff).filter(([, st]) => st.wage).map(([k, st]) => `${STAFF_ROLES[k].name.toLowerCase()} ${st.wage}`).join(', ');
+  const rows = [['Food', `${fed} at table, ${each} each`, -foodCost()], ['Wages', who || 'no one on wages', -wages()], ['Guild stipend', `favour ${Math.round(G.patrons.guild)}`, stipend()]];
   return `<h2>Daily ledger <small>purses, wagers and gifts come on top</small></h2>
-    <div class="panel row" style="gap:6px 18px">${rows.map(([n, v]) => `<span>${n} ${cell(v)}</span>`).join('')}</div>`;
+    <div class="panel ledger">${rows.map(([n, why, v]) => `<div><span>${n}</span> ${cell(v)}<small>${why}</small></div>`).join('')}
+      <div class="net"><span>Each day</span> ${cell(stipend() - upkeep())}<small>on a day without games</small></div></div>`;
 }
 
 function viewPatrons() {
@@ -1394,6 +1417,8 @@ const ACTIONS = {
   },
   fire(v) {
     const s = G.staff[v]; if (!s) return;
+    if (ui.fireArm !== v) { ui.fireArm = v; render(); return; }      // asked twice: his fee does not come back
+    ui.fireArm = null;
     delete G.staff[v];
     log(`${s.name} the ${STAFF_ROLES[v].name.toLowerCase()} is dismissed.`);
     save(); render();

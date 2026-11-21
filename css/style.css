@@ -594,3 +594,19 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .buyrow small.bad { color: #f08a7c; }
 .panel.list.tight .lrow { min-height: 28px; padding-top: 2px; padding-bottom: 2px; }
 .panel.list.tight small.inl { display: inline; font-size: 11px; color: var(--dim); margin-left: 4px; }
+
+/* the household: what each post, building and ration does, and what a day costs */
+.lrow .short { display: block; font-size: 10px; color: #f08a7c; white-space: nowrap; }
+.lrow .vacant .t b { color: var(--dim); }
+.lrow .end.gold { color: var(--gold); font-size: 12px; } .lrow .end.dim { font-size: 12px; }
+.lrow .pips { font-size: 9px; letter-spacing: 2px; vertical-align: 1px; margin: 0 2px; }
+.rations { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.rations .ration { display: grid; gap: 1px; padding: 5px 6px; text-align: center; }
+.rations .ration b { font-size: 12px; letter-spacing: .06em; }
+.rations .ration span { font: 12px Georgia, serif; letter-spacing: 0; text-transform: none; opacity: .85; }
+.ledger { padding: 5px 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ledger > div { font-size: 13px; min-width: 0; }
+.ledger span { font: 10px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.ledger small { display: block; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ledger .net { border-left: 1px solid var(--bronze-d); padding-left: 10px; }
+.ledger .net span { color: var(--gold); }

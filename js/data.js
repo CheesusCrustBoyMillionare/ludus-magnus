@@ -124,9 +124,9 @@ const SMITH_ODDS = [
 
 const FACILITIES = {
   barracks:  { name: 'Barracks',        desc: 'Cells for your fighters.', effect: l => `Room for ${3 + 2 * l} gladiators` },
-  ground:    { name: 'Training ground', desc: 'Posts, weights and a doctore to shout at them.', effect: l => `Training speed +${20 * l}%` },
-  infirmary: { name: 'Infirmary',       desc: 'A medicus, clean linen, sour wine.', effect: l => `Faster healing, better odds of surviving a fall (level ${l})` },
-  baths:     { name: 'Baths',           desc: 'Hot water does what the whip cannot.', effect: l => `Rest restores more, morale rises (level ${l})` },
+  ground:    { name: 'Training ground', desc: 'Posts, weights and a doctore to shout at them.', effect: l => l ? `Every man trains ${20 * l}% faster` : 'Bare sand: no help to training' },
+  infirmary: { name: 'Infirmary',       desc: 'A medicus, clean linen, sour wine.', effect: l => l ? `A day's rest restores ${22 + 8 * l}% of health, wounds mend sooner, the fallen are ${4 * l}% likelier to live` : `A day's rest restores 22% of health` },
+  baths:     { name: 'Baths',           desc: 'Hot water does what the whip cannot.', effect: l => `A day's rest sheds ${30 + 8 * l} fatigue and lifts morale by ${2 + 2 * l}` },
 };
 const FAC_COST = [150, 400, 900];
 
@@ -164,8 +164,8 @@ const RANKS = [
 
 const STAFF_ROLES = {
   doctore: { name: 'Doctore', desc: s => `Training +${15 * s}%. Fighters may spar.` },
-  medicus: { name: 'Medicus', desc: s => `Wounds mend faster. The fallen are likelier to live (+${3 * s}%).` },
-  cook:    { name: 'Cook',    desc: s => `Morale +${5 * s}. Rest restores more health.` },
+  medicus: { name: 'Medicus', desc: s => `Injuries often mend a day sooner (${15 * s}% each day). The fallen are ${3 * s}% likelier to live.` },
+  cook:    { name: 'Cook',    desc: s => `Morale settles ${5 * s} higher. A day's rest restores ${4 * s}% more health.` },
   scout:   { name: 'Scout',   desc: s => `Reveals a recruit's talent before you buy${s >= 2 ? ', finds an extra recruit' : ''}${s >= 3 ? ', haggles prices down 10%' : ''}.` },
 };
 const STAFF_GRADES = ['', 'Journeyman', 'Seasoned', 'Master'];
