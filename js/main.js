@@ -61,7 +61,8 @@ const TIPS = {
   away: 'Away from the ludus. He does not train or eat at your table, and cannot fight until he is back.',
   flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
   quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
-  sound: 'Turns every sound in the game on or off.',
+  sound: 'Turns every sound in the game on or off, music included.',
+  music: 'Turns the music on or off and leaves the other sounds alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
   yardbtn: 'Hide the picture of your ludus to give the lists more room, or bring it back.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
@@ -193,7 +194,8 @@ function renderTop() {
     <button class="primary" data-act="endday">End day &raquo;</button>
     <button data-act="saves"${tip('saves')}>Saves</button>
     <button class="yardbtn" data-act="yardtoggle"${tip('yardbtn')}>${ui.noyard ? 'Show yard' : 'Hide yard'}</button>
-    <button class="yardbtn" data-act="mute"${tip('sound')}>${SFX.muted ? 'Sound off' : 'Sound on'}</button>`;
+    <button class="yardbtn" data-act="mute"${tip('sound')}>${SFX.muted ? 'Sound off' : 'Sound on'}</button>
+    <button class="yardbtn" data-act="musictoggle"${tip('music')}>${SFX.musicOn ? 'Music on' : 'Music off'}</button>`;
 }
 
 function renderTabs() {
@@ -895,7 +897,7 @@ function startFight(boutId, tourneyBout) {
   G.denarii -= wager;
   const B = createBattle(picks, boutEnemies(b), { death: b.death, mercy: [mercyBonus(), 0], tier: b.final ? 4 : tier(), names: ['Your ludus', b.hunt ? 'The beasts' : b.house], hunt: !!b.hunt,
     foeCol: b.houseId && houseDef(b.houseId).col, foeColD: b.houseId && houseDef(b.houseId).colD });
-  SFX.init(); SFX.play('horn');
+  SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { bout: b, B, speed: 1, wager, pay: odds.pay, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your ludus</span> <span class="dim">vs</span> <span style="color:${b.houseId ? houseDef(b.houseId).col : '#6fa4e6'}">${b.house}</span>${b.death ? ' &middot; <span class="death">to the death</span>' : ''}`;
   $('#arena').hidden = false;
@@ -947,7 +949,7 @@ function finishFight() {
   f.B.snd.length = 0; SFX.quiet();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
   const r = applyBoutResult(f.bout, f.B, f.wager, f.pay);
-  SFX.play(r.win ? 'victory' : 'defeat');
+  SFX.play(r.win ? 'victory' : 'defeat'); SFX.music(null);          // the fanfare has the floor
   const money = [];
   if (r.purse) money.push(`Purse: <b class="gold num">+${r.purse}</b> denarii`);
   if (r.wager) money.push(r.win ? `Wager pays <b class="gold num">+${r.wagerGain}</b>` : `Wager lost: <b class="bad num">-${r.wager}</b>`);
@@ -1191,11 +1193,12 @@ const ACTIONS = {
   },
   reload() { save(); location.reload(); },
   updatelater() { const el = document.getElementById('updatebar'); if (el) el.remove(); },
+  musictoggle() { SFX.toggleMusic(); renderTop(); },
   mute() { SFX.toggle(); paintSpeed(); if (!fight) renderTop(); SFX.ui('click'); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   skip() { finishFight(); },
-  leavearena() { SFX.stop(); $('#arena').hidden = true; fight = null; closeModal(); render(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  leavearena() { SFX.stop(); SFX.music('ludus'); $('#arena').hidden = true; fight = null; closeModal(); render(); if (G.pendingEvent) showEvent(); checkEnd(); },
   askreset() {
     showModal(`<h2>Abandon the ludus?</h2><p>Your current game will be lost.</p>
       <div class="row"><button data-act="close">Keep playing</button><button class="primary" data-act="reset">Start anew</button></div>`);
@@ -1219,13 +1222,14 @@ const CLICK_SOUND = {
   tab: 'tick', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', qwith: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate', qsend: 'gate',
-  endday: '', forceend: '', skipdays: '', fight: '', tfight: '', order: '', mute: '', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', skipdays: '', fight: '', tfight: '', order: '', mute: '', musictoggle: 'click', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   const act = el.dataset.act, fn = ACTIONS[act];
   SFX.init();                                // sound may only begin from a click, so the first one wakes it
+  if (!ui.musicBegun) { ui.musicBegun = true; if (!fight) SFX.music('ludus'); }
   if (fn && !el.classList.contains('off')) { const s = act in CLICK_SOUND ? CLICK_SOUND[act] : 'click'; if (s) SFX.ui(s); }
   if (fn) fn(el.dataset.v, el.dataset.w, el, e);
 });

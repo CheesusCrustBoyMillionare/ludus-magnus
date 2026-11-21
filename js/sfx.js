@@ -6,8 +6,10 @@ const SFX = (() => {
   const MUTE_KEY = 'ludus-magnus-mute', LEVEL = 0.7;
   let ctx = null, master = null, bus = null, verb = null, noiseBuf = null, muted = false;
   let murmur = null, roar = null, roarBand = null, boost = 0, voices = 0;
+  let musicBus = null, drone = null, musicOn = true;
+  const MUSIC_KEY = 'ludus-magnus-music', MUSIC_LEVEL = 0.22;      // well under the blows and the crowd
   const last = {};
-  try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* storage unavailable */ }
+  try { muted = localStorage.getItem(MUTE_KEY) === '1'; musicOn = localStorage.getItem(MUSIC_KEY) !== '0'; } catch (e) { /* storage unavailable */ }
 
   const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -54,6 +56,18 @@ const SFX = (() => {
       };
       murmur = layer(480, 0.6, 0.8, true).g;
       const r = layer(1000, 0.8, 1.15); roar = r.g; roarBand = r.bp;
+
+      // music has its own fader, and a little of the same echo
+      musicBus = ctx.createGain(); musicBus.gain.value = musicOn ? MUSIC_LEVEL : 0; musicBus.connect(comp);
+      const mv = ctx.createGain(); mv.gain.value = 0.35; musicBus.connect(mv); mv.connect(verb);
+      // the drone under every tune: a root and the fifth above it, held like a pipe
+      const dl = ctx.createBiquadFilter(); dl.type = 'lowpass'; dl.frequency.value = 520;
+      const dg = ctx.createGain(); dg.gain.value = 0;
+      const voice = (type, v) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = 73.4; g.gain.value = v; o.connect(g); g.connect(dl); o.start(); return o; };
+      drone = { root: voice('triangle', 0.5), fifth: voice('sine', 0.35), high: voice('sawtooth', 0.06), g: dg };
+      const sway = ctx.createOscillator(), swayD = ctx.createGain(), swayG = ctx.createGain();
+      sway.frequency.value = 0.11; swayD.gain.value = 0.25; swayG.gain.value = 1; sway.connect(swayD); swayD.connect(swayG.gain); sway.start();
+      dl.connect(dg); dg.connect(swayG); swayG.connect(musicBus);
     } catch (e) { ctx = null; }
   }
 
@@ -181,6 +195,112 @@ const SFX = (() => {
     gate() { noise({ dur: 0.3, f0: 300, f1: 120, vol: 0.12, attack: 0.05 }); tone({ f0: 70, f1: 50, dur: 0.18, vol: 0.14, attack: 0.003, delay: 0.26 }); },   // a man leaves by the gate
   };
 
+
+  // ---------- music ----------
+  // Composed as it plays, so it never loops: a lyre, a reed pipe and a hand drum over a drone.
+  // Two pieces. 'ludus' is slow and in the Dorian mode, for the yard; 'arena' is quick, Phrygian and
+  // driven by the drum, and grows busier as the crowd grows louder.
+
+  const M = { mode: null, want: null, step: 0, next: 0, timer: 0, heat: 0, bar: null };
+  const SCALES = { ludus: [0, 2, 3, 5, 7, 9, 10], arena: [0, 1, 3, 5, 7, 8, 10] };
+  const ROOT = 146.83;                                 // D below middle C
+  // the pitch of a step of the scale; steps past the seventh climb into the next octave
+  const pitch = (mode, deg, oct) => { const sc = SCALES[mode], n = sc.length; return ROOT * Math.pow(2, (sc[((deg % n) + n) % n] + 12 * (Math.floor(deg / n) + (oct || 0))) / 12); };
+
+  // One musical voice. o: type, f, vol, t, dur, attack, hold, lp0, lp1, vib, det
+  function mvoice(o) {
+    const t = o.t, osc = ctx.createOscillator(); osc.type = o.type || 'triangle';
+    osc.frequency.setValueAtTime(o.f * (o.det || 1), t);
+    if (o.vib) { const l = ctx.createOscillator(), d = ctx.createGain(); l.frequency.value = 5; d.gain.setValueAtTime(0, t); d.gain.linearRampToValueAtTime(o.f * o.vib, t + o.dur * 0.5); l.connect(d); d.connect(osc.frequency); l.start(t); l.stop(t + o.dur + 0.05); }
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.vol, t + (o.attack || 0.005));
+    if (o.hold) g.gain.setValueAtTime(o.vol, t + o.dur * o.hold);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 0.8;
+    f.frequency.setValueAtTime(o.lp0 || 2400, t); f.frequency.exponentialRampToValueAtTime(o.lp1 || o.lp0 || 2400, t + Math.min(o.dur, 0.3));
+    osc.connect(f); f.connect(g); g.connect(musicBus);
+    osc.start(t); osc.stop(t + o.dur + 0.05);
+  }
+  function mnoise(t, dur, type, freq, vol, q) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q || 0.8;
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(musicBus);
+    src.start(t, Math.random()); src.stop(t + dur + 0.03);
+  }
+  // a plucked string: two strings a hair apart, bright at the pluck and dulling as it rings
+  const lyre = (f, vol, t, dur) => { for (const det of [1, 1.004]) mvoice({ f, det, vol: vol * 0.6, t, dur: dur || 1.4, attack: 0.004, lp0: Math.min(5200, f * 7), lp1: f * 1.6 }); };
+  // a reed pipe: slow to speak, held, with a waver that grows
+  const pipe = (f, vol, t, dur) => { mvoice({ type: 'square', f, vol: vol * 0.5, t, dur, attack: 0.07, hold: 0.75, lp0: 900, lp1: 1500, vib: 0.007 }); mvoice({ type: 'sine', f: f * 2, vol: vol * 0.18, t, dur, attack: 0.09, hold: 0.7, lp0: 3000 }); };
+  const dum = (t, vol) => { mvoice({ type: 'sine', f: 82, vol, t, dur: 0.3, attack: 0.003, lp0: 400 }); mnoise(t, 0.05, 'lowpass', 500, vol * 0.5); };
+  const tek = (t, vol) => { mnoise(t, 0.06, 'bandpass', 1900, vol, 1.6); mvoice({ type: 'triangle', f: 330, vol: vol * 0.25, t, dur: 0.05, attack: 0.002, lp0: 1200 }); };
+  const jingle = (t, vol) => mnoise(t, 0.05, 'highpass', 6000, vol);
+
+  const LUDUS_CHORDS = [0, 0, 6, 0, 3, 0, 4, 0, 0, 5, 3, 0, 6, 3, 4, 0];        // roots, as steps of the scale, one a bar
+  const LUDUS_FIGURES = ['0-2-1-2-', '0-21--2-', '0--2-1--', '02-1-2--', '0---2-1-', '0-1-2-12'];
+  const ARENA_DRUMS = ['D-ttD-t-', 'D-tDD-tt', 'D-ttD-tD', 'DtttD-t-'];
+  const ARENA_BASS = [0, 0, 4, 0, 1, 0, 4, 6];                                   // the low string, one note a step
+  const pick1 = a => a[Math.floor(Math.random() * a.length)];
+  const human = () => rnd(-0.008, 0.008);
+
+  // Plans one bar at a time, then plays it step by step (eight steps to the bar).
+  function planBar(mode, n) {
+    if (mode === 'ludus') {
+      const root = LUDUS_CHORDS[n % LUDUS_CHORDS.length];
+      const bar = { root, fig: pick1(LUDUS_FIGURES), tune: null };
+      if (n % 2 === 1 && Math.random() < 0.7) {          // every other bar or so the pipe answers, moving by step around the chord
+        let d = root + pick1([2, 4, 4, 7]), at = pick1([0, 0, 2]);
+        bar.tune = [];
+        while (at < 8) { const len = pick1([2, 2, 3, 4]); bar.tune.push({ at, len, d }); at += len; d += pick1([-2, -1, -1, 1, 1, 2]); }
+      }
+      return bar;
+    }
+    return { drums: pick1(ARENA_DRUMS), shift: n % 8 >= 6 ? 3 : 0, fill: n % 4 === 3 };
+  }
+  function playStep(mode, n, t) {
+    const i = n % 8, barN = Math.floor(n / 8);
+    if (i === 0 || !M.bar) M.bar = planBar(mode, barN);
+    const b = M.bar;
+    if (mode === 'ludus') {
+      const c = b.fig[i], chord = [b.root, b.root + 2, b.root + 4];
+      if (i === 0) lyre(pitch(mode, b.root, -1), 0.16, t + human(), 2.6);                 // the low string marks the bar
+      if (c !== '-') lyre(pitch(mode, chord[+c] + (c !== '0' && Math.random() < 0.25 ? 7 : 0)), rnd(0.09, 0.13), t + human(), 1.5);
+      for (const x of (b.tune || [])) if (x.at === i) pipe(pitch(mode, x.d, 1), 0.07, t, x.len * M.beat * 0.95);
+      return;
+    }
+    const heat = M.heat, d = b.drums[i];
+    if (d === 'D') dum(t, 0.3); else if (d === 't') tek(t + human(), 0.16);
+    if (b.fill && i >= 6) tek(t + M.beat / 2, 0.14);
+    lyre(pitch(mode, ARENA_BASS[i] + b.shift, -1), i % 4 === 0 ? 0.15 : 0.1, t + human(), 0.5);
+    if (heat > 0.3) jingle(t, 0.05 + heat * 0.05);
+    if (heat > 0.3 && i % 2 === 1) jingle(t + M.beat / 2, 0.04);
+    if (heat > 0.5 && (i === 0 || i === 3 || i === 6)) lyre(pitch(mode, pick1([0, 2, 4, 5, 7]) + b.shift, 1), 0.09, t + human(), 0.7);   // a high string joins when the fight is good
+    if (heat > 0.65 && i === 0 && barN % 2 === 0) pipe(pitch(mode, 4 + b.shift, 0), 0.07, t, M.beat * 7);
+  }
+  function setPiece(mode, t) {
+    M.mode = mode; M.step = 0; M.bar = null;
+    M.beat = mode === 'arena' ? 60 / 112 / 2 : 60 / 66 / 2;                               // one step is half a beat
+    M.next = t + 0.15;
+    const arenaNow = mode === 'arena', f = ROOT / 2;
+    drone.root.frequency.setTargetAtTime(f, t, 0.3); drone.fifth.frequency.setTargetAtTime(f * 1.5, t, 0.3); drone.high.frequency.setTargetAtTime(f * 2, t, 0.3);
+    drone.g.gain.setTargetAtTime(mode ? (arenaNow ? 0.11 : 0.075) : 0, t, mode ? 1.2 : 0.4);
+  }
+  // Runs a few times a second and writes down the notes for the next half second.
+  function conduct() {
+    if (!ctx || !musicOn || muted || document.hidden) return;
+    const now = ctx.currentTime;
+    if (M.want !== M.mode) setPiece(M.want, now);
+    if (!M.mode) return;
+    if (M.next < now) M.next = now + 0.05;                // the page was asleep: pick up from here, do not rush to catch up
+    while (M.next < now + 0.5) { playStep(M.mode, M.step++, M.next); M.next += M.beat; }
+  }
+  function music(mode) {
+    M.want = mode || null;
+    if (!M.timer && typeof setInterval === 'function') M.timer = setInterval(conduct, 120);
+    conduct();
+  }
+
   function run(set, name, v, pan, kind) {
     if (!ctx || muted || !set[name] || voices > 48) return;
     const now = ctx.currentTime;
@@ -191,6 +311,35 @@ const SFX = (() => {
 
   return {
     init,
+    // which piece plays: 'ludus', 'arena', or nothing
+    music,
+    get musicOn() { return musicOn; },
+    get musicNow() { return { piece: M.mode || null, step: M.step, heat: Math.round(M.heat * 100) / 100 }; },
+    toggleMusic() {
+      musicOn = !musicOn;
+      try { localStorage.setItem(MUSIC_KEY, musicOn ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+      if (!ctx) return;
+      musicBus.gain.setTargetAtTime(musicOn ? MUSIC_LEVEL : 0, ctx.currentTime, 0.15);
+      if (musicOn) { M.mode = undefined; conduct(); }    // start the piece afresh
+    },
+    // For tuning: writes out some seconds of a piece without playing it and reports how loud it is.
+    async probeMusic(mode, seconds, heat) {
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn];
+      const keepM = Object.assign({}, M);
+      ctx = null; muted = false; musicOn = true;
+      try {
+        init(() => new OfflineAudioContext(2, 44100 * seconds, 44100));
+        M.heat = heat || 0; setPiece(mode, 0);
+        while (M.next < seconds) { playStep(mode, M.step++, M.next); M.next += M.beat; }
+        const buf = await ctx.startRendering(), L = buf.getChannelData(0), R = buf.getChannelData(1);
+        let peak = 0, sum = 0, n = 0;
+        for (let i = 44100 * 2; i < L.length; i++) { const a = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (a > peak) peak = a; sum += (L[i] * L[i] + R[i] * R[i]) / 2; n++; }
+        return { peak: Math.round(peak * 1000) / 1000, rms: Math.round(Math.sqrt(sum / n) * 1000) / 1000, steps: M.step };
+      } finally {
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn] = keep;
+        Object.assign(M, keepM);
+      }
+    },
     get muted() { return muted; },
     play(name, v, pan, kind) { run(arena, name, v, pan, kind); },
     ui(name) { run(ui, name); },
@@ -198,6 +347,7 @@ const SFX = (() => {
     crowd(exc) {
       if (!ctx) return;
       boost *= 0.985;
+      M.heat += (Math.min(1, exc + boost) - M.heat) * 0.02;
       const t = ctx.currentTime;
       murmur.gain.setTargetAtTime(0.03 + exc * 0.07, t, 0.15);
       roar.gain.setTargetAtTime(exc * 0.05 + boost * 0.55, t, 0.07);
@@ -209,11 +359,12 @@ const SFX = (() => {
       muted = !muted;
       try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) { /* storage unavailable */ }
       if (master) master.gain.setTargetAtTime(muted ? 0 : LEVEL, ctx.currentTime, 0.02);
+      if (!muted) conduct();
     },
     // For tuning: renders one sound without playing it and reports how loud it is.
     // Returns { peak, rms, left, right, seconds } for the three seconds after it starts.
     async probe(name, v, pan, kind) {
-      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost];
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone];
       ctx = null; muted = false;
       try {
         init(() => new OfflineAudioContext(2, 44100 * 3, 44100));
@@ -230,7 +381,7 @@ const SFX = (() => {
         const f = x => Math.round(x * 1000) / 1000;
         return { peak: f(peak), rms: f(Math.sqrt(sum / L.length)), left: f(Math.sqrt(l / L.length)), right: f(Math.sqrt(r / L.length)), seconds: f(end / 44100) };
       } finally {
-        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost] = keep;
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone] = keep;
         Object.keys(last).forEach(k => delete last[k]);
       }
     },
