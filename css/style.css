@@ -610,3 +610,23 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .ledger small { display: block; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ledger .net { border-left: 1px solid var(--bronze-d); padding-left: 10px; }
 .ledger .net span { color: var(--gold); }
+
+/* the patrons: where you stand with each, what it gives, and what moves it */
+.patron { display: flex; flex-direction: column; gap: 5px; }
+.patron h3 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.patron h3 small { font: 11px var(--display); letter-spacing: .08em; text-transform: uppercase; }
+.patron .favour { display: grid; grid-template-columns: auto 1fr 26px; gap: 8px; align-items: center; margin-top: 3px; }
+.patron .favour span { font: 10px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.patron .favour .bar { height: 11px; margin: 0; }
+.patron .favour .bar u { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #7d6a4c; }
+.patron .favour .bar u.got { background: #fff0b0; }
+.patron .favour b { text-align: right; }
+.patron .gives { list-style: none; margin: 3px 0 0; padding: 0; font-size: 13px; line-height: 1.4; }
+.patron .gives li { padding-left: 16px; position: relative; }
+.patron .gives li::before { content: '\25C6'; position: absolute; left: 1px; font-size: 9px; top: 3px; color: var(--gold); }
+.patron .gives li.off { color: var(--dim); opacity: .7; } .patron .gives li.off::before { content: '\25C7'; color: var(--dim); }
+.patron .ways { font-size: 12px; line-height: 1.35; color: var(--dim); border-top: 1px solid rgba(110, 72, 26, .45); padding-top: 5px; display: grid; gap: 3px; }
+.patron .ways b.good { color: #9fce86; font-weight: normal; } .patron .ways b.bad { color: #f08a7c; font-weight: normal; }
+.patron .work { font-size: 12px; } .patron .work.gold { color: var(--gold); }
+.patron .buyrow { margin-top: auto; padding-top: 4px; }
+.buyrow button { flex: none; white-space: nowrap; }

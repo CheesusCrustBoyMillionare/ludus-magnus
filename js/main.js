@@ -786,17 +786,55 @@ function ledger() {
       <div class="net"><span>Each day</span> ${cell(stipend() - upkeep())}<small>on a day without games</small></div></div>`;
 }
 
+// How a patron stands towards you, in a word.
+const STANDING = [[80, 'Devoted'], [60, 'Trusted'], [35, 'Friendly'], [15, 'Known'], [0, 'A stranger']];
+// What each patron gives at a given favour, as lines: [what, whether you have it].
+const PATRON_GIVES = {
+  magistrate: f => [[`Purses <b class="num">+${Math.round(f * 0.3)}%</b>`, f > 0], ['He sometimes asks for you by name on the contract board', f >= 35], ['You may accuse a rival school before him', f >= 40], ['An extra bout at every games', f >= 60]],
+  guild: f => [[`A stipend of <b class="num">${Math.round(f / 10 * (1 + tier()))}</b> denarii a day`, f >= 5], ['They sometimes ask for you by name on the contract board', f >= 35]],
+  temple: f => [[`Morale settles <b class="num">${Math.round(f / 10)}</b> higher`, f >= 5], [`The fallen are spared <b class="num">${Math.round(f * 0.1)}%</b> more often`, f >= 5], ['The priests sometimes ask for you by name on the contract board', f >= 35]],
+};
+const PATRON_MARKS = { magistrate: [35, 40, 60], guild: [35], temple: [35] };
+// What moves each patron, as the rules have it.
+const PATRON_WAYS = {
+  magistrate: [['good', 'Every bout won (more if to the death), the Laurel Tournament, his contracts, outlaws and bandits handed over.'], ['bad', 'Ducking a grudge bout, staying away from his dinners, failing his contracts.']],
+  guild: [['good', 'A win that had the crowd roaring, their contracts, their name on your walls.'], ['bad', 'Winning a bout you were paid to lose, failing or ignoring their contracts.']],
+  temple: [['good', 'Offerings when the priests come, their contracts, a pilgrimage.'], ['bad', 'Sending the priests away, failing their contracts.']],
+};
+// What the next gift would change, in words.
+function giftGain(k, f) {
+  const to = Math.min(100, f + 10);
+  if (k === 'magistrate') return `purses +${Math.round(to * 0.3) - Math.round(f * 0.3)}%${f < 60 && to >= 60 ? ' and the extra bout' : f < 40 && to >= 40 ? ', and you may accuse rivals' : ''}`;
+  if (k === 'guild') { const d = Math.round(to / 10 * (1 + tier())) - Math.round(f / 10 * (1 + tier())); return d > 0 ? `${d} more a day, earned back in ${Math.ceil(giftCost(k) / d)} days` : 'nothing more a day yet'; }
+  return `morale +${Math.round(to / 10) - Math.round(f / 10)}, the fallen spared ${Math.round(to * 0.1) - Math.round(f * 0.1)}% more`;
+}
+
 function viewPatrons() {
+  const dg = daysToGames();
   const cards = Object.entries(PATRONS).map(([k, p]) => {
-    const f = G.patrons[k], cost = giftCost(k);
-    return `<div class="panel"><h3>${p.name}</h3><div class="dim" style="font-size:13px">${p.desc}</div>
-      <div class="barrow"${tip('favour')} style="margin:8px 0">Favour ${bar('prog', f, 100)}</div>
-      <p>${p.perk(f)}</p>
-      <button data-act="gift" data-v="${k}" ${G.denarii < cost || f >= 100 ? 'disabled' : ''}>Send a gift &mdash; ${cost} denarii</button></div>`;
+    const f = G.patrons[k], cost = giftCost(k), stand = STANDING.find(x => f >= x[0])[1], next = PATRON_MARKS[k].find(m => m > f);
+    const work = (G.contracts || []).filter(c => c.patron === k), asked = work.some(c => c.asked), out = (G.jobs || []).filter(J => J.patron === k).length;
+    const gives = PATRON_GIVES[k](f).map(([t, on]) => `<li class="${on ? 'on' : 'off'}">${t}</li>`).join('');
+    const why = f >= 100 ? 'Favour could go no higher.' : G.denarii < cost ? `You are ${cost - G.denarii} denarii short.` : '';
+    return `<div class="panel patron">
+      <h3>${p.name} <small class="${f >= 60 ? 'gold' : f < 15 ? 'dim' : ''}">${stand}</small></h3>
+      <div class="dim" style="font-size:13px">${p.desc}</div>
+      <div class="favour"${tip('favour')}><span>Favour</span><div class="bar prog"><i style="width:${pct(f, 100)}%"></i>${PATRON_MARKS[k].map(m => `<u class="${f >= m ? 'got' : ''}" style="left:${m}%"></u>`).join('')}</div><b class="num">${Math.round(f)}</b></div>
+      <div class="dim" style="font-size:12px">${next ? `${Math.ceil(next - f)} more to the next mark, at ${next}.` : 'Every mark reached.'} One point fades ${dg === 0 ? 'today' : `in ${dg} day${dg === 1 ? '' : 's'}`}.</div>
+      <ul class="gives">${gives}</ul>
+      <div class="ways">${PATRON_WAYS[k].map(([c, t]) => `<div><b class="${c}">${c === 'good' ? 'Pleased by' : 'Angered by'}</b> ${t}</div>`).join('')}</div>
+      <div class="work ${asked ? 'gold' : 'dim'}">${work.length ? `${work.length} offer${work.length === 1 ? '' : 's'} of work on the board${asked ? ', <b>one asking for you by name</b>: ignoring it costs favour' : ''}.` : 'No work on the board from here.'}${out ? ` ${out} of your outings ${out === 1 ? 'is' : 'are'} in ${k === 'guild' ? 'their' : k === 'temple' ? 'her' : 'his'} service now.` : ''}</div>
+      <div class="buyrow"><button class="primary" data-act="gift" data-v="${k}" ${why ? 'disabled' : ''}>Send a gift &mdash; ${cost}</button>
+        <small class="${why ? 'bad' : 'dim'}">${why || `Favour +10: ${giftGain(k, f)}. The next gift will cost more.`}</small></div>
+    </div>`;
   }).join('');
-  return `<div class="fill one"><div><h2>Patrons</h2><div class="pane" data-pane="patrons">${G.fix ? `<p class="bad">You have agreed to lose your next bout for ${G.fix.pay} denarii.</p>` : ''}
-    <div class="threecol">${cards}</div>
-    <p class="dim" style="font-size:13px;margin-top:12px">Favour fades a little every games day. Victories please the Magistrate, and a roaring crowd pleases the Guild. Each gift costs more than the last. Patrons also offer paid work: see Contracts.</p></div></div></div>`;
+  return `<div class="fill one"><div><h2>Patrons <small>the three powers of the town</small></h2>
+    <div class="panel schoolbar"><div class="tally">
+      <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
+      <span class="good"${tip('What the Guild pays you every day, set by their favour and your standing.')}>stipend <b class="num">+${stipend()}</b> a day</span>
+      <span${tip('favour')}>favour fades by one ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
+      ${G.fix ? `<span class="bad"><b>You have agreed to lose your next bout for ${G.fix.pay} denarii.</b> Win it and the Guild will not forgive you.</span>` : ''}</div></div>
+    <div class="pane" data-pane="patrons"><div class="threecol">${cards}</div></div></div></div>`;
 }
 
 function swatch(id) {
