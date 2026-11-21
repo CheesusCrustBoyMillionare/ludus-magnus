@@ -1249,7 +1249,7 @@ function drawBattle(ctx, B) {
   // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
   // by day the arena takes the weather and a little of the hour from the same sky as the yard; a dusk bout has its own light
   if (!dusk && typeof yardSky === 'function') {
-    const sky = yardSky(sceneClock()), wx = yardWeather(sceneClock()), tint = sceneTint(sky, B.wild ? 0.6 : 0.3);
+    const sky = B.wild && typeof provSky === 'function' && G && G.field ? provSky() : yardSky(sceneClock()), wx = yardWeather(sceneClock()), tint = sceneTint(sky, B.wild ? 0.6 : 0.3);      // a fight in the province is fought at the province's hour
     if (tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, 428, 240); ctx.globalCompositeOperation = 'source-over'; }
     if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.1 * wx.over).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
     if (wx.wet > 0) { ctx.fillStyle = `rgba(70,45,20,${(0.14 * wx.wet).toFixed(3)})`; ctx.fillRect(0, 86, 428, 154); }

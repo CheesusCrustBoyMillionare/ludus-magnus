@@ -231,6 +231,33 @@ const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-wes
 const daysWord = n => n < 0 ? 'no way there' : n === 0 ? 'there today' : `${n} day${n === 1 ? "'s" : "s'"} march`;
 // Roughly how long to somewhere, and which way: as the crow flies, so the road may prove longer.
 const wayTo = (x, y) => { const F = G.field, d = Math.hypot(x - F.x, y - F.y), n = marchDays(d); return d < 40 ? 'close by' : `${n === 0 ? 'today' : `about ${n} day${n === 1 ? '' : 's'}`} ${COMPASS[Math.round(Math.atan2(y - F.y, x - F.x) / (Math.PI / 4) + 8) % 8]}`; };
+// ---------- the hour, out in the country ----------
+// Out here the day is as long as the day's march: dawn when the column sets out fresh, dusk as the march runs out,
+// night when it is spent. dayPart is 0 at dawn and 1 at nightfall.
+const dayPart = () => clamp(((G.field && G.field.march) || 0) / MARCH_DAY, 0, 1);
+const HOURS = [[0.1, 'DAWN'], [0.38, 'MORNING'], [0.6, 'MIDDAY'], [0.86, 'AFTERNOON'], [2, 'DUSK']];
+const hourWord = () => HOURS.find(h => dayPart() < h[0])[1];
+// The light for that hour, from the same sky as the yard's (its day runs dawn to dusk over the first 0.7 of its clock).
+function provSky() { return yardSky((((0.05 + dayPart() * 0.6) - 0.2 + 1) % 1) * YARD_DAY); }
+// The dial: the sun on its arc from dawn to dusk, the hour in a word, the day, and what is left of today's march.
+function provDial(ctx, x, y) {
+  const p = dayPart(), camped = performance.now() - (prov.night || -1e9) < 1500;
+  ctx.fillStyle = 'rgba(24,16,10,.82)'; ctx.fillRect(x, y, 96, 27);
+  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(x, y, 96, 0.5);
+  // the sky's arc, with the ground under it
+  const cx = x + 20, cy = y + 20, r = 14;
+  ctx.fillStyle = '#6b5f50'; ctx.fillRect(x + 4, cy, 32, 1);
+  for (let k = 0; k <= 12; k++) { const a = Math.PI * (1 - k / 12); ctx.fillStyle = k / 12 <= p ? '#8a7a55' : '#4a4034'; ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy - Math.sin(a) * r), 1, 1); }
+  const a = Math.PI * (1 - p), sx = Math.round(cx + Math.cos(a) * r), sy = Math.round(cy - Math.sin(a) * r);
+  if (camped) { ctx.fillStyle = '#cfd8e8'; ctx.fillRect(cx - 2, cy - 12, 5, 5); ctx.fillStyle = 'rgba(24,16,10,.82)'; ctx.fillRect(cx, cy - 12, 3, 4); }      // a moon, while they sleep
+  else { ctx.fillStyle = p > 0.86 ? '#f08a4a' : '#ffd24a'; ctx.fillRect(sx - 2, sy - 2, 5, 5); ctx.fillStyle = '#fff0b0'; ctx.fillRect(sx - 1, sy - 1, 3, 3); }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 7px Consolas, monospace'; ctx.fillStyle = p > 0.86 ? '#f0a070' : '#f2e6cc'; ctx.fillText(camped ? 'NIGHT' : hourWord(), x + 40, y + 9);
+  ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = '#a8947a'; ctx.fillText(`DAY ${G.day}`, x + 40, y + 16);
+  ctx.fillStyle = '#c9b9a0'; ctx.fillText('MARCH', x + 40, y + 23.5);
+  ctx.fillStyle = '#2a2418'; ctx.fillRect(x + 60, y + 19, 32, 5); ctx.fillStyle = p > 0.86 ? '#e2695c' : '#e0aa3e'; ctx.fillRect(x + 60, y + 19, Math.round(32 * (1 - p)), 5);
+}
+
 // What the march to wherever the mouse is would take, by the way the column would really go. Worked out a few times a second.
 function provPeek() {
   const m = prov.mouse, F = G.field;
@@ -395,7 +422,7 @@ function drawProvince(cv, T) {
   ctx.globalAlpha = 1;
 
   // the same hour and the same weather as over the town: the colour of the light, a brand in the dark, rain
-  const sky = yardSky(sceneClock()), wx = yardWeather(sceneClock());
+  const sky = provSky(), wx = yardWeather(sceneClock());
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
   if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
   if (sky.night > 0.25) {
@@ -432,13 +459,8 @@ function drawProvince(cv, T) {
   ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 4, ww + 14 + danger * 6, 12);
   ctx.fillStyle = '#f2e6cc'; ctx.fillText(where, 9, 13);
   for (let i = 0; i < danger; i++) { ctx.fillStyle = '#e2695c'; ctx.fillRect(ww + 14 + i * 6, 7, 5, 4); ctx.fillRect(ww + 15 + i * 6, 11, 3, 2); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(ww + 15 + i * 6, 8, 1, 1); ctx.fillRect(ww + 17 + i * 6, 8, 1, 1); }
-  {                                       // today's march: how much walking is left before night
-    const used = clamp((F.march || 0) / MARCH_DAY, 0, 1);
-    ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 18, 92, 11);
-    ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = '#c9b9a0'; ctx.fillText("TODAY'S MARCH", 7, 25.5);
-    ctx.fillStyle = '#2a2418'; ctx.fillRect(52, 21, 40, 5); ctx.fillStyle = used > 0.85 ? '#e2695c' : '#e0aa3e'; ctx.fillRect(52, 21, Math.round(40 * (1 - used)), 5);
-    ctx.font = 'bold 7px Consolas, monospace';
-  }
+  provDial(ctx, 4, 18);
+  ctx.font = 'bold 7px Consolas, monospace'; ctx.textAlign = 'left';
   // at the edge of the view: which way home is, and which way to anything a clue has marked
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
   const point = (wx, wy, label, col, bg) => {
@@ -526,6 +548,7 @@ function drawOverview(cv, T) {
   R(F.x - 3, F.y - 46 - fb, 6, 46 + fb, '#1a110c'); R(F.x - 1, F.y - 44 - fb, 2, 44 + fb, '#f1ead8'); R(F.x + 1, F.y - 46 - fb, 34, 22, '#1a110c'); R(F.x + 3, F.y - 44 - fb, 30, 18, '#7a2a8a'); R(F.x + 9, F.y - 39 - fb, 18, 8, '#f5d584');
   const U = cv.width / 960;
   ctx.setTransform(U, 0, 0, U, 0, 0);
+  ctx.save(); ctx.translate(960 - 196, 8); ctx.scale(2, 2); provDial(ctx, 0, 0); ctx.restore();
   // the key to the map
   const key = [['#7a2a8a', 'YOU'], ['#f5d584', 'MARKED FOR YOU'], ['#c23b2e', 'A ROAMING BAND'], ['#8a8478', 'DEALT WITH'], ['rgba(120,40,30,.9)', 'SKULLS: HOW HARD THE COUNTRY IS']];
   ctx.font = 'bold 11px Consolas, monospace'; ctx.textAlign = 'left';
