@@ -877,50 +877,105 @@ const BEAST_ART = {
   bear: { col: '#6b4a2e', bw: 22, bh: 12, lh: 6, lw: 4, hw: 8, hh: 8, hy: 1, tail: 0 },
 };
 
+// A beast, with the same dark line round it as a fighter has. Each kind has its own head, ears, tail and markings;
+// what they share is a rounded body on BEAST_ART's measures, legs that step in diagonal pairs, a mouth that opens
+// to strike, and wounds that show.
 function drawBeast(ctx, o) {
-  const kind = o.g.cls, a = BEAST_ART[kind], d = o.facing, X = Math.round(o.x), Y = Math.round(o.y);
+  if (!o.plain && !o.solid) {
+    const edge = Object.assign({}, o, { solid: 'rgba(30,18,9,.62)' });
+    for (const [dx, dy] of SPRITE_EDGE) { edge.x = o.x + dx; edge.y = o.y + dy; drawBeast(ctx, edge); }
+  }
+  const kind = o.g.cls, a = BEAST_ART[kind], d = o.facing, X = Math.round(o.x), Y = Math.round(o.y), T = o.clock || 0;
   const white = o.flash > 0;
-  const P = (x, y, w, h, col) => { ctx.fillStyle = white ? '#fff' : col; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
-  const col = a.col, colD = shade(col, 0.7), colL = shade(col, 1.22), ink = '#1c1310', hb = Math.floor(a.bw / 2);
-  ctx.fillStyle = 'rgba(0,0,0,.2)';
-  ctx.fillRect(X - hb - 2, Y - 2, a.bw + 8, 3);
+  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : col); ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
+  const col = a.col, colD = shade(col, 0.7), colDD = shade(col, 0.52), colL = shade(col, 1.22), ink = '#1c1310', hb = Math.floor(a.bw / 2);
+  const belly = { boar: shade(col, 0.85), wolf: '#c9ccd2', lion: '#e3c486', bear: shade(col, 0.82) }[kind];
+  const eye = { boar: '#c23b2e', wolf: '#e8c84a', lion: '#e8a83a', bear: '#1c1310' }[kind];
+  const seed = o.g.id * 7919 % 97;
+  if (!o.solid) { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - hb - 2, Y - 2, a.bw + 8, 3); ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(X - hb + 1, Y - 1, a.bw + 2, 2); }
 
-  if (o.down && !o.falling) { // on its side
-    P(-hb, -a.bh + 2, a.bw, a.bh - 2, col); P(-hb, -2, a.bw, 2, colD); P(-hb + 2, -a.bh + 2, a.bw - 4, 1, colL);
-    P(-hb + 2, -a.bh - 2, a.lw, 4, colD); P(hb - a.lw - 3, -a.bh - 2, a.lw, 4, colD);
-    if (a.mane) P(hb - 5, -a.hh - 1, a.hw + 2, a.hh + 1, a.mane);
-    P(hb - 1, -a.hh + 1, a.hw, a.hh - 1, col); P(hb + a.hw - 2, -3, 3, 2, colD); P(hb + a.hw - 3, -a.hh + 3, 1, 1, ink);
+  if (o.down && !o.falling) {                    // on its side, legs out, done
+    P(-hb + 1, -a.bh + 1, a.bw - 2, 1, colL); P(-hb, -a.bh + 2, a.bw, a.bh - 3, col); P(-hb + 1, -1, a.bw - 2, 1, colDD); P(-hb, -3, a.bw, 2, colD);
+    P(-hb + 3, -a.bh - 3, a.lw, 5, colD); P(-hb + 3, -a.bh - 4, a.lw + 1, 1, colDD); P(hb - a.lw - 4, -a.bh - 3, a.lw, 5, colD); P(hb - a.lw - 4, -a.bh - 4, a.lw + 1, 1, colDD);
+    if (a.mane) { P(hb - 6, -a.hh - 2, a.hw + 4, a.hh + 2, a.mane); P(hb - 5, -a.hh - 3, a.hw + 1, 1, shade(a.mane, 1.2)); }
+    P(hb - 1, -a.hh + 1, a.hw, a.hh - 1, col); P(hb - 1, -2, a.hw, 2, colD); P(hb + a.hw - 2, -4, 3, 3, belly);
+    P(hb + a.hw - 3, -a.hh + 3, 2, 1, ink);                         // the eye, shut
+    P(hb + a.hw, -1, 2, 1, '#b3261c');                              // the tongue
+    if (kind === 'wolf') P(-hb - 5, -3, 6, 2, col);
+    if (kind === 'lion') { P(-hb - 6, -2, 7, 1, col); P(-hb - 8, -3, 3, 2, a.mane); }
     return;
   }
 
   const lunge = Math.round(o.atkAnim * 3) - (o.windup ? 2 : 0);
   const frame = o.moving ? Math.floor(o.walk) % 4 : -1;
-  const bob = o.moving ? frame % 2 : (Math.sin((o.clock || 0) * 2.2) > 0.6 ? 1 : 0);
+  const bob = o.moving ? frame % 2 : (Math.sin(T * (o.hurt >= 2 ? 4.6 : 2.2)) > 0.6 ? 1 : 0);
   const sw = o.moving ? [2, 0, -2, 0][frame] : 0;
-  const x0 = -hb + lunge, top = -(a.lh + a.bh) - (o.moving ? bob : 0);
-  // far legs, then near legs
-  P(x0 + 1 - sw, -a.lh, a.lw, a.lh, colD); P(x0 + a.bw - a.lw - 4 + sw, -a.lh, a.lw, a.lh, colD);
-  P(x0 + 3 + sw, -a.lh, a.lw, a.lh, col); P(x0 + a.bw - a.lw - 1 - sw, -a.lh, a.lw, a.lh, col);
-  P(x0 + 3 + sw, -1, a.lw + 1, 1, colD); P(x0 + a.bw - a.lw - 1 - sw, -1, a.lw + 1, 1, colD);
-  // tail
-  if (a.tail === 1) { P(x0 - 4, top + 1, 5, 2, col); P(x0 - 5, top + 3, 2, 3, colD); }
-  if (a.tail === 2) { P(x0 - 5, top + 1, 6, 1, col); P(x0 - 6, top - 2, 1, 4, col); P(x0 - 7, top - 4, 3, 2, a.mane); }
-  if (kind === 'boar') P(x0 - 1, top + 2, 1, 3, colD);
-  // body
-  P(x0, top, a.bw, a.bh, col); P(x0, top + a.bh - 2, a.bw, 2, colD); P(x0 + 2, top, a.bw - 4, 1, colL);
-  if (kind === 'boar') for (let i = 1; i < a.bw - 2; i += 2) P(x0 + i, top - 1, 1, 1, ink);
-  if (kind === 'bear') { P(x0 + 3, top - 1, a.bw - 8, 1, col); P(x0 + a.bw - 8, top - 2, 6, 2, col); }
-  // head
-  const hx = x0 + a.bw - 2, hy = top + a.hy + (o.moving ? 0 : bob);
-  if (a.mane) { P(hx - 4, hy - 2, a.hw + 3, a.hh + 4, a.mane); P(hx - 5, hy, 2, a.hh, shade(a.mane, 0.8)); P(hx - 3, hy - 3, a.hw, 1, shade(a.mane, 1.2)); }
-  P(hx, hy, a.hw, a.hh, col); P(hx, hy + a.hh - 2, a.hw, 2, colD);
-  P(hx + 1, hy - 2, 2, 2, kind === 'wolf' ? colD : col); if (kind === 'wolf') P(hx + 1, hy - 3, 1, 1, colD);
-  P(hx + a.hw - 1, hy + a.hh - 4, 3, 3, kind === 'bear' || kind === 'lion' ? colL : col);
-  P(hx + a.hw + 1, hy + a.hh - 4, 1, 1, ink);
-  P(hx + a.hw - 3, hy + 2, 1, 1, ink);
-  if (kind === 'boar') { P(hx + a.hw, hy + a.hh - 2, 1, 2, '#f2ecd8'); P(hx + a.hw + 1, hy + a.hh - 3, 1, 1, '#f2ecd8'); }
-  if (o.atkAnim > 0.3 || o.windup) { P(hx + a.hw - 1, hy + a.hh - 1, 3, 1, '#b3261c'); P(hx + a.hw, hy + a.hh - 2, 1, 1, '#ffffff'); P(hx + a.hw + 1, hy + a.hh, 1, 1, '#ffffff'); }
-  if (o.slash > 0) { P(hx + a.hw + 3, hy, 1, a.hh + 2, '#ffffff'); P(hx + a.hw + 5, hy + 1, 1, a.hh, 'rgba(255,255,255,.6)'); }
+  const crouch = o.windup ? 1 : 0;                                  // it gathers itself before it springs
+  const x0 = -hb + lunge, top = -(a.lh + a.bh) - (o.moving ? bob : 0) + crouch, bw = a.bw, bh = a.bh, lh = a.lh - crouch, lw = a.lw;
+
+  // ---- legs: far pair behind in shade, near pair in front; diagonal pairs swing together, the stepping foot lifted ----
+  const leg = (x, swing, c, cD, claws) => {
+    const up = Math.ceil(lh / 2), lo = lh - up, lift = o.moving && swing > 0 ? 1 : 0;
+    P(x, -lh, lw + 1, up, c);                                       // thigh or shoulder
+    P(x + Math.sign(swing), -lo - lift, lw, lo, c); P(x + Math.sign(swing), -lo - lift, 1, lo, cD);
+    P(x + Math.sign(swing) + (swing ? swing > 0 ? 1 : -1 : 0), -1 - lift, lw + 1, 1, cD);      // the paw or hoof
+    if (claws && !o.solid) P(x + Math.sign(swing) + lw + (swing > 0 ? 1 : 0), -1 - lift, 1, 1, '#f2ecd8');
+  };
+  const claws = kind === 'bear' || kind === 'lion';
+  leg(x0 + 1, -sw, colD, colDD, false); leg(x0 + bw - lw - 5, sw, colD, colDD, false);
+  // ---- tail ----
+  const wag = Math.sin(T * (o.moving ? 9 : 3) + seed) > 0 ? 1 : 0;
+  if (kind === 'wolf') { P(x0 - 3, top + 1, 4, 2, col); P(x0 - 6, top + 2 + wag, 4, 3, col); P(x0 - 7, top + 4 + wag, 3, 2, belly); P(x0 - 6, top + 2 + wag, 4, 1, colD); }
+  if (kind === 'lion') { P(x0 - 4, top + 2, 5, 1, col); P(x0 - 6, top + 1 - wag, 2, 2, col); P(x0 - 7, top - 2 - wag, 1, 4, col); P(x0 - 9, top - 4 - wag, 3, 3, a.mane); }
+  if (kind === 'boar') { P(x0 - 1, top + 2, 1, 2, colD); P(x0 - 2, top + 1 + wag, 1, 2, colD); }
+  if (kind === 'bear') P(x0 - 1, top + 2, 2, 2, colD);
+  // ---- body: rounded at the corners, lit along the back, in shade under the belly ----
+  P(x0 + 1, top, bw - 2, 1, colL); P(x0, top + 1, bw, bh - 2, col); P(x0 + 1, top + bh - 1, bw - 2, 1, colDD);
+  P(x0, top + bh - 3, bw, 2, colD); P(x0 + 3, top + bh - 2, bw - 8, 1, belly);
+  P(x0, top + 1, 1, 1, colD);                                       // the haunch
+  P(x0 + 1, top + 2, 4, bh - 4, shade(col, 0.9)); P(x0 + bw - 6, top + 1, 5, bh - 3, shade(col, 1.08));      // hip and shoulder
+  if (kind === 'boar') { for (let k = 1; k < bw - 1; k += 2) P(x0 + k, top - 1 - (k % 4 === 1 ? 1 : 0), 1, 1 + (k % 4 === 1 ? 1 : 0), ink); P(x0 + 4, top + 3, bw - 9, 1, colL); }      // a ridge of bristles
+  if (kind === 'wolf') { P(x0 + 2, top, bw - 5, 2, colD); P(x0 + bw - 7, top + 2, 4, 1, colD); }          // a dark saddle
+  if (kind === 'lion') P(x0 + 2, top + 1, bw - 10, 1, colL);
+  if (kind === 'bear') { P(x0 + 3, top - 1, bw - 8, 1, col); P(x0 + bw - 9, top - 2, 7, 2, col); P(x0 + bw - 8, top - 3, 5, 1, colL); for (let k = 2; k < bw - 3; k += 3) P(x0 + k, top + 3 + (k % 2), 1, 2, colD); }      // the hump, and shag
+  // ---- wounds ----
+  if (o.hurt) { const bl = '#a3261b', blD = '#7a1a12'; P(x0 + 6, top + 2, 3, 2, bl); P(x0 + 7, top + 4, 1, 2, blD); if (o.hurt >= 2) { P(x0 + bw - 9, top + 3, 2, 3, bl); P(x0 + 3, top + 4, 2, 1, bl); } if (o.hurt >= 3) { P(x0 + 9, top + 1, 4, 1, bl); P(x0 + bw - 5, top + bh - 3, 2, 3, blD); } }
+  // near legs go over the body
+  leg(x0 + 3, sw, col, colD, claws); leg(x0 + bw - lw - 2, -sw, col, colD, claws);
+
+  // ---- head ----
+  const hx = x0 + bw - 2, hy = top + a.hy + (o.moving ? 0 : bob) + crouch, hw = a.hw, hh = a.hh;
+  const open = o.atkAnim > 0.3 || o.windup;
+  if (kind === 'lion') {                         // the mane first: a ruff all round the face
+    const m = a.mane, mL = shade(m, 1.25), mD = shade(m, 0.75);
+    P(hx - 5, hy - 2, hw + 4, hh + 5, m); P(hx - 4, hy - 4, hw + 1, 2, m); P(hx - 6, hy, 2, hh + 1, mD); P(hx - 4, hy + hh + 3, hw, 1, mD);
+    P(hx - 3, hy - 4, hw - 2, 1, mL); P(hx - 4, hy - 2, 1, 3, mL); for (let k = 0; k < 4; k++) P(hx - 4 + k * 2, hy + 2 + (k % 2) * 2, 1, 3, mD);
+  }
+  if (kind === 'wolf') P(hx - 2, hy + 1, 4, hh, shade(col, 0.92));          // the ruff of the neck
+  P(hx + 1, hy, hw - 1, 1, colL); P(hx, hy + 1, hw, hh - 1, col); P(hx, hy + hh - 2, hw, 2, colD);
+  // ears
+  if (kind === 'wolf') { P(hx + 1, hy - 3, 2, 3, col); P(hx + 1, hy - 4, 1, 1, colD); P(hx + 2, hy - 2, 1, 2, '#6a4a52'); P(hx + 4, hy - 2, 1, 2, colD); }
+  else if (kind === 'boar') { P(hx + 1, hy - 2, 2, 3, colD); P(hx + 2, hy - 1, 1, 1, '#8a6a5a'); }
+  else { P(hx + 1, hy - 2, 2, 2, kind === 'lion' ? col : colD); P(hx + 2, hy - 1, 1, 1, kind === 'lion' ? '#8a5a3a' : colDD); if (kind === 'bear') P(hx + hw - 3, hy - 2, 2, 2, colD); }
+  // muzzle
+  const mz = hy + hh - 4;
+  if (kind === 'wolf') { P(hx + hw - 1, mz, 5, 3, col); P(hx + hw - 1, mz + 2, 5, 1, belly); P(hx + hw - 1, mz, 5, 1, colL); P(hx + hw + 3, mz, 1, 1, ink); P(hx + 1, hy + hh - 2, hw - 2, 1, belly); }
+  else if (kind === 'boar') { P(hx + hw - 1, mz - 1, 4, 4, col); P(hx + hw + 2, mz - 1, 1, 4, '#8a6a5a'); P(hx + hw + 2, mz, 1, 1, ink); P(hx + hw + 2, mz + 2, 1, 1, ink); }
+  else if (kind === 'lion') { P(hx + hw - 1, mz, 3, 3, belly); P(hx + hw + 1, mz, 1, 1, '#5a3a2a'); P(hx + hw - 2, mz + 2, 3, 1, '#f4ead4'); }
+  else { P(hx + hw - 1, mz, 4, 3, '#a8845c'); P(hx + hw - 1, mz, 4, 1, '#c09a6e'); P(hx + hw + 2, mz, 1, 1, ink); }
+  // the eye: it narrows when it strikes, and now and then it blinks
+  const blink = !open && Math.sin(T * 1.1 + seed) > 0.975;
+  if (!blink) { P(hx + hw - 3, hy + 2, open ? 2 : 1, 1, eye); if (kind !== 'bear') P(hx + hw - 4, hy + 1, 3, 1, colD); } else P(hx + hw - 4, hy + 2, 3, 1, colD);
+  if (kind === 'boar') { P(hx + hw, hy + hh - 2, 1, 2, '#f2ecd8'); P(hx + hw + 1, hy + hh - 4, 1, 2, '#f2ecd8'); P(hx + hw + 2, hy + hh - 5, 1, 1, '#ffffff'); }       // tusks, curving up
+  // the mouth: open to bite, with the teeth showing
+  if (open) {
+    const jw = kind === 'wolf' ? 5 : 4;
+    P(hx + hw - 1, hy + hh - 1, jw, 2, '#7a1a12'); P(hx + hw - 1, hy + hh + 1, jw - 1, 1, colD);
+    P(hx + hw, hy + hh - 1, 1, 1, '#ffffff'); P(hx + hw + 2, hy + hh - 1, 1, 1, '#ffffff'); P(hx + hw + 1, hy + hh, 1, 1, '#ffffff');
+    if (kind === 'lion' || kind === 'bear') P(hx + hw + jw - 2, hy + hh - 1, 1, 2, '#ffffff');
+  }
+  if (o.solid) return;                           // what follows is light and net, not part of the outline
+  if (o.slash > 0) { P(hx + hw + 4, hy, 1, hh + 2, '#ffffff'); P(hx + hw + 6, hy + 1, 1, hh, 'rgba(255,255,255,.6)'); if (claws) P(hx + hw + 8, hy + 2, 1, hh - 2, 'rgba(255,255,255,.35)'); }
   if (o.snare > 0) {
     ctx.fillStyle = 'rgba(232,220,180,.75)';
     for (let i = -hb - 2; i <= hb + a.hw + 2; i += 4) ctx.fillRect(X + (d > 0 ? i : -i), Y + top - 4, 1, -top + 4);
@@ -1246,7 +1301,7 @@ function drawBattle(ctx, B) {
       bash: f.state === 'windup' && f.move === 'bash', guard: f.guard,
       flash: f.flash, down: f.down, falling: f.fallT > 0, yielded: f.yielded, snare: f.snare, slash: f.slash,
       cheer: (B.over && !out(f) && f.team === B.winner && B.slowmo <= 0) || f.flourish > 0 ? T + f.walk : 0,
-      noHelm: f.noHelm, hurt: f.g.beast ? 0 : f.hp < f.maxHp * 0.3 ? 3 : f.hp < f.maxHp * 0.55 ? 2 : f.hp < f.maxHp * 0.8 ? 1 : 0,
+      noHelm: f.noHelm, hurt: f.hp < f.maxHp * 0.3 ? 3 : f.hp < f.maxHp * 0.55 ? 2 : f.hp < f.maxHp * 0.8 ? 1 : 0,
       hamstrung: f.hamstrung, armWound: f.armWound, shieldDmg: f.shieldHits >= 9 ? 2 : f.shieldHits >= 4 ? 1 : 0,
   });
   for (const f of sorted) drawFighter(ctx, f, spr(f));
