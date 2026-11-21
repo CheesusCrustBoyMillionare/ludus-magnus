@@ -1688,7 +1688,7 @@ function fightLoop(ts) {
   f.B.paused = !!f.paused;
   if (!f.paused) for (let i = 0; i < Math.max(1, f.speed); i++) stepBattle(f.B, f.speed < 1 ? dt * f.speed : dt);
   // whoever the mouse is resting on gets a card saying what he is
-  f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - 24 && f.hover.y < q.y + 4).sort((a, b) => Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
+  f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - (out(q) ? 8 : 24) && f.hover.y < q.y + 4).sort((a, b) => (out(a) - out(b)) || Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
   SFX.hold(!!(f.B.pick || f.paused) && !f.B.over);
   if (f.B.pick && f.askedOf !== f.B.pick) SFX.play('ready');          // the fight has stopped for your man: a call to say so

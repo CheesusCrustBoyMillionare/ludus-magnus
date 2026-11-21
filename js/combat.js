@@ -1347,6 +1347,106 @@ function drawFatal(ctx, B, T) {
   ctx.restore();
 }
 
+// The card for the man the mouse is resting on. He is ringed on the sand and a line runs to the man he is fighting;
+// the card stands beside him: who he is, his health and charge, what he can do in figures, what ails or aids him and
+// for how long, what he has done in this fight, and the abilities he carries.
+function drawInspect(ctx, B, who, T) {
+  const g = who.g, w = 122, col = B.col[who.team], colD = B.colD[who.team], gone = out(who);
+  const fx = who.x * Z, fy = who.y * Z, tg = !gone && who.target && !out(who.target) ? who.target : null;
+  ctx.save(); ctx.textBaseline = 'alphabetic';
+  // on the sand: a ring under him, and a line to his man
+  ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.6 + 0.3 * Math.sin(T * 6);
+  ctx.beginPath(); ctx.ellipse(fx, fy, 9, 3, 0, 0, 6.283); ctx.stroke();
+  if (tg) {
+    ctx.globalAlpha = 0.55; ctx.setLineDash([2, 1.5]); ctx.lineDashOffset = -T * 8; ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.moveTo(fx, fy - 1); ctx.lineTo(tg.x * Z, tg.y * Z - 1); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = B.col[tg.team]; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.ellipse(tg.x * Z, tg.y * Z, 7, 2.4, 0, 0, 6.283); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  // what goes on it
+  const marks = [];
+  const tm = v => v > 0 && v < 60 ? ` ${v.toFixed(v < 10 ? 1 : 0)}S` : '';
+  if (who.bleed > 0) marks.push(['bleed', 'BLEEDING']); if (who.hamstrung) marks.push(['ham', 'HAMSTRUNG']); if (who.armWound) marks.push(['arm', 'ARM WOUND']);
+  if (who.snare > 0) marks.push(['net', 'NETTED' + tm(who.snare)]); if (who.stun > 0.3) marks.push(['stun', 'STUNNED' + tm(who.stun)]);
+  if (who.weakT > 0) marks.push(['weak', 'WEAKENED' + tm(who.weakT)]); if (who.open > 0) marks.push(['open', 'EXPOSED' + tm(who.open)]);
+  if (who.buff) { const b = who.buff, k = b.dr > 0 || b.block ? 'GUARDED' : b.dmg > 0 ? 'FURY' : b.haste ? 'HASTE' : 'ROUSED'; marks.push(['buff', k + tm(b.t)]); }
+  const traits = g.beast ? [] : (g.traits || []).map(t => TRAITS[t]).filter(Boolean).slice(0, 4);
+  const pct = v => Math.round(clamp(v, 0, 1) * 100) + '%';
+  const stats = [['DAMAGE', Math.round(who.dmg)], ['EVERY', who.atkTime.toFixed(2) + 'S'], ['ARMOUR', Math.round(who.armor)], ['BLOCK', pct(who.block)], ['DODGE', pct(who.dodge)], ['CRIT', pct(who.crit)]];
+  const mrows = Math.ceil(marks.length / 2), arows = who.abl.length;
+  const h = 27 + 15 + (mrows ? mrows * 6 + 3 : 0) + (traits.length ? 8 : 0) + 9 + (arows ? arows * 6 + 7 : 0) + (tg || gone ? 7 : 0) + 2;
+  // beside him, and on the side away from the man he is fighting where there is room for it
+  let right = tg ? tg.x < who.x : fx < 160;
+  if (right && fx + 14 + w > 318) right = false; else if (!right && fx - 14 - w < 2) right = true;
+  const cx = clamp(right ? fx + 14 : fx - 14 - w, 2, 318 - w), cy = clamp(fy - h * 0.62, 14, 166 - h);
+  // the card
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(cx + 1.5, cy + 1.5, w, h);
+  ctx.fillStyle = 'rgba(14,9,5,.95)'; ctx.fillRect(cx, cy, w, h);
+  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(cx, cy, w, 0.5); ctx.fillRect(cx, cy + h - 0.5, w, 0.5); ctx.fillStyle = col; ctx.fillRect(cx, cy, 1.5, h);
+  // his likeness, in a small frame
+  ctx.save(); ctx.beginPath(); ctx.rect(cx + 4, cy + 3, 18, 21); ctx.clip();
+  ctx.fillStyle = colD; ctx.fillRect(cx + 4, cy + 3, 18, 21); ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fillRect(cx + 4, cy + 3, 18, 8);
+  ctx.translate(cx + 13, cy + (g.beast ? 22 : 37)); ctx.scale(g.beast ? 0.55 : 0.85, g.beast ? 0.55 : 0.85);
+  drawSprite(ctx, { x: 0, y: 0, facing: who.team ? -1 : 1, g, team: who.team, col, colD, moving: false, walk: 0, clock: T, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: who.noHelm });
+  ctx.restore();
+  ctx.strokeStyle = '#e0aa3e'; ctx.lineWidth = 0.5; ctx.strokeRect(cx + 4, cy + 3, 18, 21);
+  // name, what he is, health and charge
+  const tx = cx + 26, rw = w - 30;
+  ctx.textAlign = 'left'; ctx.font = 'bold 6px Cinzel, Georgia, serif'; ctx.fillStyle = who.team ? '#bcd6ff' : '#ffd9d2';
+  ctx.fillText((g.beast ? who.c.name : g.name).toUpperCase().slice(0, 18), tx, cy + 8);
+  ctx.font = 'bold 4px Consolas, monospace'; ctx.fillStyle = '#c9b9a0';
+  ctx.fillText(g.beast ? 'A BEAST' : `${who.c.name.toUpperCase()}  ${RANKS[g.rank || 0] ? RANKS[g.rank || 0].name.toUpperCase() : ''}  ${g.wins || 0}W ${g.losses || 0}L`, tx, cy + 13);
+  if (!g.beast) { if (who.style) drawIcon(ctx, who.style, cx + w - 9, cy + 2.5, 0.6); }
+  const hp = clamp(who.hp / who.maxHp, 0, 1);
+  ctx.fillStyle = '#3a1512'; ctx.fillRect(tx, cy + 15.5, rw, 3.5); ctx.fillStyle = col; ctx.fillRect(tx, cy + 15.5, rw * hp, 3.5); ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(tx, cy + 15.5, rw * hp, 1);
+  ctx.fillStyle = '#2a2418'; ctx.fillRect(tx, cy + 20.5, rw, 2.5); ctx.fillStyle = who.charge >= 100 ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(tx, cy + 20.5, rw * clamp(who.charge / 100, 0, 1), 2.5);
+  ctx.font = 'bold 3.5px Consolas, monospace'; ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
+  ctx.fillText(`${Math.max(0, Math.ceil(who.hp))} / ${who.maxHp}`, tx + rw - 1, cy + 18.5);
+  ctx.fillStyle = '#1c130c'; ctx.fillText(who.charge >= 100 ? 'CHARGED' : `CHARGE ${Math.round(who.charge)}%`, tx + rw - 1, cy + 22.7);
+  let y = cy + 27;
+  const rule = () => { ctx.fillStyle = 'rgba(224,170,62,.3)'; ctx.fillRect(cx + 4, y, w - 8, 0.4); };
+  // what he can do, in figures: three and three
+  rule();
+  stats.forEach(([lab, val], i) => {
+    const sx = cx + 5 + (i % 3) * 39, sy = y + 6 + Math.floor(i / 3) * 6.5;
+    ctx.textAlign = 'left'; ctx.font = '3.5px Consolas, monospace'; ctx.fillStyle = '#a8947a'; ctx.fillText(lab, sx, sy);
+    ctx.textAlign = 'right'; ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = '#f2e6cc'; ctx.fillText(val, sx + 35, sy);
+  });
+  y += 15;
+  // what ails or aids him
+  if (mrows) {
+    rule();
+    marks.forEach(([k, lab], i) => { const sx = cx + 5 + (i % 2) * 58, sy = y + 3 + Math.floor(i / 2) * 6; drawMark(ctx, k, sx + 0.5, sy, 0.5); ctx.textAlign = 'left'; ctx.font = 'bold 4px Consolas, monospace'; ctx.fillStyle = HUD_MARKS[k][0]; ctx.fillText(lab, sx + 5, sy + 2.6); });
+    y += mrows * 6 + 3;
+  }
+  if (traits.length) {
+    rule(); ctx.textAlign = 'left'; ctx.font = 'bold 4px Consolas, monospace'; let sx = cx + 5;
+    for (const t of traits) { const nm = t.name.toUpperCase(), tw = ctx.measureText(nm).width; if (sx + tw > cx + w - 4) break; ctx.fillStyle = t.good ? '#9fd070' : '#e2897c'; ctx.fillText(nm, sx, y + 5.5); sx += tw + 5; }
+    y += 8;
+  }
+  // what he has done in this fight
+  rule(); ctx.textAlign = 'left'; ctx.font = '3.5px Consolas, monospace'; ctx.fillStyle = '#a8947a'; ctx.fillText('THIS FIGHT', cx + 5, y + 6);
+  ctx.font = 'bold 4px Consolas, monospace'; ctx.fillStyle = '#f2e6cc'; ctx.fillText(`${Math.round(who.dmgDealt)} DEALT   ${Math.round(who.dmgTaken)} TAKEN   BEST ${who.best ? Math.round(who.best) : '-'}`, cx + 31, y + 6);
+  y += 9;
+  // what he carries
+  if (arows) {
+    rule(); ctx.font = '3.5px Consolas, monospace'; ctx.fillStyle = '#a8947a'; ctx.textAlign = 'left'; ctx.fillText('ABILITIES', cx + 5, y + 5); y += 7;
+    who.abl.forEach((ab, i) => {
+      const n = who.used[ab.name] || 0, sy = y + i * 6;
+      if (ab.skill) drawIcon(ctx, ab.skill, cx + 5, sy - 0.4, 0.45);
+      ctx.textAlign = 'left'; ctx.font = 'bold 4px Consolas, monospace'; ctx.fillStyle = who.lastCast === ab.id ? '#ffd24a' : '#f2e6cc'; ctx.fillText(ab.name.toUpperCase(), cx + 11, sy + 3.2);
+      if (n) { ctx.textAlign = 'right'; ctx.fillStyle = '#c9b9a0'; ctx.fillText(`USED ${n}`, cx + w - 4, sy + 3.2); }
+    });
+    y += arows * 6;
+  }
+  if (tg || gone) {
+    rule(); ctx.textAlign = 'left'; ctx.font = 'bold 4px Consolas, monospace';
+    ctx.fillStyle = gone ? '#e2897c' : B.col[tg.team] === col ? '#f2e6cc' : (tg.team ? '#bcd6ff' : '#ffd9d2');
+    ctx.fillText(gone ? (who.fate === 'dead' ? 'SLAIN' : who.yielded ? 'HAS YIELDED' : 'IS DOWN') : `FIGHTING ${(tg.g.beast ? 'THE ' + tg.c.name : tg.g.name).toUpperCase()}${TACTICS[who.tactic] && who.tactic !== 'balanced' ? '   ' + TACTICS[who.tactic].name.toUpperCase() : ''}`, cx + 5, y + 5.2);
+  }
+  ctx.restore(); ctx.textAlign = 'center';
+}
+
 function drawCutIn(ctx, B, T) {
   // In beats, so that the whole of its time is used: the band slams across, the man draws back while the name of the
   // thing is struck out a letter at a time, then he lets fly - and the one it is meant for is seen to take it.
@@ -2093,22 +2193,7 @@ function drawBattle(ctx, B) {
 
   // the man the mouse is on: what he is, how he stands, and what he carries
   const who = B.inspect && B.fighters.includes(B.inspect) ? B.inspect : null;
-  if (who && !B.pick && !B.over && B.intro <= 0) {
-    const g = who.g, lines = [], w = 104;
-    lines.push([`${g.name.toUpperCase()}${g.beast ? '' : '  ' + who.c.name.toUpperCase()}`, who.team ? '#9cc4ff' : '#ff9a8a']);
-    lines.push([`HEALTH ${Math.max(0, Math.round(who.hp))}/${who.maxHp}   CHARGE ${Math.round(who.charge)}%`, '#f2e6cc']);
-    if (!g.beast) lines.push([who.style ? `${STAT_NAMES[who.style].toUpperCase()} STYLE: BEATS ${STAT_NAMES[STYLE_BEATS[who.style]].toUpperCase()}` : 'NO STYLE: NO EDGE, NO WEAKNESS', who.style ? STYLE_COL[who.style] : '#a8947a']);
-    const st = [who.bleed > 0 && 'BLEEDING', who.hamstrung && 'HAMSTRUNG', who.armWound && 'ARM WOUND', who.snare > 0 && 'NETTED', who.stun > 0.3 && 'STUNNED', who.weakT > 0 && 'WEAKENED', who.buff && 'BUFFED'].filter(Boolean).join(', ');
-    if (st) lines.push([st, '#ffd24a']);
-    const abl = who.abl.map(a => a.name.toUpperCase());
-    for (let i = 0; i < abl.length; i += 2) lines.push([abl.slice(i, i + 2).join(', '), '#c9b9a0']);
-    const h = lines.length * 6 + 4, cx = clamp(who.x * Z - w / 2, 2, 318 - w), cy = who.y * Z > 92 ? who.y * Z - Math.round(who.tall * FINE / SCALE) - h - 12 : who.y * Z + 8;
-    ctx.fillStyle = 'rgba(10,6,3,.9)'; ctx.fillRect(cx, cy, w, h);
-    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(cx, cy, w, 0.5); ctx.fillRect(cx, cy + h - 0.5, w, 0.5);
-    ctx.font = 'bold 4.5px Consolas, monospace'; ctx.textAlign = 'left';
-    lines.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillText(t, cx + 3, cy + 6 + i * 6); });
-    ctx.textAlign = 'center';
-  }
+  if (who && !B.pick && !B.over && B.intro <= 0 && !B.cut && !B.fatal) drawInspect(ctx, B, who, T);
   if (B.cut) drawCutIn(ctx, B, T);
   if (B.fatal) drawFatal(ctx, B, T);
   if (B.paused && !B.over) { ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(110, 78, 100, 18); ctx.fillStyle = '#e0aa3e'; ctx.fillText('PAUSED', 160, 91); }
