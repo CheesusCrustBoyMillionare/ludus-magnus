@@ -1072,3 +1072,31 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 #arenaTip .row { display: flex; gap: 6px; }
 #arenaTip .row button { padding: 3px 10px; font-size: 12px; white-space: nowrap; }
 #modalBox .ev .evnote { margin: 0 24px 10px; padding: 6px 10px; font-size: 13px; line-height: 1.4; background: rgba(120, 80, 30, .14); border-left: 3px solid #b8862a; color: #3a2814; }
+
+/* ---- choosing a perk ---- */
+#modalBox.perkwide { max-width: 800px; }
+.perkhead { display: flex; gap: 14px; align-items: center; }
+.perkhead .portrait { width: 72px; height: 84px; flex: none; image-rendering: pixelated; border: 1px solid #3a2414; }
+.perkhead h2 { border: 0; box-shadow: none; padding: 0; margin: 0; }
+.perkhead .rise { font: 700 11px var(--display); letter-spacing: .14em; text-transform: uppercase; color: #8a5a10; }
+.perkhead .dline { font-size: 13px; color: #3a2814; }
+.perkhead .has { margin-top: 4px; } .perkhead .has .chip { margin-bottom: 0; }
+#modalBox .perklead { margin: 10px 0 8px; font-size: 14px; }
+.perkcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.perkcard { position: relative; display: flex; flex-direction: column; gap: 5px; text-align: left; white-space: normal; padding: 10px 12px 9px; text-transform: none; letter-spacing: 0; font: 13px/1.35 Georgia, serif; min-height: 232px; border-top: 3px solid var(--gold); }
+.perkcard .k { position: absolute; right: 8px; top: 6px; font: bold 11px Consolas, monospace; opacity: .6; border: 1px solid currentColor; border-radius: 2px; padding: 0 5px; }
+.perkcard .kind { font: 700 9.5px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.perkcard > b { font: 700 17px var(--display); letter-spacing: .05em; color: #fff6dc; }
+.perkcard .desc { color: #e8d9b8; }
+.perkcard .fx { display: grid; gap: 1px; margin-top: 3px; padding: 5px 7px; background: rgba(0, 0, 0, .3); border: 1px solid rgba(232, 194, 122, .2); font-size: 12px; }
+.perkcard .fx em { font: 700 9px var(--display); letter-spacing: .1em; text-transform: uppercase; font-style: normal; color: #cdbf9f; }
+.perkcard .fx > div { display: grid; grid-template-columns: minmax(0, 1fr) auto 14px auto; gap: 4px; align-items: baseline; }
+.perkcard .fx span { color: #cdbf9f; } .perkcard .fx i { font-style: normal; opacity: .6; text-align: center; }
+.perkcard .fx b { font: bold 12px Consolas, monospace; color: #f2e6cc; } .perkcard .fx b.good { color: #a8d88a; } .perkcard .fx b.bad { color: #f0a090; }
+.perkcard .fx.none { color: #cdbf9f; font-style: italic; }
+.perkcard .suits { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #a8d88a; }
+.perkcard .suits .ic { width: 13px; height: 13px; }
+.perkcard .take { margin-top: auto; padding-top: 6px; border-top: 1px solid rgba(232, 194, 122, .2); font: 700 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); text-align: center; }
+.perkcard.armed { box-shadow: 0 0 0 2px #e0aa3e, 0 0 14px rgba(224, 170, 62, .5); }
+.perkcard.armed .take { color: #fff6dc; }
+@media (max-width: 700px) { .perkcards { grid-template-columns: 1fr; } .perkcard { min-height: 0; } }

@@ -344,6 +344,52 @@ function renderTutor() {
 function fieldDayDone() { render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); }
 
 // ---------- help: the keys and the rules of the trade, in one place ----------
+// ---- choosing a perk ----
+// Which perks sit well with which style of fighting: no more than a word of advice.
+const PERK_SUITS = { str: ['brute', 'bloodthirsty', 'lionheart', 'ironhide', 'thickskin', 'killer'], agi: ['quick', 'guarded', 'ironlungs', 'tireless', 'showy'], skl: ['keen', 'killer', 'guarded', 'disciplined', 'steady'] };
+const PERK_KIND = { brute: 'Attack', quick: 'Attack', keen: 'Attack', bloodthirsty: 'Attack', lionheart: 'Attack', killer: 'Attack', ironhide: 'Defence', guarded: 'Defence', thickskin: 'Defence', steady: 'Spirit', showy: 'The crowd', disciplined: 'Training', tireless: 'Training', ironlungs: 'Abilities' };
+// What a perk would change for this man, in his own figures: he is weighed as he would walk onto the sand with and without it.
+function perkEffect(g, t) {
+  const rows = [];
+  try {
+    const g2 = Object.assign({}, g, { traits: g.traits.concat(t) }), a = makeFighter(g, 0, 0, 1), b = makeFighter(g2, 0, 0, 1);
+    const add = (lab, x, y, fmt, lowGood) => { if (Math.abs(y - x) > 1e-6) rows.push(`<div><span>${lab}</span><b>${fmt(x)}</b><i>&rarr;</i><b class="${(y > x) !== !!lowGood ? 'good' : 'bad'}">${fmt(y)}</b></div>`); };
+    const pc = v => Math.round(v * 100) + '%', f1 = v => v.toFixed(1);
+    add('Damage a blow', a.dmg, b.dmg, f1);
+    add('Seconds between blows', a.atkTime, b.atkTime, v => v.toFixed(2), true);
+    add('Health', a.maxHp, b.maxHp, v => Math.round(v));
+    add('Armour', a.armor, b.armor, f1);
+    add('Dodge', a.dodge, b.dodge, pc); add('Block', a.block, b.block, pc);
+    add('Accuracy', a.acc, b.acc, pc); add('Telling blows', a.crit, b.crit, pc);
+    add('A telling blow hits', a.critMult, b.critMult, v => '&times;' + v.toFixed(1));
+    add('The crowd\'s liking', a.show, b.show, pc);
+    add('Charge fills at', a.chargeRate, b.chargeRate, pc);
+    add('Training speed', trainRate(g), trainRate(g2), pc);
+    add('Fatigue from a day\'s drill', trainTire(g, false), trainTire(g2, false), f1, true);
+  } catch (e) { /* the description alone will have to do */ }
+  return rows.join('');
+}
+function perkModal(g) {
+  const offer = perkOffer(g), st = styleOf(g), c = CLASSES[g.cls];
+  const cards = offer.map((t, i) => {
+    const T = TRAITS[t], armed = ui.perkArm === g.id + ':' + t, suits = st && PERK_SUITS[st].includes(t), fx = perkEffect(g, t);
+    return `<button class="perkcard ${armed ? 'armed' : ''}" data-act="pickperk" data-v="${g.id}" data-w="${t}">
+      <span class="k">${i + 1}</span><span class="kind">${PERK_KIND[t] || 'Perk'}</span>
+      <b>${T.name}</b>
+      <span class="desc">${T.desc}</span>
+      ${fx ? `<span class="fx"><em>For ${g.name}</em>${fx}</span>` : '<span class="fx none">Its worth shows only in the moment it is for.</span>'}
+      ${suits ? `<span class="suits">${ic(st)} Suits his ${STAT_NAMES[st].toLowerCase()} style</span>` : ''}
+      <span class="take">${armed ? 'Sure? It is for good. Press again.' : 'Choose'}</span></button>`;
+  }).join('');
+  return `<div class="perkbox"><div class="perkhead"><canvas class="portrait" width="192" height="224" data-portrait="${g.id}"></canvas>
+      <div><div class="rise">Rises to ${RANKS[g.rank].name}</div><h2>${g.name}</h2>
+        <div class="dline">${c.name} of ${g.origin} &middot; ${ratingLine(g)} &middot; ${styleMark(g)} &middot; ${g.wins}W ${g.losses}L</div>
+        <div class="has">${g.traits.length ? g.traits.map(t => TRAITS[t] ? `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>` : '').join('') : '<span class="dim">No traits yet.</span>'}</div></div></div>
+    <p class="perklead">Choose what the sand has taught him. One of three, and it is his for life.${g.perkPending > 1 ? ` <b>He has ${g.perkPending} to choose</b>: another three follow this.` : ''}</p>
+    <div class="perkcards">${cards}</div>
+    <div class="row"><button data-act="close">Decide later</button><span class="dim" style="font-size:12px;margin-left:auto">Keys 1&ndash;${offer.length}, twice to confirm</span></div></div>`;
+}
+
 // The book of the trade: a page to each part of it, opened at the page for wherever you are standing.
 const HELP_TABS = [['basics', 'The day'], ['fighters', 'Fighters'], ['fights', 'The sand'], ['town', 'The town'], ['province', 'The province'], ['legend', 'Marks'], ['keys', 'Keys']];
 function helpModal() {
@@ -416,6 +462,7 @@ function paintModal() {
   $('#modalBox').classList.toggle('evbox', modalQueue[0].startsWith('<div class="ev">'));
   if (typeof paintEventArt === 'function') paintEventArt();
   $('#modalBox').classList.toggle('helpbox', modalQueue[0].startsWith('<div class="help">'));
+  $('#modalBox').classList.toggle('perkwide', modalQueue[0].startsWith('<div class="perkbox">'));
   $('#modalBox').classList.toggle('savebox', modalQueue[0].startsWith('<div class="saves">'));
   paintHelpMarks();
   if (typeof paintResultFaces === 'function') paintResultFaces();
@@ -2124,12 +2171,17 @@ const ACTIONS = {
   },
   perk(v) {
     const g = byId(v); if (!g || g.perkPending <= 0) return;
-    const offer = perkOffer(g); save();
-    showModal(`<h2>${g.name}, ${RANKS[g.rank].name}</h2><p>Choose what the sand has taught him.</p>
-      ${offer.map(t => `<p><button data-act="pickperk" data-v="${g.id}" data-w="${t}">${TRAITS[t].name}</button> <span class="dim">${TRAITS[t].desc}</span></p>`).join('')}
-      <div class="row"><button data-act="close">Decide later</button></div>`);
+    perkOffer(g); save(); ui.perkArm = null;
+    showModal(perkModal(g)); paintPortraits();
   },
-  pickperk(v, w) { const g = byId(v); if (g) choosePerk(g, w); save(); closeModal(); render(); },
+  // A perk is for good, so the first press on one only asks; the second takes it.
+  pickperk(v, w) {
+    const g = byId(v); if (!g) { closeModal(); return; }
+    if (ui.perkArm !== v + ':' + w) { ui.perkArm = v + ':' + w; modalQueue[0] = perkModal(g); paintModal(); paintPortraits(); return; }
+    ui.perkArm = null; choosePerk(g, w); save(); SFX.ui('chime');
+    if (g.perkPending > 0) { perkOffer(g); save(); modalQueue[0] = perkModal(g); paintModal(); render(); paintPortraits(); }
+    else { closeModal(); render(); }
+  },
   skipdays() {
     if (G.over) { checkEnd(); return; }
     let n = 0;
@@ -2476,6 +2528,7 @@ document.addEventListener('keydown', e => {
     if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON') press(btns[0]);
     else if (k === 'Escape' && $('#modalBox [data-act=close]')) press($('#modalBox [data-act=close]'));
     else if (/^[1-9]$/.test(k) && opts[+k - 1]) press(opts[+k - 1]);
+    else if (/^[1-3]$/.test(k) && document.querySelectorAll('#modalBox .perkcard')[+k - 1]) press(document.querySelectorAll('#modalBox .perkcard')[+k - 1]);
     return;
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
