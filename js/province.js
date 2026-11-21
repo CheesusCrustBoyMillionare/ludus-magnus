@@ -526,6 +526,7 @@ function provFrame(ts) {
         drawProvince(cv, T);
         if (ts - prov.mini > 400) {
           prov.mini = ts; const m = document.getElementById('wildMini'); if (m) drawMini(m);
+          SFX.mood({ danger: wildTier(G.field.x, G.field.y) });
           const pl = document.getElementById('placeList'); if (pl) { const h = placesHtml(); if (pl.dataset.h !== String(h.length) + h.slice(0, 80)) { pl.innerHTML = h; pl.dataset.h = String(h.length) + h.slice(0, 80); } }
         }
         if (ts - prov.saved > 6000 && !busy) { prov.saved = ts; save(); }

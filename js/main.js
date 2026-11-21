@@ -287,6 +287,7 @@ const okBtn = (label) => `<div class="row"><button class="primary" data-act="clo
 
 function render() {
   hideTip();
+  if (G) SFX.mood({ tense: G.denarii < 0, festive: isGamesDay() });       // the yard's tune darkens in debt, and gains a drum on games days
   renderTop(); renderTabs(); renderView(); paintPortraits();
   // a browser may briefly pair a cached page with newer scripts; never let a missing yard stop the game
   if (typeof startYard === 'function') startYard();
@@ -1549,6 +1550,7 @@ function fightLoop(ts) {
   // whoever the mouse is resting on gets a card saying what he is
   f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - 24 && f.hover.y < q.y + 4).sort((a, b) => Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
+  SFX.hold(!!(f.B.pick || f.paused) && !f.B.over);
   if (f.B.pick && f.askedOf !== f.B.pick) SFX.play('ready');          // the fight has stopped for your man: a call to say so
   f.askedOf = f.B.pick || null;
   f.B.snd.length = 0;

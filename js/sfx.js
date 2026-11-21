@@ -245,14 +245,19 @@ const SFX = (() => {
 
   // ---------- music ----------
   // Composed as it plays, so it never loops: a lyre, a reed pipe and a hand drum over a drone.
-  // Two pieces. 'ludus' is slow and in the Dorian mode, for the yard; 'arena' is quick, Phrygian and
-  // driven by the drum, and grows busier as the crowd grows louder.
+  // Three pieces. 'ludus' is slow and in the Dorian mode, for the yard: a tune for the pipe is made for each
+  // sixteen bars and comes back through them. 'arena' is quick, Phrygian and driven by the drum, and grows busier
+  // as the crowd grows louder. 'wild' is the open country. Each follows how things stand (see mood and hold).
 
-  const M = { mode: null, want: null, step: 0, next: 0, timer: 0, heat: 0, bar: null };
-  const SCALES = { ludus: [0, 2, 3, 5, 7, 9, 10], arena: [0, 1, 3, 5, 7, 8, 10], wild: [0, 2, 3, 5, 7, 8, 10] };
+  const M = { mode: null, want: null, step: 0, next: 0, timer: 0, heat: 0, bar: null,
+    night: false, tense: false, festive: false, danger: 1, hold: false, motif: null, quiet: false, riff: null };
+  // 'grim' is what the yard's tune turns to when the house is in debt, and the country's where it is most dangerous
+  const SCALES = { ludus: [0, 2, 3, 5, 7, 9, 10], arena: [0, 1, 3, 5, 7, 8, 10], wild: [0, 2, 3, 5, 7, 8, 10], grim: [0, 1, 3, 5, 7, 8, 10] };
   const ROOT = 146.83;                                 // D below middle C
+  // which scale a piece is in just now
+  const scaleOf = mode => (mode === 'ludus' && M.tense) || (mode === 'wild' && M.danger >= 4) ? 'grim' : mode;
   // the pitch of a step of the scale; steps past the seventh climb into the next octave
-  const pitch = (mode, deg, oct) => { const sc = SCALES[mode], n = sc.length; return ROOT * Math.pow(2, (sc[((deg % n) + n) % n] + 12 * (Math.floor(deg / n) + (oct || 0))) / 12); };
+  const pitch = (mode, deg, oct) => { const sc = SCALES[scaleOf(mode)], n = sc.length; return ROOT * Math.pow(2, (sc[((deg % n) + n) % n] + 12 * (Math.floor(deg / n) + (oct || 0))) / 12); };
 
   // One musical voice. o: type, f, vol, t, dur, attack, hold, lp0, lp1, vib, det
   function mvoice(o) {
@@ -291,24 +296,36 @@ const SFX = (() => {
   const pick1 = a => a[Math.floor(Math.random() * a.length)];
   const human = () => rnd(-0.008, 0.008);
 
+  // A short tune for the pipe, as steps away from the bar's root: two halves of a bar each, and a way home.
+  // It is made once for a section of sixteen bars and comes back through it, so the yard has a melody and not only notes.
+  function makeMotif() {
+    const half = start => { const out = []; let d = start, at = pick1([0, 0, 1, 2]); while (at < 8) { const len = pick1([2, 2, 3, 4]); out.push({ at, len, d }); at += len; d += pick1([-2, -1, -1, 1, 1, 2]); } return out; };
+    const a = half(pick1([2, 4, 4, 7])), b = half(a[a.length - 1].d + pick1([-1, 1, 2]));
+    const home = b.map(x => Object.assign({}, x)); home[home.length - 1].d = pick1([0, 7]); home[home.length - 1].len = Math.max(3, home[home.length - 1].len);
+    return { a, b, home };
+  }
+  const vary = tune => tune.map(x => Math.random() < 0.18 ? Object.assign({}, x, { d: x.d + pick1([-1, 1]) }) : x);
+
   // Plans one bar at a time, then plays it step by step (eight steps to the bar).
   function planBar(mode, n) {
     if (mode === 'ludus') {
-      const root = LUDUS_CHORDS[n % LUDUS_CHORDS.length];
-      const bar = { root, fig: pick1(LUDUS_FIGURES), tune: null };
-      if (n % 2 === 1 && Math.random() < 0.7) {          // every other bar or so the pipe answers, moving by step around the chord
-        let d = root + pick1([2, 4, 4, 7]), at = pick1([0, 0, 2]);
-        bar.tune = [];
-        while (at < 8) { const len = pick1([2, 2, 3, 4]); bar.tune.push({ at, len, d }); at += len; d += pick1([-2, -1, -1, 1, 1, 2]); }
-      }
+      const root = LUDUS_CHORDS[n % LUDUS_CHORDS.length], inSec = n % 16, phrase = Math.floor(inSec / 4), inPhrase = inSec % 4;
+      if (inSec === 0 || !M.motif) { M.motif = makeMotif(); M.quiet = n > 0 && Math.random() < 0.3; }      // a new section: a new tune, or now and then none
+      const bar = { root, fig: pick1(LUDUS_FIGURES), tune: null, strum: inPhrase === 0, up: phrase === 2 ? 2 : 0 };
+      const piping = !M.quiet && (!M.night || phrase === 3);                  // by night the pipe is mostly put away
+      if (piping && inPhrase === 1) bar.tune = vary(M.motif.a);
+      if (piping && inPhrase === 3) bar.tune = phrase === 3 ? M.motif.home : vary(M.motif.b);
       return bar;
     }
     if (mode === 'wild') {                            // the open country: a pipe a long way off, and not much else
       const bar = { root: [0, 0, 5, 0, 3, 0, 6, 4][n % 8], tune: null };
       if (n % 2 === 0) { let d = bar.root + pick1([4, 7, 9]), at = pick1([0, 1, 2]); bar.tune = []; while (at < 7) { const len = pick1([2, 3, 4, 4]); bar.tune.push({ at, len, d }); at += len + pick1([0, 0, 1]); d += pick1([-2, -1, -1, 1, 2]); } }
+      // now and then another pipe answers from further off, a fifth below and a moment late
+      if (bar.tune) bar.echo = bar.tune.filter(() => Math.random() < 0.35).map(x => ({ at: x.at + 2, len: x.len, d: x.d - 4 })).filter(x => x.at < 8);
       return bar;
     }
-    return { drums: pick1(ARENA_DRUMS), shift: n % 8 >= 6 ? 3 : 0, fill: n % 4 === 3 };
+    if (!M.riff) M.riff = Array.from({ length: 8 }, (_, k) => (k === 0 || Math.random() < 0.5 ? pick1([0, 2, 4, 5, 7]) : null));      // this fight's own figure on the high string
+    return { drums: pick1(ARENA_DRUMS), shift: n % 8 >= 6 ? 3 : 0, fill: n % 4 === 3, roll: n % 8 === 7 };
   }
   function playStep(mode, n, t) {
     const i = n % 8, barN = Math.floor(n / 8);
@@ -316,28 +333,38 @@ const SFX = (() => {
     const b = M.bar;
     if (mode === 'ludus') {
       const c = b.fig[i], chord = [b.root, b.root + 2, b.root + 4];
-      if (i === 0) lyre(pitch(mode, b.root, -1), 0.16, t + human(), 2.6);                 // the low string marks the bar
-      if (c !== '-') lyre(pitch(mode, chord[+c] + (c !== '0' && Math.random() < 0.25 ? 7 : 0)), rnd(0.09, 0.13), t + human(), 1.5);
-      for (const x of (b.tune || [])) if (x.at === i) pipe(pitch(mode, x.d, 1), 0.07, t, x.len * M.beat * 0.95);
+      if (i === 0) lyre(pitch(mode, b.root, -1), 0.16, t + human(), M.night ? 3.4 : 2.6);                 // the low string marks the bar
+      if (b.strum && i === 0 && !M.night) chord.forEach((d, k) => lyre(pitch(mode, d), 0.06, t + 0.03 + k * 0.035, 1.8));      // a hand across the strings opens each phrase
+      if (c !== '-' && !(M.night && Math.random() < 0.4)) lyre(pitch(mode, chord[+c] + (c !== '0' && Math.random() < 0.25 ? 7 : 0)), rnd(0.09, 0.13), t + human(), 1.5);
+      for (const x of (b.tune || [])) if (x.at === i) pipe(pitch(mode, b.root + x.d + b.up, 1), 0.07, t, x.len * M.beat * 0.95);
+      if (M.festive && !M.night) { if (i === 0) dum(t, 0.07); else if (i === 3 || i === 6) tek(t + human(), 0.045); }       // games day: someone keeps time on a hand drum
       return;
     }
     if (mode === 'wild') {
       if (i === 0) lyre(pitch(mode, b.root, -1), 0.13, t + human(), 3.2);
       if (i === 4 && Math.random() < 0.5) lyre(pitch(mode, b.root + 4, -1), 0.08, t + human(), 2.4);
       for (const x of (b.tune || [])) if (x.at === i) pipe(pitch(mode, x.d, 0), 0.075, t, x.len * M.beat * 0.95);
+      for (const x of (b.echo || [])) if (x.at === i) pipe(pitch(mode, x.d, 0), 0.03, t, x.len * M.beat * 0.9);
+      if (M.danger >= 3) { if (i === 0) dum(t, 0.07 + 0.02 * (M.danger - 3)); else if (i === 3) dum(t, 0.04); }             // far from home: a slow drum under it, like a pulse
+      return;
+    }
+    if (M.hold) {                                     // the fight waits on a choice: the band holds its breath
+      if (i === 0) dum(t, 0.16);
+      if (i % 4 === 0) lyre(pitch(mode, ARENA_BASS[i] + b.shift, -1), 0.08, t + human(), 0.9);
       return;
     }
     const heat = M.heat, d = b.drums[i];
-    if (d === 'D') dum(t, 0.3); else if (d === 't') tek(t + human(), 0.16);
+    if (d === 'D') dum(t, 0.3); else if (d === 't' && !(heat < 0.12 && i % 2)) tek(t + human(), 0.16);      // the opening is spare; the drum fills in as the crowd warms
     if (b.fill && i >= 6) tek(t + M.beat / 2, 0.14);
+    if (b.roll && i === 7) { dum(t + M.beat / 3, 0.18); dum(t + M.beat * 2 / 3, 0.24); }                    // every eighth bar ends in a roll
     lyre(pitch(mode, ARENA_BASS[i] + b.shift, -1), i % 4 === 0 ? 0.15 : 0.1, t + human(), 0.5);
     if (heat > 0.3) jingle(t, 0.05 + heat * 0.05);
     if (heat > 0.3 && i % 2 === 1) jingle(t + M.beat / 2, 0.04);
-    if (heat > 0.5 && (i === 0 || i === 3 || i === 6)) lyre(pitch(mode, pick1([0, 2, 4, 5, 7]) + b.shift, 1), 0.09, t + human(), 0.7);   // a high string joins when the fight is good
+    if (heat > 0.5 && M.riff[i] !== null) lyre(pitch(mode, M.riff[i] + b.shift + (barN % 4 === 3 ? 2 : 0), 1), 0.09, t + human(), 0.7);   // the high string takes up its figure when the fight is good
     if (heat > 0.65 && i === 0 && barN % 2 === 0) pipe(pitch(mode, 4 + b.shift, 0), 0.07, t, M.beat * 7);
   }
   function setPiece(mode, t) {
-    M.mode = mode; M.step = 0; M.bar = null;
+    M.mode = mode; M.step = 0; M.bar = null; M.motif = null; M.riff = null; M.hold = false;
     M.beat = mode === 'arena' ? 60 / 112 / 2 : mode === 'wild' ? 60 / 52 / 2 : 60 / 66 / 2;                               // one step is half a beat
     M.next = t + 0.15;
     const arenaNow = mode === 'arena', f = ROOT / 2;
@@ -371,6 +398,10 @@ const SFX = (() => {
     init,
     // which piece plays: 'ludus', 'arena', or nothing
     music,
+    // How things stand, for the band to follow: { night, tense, festive, danger }. Only what is given is changed.
+    mood(o) { for (const k in o) if (k in M && ['night', 'tense', 'festive', 'danger'].includes(k)) M[k] = o[k]; },
+    // The arena's piece holds back while the fight waits on the player.
+    hold(on) { M.hold = !!on; },
     get musicOn() { return musicOn; },
     get musicNow() { return { piece: M.mode || null, step: M.step, heat: Math.round(M.heat * 100) / 100 }; },
     toggleMusic() {
@@ -381,13 +412,13 @@ const SFX = (() => {
       if (musicOn) { M.mode = undefined; conduct(); }    // start the piece afresh
     },
     // For tuning: writes out some seconds of a piece without playing it and reports how loud it is.
-    async probeMusic(mode, seconds, heat) {
+    async probeMusic(mode, seconds, heat, moodFor) {
       const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn], keepAmb = amb;
       const keepM = Object.assign({}, M);
       ctx = null; muted = false; musicOn = true;
       try {
         init(() => new OfflineAudioContext(2, 44100 * seconds, 44100));
-        M.heat = heat || 0; setPiece(mode, 0);
+        M.heat = heat || 0; Object.assign(M, { night: false, tense: false, festive: false, danger: 1 }, moodFor || {}); setPiece(mode, 0);
         while (M.next < seconds) { playStep(mode, M.step++, M.next); M.next += M.beat; }
         const buf = await ctx.startRendering(), L = buf.getChannelData(0), R = buf.getChannelData(1);
         let peak = 0, sum = 0, n = 0;
