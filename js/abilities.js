@@ -211,7 +211,7 @@ function comboStep(B, f, dt) {
 function castAbility(B, f, ab) {
   const many = B.fighters.length > 6;
   if (!B.cutins || B.cut || (many && f.team !== 0)) return castNow(B, f, ab);
-  B.cut = { f, ab, t: 0, dur: f.team === 0 ? 0.95 : 0.62 };       // your own men get the longer look
+  B.cut = { f, ab, t: 0, dur: f.team === 0 ? 2.85 : 1.86 };       // your own men get the longer look
   f.charge = 100; f.state = 'ready'; f.move = null;
   snd(B, 'cutin', 1, f, f.g.beast ? 'beast' : '');
 }
