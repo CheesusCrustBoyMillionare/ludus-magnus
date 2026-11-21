@@ -685,7 +685,7 @@ function provFrame(ts) {
 // ---------- the camp: who is with you, and what can be done without going home ----------
 function campRow(g) {
   const state = g.injury > 0 ? `<span class="chip red">Wounded ${g.injury}d</span>` : g.fatigue > 75 ? '<span class="chip red">Exhausted</span>' : g.perkPending > 0 ? '<span class="chip gold">Perk</span>' : '';
-  return `<div class="lrow grow-row" data-act="campsel" data-v="${g.id}">
+  return `<div class="lrow grow-row ${g.injury > 0 || g.fatigue > 75 ? 'hurt' : g.perkPending > 0 ? 'perk' : ''}" data-act="campsel" data-v="${g.id}"${tip(`${g.name}, ${CLASSES[g.cls].name}, power ${rating(g)}.${g.injury > 0 ? ` Wounded for ${g.injury} more day${g.injury === 1 ? '' : 's'}.` : g.fatigue > 75 ? ' Exhausted.' : g.perkPending > 0 ? ' Has a perk to choose.' : ''} Click for his dossier.`)}>
     <canvas width="48" height="56" style="width:25px;height:29px" data-portrait="${g.id}"></canvas>
     <div class="grow"><span class="t">${g.name} ${styleMark(g)}</span><small>${CLASSES[g.cls].name} &middot; power ${rating(g)}</small></div>
     <div class="chips">${state}</div>
@@ -714,7 +714,7 @@ function renderWilds() {
       ${journeys ? `<div class="lead"><b class="gold">Promised.</b>${journeys}</div>` : ''}
       <div class="pane" data-pane="camp"><h2>Places known <small>click to walk there</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>
       <h2>The school <small>${fieldParty().length} fit of ${men.length}</small></h2>
-      <div class="panel list">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
+      <div class="panel list ${men.length > 5 ? 'twoup dense' : ''}">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
       <div class="listnote"${tip('fieldrules')}>${Math.round(wildExplored() * 100)}% of the province walked &middot; ${M.cleared} places dealt with</div></div>`;
   $('#camp').innerHTML = head + body;
   if (!prov.raf) { prov.last = 0; prov.prev = 0; prov.raf = requestAnimationFrame(provFrame); }

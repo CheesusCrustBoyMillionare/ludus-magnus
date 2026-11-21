@@ -533,7 +533,7 @@ function abilityBlock(g) {
   const rows = STATS.map(k => `<div class="abgroup"><div class="abhead">${ic(k)} ${STAT_NAMES[k]} <b class="num">${g.stats[k]}</b>${(a => a ? `<small>${a.at - g.stats[k]} to go</small>` : '<small>all learned</small>')(abilityNext(g, k))}</div>${ABILITIES[g.cls][k].map(a => {
     const has = known.includes(a), on = carried.includes(a);
     return `<div class="ab ${has ? (on ? 'on' : 'known') : 'locked'}" ${has && choose ? `data-act="abil" data-v="${g.id}" data-w="${a.id}"` : ''}>
-      <b>${a.name}</b> <small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small><div class="dim">${a.desc}</div></div>`;
+      <b>${a.name}</b> <small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small><div class="dim"${tip(a.desc)}>${a.desc}</div></div>`;
   }).join('')}</div>`).join('');
   return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''}` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'} <span${tip('How fast his gold bar fills in a fight. Fatigue slows it; rest restores it.')} class="${pace < 85 ? 'bad' : 'dim'}">His charge fills at ${pace}% of full pace${pace < 85 ? ': he is tired' : ''}.</span></div><div class="abcols">${rows}</div>`;
 }
@@ -566,18 +566,16 @@ function gladDetail(g) {
     <div class="dhead">
       <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
       <canvas class="portrait figure" width="192" height="224" data-figure="${g.id}"${tip('As he stands on the sand, in the kit he wears now. Change his gear and this changes with it.')}></canvas>
-      <div style="flex:1;min-width:180px">
-        <h2>${g.name}</h2>
-        <div>${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin}</div>
-        <div>${ratingLine(g)} &middot; ${styleMark(g)}</div>
-        <div style="margin-top:4px">${statusChips(g)}${g.perkPending > 0 ? `<button class="primary mini" data-act="perk" data-v="${g.id}">Choose a perk</button>` : ''}</div>
-        <div class="num dim" style="font-size:13px">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</div>
-        <div class="vitals">
-          <div${tip('health')}><span>Health</span>${bar('hp', g.hp, maxHp(g))}<b class="num">${Math.round(g.hp)}/${maxHp(g)}</b></div>
-          <div${tip('fatigue')}><span>Fatigue</span>${bar('fat', g.fatigue, 100)}<b class="num ${g.fatigue > 75 ? 'bad' : ''}">${Math.round(g.fatigue)}</b></div>
-          <div${tip('morale')}><span>Morale</span>${bar('mor', g.morale, 100)}<b class="num ${g.morale < 30 ? 'bad' : ''}">${Math.round(g.morale)}</b></div>
+      <div class="dinfo">
+        <div class="dname"><h2>${g.name}</h2><span class="num dim">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</span></div>
+        <div class="dline">${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin} &middot; ${ratingLine(g)} &middot; ${styleMark(g)}</div>
+        <div class="dchips">${statusChips(g)}${g.perkPending > 0 ? `<button class="primary mini" data-act="perk" data-v="${g.id}">Choose a perk</button>` : ''}</div>
+        <div class="vitals four">
+          <div${tip('health')}><span>Health <b class="num">${Math.round(g.hp)}/${maxHp(g)}</b></span>${bar('hp', g.hp, maxHp(g))}</div>
+          <div${tip('fatigue')}><span>Fatigue <b class="num ${g.fatigue > 75 ? 'bad' : ''}">${Math.round(g.fatigue)}</b></span>${bar('fat', g.fatigue, 100)}</div>
+          <div${tip('morale')}><span>Morale <b class="num ${g.morale < 30 ? 'bad' : ''}">${Math.round(g.morale)}</b></span>${bar('mor', g.morale, 100)}</div>
+          ${g.rank < RANKS.length - 1 ? `<div${tip('rank')}><span>To ${RANKS[g.rank + 1].name}</span>${bar('prog', g.xp - RANKS[g.rank].xp, RANKS[g.rank + 1].xp - RANKS[g.rank].xp)}</div>` : '<div><span>Highest rank</span></div>'}
         </div>
-        ${g.rank < RANKS.length - 1 ? `<div class="barrow"${tip('rank')} style="grid-template-columns:auto 1fr;margin-top:4px">To ${RANKS[g.rank + 1].name} ${bar('prog', g.xp - RANKS[g.rank].xp, RANKS[g.rank + 1].xp - RANKS[g.rank].xp)}</div>` : ''}
       </div>
     </div>
     <div class="subtabs">${DTABS.map(([k, n]) => `<button class="${ui.dtab === k ? 'on' : ''}" data-act="dtab" data-v="${k}">${n}${mark[k] ? `<span class="badge">${mark[k]}</span>` : ''}</button>`).join('')}</div>
@@ -913,7 +911,7 @@ function viewMarket() {
         <span${tip('The dealer brings new men every games day, and takes away whoever was not sold.')}>fresh stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
         <span class="${scout ? 'gold' : ''}"${tip(scout ? 'Your scout shows each man\'s potential and whether the price is fair.' : TIPS.hidden)}>${scout ? 'scout at your side' : 'no scout: talent hidden'}</span></div></div>
       <div class="pane" data-pane="market"><div class="panel list">${rows}</div>
-      ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight">${mine}</div>` : ''}</div></div>
+      ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight twoup">${mine}</div>` : ''}</div></div>
     <div><h2>The man</h2>${card}</div>
   </div>`;
 }
@@ -1277,19 +1275,20 @@ function gearBlock(g) {
   if (!g.gear) return '';
   const better = bestSpares(g);
   const rows = SLOTS.map(slot => {
-    const it = g.gear[slot];
+    const it = g.gear[slot], open = ui.gearOpen === g.id + ':' + slot;
     const spare = G.armoury.filter(x => x.slot === slot && fits(x, g)).map(x => ({ x, dl: itemDelta(x, g) })).sort((a, b) => b.dl.d - a.dl.d);
     const atSmith = G.smith.stock.filter(x => x.slot === slot && fits(x, g) && (!it || x.r > it.r)).length;
     const worn = it
-      ? `${itemArt(it, 40)}<span${tip(itemEffect(it))}>${itemTag(it)} <small class="dim">${itemGist(it)}</small></span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}">Take off</button>`
-      : `<span class="dim">${slot === 'weapon' ? 'Practice ' + WEAPON_NAMES[g.cls] : SLOT_INFO[slot].name + ': nothing'}</span>`;
-    const choices = spare.map(({ x, dl }) => `<button class="mini ${dl.d > 0.05 ? 'better' : ''}" data-act="equip" data-v="${g.id}" data-w="${x.id}"${tip(itemEffect(x))}>${it ? 'Swap for' : 'Wear'} ${RARITY[x.r]} ${itemName(x)} <span class="${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.text}</span></button>`).join('');
-    return `<span class="lbl"${tip(slot)}>${ic('slot-' + slot)}</span><div><div class="worn">${worn}${atSmith ? `<small class="gold"${tip('The blacksmith has something better for this slot today. He will fit it straight onto him.')}>the smith has ${atSmith} better</small>` : ''}</div>${choices ? `<div class="spare">${choices}</div>` : ''}</div>`;
+      ? `<span${tip(itemEffect(it))}>${itemTag(it)} <small class="dim">${itemGist(it)}</small></span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}"${tip('Take it off him; it goes back to the racks.')}>Off</button>`
+      : `<span class="dim">${slot === 'weapon' ? 'Practice ' + WEAPON_NAMES[g.cls] : 'Nothing'}</span>`;
+    const choices = (open ? spare : spare.slice(0, 1)).map(({ x, dl }) => `<button class="mini ${dl.d > 0.05 ? 'better' : ''}" data-act="equip" data-v="${g.id}" data-w="${x.id}"${tip(`${it ? 'Swap for' : 'Wear'} this from the racks. ${itemEffect(x)}`)}>${RARITY[x.r]} ${itemName(x)} <span class="${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.text}</span></button>`).join('');
+    const more = spare.length > 1 ? `<button class="mini" data-act="gearmore" data-v="${g.id}" data-w="${slot}"${tip(open ? 'Show only the best spare.' : 'Show every spare piece that fits this slot.')}>${open ? 'fewer' : `+${spare.length - 1} more`}</button>` : '';
+    return `<div class="gslot"><span class="lbl"${tip(slot)}>${ic('slot-' + slot)}</span><div><div class="worn">${worn}${atSmith ? `<small class="gold"${tip('The blacksmith has something better for this slot today. He will fit it straight onto him.')}>smith: ${atSmith} better</small>` : ''}</div>${choices ? `<div class="spare">${choices}${more}</div>` : ''}</div></div>`;
   }).join('');
   const gs = gearStats(g), bare = SLOTS.filter(k => !g.gear[k]).length;
   return `<div class="today"><span class="lbl">Kit</span><div><b class="num">+${gs.dmg.toFixed(1)}</b> damage on every blow &middot; <b class="num">${gs.armor.toFixed(1)}</b> taken off every blow against him${gs.dodge < 0 ? ` &middot; <span class="bad">${(gs.dodge * 100).toFixed(1)}%</span> dodge for the weight` : ''}.${bare ? ` ${bare} of 6 slots ${bare === 1 ? 'is' : 'are'} bare.` : ''}
       ${better.length ? `<button class="mini primary" data-act="wearbest" data-v="${g.id}" style="margin-left:6px"${tip('Puts on the best spare piece from your racks for every slot where one would be a gain.')}>Wear the best from the racks (${better.length})</button>` : ''}</div></div>
-    <div class="gearlist">${rows}</div>`;
+    <div class="gearlist two">${rows}</div>`;
 }
 
 // A piece in a few words, and what it would change for a man against what he wears now.
@@ -1311,7 +1310,9 @@ function viewSmith() {
       <small>${SLOT_INFO[x.slot].name}${x.slot === 'weapon' ? ' &middot; ' + CLASSES[x.cls].name : ''}${best(x).length ? ' &middot; <span class="good">better for ' + best(x).join(', ') + '</span>' : x.slot === 'weapon' && !G.roster.some(g => g.cls === x.cls) ? ' &middot; <span class="dim">no one of yours can use it</span>' : ''}</small></div>
       <span class="end">${mineToo ? `<span class="dim">sells for ${Math.round(itemPrice(x) / 2)}</span>` : `<b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`}</span>`, 'smithrow');
   const stock = S.stock.map(x => row(x, false)).join('') || '<div class="listnote">He has sold everything he had. Come back after the next games.</div>';
-  const racks = mine.map(x => row(x, true)).join('') || '<div class="listnote">The racks are empty. A piece you buy without giving it to a man waits here.</div>';
+  const tile = x => `<button class="rtile ${ui.isel === x.id ? 'sel' : ''}" style="--rc:${RARITY_COL[x.r]}" data-act="rowsel" data-v="isel" data-w="${x.id}"${tip(`${RARITY[x.r]} ${itemName(x)}: ${itemGist(x)}.${x.slot === 'weapon' ? ' For a ' + CLASSES[x.cls].name + '.' : ''}${best(x).length ? ' Better for ' + best(x).join(', ') + '.' : ''} Sells for ${Math.round(itemPrice(x) / 2)}. Click to see it and give it out.`)}>${itemArt(x, 24)}<i>${RARITY[x.r]}</i>${best(x).length ? '<u>&#9650;</u>' : ''}</button>`;
+  const racks = mine.length ? SLOTS.filter(k => mine.some(x => x.slot === k)).map(k => `<div class="rackrow"><span class="lbl"${tip(SLOT_INFO[k].name)}>${ic('slot-' + k)}</span><div>${mine.filter(x => x.slot === k).map(tile).join('')}</div></div>`).join('')
+    : '<div class="listnote">The racks are empty. A piece you buy without giving it to a man waits here.</div>';
   // every man's kit at a glance: one cell a slot
   const kit = G.roster.map(g => {
     const gs = gearStats(g);
@@ -1350,9 +1351,9 @@ function viewSmith() {
         <span${tip('The smith lays out new pieces every games day; what he has not sold is gone.')}>new stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
         <span${tip('armoury')}><b class="num">${G.armoury.length}</b> spare on your racks</span>
         <span${tip('rarity')}>grades ${RARITY.map((r, k) => `<span class="rar r${k}">${r}</span>`).join('')}</span></div></div>
-      <div class="pane" data-pane="smith"><div class="panel list">${stock}</div>
-      <h2${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="panel list">${racks}</div>
-      ${kit ? `<h2>What your men wear</h2><div class="panel kit">${kitHead}${kit}</div>` : ''}</div></div>
+      <div class="pane" data-pane="smith"><div class="panel list ${S.stock.length > 4 ? 'twoup' : ''}">${stock}</div>
+      <h2${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'} &middot; &#9650; a gain for someone</small></h2><div class="panel racks">${racks}</div>
+      ${kit ? `<h2>What your men wear</h2><div class="panel kit ${G.roster.length > 4 ? 'two' : ''}">${kitHead}${G.roster.length > 4 ? kitHead : ''}${kit}</div>` : ''}</div></div>
     <div><h2>The piece</h2><div class="pane" data-pane="piece">${card}${forge}</div></div>
   </div>`;
 }
@@ -1438,8 +1439,12 @@ function viewChronicle() {
   const f = LOG_FILTERS.some(x => x[0] === ui.lfilter) ? ui.lfilter : 'all';
   const shown = G.log.filter(e => f === 'all' || e.k === f);
   // the days, newest first, each under its own heading
+  // a page holds what the pane can show without scrolling: lines are counted, a long entry as two
+  const pages = [[]]; { let used = 0, d0 = null; for (const e of shown.slice().reverse()) { const cost = (e.d !== d0 ? 1.2 : 0) + (String(e.t).replace(/<[^>]+>/g, '').length > 78 ? 2 : 1); if (used + cost > 17 && pages[pages.length - 1].length) { pages.push([]); used = 0; d0 = null; } used += cost; d0 = e.d; pages[pages.length - 1].push(e); } }
+  const pg = clamp(ui.lpage || 0, 0, pages.length - 1); ui.lpage = pg;
+  const pager = pages.length > 1 ? `<div class="pager"><button class="mini" data-act="lpage" data-v="-1" ${pg === 0 ? 'disabled' : ''}>&lsaquo; Newer</button><span>Page ${pg + 1} of ${pages.length}</span><button class="mini" data-act="lpage" data-v="1" ${pg >= pages.length - 1 ? 'disabled' : ''}>Older &rsaquo;</button></div>` : '';
   let rows = '', day = null;
-  for (const e of shown.slice().reverse()) {
+  for (const e of pages[pg]) {
     if (e.d !== day) { day = e.d; const ago = G.day - e.d; rows += `<div class="dayhead"><b>Day ${e.d}</b><span>${ago === 0 ? 'today' : ago === 1 ? 'yesterday' : ago + ' days ago'}${e.d > 0 && e.d % GAMES_EVERY === 0 ? ' &middot; a games day' : ''}</span></div>`; }
     rows += `<div class="entry ${e.k}">${e.t}</div>`;
   }
@@ -1466,7 +1471,7 @@ function viewChronicle() {
   return `<div class="fill">
     <div><h2>Chronicle <small>${shown.length} of the last ${G.log.length} entries</small></h2>
       <div class="subtabs logtabs">${filters}</div>
-      <div class="pane" data-pane="log-${f}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div></div></div>
+      <div class="pane" data-pane="log-${f}-${pg}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div>${pager}</div></div>
     <div><h2>The house</h2><div class="pane" data-pane="house">${standing}
       ${honours ? `<h2>Honours</h2><div class="panel"><div class="kvs three">${honours}</div></div>` : ''}
       ${fallen || '<div class="listnote">No fighter of this house has died yet.</div>'}${provincePanel()}${dynastyPanel()}
@@ -1730,7 +1735,7 @@ function fightReport(B) {
   const face = (f, w, h) => `<canvas width="96" height="112" style="width:${w}px;height:${h}px" data-rface="${B.fighters.indexOf(f)}"></canvas>`;
   const man = f => {
     const [word, cls] = state(f), g = f.g, dead = f.fate === 'dead', hp = dead ? 0 : clamp(g.hp / maxHp(g), 0, 1);
-    return `<div class="resman${dead ? ' dead' : ''}">${face(f, 48, 56)}
+    return `<div class="resman${dead ? ' dead' : ''}">${mine.length >= 3 ? face(f, 36, 42) : face(f, 48, 56)}
       <div class="who"><b>${g.name}</b> <small>${f.c.name}</small>${f === best && f.dmgDealt > 0 ? ' <span class="chip gold">Best of yours</span>' : ''}<span class="chip st ${cls}">${word}</span></div>
       <div class="bar hp"${tip(dead ? 'He did not leave the sand.' : `Health after the fight: ${Math.round(g.hp)} of ${maxHp(g)}.`)}><i style="width:${Math.round(hp * 100)}%"></i></div>
       <div class="nums"><span><b class="num">${Math.round(f.dmgDealt)}</b> dealt</span><span><b class="num">${Math.round(f.dmgTaken)}</b> taken</span><span><b class="num">${f.best ? Math.round(f.best) : '&ndash;'}</b> best blow</span></div>
@@ -1742,8 +1747,8 @@ function fightReport(B) {
     return `<div class="resfoe">${face(f, 24, 28)}<span class="nm">${f.g.beast ? f.c.name : f.g.name} <small class="${cls}">${word}</small></span>
       <span class="bar dealt"><i style="width:${Math.round(f.dmgDealt / top * 100)}%"></i></span><span class="num">${Math.round(f.dmgDealt)} dealt</span><span class="num">${Math.round(f.dmgTaken)} taken</span></div>`;
   };
-  return `<div class="resmen${mine.length > 1 ? ' two' : ''}">${mine.map(man).join('')}</div>
-    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, 4).map(foe).join('')}${foes.length > 4 ? `<div class="dim" style="font-size:12px">and ${foes.length - 4} more</div>` : ''}</div>
+  return `<div class="resmen${mine.length > 1 ? ' two' : ''}${mine.length >= 3 ? ' compact' : ''}${mine.length >= 5 ? ' three' : ''}">${mine.map(man).join('')}</div>
+    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, mine.length >= 5 ? 3 : 4).map(foe).join('')}${foes.length > (mine.length >= 5 ? 3 : 4) ? `<div class="dim" style="font-size:11px">and ${foes.length - (mine.length >= 5 ? 3 : 4)} more, in the line-by-line telling below</div>` : ''}</div>
     ${B.log && B.log.length ? `<details class="reslog"><summary>The fight, line by line (${B.log.length})</summary><div class="lb">${fightLogHtml(B)}</div></details>` : ''}`;
 }
 // The head of that screen, and the tiles of what it paid.
@@ -1771,7 +1776,7 @@ function finishFight() {
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
   const B = f.B, mine = B.fighters.filter(x => x.team === 0), foes = B.fighters.filter(x => x.team === 1);
   const standing = [`${mine.filter(x => !out(x)).length} of ${mine.length}`, mine.some(x => x.fate === 'dead') ? `${mine.filter(x => x.fate === 'dead').length} dead` : 'none lost', mine.some(x => x.fate === 'dead') ? 'bad' : ''];
-  const then = lines => lines.length ? `<div class="resthen"><div class="lbl">What followed</div><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul></div>` : '';
+  const then = lines => lines.length ? `<div class="resthen${lines.length > 4 ? ' pair' : ''}"><div class="lbl">What followed</div><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul></div>` : '';
   if (f.wild) {
     const w = applyWildResult(B);
     SFX.play(w.win ? 'victory' : 'defeat'); SFX.music(null);
@@ -1851,7 +1856,9 @@ const ACTIONS = {
   dossier(v) { ui.sel = +v; villageWalkTo('ludus'); render(); },
   rowsel(v, w) { ui[v] = /^\d+$/.test(w) ? +w : w; render(); },
   dtab(v) { ui.dtab = v; render(); },
-  lfilter(v) { ui.lfilter = v; render(); },
+  lfilter(v) { ui.lfilter = v; ui.lpage = 0; render(); },
+  lpage(v) { ui.lpage = Math.max(0, (ui.lpage || 0) + (+v)); render(); },
+  gearmore(v, w) { const k = v + ':' + w; ui.gearOpen = ui.gearOpen === k ? null : k; render(); },
   yardtoggle() {
     ui.noyard = !ui.noyard;
     try { localStorage.setItem('ludus-magnus-yard', ui.noyard ? 'off' : 'on'); } catch (e) { /* storage unavailable */ }

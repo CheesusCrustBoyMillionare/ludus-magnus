@@ -892,3 +892,113 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 #arenaBar #keysBtn { cursor: help; }
 #arenaOrders button { min-width: 150px; }
 @media (max-width: 900px) { #arenaBar .grp .gl { display: none; } #arenaBar button[data-key]::after { display: none; } }
+
+/* ---- fitting the page: nothing a player needs every day should be under a scroll bar ---- */
+.dossier .dhead { gap: 10px; }
+.dossier .dhead .portrait { width: 72px; height: 84px; }
+.dossier .dinfo { flex: 1; min-width: 0; }
+.dossier .dname { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.dossier .dname span { font-size: 12px; }
+.dossier .dline { font-size: 13px; line-height: 1.3; }
+.dossier .dchips { margin-top: 2px; min-height: 18px; }
+.dossier .dchips .chip { margin-bottom: 1px; }
+.vitals.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: none; margin-top: 2px; }
+.vitals.four > div { display: block; }
+.vitals.four span { display: flex; justify-content: space-between; align-items: baseline; white-space: nowrap; }
+.vitals.four span b { font: 12px Georgia, serif; letter-spacing: 0; color: var(--text); }
+.vitals.four .bar { margin: 1px 0 0; height: 7px; }
+.subtabs { margin-top: 6px; }
+.dossier .dbody { padding-top: 6px; }
+.dossier .dbody .today { margin-bottom: 5px; padding: 3px 9px; }
+.dossier .dbody hr.sep { margin: 4px 0; }
+.dossier .dbody .trait { margin: 1px 0; font-size: 13px; }
+/* gear, two slots abreast */
+.gearlist.two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 14px; font-size: 13px; }
+.gslot { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; align-items: start; padding: 3px 0; border-bottom: 1px solid rgba(92, 64, 32, .3); min-width: 0; }
+.gslot .lbl { padding-top: 2px; }
+.gslot .worn { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 22px; }
+.gslot .worn button { padding: 0 6px; font-size: 10px; }
+.gslot .spare { margin-top: 2px; gap: 3px; }
+.gslot .spare button { padding: 1px 6px; font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* abilities, tighter */
+.dossier .abcols { gap: 6px; }
+.dossier .abgroup { margin-bottom: 2px; }
+.dossier .abcols .ab { padding: 2px 6px 3px; margin: 2px 0; font-size: 12.5px; line-height: 1.25; }
+.dossier .abcols .ab .dim { font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dossier .abcols .ab small { display: inline; float: right; }
+/* orders, tighter */
+.dossier .tactics button { padding-top: 3px; padding-bottom: 3px; }
+/* lists two abreast */
+.panel.list.twoup { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+.panel.list.twoup .lrow:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+/* the armoury as tiles */
+.panel.racks { padding: 6px 10px; }
+.rackrow { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid rgba(92, 64, 32, .3); }
+.rackrow:last-child { border-bottom: 0; }
+.rackrow > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.rtile { position: relative; padding: 2px; line-height: 0; border: 1px solid var(--rc, var(--edge)); background: #1c140f; box-shadow: none; border-radius: 2px; }
+.rtile canvas { display: block; }
+.rtile i { position: absolute; left: 1px; top: 0; font: bold 9px/11px Consolas, monospace; color: var(--rc, #fff); text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.rtile u { position: absolute; right: 1px; bottom: 1px; font: 8px/8px Georgia, serif; color: #9fce86; text-decoration: none; text-shadow: 0 0 2px #000; }
+.rtile.sel { box-shadow: 0 0 0 2px var(--gold); background: #33241a; }
+.rtile:hover { background: #2a1f16; }
+/* the chronicle's pages */
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; font-size: 12px; color: var(--dim); }
+.log .entry { padding-top: 2px; padding-bottom: 2px; }
+
+.panel.racks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }
+.panel.racks .listnote { grid-column: 1 / -1; }
+.panel.kit.two { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.panel.kit.two .kitrow { grid-template-columns: minmax(46px, 1fr) repeat(6, 18px) auto; gap: 3px; font-size: 12px; }
+.panel.kit.two .kitrow small { font-size: 10px; }
+.dossier .abcols .ab .dim { -webkit-line-clamp: 3; }
+.panel.list .lrow.staffrow, [data-pane="staff"] .lrow { min-height: 32px; }
+
+[data-pane="smith"] .lrow { min-height: 30px; padding-top: 2px; padding-bottom: 2px; }
+[data-pane="smith"] .panel.kit { padding: 5px 10px; }
+[data-pane="smith"] .panel.kit .kitrow { line-height: 1.15; }
+[data-pane="smith"] > h2 { margin-top: 8px; }
+[data-pane="staff"] .lrow { padding-top: 4px; padding-bottom: 4px; }
+
+[data-pane="smith"] .twoup .lrow .grow > small { display: none; }      /* eight pieces for sale: one line each, the rest is on the card beside */
+[data-pane="smith"] .twoup .lrow { min-height: 34px; }
+[data-pane^="house-"] .lrow { min-height: 40px; padding-top: 2px; padding-bottom: 2px; }
+[data-pane^="house-"] .lrow canvas { width: 30px !important; height: 35px !important; }
+
+/* the province's side panel: places a line each, and a large party two abreast */
+#camp .place .grow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+#camp .place .grow small { flex: none; }
+#camp .place .t { min-width: 0; }
+#camp .panel.list.dense .lrow { gap: 6px; padding: 2px 6px; }
+#camp .panel.list.dense .lrow .grow small, #camp .panel.list.dense .lrow .chips { display: none; }
+#camp .panel.list.dense .lrow .gauges { width: 38px; }
+#camp .panel.list.dense .lrow canvas { width: 20px !important; height: 23px !important; }
+#camp .lrow.hurt .t { color: #f08a7c; } #camp .lrow.perk .t { color: var(--gold); }
+#camp #wildMini { max-height: 126px; width: auto; align-self: center; }
+
+/* a result with many men in it: smaller cards, and what followed in two columns, so the whole of it is on the page */
+.resmen.compact { gap: 5px 8px; }
+.resmen.compact .resman { grid-template-columns: 36px minmax(0, 1fr); column-gap: 8px; padding: 4px 8px; }
+.resmen.compact .resman > canvas { grid-row: 1 / span 3; }
+.resmen.compact .resman .used, .resmen.compact .resman .bar.dealt { display: none; }
+.resmen.compact .resman .who b { font-size: 14px; }
+.resmen.compact .resman .bar { margin: 2px 0 1px; height: 6px; }
+.resmen.compact .resman .nums { margin-top: 1px; gap: 10px; font-size: 11px; } .resmen.compact .resman .nums b { font-size: 12px; }
+.resthen.pair ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 30px; row-gap: 1px; font-size: 12.5px; line-height: 1.3; margin: 3px 0 0; padding-left: 18px; }
+.resthen.pair li { margin: 0; }
+.res .restiles { margin: 6px 0 8px; } .res .restiles > div { padding: 4px 8px 5px; } .res .restiles b { font-size: 18px; }
+.res .reshead { margin-bottom: 6px; } .res .reshead h2 { font-size: 26px; padding-bottom: 3px; }
+.res .resfoes, .res .resthen, .res .reslog { margin-top: 7px; }
+.res .resfoe { padding: 0; } .res .resfoe canvas { width: 20px !important; height: 23px !important; }
+#modalBox.wide { max-width: 720px; padding-top: 16px; padding-bottom: 16px; }
+
+.resmen.compact .resman { padding: 3px 8px; }
+.res .resfoe { font-size: 11.5px; line-height: 1.2; } .res .resfoe .nm { font-size: 12.5px; }
+.res .row { margin-top: 10px !important; }
+.res .resfoes .lbl, .res .resthen .lbl { margin-bottom: 2px; }
+
+.resmen.two.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.resmen.three .resman .who small { display: none; }
+.resmen.three .resman .nums { gap: 7px; flex-wrap: wrap; }
+#modalBox.wide { max-width: 780px; }
+.resthen.pair ul { font-size: 12px; line-height: 1.25; }
