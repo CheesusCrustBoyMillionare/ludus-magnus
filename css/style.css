@@ -742,3 +742,16 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .wagerrow small { font-size: 12px; }
 .wagerrow .acts.mini button { min-width: 34px; font-size: 11px; }
 .lrow .end.good { color: #9fce86; font-size: 12px; } .lrow .end.bad { color: #f08a7c; font-size: 12px; }
+
+/* the dossier's other pages: kit, orders and his story */
+.gearlist .worn small { font-size: 11px; } .gearlist .worn small.gold { margin-left: auto; }
+.gearlist .spare button .good { color: #9fce86; } .gearlist .spare button .bad { color: #f08a7c; }
+.abhead small { margin-left: auto; font: 10px Georgia, serif; letter-spacing: 0; text-transform: none; color: var(--dim); }
+.tactics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 5px; }
+.tactics button { display: grid; gap: 2px; text-align: left; padding: 6px 10px; }
+.tactics button b { font-size: 12px; letter-spacing: .06em; }
+.tactics button span { font: 12px Georgia, serif; letter-spacing: 0; text-transform: none; opacity: .85; white-space: normal; }
+.partings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.partings > div { display: grid; gap: 4px; align-content: start; }
+.partings small { font-size: 12px; color: var(--dim); line-height: 1.35; }
+.partings button { justify-self: start; }

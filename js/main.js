@@ -459,12 +459,13 @@ const DTABS = [['stats', 'Stats'], ['abil', 'Abilities'], ['gear', 'Gear'], ['st
 // Everything his fighting style can learn, skill by skill: what he carries, what he knows, what is still locked.
 function abilityBlock(g) {
   const known = abilitiesKnown(g), carried = abilitiesOf(g), choose = known.length > 4;
-  const rows = STATS.map(k => `<div class="abgroup"><div class="abhead">${ic(k)} ${STAT_NAMES[k]} <b class="num">${g.stats[k]}</b></div>${ABILITIES[g.cls][k].map(a => {
+  const pace = Math.round((g.traits.includes('ironlungs') ? 1.25 : 1) * (1 - g.fatigue / 250) * 100);
+  const rows = STATS.map(k => `<div class="abgroup"><div class="abhead">${ic(k)} ${STAT_NAMES[k]} <b class="num">${g.stats[k]}</b>${(a => a ? `<small>${a.at - g.stats[k]} to go</small>` : '<small>all learned</small>')(abilityNext(g, k))}</div>${ABILITIES[g.cls][k].map(a => {
     const has = known.includes(a), on = carried.includes(a);
     return `<div class="ab ${has ? (on ? 'on' : 'known') : 'locked'}" ${has && choose ? `data-act="abil" data-v="${g.id}" data-w="${a.id}"` : ''}>
       <b>${a.name}</b> <small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small><div class="dim">${a.desc}</div></div>`;
   }).join('')}</div>`).join('');
-  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''}` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'}</div><div class="abcols">${rows}</div>`;
+  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''}` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'} <span${tip('How fast his gold bar fills in a fight. Fatigue slows it; rest restores it.')} class="${pace < 85 ? 'bad' : 'dim'}">His charge fills at ${pace}% of full pace${pace < 85 ? ': he is tired' : ''}.</span></div><div class="abcols">${rows}</div>`;
 }
 
 function gladDetail(g) {
@@ -479,15 +480,16 @@ function gladDetail(g) {
     abil: () => abilityBlock(g),
     gear: () => gearBlock(g),
     story: () => (questBlock(g) + storyBlock(g)).replace(/^<hr class="sep">/, '') || '<div class="dim">Nothing worth telling of him yet.</div>',
-    orders: () => `<div class="kv">
-        <span${tip('orders')}>Orders in the arena<br><small>${TACTICS[g.tactic].desc}</small></span>
-        <select data-chg="tactic" data-v="${g.id}">${tac}</select>
-      </div>
+    orders: () => `<div class="sendhead"${tip('orders')}><span>How he fights, in every bout until you say otherwise</span></div>
+      <div class="tactics">${Object.entries(TACTICS).map(([k, t]) => `<button class="${g.tactic === k ? 'primary' : ''}" data-act="tactic" data-v="${g.id}" data-w="${k}"><b>${t.name}</b><span>${t.desc}</span></button>`).join('')}</div>
       <hr class="sep">
-      <div class="row">${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
-        <button${tip('sell')} data-act="sell" data-v="${g.id}">Sell for ${Math.round(value(g) / 2)}</button>
-        ${g.wins >= 8 ? `<button${tip('free')} data-act="free" data-v="${g.id}">Grant the wooden sword</button>` : `<small>Freedom may be granted after 8 victories.</small>`}`}
-      </div>`,
+      ${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
+      <div class="partings">
+        <div><b>Sell him</b><small>He is worth about ${value(g)} denarii; the dealer pays half. His kit comes back to your racks.</small>
+          <button class="${ui.sellArm === g.id ? 'primary' : ''}" data-act="msell" data-v="${g.id}"${tip('sell')}>${ui.sellArm === g.id ? `Sure? Sell ${g.name}` : `Sell for ${Math.round(value(g) / 2)}`}</button></div>
+        <div><b>Grant the wooden sword</b><small>${g.wins >= 8 ? `He walks free for good. The city talks of it: fame +${40 + g.wins * 5}, and every man in the yard takes heart.` : `Freedom may be granted after 8 victories. He has ${g.wins}.`}</small>
+          ${g.wins >= 8 ? `<button data-act="free" data-v="${g.id}"${tip('free')}>Free ${g.name}</button>` : bar('prog', g.wins, 8)}</div>
+      </div>`}`,
   };
   const mark = { story: g.quest && QUESTS[g.quest.id] ? '!' : '' };
   return `<div class="panel dossier">
@@ -1175,30 +1177,48 @@ function storyBlock(g) {
   for (const b of bondsOf(g)) chips.push(`<span class="chip ${b.type === 'friend' ? 'gold' : 'red'}"${tip(b.type === 'friend' ? 'friend' : 'rivalbond')}>${b.type === 'friend' ? 'Friend of' : 'Rival of'} ${b.other.name}</span>`);
   if (g.wish) chips.push(`<span class="chip red"${tip('vow')}>${g.wish.type === 'avenge' ? 'Sworn to kill' : 'Wants a rematch with'} ${g.wish.name}</span>`);
   if (g.promise) { const left = Math.max(0, g.promise.at - g.wins); chips.push(`<span class="chip gold"${tip('promise')}>Promised freedom: ${left} more ${left === 1 ? 'victory' : 'victories'}</span>`); }
-  const lines = (g.story || []).slice(-6).reverse().map(s => `<div><span class="d">Day ${s.d}</span>${s.t}</div>`).join('');
-  if (!chips.length && !lines) return '';
-  return `<hr class="sep">${chips.length ? `<div style="margin-bottom:4px">${chips.join('')}</div>` : ''}${lines ? `<div class="log" style="font-size:13px;max-height:none">${lines}</div>` : ''}`;
+  const scars = scarsOf(g).length, fought = g.wins + g.losses, first = (g.story || [])[0];
+  const facts = `<div class="kvs">
+      <div><span>Record</span><b class="num">${g.wins}&ndash;${g.losses}</b><small>${fought ? Math.round(g.wins / fought * 100) + '% won' : 'not yet blooded'}</small></div>
+      <div><span>Kills</span><b class="num">${g.kills}</b><small>${scars ? `${scars} scar${scars === 1 ? '' : 's'} of his own` : 'no scars yet'}</small></div>
+      <div><span>Fame</span><b class="num">${Math.round(g.fame || 0)}</b><small>his own name in the city</small></div>
+      <div><span>With you</span><b class="num">${first ? Math.max(0, G.day - first.d) : G.day} days</b><small>${g.origin ? 'from ' + g.origin : ''}</small></div>
+    </div>`;
+  const lines = (g.story || []).slice().reverse().map(x => `<div class="entry"><span class="d">Day ${x.d}</span>${x.t}</div>`).join('');
+  return `<hr class="sep">${facts}${chips.length ? `<div style="margin:6px 0 2px">${chips.join('')}</div>` : ''}${lines ? `<div class="log" style="font-size:13px;max-height:none;margin-top:6px">${lines}</div>` : '<div class="dim" style="margin-top:6px">Nothing worth telling of him yet.</div>'}`;
 }
 
 // ---------- equipment ----------
 
 function itemTag(it) { return `<span class="rar r${it.r}"${tip('rarity')}>${RARITY[it.r]}</span> ${itemName(it)}`; }
 
+// The best spare piece for each of his slots, where one on the racks would be a gain.
+function bestSpares(g) {
+  const out = [];
+  for (const slot of SLOTS) {
+    const top = G.armoury.filter(x => x.slot === slot && fits(x, g)).map(x => ({ x, d: itemDelta(x, g).d })).sort((a, b) => b.d - a.d)[0];
+    if (top && top.d > 0.05) out.push(top.x);
+  }
+  return out;
+}
 // The six equipment slots on a fighter's dossier, with anything in the armoury he could wear instead.
 function gearBlock(g) {
   if (!g.gear) return '';
+  const better = bestSpares(g);
   const rows = SLOTS.map(slot => {
     const it = g.gear[slot];
-    const spare = G.armoury.filter(x => x.slot === slot && fits(x, g)).sort((a, b) => b.r - a.r);
+    const spare = G.armoury.filter(x => x.slot === slot && fits(x, g)).map(x => ({ x, dl: itemDelta(x, g) })).sort((a, b) => b.dl.d - a.dl.d);
+    const atSmith = G.smith.stock.filter(x => x.slot === slot && fits(x, g) && (!it || x.r > it.r)).length;
     const worn = it
-      ? `${itemArt(it, 40)}<span${tip(itemEffect(it))}>${itemTag(it)}</span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}">Take off</button>`
-      : `<span class="dim">${slot === 'weapon' ? 'Practice ' + WEAPON_NAMES[g.cls] : 'Nothing'}</span>`;
-    const choices = spare.map(x => `<button class="mini ${it && x.r <= it.r ? '' : 'better'}" data-act="equip" data-v="${g.id}" data-w="${x.id}"${tip(itemEffect(x))}>${it ? 'Swap for' : 'Wear'} ${RARITY[x.r]} ${itemName(x)}</button>`).join('');
-    return `<span class="lbl"${tip(slot)}>${ic('slot-' + slot)}</span><div><div class="worn">${worn}</div>${choices ? `<div class="spare">${choices}</div>` : ''}</div>`;
+      ? `${itemArt(it, 40)}<span${tip(itemEffect(it))}>${itemTag(it)} <small class="dim">${itemGist(it)}</small></span> <button class="mini" data-act="unequip" data-v="${g.id}" data-w="${slot}">Take off</button>`
+      : `<span class="dim">${slot === 'weapon' ? 'Practice ' + WEAPON_NAMES[g.cls] : SLOT_INFO[slot].name + ': nothing'}</span>`;
+    const choices = spare.map(({ x, dl }) => `<button class="mini ${dl.d > 0.05 ? 'better' : ''}" data-act="equip" data-v="${g.id}" data-w="${x.id}"${tip(itemEffect(x))}>${it ? 'Swap for' : 'Wear'} ${RARITY[x.r]} ${itemName(x)} <span class="${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.text}</span></button>`).join('');
+    return `<span class="lbl"${tip(slot)}>${ic('slot-' + slot)}</span><div><div class="worn">${worn}${atSmith ? `<small class="gold"${tip('The blacksmith has something better for this slot today. He will fit it straight onto him.')}>the smith has ${atSmith} better</small>` : ''}</div>${choices ? `<div class="spare">${choices}</div>` : ''}</div>`;
   }).join('');
-  const gs = gearStats(g);
-  return `<div class="gearlist">${rows}</div>
-    <div class="dim num" style="font-size:12px;margin-top:6px">Kit in all: +${gs.dmg.toFixed(1)} damage, ${gs.armor.toFixed(1)} off every blow${gs.dodge < 0 ? ', ' + (gs.dodge * 100).toFixed(1) + '% dodge' : ''}</div>`;
+  const gs = gearStats(g), bare = SLOTS.filter(k => !g.gear[k]).length;
+  return `<div class="today"><span class="lbl">Kit</span><div><b class="num">+${gs.dmg.toFixed(1)}</b> damage on every blow &middot; <b class="num">${gs.armor.toFixed(1)}</b> taken off every blow against him${gs.dodge < 0 ? ` &middot; <span class="bad">${(gs.dodge * 100).toFixed(1)}%</span> dodge for the weight` : ''}.${bare ? ` ${bare} of 6 slots ${bare === 1 ? 'is' : 'are'} bare.` : ''}
+      ${better.length ? `<button class="mini primary" data-act="wearbest" data-v="${g.id}" style="margin-left:6px"${tip('Puts on the best spare piece from your racks for every slot where one would be a gain.')}>Wear the best from the racks (${better.length})</button>` : ''}</div></div>
+    <div class="gearlist">${rows}</div>`;
 }
 
 // A piece in a few words, and what it would change for a man against what he wears now.
@@ -1661,6 +1681,8 @@ const ACTIONS = {
   smithgive(v, w) { const g = byId(w); if (g && buyItem(v)) { equip(g, v); save(); render(); } },      // bought and straight onto a man
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
   smithup() { if (upgradeSmith()) { save(); render(); } },
+  wearbest(v) { const g = byId(v); if (!g) return; for (const it of bestSpares(g)) equip(g, it.id); save(); render(); },
+  tactic(v, w) { const g = byId(v); if (g && TACTICS[w]) { g.tactic = w; save(); render(); } },
   equip(v, w) { const g = byId(v); if (g && equip(g, w)) { save(); render(); } },
   unequip(v, w) { const g = byId(v); if (g && unequip(g, w)) { save(); render(); } },
   sell(v) {
@@ -1883,7 +1905,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
