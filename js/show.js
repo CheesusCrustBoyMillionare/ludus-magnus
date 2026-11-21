@@ -10,7 +10,18 @@ const SHOW_SCRAPS = ['#6f9a3a', '#8ab04a', '#c9a763', '#7a5a2a'];
 
 function showInit(B) {
   const S = B.show = { t: B.clock, exc: B.exc, thrown: [], litter: [], puffs: [], motes: [], bored: 0, nextThrow: 0, steps: {}, fell: {} };
-  B.crowd.forEach((p, i) => { p.h = (i * 0.61803) % 1; p.stand = 0; p.fan = i % 9 === 0 ? i % 2 : -1; });
+  // Each of them has a side: the red's people sit mostly under the red banner and the blue's under the blue, with some who
+  // have come only for the show. One in five has brought a cloth in his side's colour, and each side has its flags.
+  B.crowd.forEach((p, i) => {
+    p.h = (i * 0.61803) % 1; p.stand = 0; p.slump = 0;
+    const r = (i * 0.754877) % 1, red = clamp(0.8 - p.x / 428 * 0.6, 0.2, 0.8);
+    p.side = r < 0.12 ? -1 : (r - 0.12) / 0.88 < red ? 0 : 1;
+    p.fan = p.side >= 0 && i % 5 === 0 ? p.side : -1;
+  });
+  S.joy = [0, 0]; S.logN = 0; S.shouts = []; S.hot = 0; S.wave = null; S.wasIntro = B.intro > 0; S.said = {};
+  S.flags = [0, 1].flatMap(side => B.crowd.filter(p => p.side === side && p.y >= 31 && p.y <= 49 && (side ? p.x > 250 : p.x < 178)).filter((p, i) => i % 23 === 7).slice(0, 3).map(p => ({ p, side })));
+  // and there are men working the stairs with trays: wine, sausage, cushions
+  S.sellers = B.crowd.length > 60 ? ARENA_AISLES.map((a, i) => ({ x: a + 3, y: 30 + i * 9, dir: i % 2 ? 1 : -1, wait: i * 1.3, col: ['#c9a763', '#8a6a4a', '#b8452e', '#6f8fb5'][i] })).filter((_, i) => i !== 1 || B.crowd.length > 200) : [];
   for (let i = 0; i < 26; i++) S.motes.push({ x: rand(0, 428), y: rand(92, 236), sp: rand(5, 14), ph: rand(0, 6.28) });
   return S;
 }
@@ -45,12 +56,50 @@ function showStep(B, T) {
       for (let i = 0; i < Math.min(6, Math.round(jump * 30)); i++) showThrow(B, f.x * 2 + rand(-40, 40), Math.max(94, f.y * 2 + rand(-30, 6)), SHOW_PETALS);
     }
   }
+  // They follow the fight as partisans. Each new thing that is told of it (B.log) lifts one side and sinks the other:
+  // a man's own people are up for his blows and sit with their heads in their hands when he goes down.
+  const cry = (word, side, n) => {
+    const from = B.crowd.filter(p => (side < 0 || p.side === side) && p.y >= 40);      // from the lower rows, clear of the panels and the telling at the top
+    for (let i = 0; i < (n || 1) && from.length; i++) { const p = pick(from); S.shouts.push({ x: p.x + 2, y: p.y - 12, word, t: -i * 0.18, dur: 1.3, side: p.side }); }
+    if (S.shouts.length > 7) S.shouts.splice(0, S.shouts.length - 7);
+  };
+  const log = B.log || [];
+  for (; S.logN < log.length; S.logN++) {
+    const e = log[S.logN], k = e.kind, t = e.team;
+    if (k === 'down' || k === 'dead') {            // e.team is the man who fell
+      for (const p of B.crowd) { if (p.side === 1 - t) p.stand = Math.max(p.stand, rand(1.2, 2.6)); else if (p.side === t) { p.stand = 0; p.slump = rand(1.5, 3); } }
+      S.joy[1 - t] = 1; S.joy[t] = 0; if (k === 'down') cry('HABET!', 1 - t, 3);
+    } else if (k === 'hit' || k === 'ability' || k === 'wound') {      // e.team is the man who did it
+      const big = k === 'hit' ? 0.3 : 0.16;
+      for (const p of B.crowd) { if (p.side === t && Math.random() < big) p.stand = Math.max(p.stand, rand(0.5, 1.4)); else if (p.side === 1 - t && Math.random() < big * 0.5) p.slump = Math.max(p.slump, rand(0.6, 1.2)); }
+      S.joy[t] = Math.min(1, S.joy[t] + 0.45); S.joy[1 - t] = Math.max(0, S.joy[1 - t] - 0.25);
+      if (k === 'hit' && Math.random() < 0.7) cry('HABET!', t, 1);
+    } else if (k === 'yield') { for (const p of B.crowd) if (p.side === t) p.slump = Math.max(p.slump, rand(1, 2)); S.joy[t] = 0; }
+    else if (k === 'spared') { for (const p of B.crowd) if (p.side === t || p.side < 0) p.stand = Math.max(p.stand, rand(0.8, 1.6)); }
+  }
+  S.joy[0] = Math.max(0, S.joy[0] - dt * 0.12); S.joy[1] = Math.max(0, S.joy[1] - dt * 0.12);
+  // they are on their feet as the men come in, and again when the cloth falls
+  if (B.intro > 0 && B.introDur - B.intro < 1.4) for (const p of B.crowd) if (p.stand < 0.3 && p.h < 0.7) p.stand = 0.3 + p.h * 0.5;
+  if (S.wasIntro && B.intro <= 0) { for (const p of B.crowd) if (Math.random() < 0.6) p.stand = rand(0.6, 1.6); cry('PUGNATE!', -1, 2); }
+  S.wasIntro = B.intro > 0;
+  // when a fallen man's life is being asked for, they say which way they lean before the thumb turns
+  const vd = showVerdict(B);
+  if (vd && vd.begun && !vd.done && !S.said[B.fighters.indexOf(vd.f)]) { S.said[B.fighters.indexOf(vd.f)] = 1; cry(vd.f.fate === 'spared' ? 'MITTE!' : 'IUGULA!', -1, 4); cry(vd.f.fate === 'spared' ? 'IUGULA!' : 'MITTE!', vd.f.team === 0 ? 1 : 0, 1); }
+  // a fight that has kept them roaring sets a wave going round the stands
+  S.hot = fighting && B.exc > 0.55 ? S.hot + dt : Math.max(0, S.hot - dt * 2);
+  if (S.hot > 5 && !S.wave) { S.wave = { x: -20, dir: 1 }; S.hot = 0; }
+  if (S.wave) {
+    S.wave.x += S.wave.dir * 150 * dt;
+    for (const p of B.crowd) if (Math.abs(p.x - S.wave.x) < 12 && !p.slump) p.stand = Math.max(p.stand, 0.4);
+    if (S.wave.x > 450) S.wave = S.wave.dir > 0 && Math.random() < 0.5 ? { x: 450, dir: -1 } : null; else if (S.wave.x < -30) S.wave = null;
+  }
   // a dull fight brings cabbage stalks instead
   S.bored = fighting && B.exc < 0.05 ? S.bored + dt : 0;
   if (S.bored > 7 && T > S.nextThrow) {
     S.nextThrow = T + rand(0.8, 2.2);
     const live = B.fighters.filter(f => !out(f));
     if (live.length) { const f = pick(live); showThrow(B, f.x * 2 + rand(-18, 18), f.y * 2 + rand(-8, 8), SHOW_SCRAPS); }
+    if (Math.random() < 0.4) cry('VERBERA!', -1, 1);              // and shouts to get on with it
   }
   // when it is settled the victors stand in a rain of petals and coins
   if (B.over && B.outro > 0.2 && B.outro < B.outroEnd && T > S.nextThrow) {
@@ -58,7 +107,15 @@ function showStep(B, T) {
     const win = B.fighters.filter(f => f.team === B.winner && !out(f));
     if (win.length) { const f = pick(win); showThrow(B, f.x * 2 + rand(-34, 34), f.y * 2 + rand(-22, 12), SHOW_PETALS); }
   }
-  for (const p of B.crowd) p.stand = Math.max(0, p.stand - dt);
+  for (const p of B.crowd) { p.stand = Math.max(0, p.stand - dt); p.slump = Math.max(0, p.slump - dt); }
+  for (const c of S.shouts) c.t += dt;
+  S.shouts = S.shouts.filter(c => c.t < c.dur);
+  for (const v of S.sellers) {                   // up a few rows, stop to sell, on again; down when he reaches the top
+    if (v.wait > 0) { v.wait -= dt; continue; }
+    v.y += v.dir * 5 * dt;
+    if (v.y < 22) { v.y = 22; v.dir = 1; v.wait = rand(1.5, 4); } else if (v.y > 64) { v.y = 64; v.dir = -1; v.wait = rand(1.5, 4); }
+    else if (Math.abs((v.y - 22) % 9) < 0.09 && Math.random() < 0.45) v.wait = rand(1, 3.5);
+  }
   for (const o of S.thrown) {
     o.t += dt / o.dur;
     if (o.t >= 1) { o.dead = true; S.litter.push({ x: Math.round(o.x1), y: Math.round(o.y1), col: o.col }); }
@@ -185,12 +242,48 @@ function showBack(ctx, B, T) {
       continue;
     }
     const wave = Math.sin(T * p.sp + p.ph) > 1 - cheer * 1.4;
-    if (p.stand > 0) {                       // on his feet, both arms going
+    if (p.slump > 0 && !p.stand) {           // his man is in trouble: he sits with his head in his hands
+      drawSpectator(ctx, Object.assign({}, p, { arms: false }), 0);
+      R(p.x - 1, p.y - 9 + (p.small ? 2 : 0), 1, 3, p.skin); R(p.x + 3, p.y - 9 + (p.small ? 2 : 0), 1, 3, p.skin);
+      continue;
+    }
+    if (p.stand > 0) {                       // on his feet, both arms going: all together when the whole place is roaring
       drawSpectator(ctx, Object.assign({}, p, { arms: false }), 3);
-      const a = Math.sin(T * 12 + p.ph) > 0 ? 1 : 0;
+      const a = Math.sin(T * 12 + (B.exc > 0.75 ? 0 : p.ph)) > 0 ? 1 : 0;
       R(p.x - 1, p.y - 13 - a, 1, 4, p.skin); R(p.x + 4, p.y - 14 + a, 1, 4, p.skin);
       if (p.fan >= 0) R(p.x + 4 + a, p.y - 16 + a, 2, 2, B.col[p.fan]);
-    } else if (wave && !bored) drawSpectator(ctx, p, 2);
+    } else if (wave && !bored) {
+      drawSpectator(ctx, p, 2);
+      if (p.fan >= 0 && S.joy[p.fan] > 0.3) { const a = Math.sin(T * 9 + p.ph) > 0 ? 1 : 0; R(p.x + 4, p.y - 11, 1, 3, p.skin); R(p.x + 4 + a, p.y - 13, 2, 2, B.col[p.fan]); }      // his side is doing well: out comes the cloth
+    }
+  }
+  // the flags of each side: high and flying while their man is on top, down and hanging when he is not
+  for (const fl of (S.flags || [])) {
+    const p = fl.p, joy = S.joy[fl.side], up = joy > 0.2, c = B.col[fl.side], cD = B.colD[fl.side];
+    const sway = up ? Math.round(Math.sin(T * 3 + p.ph) * 2) : 0, top = p.y - (up ? 26 : 19);
+    for (let i = 0; i < (up ? 17 : 10); i++) R(p.x + 4 + Math.round(sway * (1 - i / 17)), top + i, 1, 1, '#3a2a1c');
+    if (up) for (let i = 0; i < 9; i++) { const dy = Math.round(Math.sin(T * 7 - i * 0.8 + p.ph) * 1.2 * (i / 8)); R(p.x + 5 + sway + i, top + dy, 1, 6, i % 4 === 3 ? cD : c); if (i === 2 || i === 5) R(p.x + 5 + sway + i, top + 2 + dy, 1, 2, 'rgba(255,255,255,.4)'); }
+    else { R(p.x + 5, top, 2, 7, c); R(p.x + 5, top, 1, 7, cD); }
+  }
+  // the men with trays, on the stairs
+  for (const v of (S.sellers || [])) {
+    const y = Math.round(v.y), bob = v.wait > 0 ? 0 : (Math.sin(T * 10 + v.x) > 0 ? 1 : 0);
+    R(v.x, y - 9 - bob, 3, 3, '#c98f62'); R(v.x, y - 10 - bob, 3, 1, '#2a1c14');
+    R(v.x - 1, y - 6 - bob, 5, 5, v.col); R(v.x - 1, y - 6 - bob, 1, 5, 'rgba(0,0,0,.25)'); R(v.x, y - 1, 1, 1, '#3a2a1c'); R(v.x + 2, y - 1 - bob, 1, 1, '#3a2a1c');
+    R(v.x - 2, y - 5 - bob, 7, 1, '#6b4f2c'); R(v.x - 1, y - 6 - bob, 1, 1, '#e8dcc0'); R(v.x + 1, y - 6 - bob, 1, 1, '#b8452e'); R(v.x + 3, y - 6 - bob, 1, 1, '#e8dcc0');      // the tray, and what is on it
+  }
+  // what they shout: a word going up from the stands, in the colour of the side it comes from
+  if (S.shouts && S.shouts.length) {
+    ctx.font = 'bold 5px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    for (const c of S.shouts) {
+      if (c.t < 0) continue;
+      const k = c.t / c.dur, x = clamp(c.x, 20, 408), y = c.y - k * 7;
+      ctx.globalAlpha = Math.min(1, k * 8) * Math.min(1, (1 - k) * 3);
+      const w = ctx.measureText(c.word).width;
+      ctx.fillStyle = 'rgba(12,8,5,.78)'; ctx.fillRect(x - w / 2 - 2, y - 5, w + 4, 7); ctx.fillRect(x - 1, y + 2, 2, 1);
+      ctx.fillStyle = c.side >= 0 ? shade(B.col[c.side], 1.5) : '#fff0c8'; ctx.fillText(c.word, x, y);
+    }
+    ctx.globalAlpha = 1;
   }
   const gust = 1 + (0.5 + 0.5 * Math.sin(T * 0.45)) * 1.4;
   if (B.wild) showWild(ctx, B, T, gust);
