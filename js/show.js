@@ -49,6 +49,7 @@ function showStep(B, T) {
   const fighting = !B.over && B.intro <= 0;
   // a telling blow brings people to their feet, and a great one brings flowers down
   const jump = B.exc - S.exc; S.exc = B.exc;
+  if (jump > 0.05 && S.ed && fighting) S.ed.clap = 1.1;       // the editor claps a telling blow
   if (jump > 0.02) {
     for (const p of B.crowd) if (Math.random() < jump * 4) p.stand = Math.max(p.stand, rand(0.5, 1.5));
     if (jump > 0.07) {
@@ -69,6 +70,7 @@ function showStep(B, T) {
     if (k === 'down' || k === 'dead') {            // e.team is the man who fell
       for (const p of B.crowd) { if (p.side === 1 - t) p.stand = Math.max(p.stand, rand(1.2, 2.6)); else if (p.side === t) { p.stand = 0; p.slump = rand(1.5, 3); } }
       S.joy[1 - t] = 1; S.joy[t] = 0; if (k === 'down') cry('HABET!', 1 - t, 3);
+      if (S.ed && k === 'down') S.ed.rise = 1.8;       // and is on his feet when a man goes down
     } else if (k === 'hit' || k === 'ability' || k === 'wound') {      // e.team is the man who did it
       const big = k === 'hit' ? 0.3 : 0.16;
       for (const p of B.crowd) { if (p.side === t && Math.random() < big) p.stand = Math.max(p.stand, rand(0.5, 1.4)); else if (p.side === 1 - t && Math.random() < big * 0.5) p.slump = Math.max(p.slump, rand(0.6, 1.2)); }
@@ -135,21 +137,66 @@ function showStep(B, T) {
 }
 
 // ---- the editor of the games ----
-// Seated while the fight goes on, on his feet to start it and to judge. His right hand does the talking.
+// He gives the games and he judges them. He stands to start the fight and lets the cloth fall; seated, he watches where
+// the fighting is, leans to the rail when it is good, claps a telling blow, is on his feet when a man goes down, and when
+// it is dull drinks, yawns and props his chin on his hand. For the verdict he stands, looks round the stands, and turns
+// his thumb or raises the cloth; and he throws the victor his reward. In any arena but the meanest he does not sit alone:
+// a slave fans him and a guard stands by, and in the great arena there are more of both, a lady beside him and the eagle.
 function showEditor(ctx, B, T) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-  const grand = !!B.theme.box, v = showVerdict(B);
-  const toga = '#f2ecd8', togaD = '#cfc8b2', stripe = grand ? '#7a3a8e' : '#a8452e', skin = '#d9a57c', skinD = '#b08258';
-  const starting = B.intro > 0, up = starting || B.over;
-  const oy = up ? 0 : 5;
-  // his chair
-  R(206, 43, 16, 23, '#4a3323'); R(206, 43, 16, 2, '#e8b545'); R(206, 43, 2, 23, '#33241c');
+  const S = B.show, E = S.ed || (S.ed = { clap: 0, rise: 0, sip: 0, nextSip: T + 6, tossed: false, drop: -1, t: T });
+  const dt = clamp(T - E.t, 0, 0.1); E.t = T;
+  E.clap = Math.max(0, E.clap - dt); E.rise = Math.max(0, E.rise - dt); E.sip = Math.max(0, E.sip - dt);
+  const th = B.theme, grand = !!th.box, humble = !!th.planks, v = showVerdict(B);
+  const toga = humble ? '#d8cfb4' : '#f2ecd8', togaD = humble ? '#b3aa90' : '#cfc8b2', stripe = grand ? '#7a3a8e' : humble ? '#8a6a4a' : '#a8452e', skin = '#d9a57c', skinD = '#b08258';
+  const starting = B.intro > 0, fighting = !B.over && !starting;
+  const bored = fighting && S.bored > 4 && !E.rise, keen = fighting && B.exc > 0.5;
+  if (fighting && !bored && !keen && T > E.nextSip) { E.sip = 1.5; E.nextSip = T + rand(8, 15); }
+  const up = starting || B.over || E.rise > 0;
+  const oy = up ? 0 : bored ? 6 : 5;
+  // where he is looking: at the fighting; round the stands while a life is being asked for
+  const live = B.fighters.filter(f => !out(f)), ax = live.length ? live.reduce((n, f) => n + f.x * 2, 0) / live.length : 214;
+  let look = ax < 186 ? -1 : ax > 242 ? 1 : 0;
+  if (v && v.begun && !v.done) look = Math.sin(T * 3.2) > 0 ? 1 : -1;
+  const blink = Math.sin(T * 0.9 + 1) > 0.985 || (bored && Math.sin(T * 0.5) > 0.6);
+
+  // ---- those who attend him, behind ----
+  if (!humble) {
+    const sway = Math.round(Math.sin(T * 1.6) * 2);
+    R(200, 41, 1, 12, '#6b4f2c');                                                            // the fan's pole
+    R(196 + sway, 36, 9, 6, '#e8dcc0'); R(197 + sway, 35, 7, 1, '#e8dcc0'); R(196 + sway, 36, 9, 1, '#f8f2e0'); R(198 + sway, 38, 1, 2, '#3a8a8e'); R(202 + sway, 38, 1, 2, '#3a8a8e'); R(200 + sway, 37, 1, 2, '#c9a23a');
+    R(195, 50, 6, 13, '#c9c2b2'); R(195, 50, 1, 13, '#a39c8c'); R(196, 45, 4, 5, '#a8744a'); R(196, 44, 4, 2, '#1c1310'); R(199, 51, 2, 3, '#a8744a');      // the slave who holds it
+    const guard = (gx, flip) => {
+      R(gx + (flip ? -2 : 6), 38, 1, 25, '#6b4f2c'); R(gx + (flip ? -2 : 6), 36, 1, 3, '#d8dde2');                    // spear
+      R(gx, 49, 5, 14, '#8a3a2e'); R(gx, 49, 5, 6, '#c9a94a'); R(gx, 49, 1, 6, '#9a7f34'); R(gx, 55, 5, 1, '#6b4f2c');   // tunic, cuirass, belt
+      R(gx + 1, 44, 3, 5, skin); R(gx, 42, 5, 3, '#c9a94a'); R(gx + 1, 40, 3, 2, '#b8452e'); R(gx + (flip ? 4 : 0), 45, 1, 3, '#c9a94a');      // head, helmet, crest, cheek-piece
+      R(gx + (flip ? 3 : -2), 51, 4, 9, '#a8452e'); R(gx + (flip ? 4 : -1), 54, 2, 2, '#e8b545');                      // shield, and its boss
+    };
+    guard(grand ? 239 : 229, false);
+    if (grand) {
+      guard(189, true);
+      R(183, 36, 1, 27, '#6b4f2c'); R(180, 32, 7, 2, '#e8b545'); R(182, 30, 3, 2, '#e8b545'); R(179, 33, 2, 1, '#e8b545'); R(186, 33, 2, 1, '#e8b545'); R(181, 37, 5, 3, '#8a2a20');      // the eagle on its staff
+      // the lady beside him, who watches when he does and looks away when a man is killed
+      const away = v && v.done && v.f.fate === 'dead';
+      R(225, 43, 9, 23, '#4a3323'); R(225, 43, 9, 1, '#e8b545');
+      R(226, 51, 7, 15, '#7a3a8e'); R(226, 51, 1, 15, '#5a2a6a'); R(227, 50, 5, 1, '#e8b545');
+      R(227, 45, 4, 5, skin); R(226, 43, 6, 3, '#3a2414'); R(away ? 231 : 226, 45, 1, 4, '#3a2414'); R(away ? 228 : 229, 47, 1, 1, '#1c1310');
+    }
+  }
+  // his chair, and the cushion on it
+  R(205, 42, 18, 24, humble ? '#5a4630' : '#4a3323'); R(205, 42, 18, 2, humble ? '#7a6244' : '#e8b545'); R(205, 42, 2, 24, '#33241c'); R(221, 42, 2, 24, '#33241c');
+  if (!humble) { R(205, 40, 2, 2, '#e8b545'); R(221, 40, 2, 2, '#e8b545'); R(207, 60, 14, 2, grand ? '#7a3a8e' : '#a8452e'); }
   // body and head
   R(208, 47 + oy, 12, 19 - oy, toga); R(208, 47 + oy, 2, 19 - oy, togaD); R(212, 47 + oy, 3, 19 - oy, stripe);
+  for (let y = 50 + oy; y < 64; y += 4) R(215, y, 4, 1, togaD);                               // the folds of it
   R(213, 45 + oy, 3, 2, skinD);
-  R(211, 39 + oy, 6, 7, skin); R(211, 39 + oy, 1, 7, skinD); R(211, 38 + oy, 6, 2, '#b9b2a2'); R(215, 42 + oy, 1, 1, '#1c1310'); R(214, 44 + oy, 2, 1, skinD);
-  R(210, 39 + oy, 8, 1, grand ? '#e8b545' : '#5a9a3a');                                    // wreath
-  R(206, 48 + oy, 2, 8, toga); R(206, 55 + oy, 2, 2, skin);                                // left arm at rest
+  R(211, 39 + oy, 6, 7, skin); R(look > 0 ? 211 : 216, 39 + oy, 1, 7, skinD); R(211, 38 + oy, 6, 2, '#b9b2a2'); R(look > 0 ? 211 : 216, 40 + oy, 1, 2, '#b9b2a2');
+  if (blink) R(212, 42 + oy, 4, 1, skinD);
+  else if (look === 0) { R(212, 42 + oy, 1, 1, '#1c1310'); R(215, 42 + oy, 1, 1, '#1c1310'); }
+  else { R(look > 0 ? 215 : 212, 42 + oy, 1, 1, '#1c1310'); R(look > 0 ? 217 : 210, 43 + oy, 1, 1, skin); }                // in profile: one eye, and his nose
+  if (bored && Math.sin(T * 0.7) > 0.88) R(213, 44 + oy, 2, 2, '#5a2a1c'); else R(look > 0 ? 214 : 213, 44 + oy, 2, 1, skinD);     // a yawn, or his mouth
+  R(210, 39 + oy, 8, 1, grand ? '#e8b545' : '#5a9a3a'); if (grand) { R(210, 38 + oy, 1, 1, '#e8b545'); R(217, 38 + oy, 1, 1, '#e8b545'); }      // wreath
+  // ---- his arms: what he is doing ----
   const armOut = (thumb) => {            // thumb: -1 turned down, 0 wavering, 1 hidden in the fist
     R(220, 48, 7, 2, toga); R(220, 49, 7, 1, togaD); R(227, 47, 3, 3, skin); R(227, 49, 3, 1, skinD);
     if (thumb < 0) { R(228, 50, 1, 3, skin); R(228, 53, 1, 1, '#c23b2e'); }
@@ -159,21 +206,43 @@ function showEditor(ctx, B, T) {
     R(220, 41, 2, 8, toga); R(221, 41, 1, 8, togaD); R(220, 39, 2, 2, skin);
     if (cloth) { const w = Math.round(Math.sin(T * 9) * 1.5); R(219 + w, 33, 5, 4, '#ffffff'); R(220 + w * 2, 36, 4, 3, '#ffffff'); R(219 + w, 33, 1, 4, '#d8d8d8'); }
   };
-  if (starting) armUp(B.intro > 0.5);                                   // he lets the cloth fall, and they begin
-  else if (v && v.done) { if (v.f.fate === 'spared') armUp(true); else armOut(-1); }
-  else if (v && v.begun) armOut(0);
-  else if (B.over) { const c = Math.sin(T * 10) > 0 ? 1 : 0; R(220, 48, 2, 5, toga); R(217 + c, 52, 4, 2, skin); R(209, 52, 3 + c, 2, skin); }   // he applauds
-  else { R(220, 48 + oy, 2, 8, toga); R(220, 55 + oy, 2, 2, skin); if (B.exc > 0.5) R(219, 47 + oy, 3, 2, togaD); }
+  const leftRest = () => { R(206, 48 + oy, 2, 8, toga); R(206, 55 + oy, 2, 2, skin); };
+  const clapping = () => { const c = Math.sin(T * 12) > 0 ? 1 : 0; R(220, 48 + oy, 2, 5, toga); R(217 + c, 52 + oy, 4, 2, skin); R(206, 48 + oy, 2, 5, toga); R(209, 52 + oy, 3 + c, 2, skin); };
+  if (starting) {
+    leftRest();
+    if (B.intro > 0.5) armUp(true); else { armOut(1); if (E.drop < 0) E.drop = 0; }          // he lets the cloth fall, and they begin
+  } else if (v && v.done) { leftRest(); if (v.f.fate === 'spared') armUp(true); else armOut(-1); }
+  else if (v && v.begun) { leftRest(); armOut(0); }
+  else if (B.over || E.clap > 0) clapping();                                                // he applauds
+  else if (E.sip > 0) {                                                                     // a cup of wine
+    leftRest(); const k = Math.sin(clamp(1 - E.sip / 1.5, 0, 1) * Math.PI) > 0.5;
+    if (k) { R(219, 45 + oy, 2, 5, toga); R(216, 43 + oy, 3, 2, '#e8b545'); R(216, 43 + oy, 3, 1, '#fff0b0'); }
+    else { R(220, 48 + oy, 2, 6, toga); R(221, 52 + oy, 3, 2, '#e8b545'); R(221, 51 + oy, 3, 1, '#7a1f2a'); }
+  } else if (bored) { R(220, 48 + oy, 2, 8, toga); R(220, 55 + oy, 2, 2, skin); R(206, 46 + oy, 2, 8, toga); R(208, 45 + oy, 3, 2, skin); }       // chin on his hand
+  else if (keen) { R(206, 50 + oy, 2, 7, toga); R(206, 57 + oy, 3, 2, skin); R(220, 50 + oy, 2, 7, toga); R(219, 57 + oy, 3, 2, skin); R(219, 47 + oy, 3, 2, togaD); }      // both hands on the rail
+  else { leftRest(); R(220, 48 + oy, 2, 8, toga); R(220, 55 + oy, 2, 2, skin); }
   // the rail of his box, in front of him
   R(190, 62, 48, 1, grand ? '#f8dc88' : '#94703f'); R(190, 63, 48, 3, grand ? '#e8b545' : '#5e4426');
   for (let x = 193; x < 238; x += 7) R(x, 63, 1, 3, grand ? '#a87a26' : '#3a2a1c');
+  // the cloth, falling to the sand
+  if (E.drop >= 0 && E.drop < 1.1) {
+    E.drop += dt; const q = clamp(E.drop / 1.0, 0, 1), cx = 224 + Math.round(Math.sin(q * 9) * 4 * (1 - q)), cy = Math.round(46 + q * q * 54);
+    R(cx, cy, 5, 3, '#ffffff'); R(cx + (Math.sin(q * 14) > 0 ? 1 : -1), cy + 3, 4, 2, '#f0f0f0'); R(cx, cy, 1, 3, '#d8d8d8');
+    if (E.drop >= 1.1) S.litter.push({ x: cx, y: cy + 3, col: '#ffffff' }, { x: cx + 2, y: cy + 4, col: '#e8e8e8' });
+  }
+  // the victor's reward: a palm and a purse, thrown down when the judging is done
+  if (B.over && !E.tossed && B.outro > (B.cardAt === undefined ? 1.5 : B.cardAt) - 0.2) {
+    E.tossed = true;
+    const win = B.fighters.filter(f => f.team === B.winner && !out(f) && !f.g.beast);
+    if (win.length && !B.hunt) { const f = win[0]; for (let n = 0; n < 6; n++) showThrow(B, f.x * 2 + rand(-10, 10), f.y * 2 + rand(-4, 5), n < 2 ? ['#5a9a3a', '#8fc35a'] : ['#e8b545', '#fff0b0'], { x: 222, y: 56, stand: 0 }); }
+  }
   // the verdict, written large above his head for the back rows
   if (v && v.done) {
-    const spared = v.f.fate === 'spared', a = clamp((v.f.revealAt + 0.75 - B.outro) * 4, 0, 1), x = 208, y = 22;
+    const spared = v.f.fate === 'spared', a = clamp((v.f.revealAt + 0.75 - B.outro) * 4, 0, 1), x = 207, y = 20;
     ctx.globalAlpha = a;
-    R(x - 1, y - 1, 13, 13, '#1c1310'); R(x, y, 11, 11, spared ? '#efe8d6' : '#7e1b14');
-    if (spared) { R(x + 3, y + 3, 5, 5, '#d9a57c'); R(x + 3, y + 4, 5, 1, '#b08258'); R(x + 3, y + 6, 5, 1, '#b08258'); R(x + 2, y + 5, 1, 2, '#d9a57c'); R(x + 4, y + 8, 3, 2, '#f2ecd8'); }   // the closed fist
-    else { R(x + 2, y + 2, 6, 4, '#d9a57c'); R(x + 2, y + 3, 6, 1, '#b08258'); R(x + 6, y + 6, 2, 4, '#d9a57c'); R(x + 6, y + 9, 2, 1, '#f2ecd8'); }                                             // the turned thumb
+    R(x - 2, y - 2, 17, 17, Math.sin(T * 16) > 0 ? '#e8b545' : '#fff0b0'); R(x - 1, y - 1, 15, 15, '#1c1310'); R(x, y, 13, 13, spared ? '#efe8d6' : '#7e1b14');
+    if (spared) { R(x + 4, y + 4, 5, 5, '#d9a57c'); R(x + 4, y + 5, 5, 1, '#b08258'); R(x + 4, y + 7, 5, 1, '#b08258'); R(x + 3, y + 6, 1, 2, '#d9a57c'); R(x + 5, y + 9, 3, 2, '#f2ecd8'); }   // the closed fist
+    else { R(x + 3, y + 3, 6, 4, '#d9a57c'); R(x + 3, y + 4, 6, 1, '#b08258'); R(x + 7, y + 7, 2, 4, '#d9a57c'); R(x + 7, y + 10, 2, 1, '#f2ecd8'); }                                             // the turned thumb
     ctx.globalAlpha = 1;
   }
 }
