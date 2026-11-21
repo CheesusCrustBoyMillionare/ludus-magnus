@@ -5,7 +5,9 @@
 const SFX = (() => {
   const MUTE_KEY = 'ludus-magnus-mute', LEVEL = 0.7;
   let ctx = null, master = null, bus = null, verb = null, noiseBuf = null, muted = false;
-  let murmur = null, roar = null, roarBand = null, boost = 0, voices = 0;
+  let murmur = null, roar = null, roarBand = null, roarBand2 = null, boost = 0, voices = 0;
+  const RAIN_WASH = 0.07;
+  const CROWD_MURMUR = 1.5, CROWD_ROAR = 2.4;      // makeup gain: narrow bands and sung notes carry less than plain noise did
   let musicBus = null, drone = null, musicOn = true, amb = null;
   const MUSIC_KEY = 'ludus-magnus-music', MUSIC_LEVEL = 0.22;      // well under the blows and the crowd
   const last = {};
@@ -40,22 +42,36 @@ const SFX = (() => {
       const wet = ctx.createGain(); wet.gain.value = 0.5;
       verb.connect(wet); wet.connect(comp);
 
-      // the crowd: a low murmur that never quite stops, and a roar that swells when something happens
-      const layer = (freq, q, rate, breathe) => {
-        const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; src.playbackRate.value = rate;
-        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
-        const g = ctx.createGain(); g.gain.value = 0;
-        let end = g;
-        if (breathe) {                       // the murmur swells and sinks a little, so it never sounds like a steady hiss
-          const b = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
-          b.gain.value = 1; lfo.frequency.value = 0.23; depth.gain.value = 0.3;
-          lfo.connect(depth); depth.connect(b.gain); lfo.start(); g.connect(b); end = b;
-        }
-        src.connect(bp); bp.connect(g); end.connect(bus); end.connect(verb); src.start(0, Math.random());
-        return { g, bp };
-      };
-      murmur = layer(480, 0.6, 0.8, true).g;
-      const r = layer(1000, 0.8, 1.15); roar = r.g; roarBand = r.bp;
+      // The crowd is made of voices, not hiss.
+      // The murmur: noise poured through a handful of narrow bands where the vowels of speech sit, each band swelling
+      // and sinking on its own, so that it babbles like many people talking at once.
+      // The roar: a choir of rough sung notes, none quite in tune and each wavering, shaped through the same vowel
+      // bands, with a little breath in it. When something happens the vowel opens from "oh" towards "ah" (see crowd()).
+      const send = (node, lpHz) => { const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = lpHz; node.connect(lp); lp.connect(bus); lp.connect(verb); };
+      const hiss = rate => { const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; src.playbackRate.value = rate; src.start(0, Math.random() * 1.5); return src; };
+      const wander = (param, hz, depth) => { const l = ctx.createOscillator(), dg = ctx.createGain(); l.frequency.value = hz; dg.gain.value = depth; l.connect(dg); dg.connect(param); l.start(); };
+      murmur = ctx.createGain(); murmur.gain.value = 0;
+      [330, 470, 640, 860, 1150, 1600, 2300].forEach((f, k) => {
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * rnd(0.96, 1.04); bp.Q.value = 7;
+        const g = ctx.createGain(); g.gain.value = 0.55 * (k < 5 ? 1 : 0.5);
+        wander(g.gain, rnd(0.17, 1.3), 0.5 * (k < 5 ? 1 : 0.5)); wander(bp.frequency, rnd(0.05, 0.2), f * 0.07);       // each voice-band comes and goes, and drifts
+        hiss(rnd(0.45, 0.7)).connect(bp); bp.connect(g); g.connect(murmur);
+      });
+      const murmurUp = ctx.createGain(); murmurUp.gain.value = CROWD_MURMUR; murmur.connect(murmurUp); send(murmurUp, 2800);
+      roar = ctx.createGain(); roar.gain.value = 0;
+      const choir = ctx.createGain(); choir.gain.value = 0.16;
+      [98, 110, 123, 131, 147, 165, 196, 220, 247].forEach(f => {
+        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.value = f * rnd(0.97, 1.03); g.gain.value = 0.6;
+        wander(o.frequency, rnd(4, 6.5), f * 0.018); wander(o.frequency, rnd(0.1, 0.4), f * 0.02); wander(g.gain, rnd(0.2, 1.1), 0.4);
+        o.connect(g); g.connect(choir); o.start();
+      });
+      roarBand = ctx.createBiquadFilter(); roarBand.type = 'bandpass'; roarBand.frequency.value = 620; roarBand.Q.value = 2.4;
+      roarBand2 = ctx.createBiquadFilter(); roarBand2.type = 'bandpass'; roarBand2.frequency.value = 1080; roarBand2.Q.value = 3;
+      const second = ctx.createGain(); second.gain.value = 0.7;
+      choir.connect(roarBand); roarBand.connect(roar); choir.connect(roarBand2); roarBand2.connect(second); second.connect(roar);
+      const breath = ctx.createBiquadFilter(), breathG = ctx.createGain(); breath.type = 'bandpass'; breath.frequency.value = 1300; breath.Q.value = 1.1; breathG.gain.value = 0.18;
+      hiss(0.8).connect(breath); breath.connect(breathG); breathG.connect(roar);
+      const roarUp = ctx.createGain(); roarUp.gain.value = CROWD_ROAR; roar.connect(roarUp); send(roarUp, 3400);
 
       // music has its own fader, and a little of the same echo
       musicBus = ctx.createGain(); musicBus.gain.value = musicOn ? MUSIC_LEVEL : 0; musicBus.connect(comp);
@@ -415,7 +431,7 @@ const SFX = (() => {
     },
     // For tuning: writes out some seconds of a piece without playing it and reports how loud it is.
     async probeMusic(mode, seconds, heat, moodFor) {
-      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn], keepAmb = amb;
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, roarBand2, muted, voices, boost, musicBus, drone, musicOn], keepAmb = amb;
       const keepM = Object.assign({}, M);
       ctx = null; muted = false; musicOn = true;
       try {
@@ -427,8 +443,26 @@ const SFX = (() => {
         for (let i = 44100 * 2; i < L.length; i++) { const a = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (a > peak) peak = a; sum += (L[i] * L[i] + R[i] * R[i]) / 2; n++; }
         return { peak: Math.round(peak * 1000) / 1000, rms: Math.round(Math.sqrt(sum / n) * 1000) / 1000, steps: M.step };
       } finally {
-        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone, musicOn] = keep; amb = keepAmb;
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, roarBand2, muted, voices, boost, musicBus, drone, musicOn] = keep; amb = keepAmb;
         Object.assign(M, keepM);
+      }
+    },
+    // For tuning: renders some seconds of the crowd (exc and boost 0 to 1) or of rain (0 to 1) and reports how loud it is,
+    // and how much of it is high hiss (above about 3 kHz) as a share of the whole: the lower, the less like static.
+    async probeAir(kind, a, b, seconds) {
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, roarBand2, muted, voices, boost, musicBus, drone, musicOn], keepAmb = amb, sec = seconds || 5;
+      ctx = null; muted = false; amb = null;
+      try {
+        init(() => new OfflineAudioContext(2, 44100 * sec, 44100));
+        if (kind === 'crowd') { boost = b || 0; murmur.gain.value = 0.03 + a * 0.07; roar.gain.value = a * 0.05 + boost * 0.55; roarBand.frequency.value = 600 + boost * 330 + a * 90; if (roarBand2) roarBand2.frequency.value = 1050 + boost * 650 + a * 150; }
+        else { this.ambience(a, 0); amb.rg.gain.value = a * RAIN_WASH; for (let k = 0; k < sec * a * 30; k++) { const fat = Math.random() < 0.12, f = fat ? rnd(450, 900) : rnd(1500, 4400); tone({ f0: f, f1: f * (fat ? 0.6 : 0.75), dur: fat ? 0.05 : 0.02, vol: (fat ? 0.017 : 0.01) * (0.5 + a * 0.5), attack: 0.001, pan: rnd(-1, 1), delay: Math.random() * sec }); } }
+        const buf = await ctx.startRendering(), L = buf.getChannelData(0);
+        let sum = 0, hi = 0, n = 0, prev = 0, peak = 0;
+        for (let i = 44100; i < L.length; i++) { const x = L[i], d = x - prev; prev = x; sum += x * x; hi += d * d; n++; if (Math.abs(x) > peak) peak = Math.abs(x); }
+        const f3 = x => Math.round(x * 1000) / 1000;
+        return { rms: f3(Math.sqrt(sum / n)), peak: f3(peak), hiss: f3(Math.sqrt(hi / n) / (Math.sqrt(sum / n) || 1)) };
+      } finally {
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, roarBand2, muted, voices, boost, musicBus, drone, musicOn] = keep; amb = keepAmb;
       }
     },
     get muted() { return muted; },
@@ -442,7 +476,14 @@ const SFX = (() => {
       const t = ctx.currentTime;
       murmur.gain.setTargetAtTime(0.03 + exc * 0.07, t, 0.15);
       roar.gain.setTargetAtTime(exc * 0.05 + boost * 0.55, t, 0.07);
-      roarBand.frequency.setTargetAtTime(900 + boost * 1100 + exc * 300, t, 0.1);
+      roarBand.frequency.setTargetAtTime(600 + boost * 330 + exc * 90, t, 0.12);          // the vowel opens as they get louder
+      if (roarBand2) roarBand2.frequency.setTargetAtTime(1050 + boost * 650 + exc * 150, t, 0.12);
+      // single voices out of the mass: a shout here and there, more of them the better the fight
+      const heat = Math.min(1, exc + boost);
+      if (heat > 0.12 && voices < 30 && Math.random() < 0.006 + heat * 0.045) {
+        const f = rnd(160, 330);
+        tone({ type: 'sawtooth', f0: f, f1: f * rnd(0.8, 1.3), dur: rnd(0.16, 0.42), vol: rnd(0.008, 0.02) * (0.5 + heat), attack: 0.04, lp: 800, lp1: 1700, vib: 0.025, pan: rnd(-0.9, 0.9), wet: 0.7 });
+      }
     },
     // The weather and the hour over the town: rain as a wash of noise, night as crickets. Both 0 to 1; called every frame.
     ambience(rain, night) {
@@ -450,11 +491,18 @@ const SFX = (() => {
       if (!amb) {
         if (!(rain > 0.02 || night > 0.3)) return;            // nothing to build until there is something to hear
         try {
-          const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
-          const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
-          const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 7000;
+          // Rain is drops, not hiss: a soft low wash for the fall of it on roofs and ground, which rises and sinks
+          // with the gusts, and over that each drop on its own (see below), a short bright tick somewhere left or right.
+          const mk = rate => { const q = ctx.createBufferSource(); q.buffer = noiseBuf; q.loop = true; q.playbackRate.value = rate; q.start(0, Math.random()); return q; };
+          const wash = ctx.createBiquadFilter(); wash.type = 'bandpass'; wash.frequency.value = 850; wash.Q.value = 0.45;
+          const washLp = ctx.createBiquadFilter(); washLp.type = 'lowpass'; washLp.frequency.value = 2600;
+          const gust = ctx.createGain(); gust.gain.value = 0.75;
+          const gl = ctx.createOscillator(), gd = ctx.createGain(); gl.frequency.value = 0.13; gd.gain.value = 0.25; gl.connect(gd); gd.connect(gust.gain); gl.start();
+          const roof = ctx.createBiquadFilter(); roof.type = 'lowpass'; roof.frequency.value = 320; const roofG = ctx.createGain(); roofG.gain.value = 1.6;
           const rg = ctx.createGain(); rg.gain.value = 0;
-          src.connect(hp); hp.connect(lp); lp.connect(rg); rg.connect(bus); src.start(0, Math.random());
+          mk(0.5).connect(wash); wash.connect(washLp); washLp.connect(gust); gust.connect(rg);
+          mk(0.4).connect(roof); roof.connect(roofG); roofG.connect(rg);
+          rg.connect(bus);
           // crickets: a high thin note, chopped fast, coming and going
           const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = 4300;
           const chop = ctx.createGain(); chop.gain.value = 0.5;
@@ -463,11 +511,20 @@ const SFX = (() => {
           const slow = ctx.createOscillator(); slow.frequency.value = 0.7; const sd = ctx.createGain(); sd.gain.value = 0.5; slow.connect(sd); sd.connect(swell.gain);
           const cg = ctx.createGain(); cg.gain.value = 0;
           osc.connect(chop); chop.connect(swell); swell.connect(cg); cg.connect(bus); osc.start(); fast.start(); slow.start();
-          amb = { rg, cg };
+          amb = { rg, cg, t: ctx.currentTime, acc: 0 };
         } catch (e) { amb = { rg: null, cg: null }; }
       }
       const t = ctx.currentTime;
-      if (amb.rg) amb.rg.gain.setTargetAtTime(Math.max(0, Math.min(1, rain || 0)) * 0.05, t, 0.6);
+      const wet = Math.max(0, Math.min(1, rain || 0));
+      if (amb.rg) amb.rg.gain.setTargetAtTime(wet * RAIN_WASH, t, 0.6);
+      // the drops themselves: so many a second, each a tick of its own pitch and place; a few fall fat
+      amb.acc = Math.min(8, (amb.acc || 0) + Math.max(0, t - (amb.t || t)) * wet * 30); amb.t = t;
+      while (amb.acc >= 1 && !muted) {
+        amb.acc -= 1;
+        if (voices > 36) continue;
+        const fat = Math.random() < 0.12, f = fat ? rnd(450, 900) : rnd(1500, 4400);
+        tone({ f0: f, f1: f * (fat ? 0.6 : 0.75), dur: fat ? rnd(0.04, 0.07) : rnd(0.012, 0.03), vol: (fat ? rnd(0.012, 0.022) : rnd(0.005, 0.016)) * (0.5 + wet * 0.5), attack: 0.001, pan: rnd(-1, 1) });
+      }
       if (amb.cg) amb.cg.gain.setTargetAtTime(night > 0.5 && !(rain > 0.2) ? (night - 0.5) * 0.012 : 0, t, 1.2);
     },
     quiet() { if (ctx) { boost = 0; murmur.gain.setTargetAtTime(0.03, ctx.currentTime, 0.5); roar.gain.setTargetAtTime(0.01, ctx.currentTime, 0.8); } },
@@ -481,7 +538,7 @@ const SFX = (() => {
     // For tuning: renders one sound without playing it and reports how loud it is.
     // Returns { peak, rms, left, right, seconds } for the three seconds after it starts.
     async probe(name, v, pan, kind) {
-      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone], keepAmb = amb;
+      const keep = [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, roarBand2, muted, voices, boost, musicBus, drone], keepAmb = amb;
       ctx = null; muted = false;
       try {
         init(() => new OfflineAudioContext(2, 44100 * 3, 44100));
@@ -498,7 +555,7 @@ const SFX = (() => {
         const f = x => Math.round(x * 1000) / 1000;
         return { peak: f(peak), rms: f(Math.sqrt(sum / L.length)), left: f(Math.sqrt(l / L.length)), right: f(Math.sqrt(r / L.length)), seconds: f(end / 44100) };
       } finally {
-        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, muted, voices, boost, musicBus, drone] = keep; amb = keepAmb;
+        [ctx, master, bus, verb, noiseBuf, murmur, roar, roarBand, roarBand2, muted, voices, boost, musicBus, drone] = keep; amb = keepAmb;
         Object.keys(last).forEach(k => delete last[k]);
       }
     },
