@@ -259,7 +259,7 @@ function drawYard(cv, T) {
     for (let i = 0; i < n; i++) door(x + 10 + i * ((w - 30) / Math.max(1, n - 1)), 11, 30);
     if (lv >= 2) { R(x, GY - 46, w, 2, '#a8905e'); for (let i = 0; i < n; i++) win(x + 12 + i * ((w - 30) / Math.max(1, n - 1)), GY - 74); }
     if (lv >= 3) { for (let xx = x - 2; xx <= x + w - 3; xx += 24) column(xx, GY - 46, 46); R(x - 3, GY - 49, w + 6, 4, '#f0e8d6'); }
-    sign(x + w / 2, y - 17, 'BARRACKS ' + pips(lv, 3));
+    sign(x + w / 2, y - 17, `BARRACKS ${pips(lv, 3)} ${G.roster.length}/${capacity()}`);
     perches.push([x + 22, y - (lv >= 2 ? 12 : 9)], [x + w - 24, y - (lv >= 2 ? 12 : 9)]);
     hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
   }
@@ -282,7 +282,7 @@ function drawYard(cv, T) {
       if (lv >= 3) { column(x - 3, GY - 40, 40); column(x + w - 2, GY - 40, 40); R(x - 4, GY - 43, w + 8, 4, '#f0e8d6'); }
       R(x + w / 2 - 5, y + 6, 10, 10, '#f2ecd8'); R(x + w / 2 - 1, y + 7, 1, 8, '#3f8a3a'); R(x + w / 2 - 2, y + 9, 3, 1, '#3f8a3a'); R(x + w / 2 - 1, y + 12, 3, 1, '#3f8a3a');
     }
-    sign(x + w / 2, y - (lv ? (lv >= 2 ? 19 : 16) : 7), 'INFIRMARY ' + pips(lv, 3));
+    sign(x + w / 2, y - (lv ? (lv >= 2 ? 19 : 16) : 7), 'INFIRMARY ' + pips(lv, 3) + (G.roster.some(g => g.injury > 0 && !g.away) ? ` - ${G.roster.filter(g => g.injury > 0 && !g.away).length} HURT` : ''));
     hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
   }
   // ---- baths: a trough, then a bathhouse, then a dome, then a grand dome with columns ----
@@ -367,9 +367,14 @@ function drawYard(cv, T) {
     fires.push([x + 6, GY - 40, 14], [x + 56, GY - 40, 14]);       // torches either side of the gate
     const banner = (bx) => { R(bx, GY - 60, 8, 12, '#c23b2e'); R(bx, GY - 60, 2, 12, '#7e241c'); R(bx, GY - 48, 3, 3, '#c23b2e'); R(bx + 5, GY - 48, 3, 3, '#c23b2e'); R(bx + 3, GY - 57, 2, 4, '#e8b545'); };
     banner(x + 3); banner(x + 51);
-    if (t >= 2) { R(x + 27, GY - 78, 2, 14, '#5a4334'); R(x + 29, GY - 78, 12 + Math.round(Math.sin(T * (3 + wx.gust * 7)) * (1 + wx.gust)), 7, '#c23b2e'); }
+    const champ = typeof titleYours === 'function' && titleYours();      // a man of yours holds the championship: gold flies over the gate
+    if (t >= 2 || champ) { const fw = 12 + Math.round(Math.sin(T * (3 + wx.gust * 7)) * (1 + wx.gust)); R(x + 27, GY - 78, 2, 14, '#5a4334'); R(x + 29, GY - 78, fw, 7, champ ? '#e8b545' : '#c23b2e'); if (champ) { R(x + 29, GY - 78, fw, 1, '#fff0b0'); R(x + 32, GY - 76, 4, 3, '#a8261c'); } }
     if (t >= 3) { R(x + 26, GY - 61, 10, 9, '#e8b545'); R(x + 28, GY - 59, 6, 5, '#f8dc88'); }
-    sign(x + 31, GY - 84 + (t >= 2 ? 0 : 10), TIERS[t].name.toUpperCase());
+    { const n = Math.min(5, typeof trophies === 'function' ? trophies() : 0);      // festival crowns, hung under the lintel
+      for (let i = 0; i < n; i++) { const wx0 = x + 15 + i * 7, wy = GY - 53; R(wx0, wy, 4, 1, '#6f8f48'); R(wx0 - 1, wy + 1, 1, 3, '#6f8f48'); R(wx0 + 4, wy + 1, 1, 3, '#6f8f48'); R(wx0, wy + 4, 4, 1, '#5d7f3f'); R(wx0 + 1, wy + 5, 2, 1, '#a02d22'); } }
+    sign(x + 31, GY - 84 + (t >= 2 || champ ? 0 : 10), TIERS[t].name.toUpperCase());
+    if (isGamesDay() && G.bouts) sign(x + 31, GY - 24, G.bouts.some(b => !b.done) ? 'GAMES TODAY' : 'THE GAMES ARE OVER');
+    else if (G.festival && G.festival.day > G.day && G.festival.day - G.day <= 5) sign(x + 31, GY - 24, `FESTIVAL IN ${G.festival.day - G.day} DAY${G.festival.day - G.day === 1 ? '' : 'S'}`);
     hit(x, GY - 70, x + 62, GY, { tab: 'arena' });
     perches.push([x + 20, GY - 66], [150, t === 0 ? 68 : t >= 2 ? 69 : 74], [470, t === 0 ? 68 : t >= 2 ? 69 : 74], [300, GY + 12, 1], [356, GY + 17, 1], [132, GY + 18, 1]);
   }
@@ -402,7 +407,7 @@ function drawYard(cv, T) {
   const drawPost = ([px, py]) => { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(px - 5, py - 1, 10, 2); R(px - 2, py - 34, 4, 34, '#7a5a2a'); R(px - 2, py - 34, 1, 34, '#5e4426'); R(px - 6, py - 26, 12, 2, '#7a5a2a'); R(px - 2, py - 36, 4, 2, '#94703f'); if (gl >= 2) { R(px - 3, py - 20, 6, 8, '#a8452e'); R(px - 2, py - 18, 4, 4, '#e8b545'); } };
   if (gl >= 1) { R(452, 148, 2, 22, '#5e4426'); R(470, 148, 2, 22, '#5e4426'); R(450, 152, 24, 2, '#7a5a2a'); for (let i = 0; i < 4; i++) R(455 + i * 5, 136, 1, 18, i % 2 ? '#c1c7cc' : '#7a5a2a'); }
   if (gl >= 3) { R(476, GY - 6, 14, 6, '#c9c0aa'); R(479, GY - 30, 8, 24, '#d6ccb8'); R(480, GY - 37, 6, 7, '#d6ccb8'); R(479, GY - 30, 2, 24, '#b5aa94'); R(488, GY - 40, 1, 34, '#b5aa94'); R(480, GY - 39, 6, 2, '#a8452e'); }
-  sign(300, YARD.H - 4, 'TRAINING GROUND ' + pips(gl, 3));
+  sign(300, YARD.H - 4, 'TRAINING GROUND ' + pips(gl, 3) + (typeof regimen === 'function' && G.regimen !== undefined && G.regimen !== 1 ? ` - ${REGIMENS[G.regimen].name.toUpperCase()} REGIMEN` : ''));
   hit(190, GY + 8, 420, YARD.H, { tab: 'ludus', school: true, low: true });
 
   // ---- who is where ----
@@ -442,6 +447,26 @@ function drawYard(cv, T) {
         R(dx + 4, dy - 2, 4, 1, '#9a7a58'); R(dx - 4, dy - 2, 3, 1, '#9a7a58');                                 // paws
       } });
     }
+  }
+  {
+    // the school's record, chalked on a board by the gate
+    things.push({ y: GY + 1, draw: () => { R(468, GY - 46, 34, 16, '#3a2a1c'); R(470, GY - 44, 30, 12, '#2a2a2a'); for (let i = 0; i < Math.min(10, G.tally.wins); i++) R(472 + (i % 5) * 3 + Math.floor(i / 5) * 0, GY - 42 + Math.floor(i / 5) * 5, 1, 4, '#e8e2d2'); for (let i = 0; i < Math.min(5, G.tally.losses); i++) R(490 + i * 2, GY - 42, 1, 4, '#c23b2e'); } });
+    sign(485, GY - 50, `${G.tally.wins} WON - ${G.tally.losses} LOST` + ((G.streak || 0) >= 2 ? ` - ${G.streak} RUNNING` : ''));
+    // the house gods in their niche on the wall, lit once you have built them a shrine
+    if ((G.fac.shrine || 0) >= 1) { things.push({ y: GY, draw: () => { R(377, GY - 34, 12, 16, OUT); R(378, GY - 33, 10, 14, '#d8cdb6'); R(380, GY - 30, 6, 9, '#3a2a1c'); R(382, GY - 28, 2, 5, '#e8e2d2'); R(378, GY - 36, 10, 3, '#b8553a'); R(381, GY - 22, 4, 2, '#e8b545'); } }); fires.push([383, GY - 24, 8]); }
+    // a well in the corner of the yard
+    things.push({ y: 176, draw: () => { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(538, 175, 26, 2); R(540, 166, 22, 10, '#b5aa94'); R(540, 166, 22, 2, '#d6ccb8'); R(543, 168, 16, 3, '#2a3a44'); for (let q = 0; q < 4; q++) R(541 + q * 6, 171, 1, 5, '#9a8e7c'); R(541, 150, 2, 16, '#6b4f2c'); R(559, 150, 2, 16, '#6b4f2c'); R(539, 148, 24, 3, '#7a5a34'); R(550, 151, 1, 10, '#c9b890'); R(548, 160, 5, 5, '#7a5a2a'); R(548, 160, 5, 1, '#5aa0d0'); } });
+    // a mule at the rail by the gate, once there are stables to keep one
+    if ((G.fac.stables || 0) >= 1) things.push({ y: GY + 9, draw: () => { const mx = 578, my = GY + 9, b = '#8a6a4a', k = '#5e4a34', tail = Math.sin(T * 3) > 0.6 ? 1 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(mx - 10, my - 1, 20, 2);
+      R(mx - 8, my - 13, 16, 7, b); R(mx - 8, my - 13, 16, 1, '#a8855e'); for (const lx of [-7, -3, 3, 6]) R(mx + lx, my - 6, 2, 6, k);
+      R(mx - 11, my - 18, 4, 7, b); R(mx - 15, my - 20, 6, 4, b); R(mx - 10, my - 23, 1, 3, k); R(mx - 13, my - 23, 1, 3, k); R(mx - 15, my - 18, 2, 2, '#e8dcc0'); R(mx + 8, my - 12, 1, 5 + tail, k);
+      R(mx - 3, my - 15, 8, 3, '#a8452e'); R(568, my - 14, 1, 14, '#5e4426'); } });
+    // someone sent by a patron waits inside the gate when you are asked for by name, or asked a favour
+    { const asked = (G.contracts || []).find(c => c.asked), req = G.request && !G.request.done ? G.request : null, k = asked ? asked.patron : req ? req.patron : null;
+      if (k && sky.night < 0.7) { const c = k === 'temple' ? '#f1ead8' : k === 'guild' ? '#c9a21e' : '#7a2a8a';
+        things.push({ y: GY + 13, draw: () => yardPerson(ctx, 522, GY + 13, -1, { tunic: c, hair: '#2a1c14', item: 'scroll' }) });
+        label(522, GY + 22, k === 'temple' ? 'from the Temple' : k === 'guild' ? 'from the Guild' : 'from the Magistrate'); } }
   }
   const place = (g, x, y, o) => {
     things.push({ y, draw: () => {
@@ -509,6 +534,13 @@ function drawYard(cv, T) {
     const sw = (T * 1.1) % 1;                            // sparks off the anvil
     if (!a.moving && a.n === 0 && sw > 0.5 && sw < 0.62) things.push({ y: GY + 4, draw: () => { R(forgeX + 27, GY - 14, 1, 1, '#fff0b0'); R(forgeX + 31, GY - 16, 1, 1, '#f5c04a'); R(forgeX + 24, GY - 17, 1, 1, '#f5c04a'); R(forgeX + 33, GY - 12, 1, 1, '#fff0b0'); } });
   }
+  if (G.staff.unctor) staffer('unctor', { tunic: '#5a8a9a', hair: '#2a1c14' }, [
+    { x: 276, y: GY + 6, wait: 6, item: 'bucket', face: -1 }, { x: 60, y: GY + 11, wait: 4, item: 'bucket' }, { x: 230, y: 158, wait: 3, item: 'bucket' }], 14);
+  if (G.staff.dispensator) staffer('dispensator', { tunic: '#8a8a8a', hair: '#c9c2b2' }, [
+    { x: 352, y: GY + 8, wait: 6, item: 'scroll', face: 1 }, { x: 456, y: GY + 10, wait: 5, item: 'scroll', face: 1 }, { x: 514, y: GY + 11, wait: 4, item: 'scroll', face: 1 }], 11);
+  if (G.staff.faber) staffer('faber', { tunic: '#6a5a4a', apron: '#3a2a1c', hair: '#8a8a8a', skin: '#c9966c' }, [
+    { x: forgeX + 40, y: GY + 6, wait: 12, item: 'hammer', face: -1, pose: m => ({ swing: m.moving ? 0.9 : (T * 0.9 + 0.5) % 1 }) },
+    gl >= 1 ? { x: 466, y: 158, wait: 4, item: 'sword', face: -1 } : { x: 300, y: GY + 12, wait: 3, item: 'sword' }], 13);
   if (sky.night < 0.8) staffer('sweeper', { tunic: '#8a7a5a', hair: '#3a2a1c' }, [
     { x: 40, y: GY + 14, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) }, { x: 112, y: GY + 15, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) },
     { x: 164, y: GY + 13, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) }, { x: 84, y: GY + 16, wait: 3, item: 'broom', pose: () => ({ sweep: Math.sin(T * 6) > 0 }) }], 9);
