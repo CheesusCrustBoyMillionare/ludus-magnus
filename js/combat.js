@@ -106,8 +106,11 @@ function createBattle(teamA, teamB, opts) {
     for (let x = 2 + (r % 2) * 3; x < 424; x += 6) {
       if (B.wild || Math.random() >= B.theme.crowd) continue;
       if (B.theme.box ? x > 164 && x < 258 && y > 20 : x > 184 && x < 240 && y > 31) continue;      // the editor's box
-      const col = pick(cols);
-      B.crowd.push({ x: x + rint(-1, 1), y, col, colD: shade(col, 0.7), skin: pick(ORIGINS).skin, hair: pick(hairs), ph: rand(0, 6.28), sp: rand(3, 9), arms: chance(0.5) });
+      if (ARENA_AISLES.some(a => x + 5 > a && x < a + 10)) continue;                                   // nobody sits on the stairs
+      const far = 1 - (64 - y) / 42 * 0.3, col = shade(pick(cols), far), skin = shade(pick(ORIGINS).skin, far);      // the rows further up are further off, and dimmer
+      const look = Math.random();
+      B.crowd.push({ x: x + rint(-1, 1), y, col, colD: shade(col, 0.7), skin, skinD: shade(skin, 0.78), hair: shade(pick(hairs), far), ph: rand(0, 6.28), sp: rand(3, 9), arms: chance(0.5),
+        hat: look < 0.12, veil: look >= 0.12 && look < 0.26, long: look >= 0.26 && look < 0.45, small: look > 0.93 });
     }
   }
   for (let i = 0; i < 420; i++) B.specks.push({ x: rint(0, 426), y: rint(92, 239), w: rint(1, 3), c: chance(0.5) ? 0 : 1 });
@@ -1105,15 +1108,21 @@ function drawHud(ctx, B) {
   }
 }
 
+// One of the crowd, seated (up 0) or risen (up 2 or 3): shoulders, a head with a lit and a shaded side, and whatever
+// he or she wears on it. Some are children; they are shorter.
 function drawSpectator(ctx, p, up) {
-  ctx.fillStyle = p.col; ctx.fillRect(p.x, p.y - 5 - up, 4, 5);
-  ctx.fillStyle = p.colD; ctx.fillRect(p.x, p.y - 2 - up, 4, 2 + up);
-  ctx.fillStyle = p.skin; ctx.fillRect(p.x, p.y - 8 - up, 3, 3);
-  ctx.fillStyle = p.hair; ctx.fillRect(p.x, p.y - 9 - up, 3, 1);
-  if (up && p.arms) { ctx.fillStyle = p.skin; ctx.fillRect(p.x - 1, p.y - 10 - up, 1, 4); ctx.fillRect(p.x + 4, p.y - 10 - up, 1, 4); }
+  const x = p.x, y = p.y - up, sm = p.small ? 2 : 0, R = (ax, ay, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(ax, ay, w, h); };
+  R(x - 1, y - 5 + sm, 5, 3 - (sm ? 1 : 0), p.col); R(x - 1, y - 5 + sm, 1, 3 - (sm ? 1 : 0), p.colD);          // shoulders
+  R(x, y - 2, 4, 2 + up, p.colD); R(x + 1, y - 2, 1, 2 + up, p.col);                                          // lap, or legs when standing
+  R(x, y - 8 + sm, 3, 3, p.skin); R(x + 2, y - 8 + sm, 1, 3, p.skinD || p.skin);                              // the face
+  if (p.veil) { R(x - 1, y - 9 + sm, 5, 2, p.col); R(x - 1, y - 7 + sm, 1, 2, p.col); }                       // a mantle drawn over the head
+  else if (p.hat) { R(x - 1, y - 9 + sm, 5, 1, '#c9a763'); R(x, y - 10 + sm, 3, 1, '#b08a48'); }              // a straw hat against the sun
+  else { R(x, y - 9 + sm, 3, 1, p.hair); if (p.long) { R(x - 1, y - 8 + sm, 1, 4, p.hair); R(x + 3, y - 8 + sm, 1, 3, p.hair); } }
+  if (up && p.arms) { R(x - 2, y - 10, 1, 5, p.skin); R(x + 4, y - 10, 1, 5, p.skin); }
 }
 
 const ARENA_TORCHES = [24, 132, 294, 402];      // x of each wall torch, in sprite pixels
+const ARENA_AISLES = [70, 142, 278, 350];       // x of each flight of stairs up through the stands
 
 // Everything that does not move is painted once per fight onto its own canvas (428x240 sprite pixels).
 // A fight outside the walls has no stands and no wall: trees, rock, a palisade or old stones, and open ground.
@@ -1156,7 +1165,32 @@ function renderBackdrop(B) {
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
   // stands and the seated crowd
   R(0, 0, 428, 66, th.stands);
-  for (let y = 23; y <= 65; y += 9) { R(0, y, 428, 1, th.step); R(0, y + 1, 428, 1, shade(th.step, 0.8)); }
+  const dusk0 = B.light === 'dusk', stone = !th.planks;
+  if (!th.awning) {                             // the top of the stands, and the sky over it
+    for (let y = 0; y < 10; y += 2) R(0, y, 428, 2, dusk0 ? shade('#e59a66', 0.86 + y / 60) : shade('#a9c8dc', 0.9 + y / 80));
+    if (stone) {                                // an arcade round the rim: columns and a lintel against the light
+      R(0, 0, 428, 2, th.wallTop); R(0, 2, 428, 1, th.wallLine);
+      for (let x = 2; x < 428; x += 14) { R(x, 3, 3, 8, th.wallTop); R(x + 2, 3, 1, 8, th.wallLine); }
+    } else {                                    // a village pit: far hills, a rail, and posts
+      for (let x = 0; x < 428; x += 2) { const t = 4 + Math.round(Math.sin(x * 0.03) * 2 + Math.sin(x * 0.08 + 1) * 1.5); R(x, t, 2, 10 - t, '#6f8a5a'); }
+      for (let x = 6; x < 428; x += 22) { R(x, 3, 2, 9, '#5e4426'); R(x, 3, 1, 9, '#7a5a34'); }
+      R(0, 6, 428, 1, '#7a5a34');
+    }
+    R(0, 10, 428, 3, stone ? th.wallTop : '#7a5a34'); R(0, 13, 428, 2, stone ? th.wallLine : '#4a3520'); R(0, 15, 428, 3, 'rgba(0,0,0,.28)');
+  }
+  // the rows: each seat lit along its top edge, in shade down its face
+  for (let y = 23; y <= 65; y += 9) {
+    R(0, y - 8, 428, 8, shade(th.stands, 0.92 + (y - 23) / 42 * 0.16));
+    R(0, y, 428, 1, shade(th.stands, 1.55)); R(0, y + 1, 428, 1, shade(th.step, 0.8));
+    if (stone) for (let x = (y % 2) * 7; x < 428; x += 14) R(x, y - 7, 1, 7, th.step);       // the joints between the blocks
+    else for (let x = 0; x < 428; x += 9) R(x, y - 7, 1, 7, shade(th.stands, 0.8));          // or planks
+  }
+  // the stairs up through the crowd, each from its own doorway
+  for (const a of ARENA_AISLES) {
+    R(a, 15, 9, 51, shade(th.stands, 1.5)); R(a, 15, 1, 51, shade(th.stands, 1.15)); R(a + 8, 15, 1, 51, shade(th.stands, 1.15));
+    for (let y = 17; y < 58; y += 3) R(a + 1, y, 7, 1, shade(th.stands, 1.15));
+    R(a + 1, 57, 7, 9, '#120c0a'); R(a, 56, 9, 1, stone ? th.wallTop : '#7a5a34'); R(a + 2, 55, 5, 1, stone ? th.wallTop : '#7a5a34');
+  }
   for (const p of B.crowd) drawSpectator(ctx, p, 0);
   if (th.awning) {
     for (let x = -4; x < 428; x += 24) { const c = ((x + 4) / 24) % 2 ? '#e8d7b0' : '#b8452e'; R(x, 0, 24, 8, c); R(x + 2, 8, 20, 2, c); R(x + 6, 10, 12, 1, c); }
@@ -1191,6 +1225,14 @@ function renderBackdrop(B) {
       R(0, y + 5, 428, 1, th.wallLine);
       for (let x = 4 + (r % 2) * 10; x < 428; x += 20) R(x, y + 1, 1, 4, th.wallLine);
     }
+    for (let x = 14; x < 428; x += 50) {                   // pilasters
+      if (x > 180 && x < 244) continue;
+      R(x, 67, 5, 18, shade(th.wall, 1.12)); R(x, 67, 1, 18, th.wallTop); R(x + 4, 67, 1, 18, th.wallLine); R(x - 1, 67, 7, 2, th.wallTop); R(x - 1, 83, 7, 2, th.wallLine);
+    }
+    if (th.banners) for (let x = 19; x < 400; x += 50) {    // garlands swung between them
+      if (x > 150 && x < 250) continue;
+      for (let i = 2; i < 46; i += 2) { const dy = Math.round(Math.sin(i / 48 * Math.PI) * 4); R(x + i, 71 + dy, 2, 2, i % 4 ? '#4f7a3a' : '#6f9a4a'); if (i % 12 === 6) R(x + i, 71 + dy, 2, 1, '#c23b2e'); }
+    }
   }
   R(0, 84, 428, 2, shade(th.wallLine, 0.75));
   // gate
@@ -1202,6 +1244,13 @@ function renderBackdrop(B) {
   // sand
   R(0, 86, 428, 154, th.sand);
   const sd = shade(th.sand, 0.9), sl = shade(th.sand, 1.12);
+  for (let i = 0; i < 11; i++) {                            // lighter where it has been walked smooth, darker where it lies deep
+    const cx = 30 + (i * 137) % 370, cy = 104 + (i * 71) % 120, rx = 22 + (i % 4) * 9, ry = 5 + (i % 3) * 3;
+    ctx.fillStyle = i % 3 ? 'rgba(255,240,200,.07)' : 'rgba(90,60,20,.06)';
+    for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(cx - hw, cy + yy, hw * 2, 1); }
+  }
+  ctx.fillStyle = 'rgba(90,60,20,.09)';                    // the rake's rings, out from the middle
+  for (const rr of [46, 82, 120, 160]) for (let a = 0; a < 360; a += 3) { const x = 214 + Math.cos(a * Math.PI / 180) * rr * 1.5, y = 168 + Math.sin(a * Math.PI / 180) * rr * 0.5; if (y > 96 && y < 238 && x > 2 && x < 426 && (a + rr) % 9) ctx.fillRect(Math.round(x), Math.round(y), 2, 1); }
   for (const s of B.specks) R(s.x, s.y, s.w, 1, s.c ? sd : sl);
   // the wall's shade falls across the near sand, further when the sun is low
   const bands = B.light === 'dusk' ? 9 : 5;
