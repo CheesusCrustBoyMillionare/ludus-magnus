@@ -755,3 +755,17 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .partings > div { display: grid; gap: 4px; align-content: start; }
 .partings small { font-size: 12px; color: var(--dim); line-height: 1.35; }
 .partings button { justify-self: start; }
+
+/* the steward comes out to the province, and a page of help */
+#tutor { z-index: 19; }
+#tutor.field { right: auto; left: 16px; }
+.helpcols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 6px 22px; }
+.helpcols h3 { margin: 8px 0 1px; font-size: 13px; letter-spacing: .08em; }
+.helpcols h3:first-child { margin-top: 0; }
+.helpcols p { margin: 0; font-size: 13px; line-height: 1.4; }
+table.keys { width: 100%; border-collapse: collapse; font-size: 12px; margin: 2px 0 6px; }
+table.keys td { padding: 2px 6px 2px 0; border-bottom: 1px solid rgba(110, 72, 26, .2); vertical-align: top; }
+table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospace; }
+#modalBox:has(.helpcols) { max-width: 820px; }
+#sidefoot .wide + .wide { margin-top: 3px; }
+#camp .row button { white-space: nowrap; }

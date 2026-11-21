@@ -145,7 +145,7 @@ const TUTORIAL = [
   { tab: 'ludus', target: '[data-act=dtab][data-v=gear]', until: () => ui.tab === 'ludus' && ui.dtab === 'gear',
     text: 'Now <b>open Gear</b>.' },
   { tab: 'ludus', target: '.gearlist',
-    text: 'What he wears. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and will fit a piece straight onto a man. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
+    text: 'What he wears. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and will fit a piece straight onto a man. Spare pieces wait on your racks, and <b>Wear the best</b> on this page puts them on. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
   { target: '[data-act=endday]', until: () => G.day >= 2,
     text: 'Nothing happens until the day ends. Press <b>End day</b>, or the E key.' },
   { tab: 'ludus', target: '.lrow .gauges',
@@ -167,9 +167,9 @@ const TUTORIAL = [
   { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
     text: 'It is a games day: the number by the Arena\'s name is the bouts waiting. Walk to the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each line on the left is a bout; the one you choose opens here. Compare <b>might</b>, the number by each name that says how dangerous a man is today, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>, click a fighter\'s name to enter him, and wager only if you trust him. <b>Send a man to the sand.</b>' },
+    text: 'Each line on the left is a bout; the one you choose opens here. Compare <b>might</b>, the number by each name that says how dangerous a man is today, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>. Click a fighter\'s name to enter him, or <b>Pick the best</b> (B) and I will choose; the bar shows your chance. Wager only if you trust him. <b>Send a man to the sand</b> (Enter).' },
   { text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. After every fight you are shown what each man dealt, took and used. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
-  { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. I will hold my tongue now, and speak up when something new happens.' },
+  { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. Press <b>H</b> at any time for the keys and the rules of the trade in one place. I will hold my tongue now, and speak up when something new happens.' },
 ];
 
 // Things he explains the first time they happen. `when` returns whatever the text needs, or nothing.
@@ -178,6 +178,16 @@ const HINTS = [
     text: () => `We are in debt, dominus. Stay there for ${graceDays()} days running and the creditors take the house. Sell a man, cut the rations, dismiss staff, or win a purse; and morale falls every day we owe.` },
   { id: 'thin', when: () => { const net = stipend() - upkeep(); return net < 0 && G.denarii >= 0 && Math.floor(G.denarii / -net) < daysToGames(); },
     text: () => 'At this rate the purse runs dry before the next games, dominus. <b>Household</b> shows where it goes: cheaper rations or one wage less would see us through, or a contract that pays before then.' },
+  { id: 'field1', when: () => G.field,
+    text: () => 'This is the province, dominus, and the whole school is with you. <b>W A S D</b> or a click walks the column; the parchment lifts as you go. Walking costs no time. Going into a place takes the day, and so does making camp (<b>E</b>). <b>M</b> lays out the whole map, and you go home by walking back in at the gate.' },
+  { id: 'field2', when: () => G.field && tutorState().seen.field1 && wildSites().find(st => siteKnown(st) && !siteDone(st)),
+    text: st => `Something has come into view: <b>${st.name}</b>. Rest the mouse on a place and it says what it is; the red skulls are how hard it will be. <b>Places known</b>, on the right, walks you to any of them with a click. If it comes to a fight, every man who is fit fights, up to nine.` },
+  { id: 'fieldgames', when: () => G.field && daysToGames() <= 1,
+    text: () => `The games are ${daysToGames() === 0 ? 'today' : 'tomorrow'}, and they are held without us if we are out here: no purses, and the Magistrate notices. <b>Home</b> is at the foot of the places list.` },
+  { id: 'fieldworn', when: () => G.field && G.roster.some(g => !g.away) && fieldParty().length * 2 <= G.roster.filter(g => !g.away).length,
+    text: () => 'Half the school or more is in no state to fight. <b>Make camp</b> rests them, though slower than their own beds would; or turn for home before something finds us like this.' },
+  { id: 'fieldfar', when: () => G.field && wildTier(G.field.x, G.field.y) >= 3,
+    text: () => 'We are a long way from the walls now. The skulls by the name of the country, top left, are how hard it is: what lives out here is stronger than anything near the town, and what it guards is worth more.' },
   { id: 'hurt', when: () => G.roster.find(g => g.injury > 0 && !g.away),
     text: g => `<b>${g.name}</b> is wounded. He can neither train nor fight until he heals; the days left are on his line. A medicus and a better infirmary shorten it.` },
   { id: 'perk', when: () => G.roster.find(g => g.perkPending > 0),
@@ -232,6 +242,7 @@ function renderTutor() {
   document.querySelectorAll('.tut-glow').forEach(x => x.classList.remove('tut-glow'));
   const t = G && tutorState();
   ui.wayTo = null;
+  el.classList.toggle('field', !!(G && G.field));
   if (!t || G.ruin || (!t.on && !t.hints)) { el.hidden = true; return; }
   if (t.on) {
     while (t.step < TUTORIAL.length && TUTORIAL[t.step].until && TUTORIAL[t.step].until()) t.step++;
@@ -268,6 +279,27 @@ function renderTutor() {
     return;
   }
   el.hidden = true;
+}
+
+// ---------- help: the keys and the rules of the trade, in one place ----------
+function helpModal() {
+  const keys = [['W A S D', 'walk: the lanista in town, the column in the province'], ['E', 'end the day; in the province, make camp'], ['G', 'run the days to the next games'],
+    ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'],
+    ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand, or dismiss a notice'], ['M', 'the whole map of the province'],
+    ['1 to 4', 'in a fight: choose the ability'], ['Space', 'in a fight: pause'], ['C', 'in a fight: throw in the cloth'], ['Esc', 'close'], ['H', 'this page']];
+  const sec = (h, body) => `<h3>${h}</h3><p>${body}</p>`;
+  return `<h2>How the trade is plied</h2>
+    <div class="helpcols"><div>
+      ${sec('The day', 'Nothing happens until you end the day. Each man trains one skill, spars or rests; you pay food and wages. Every fifth day there are games, and the market, the smith, the hiring hall and the contract board all change.')}
+      ${sec('A fighter', '<b>Strength beats Agility, Agility beats Skill, Skill beats Strength.</b> His highest skill is his style, and a style that beats the other man\'s hits a tenth harder. <b>Power</b> is his three skills added up; <b>potential</b> is how fast he learns; <b>might</b> is how dangerous he is today, with gear, health and spirits counted in.')}
+      ${sec('Abilities', 'A skill at 5, 10 and 16 teaches an ability, different for each kind of fighter. He carries four. In a fight his gold bar fills with time and with blows given and taken; when it is full the fight stops and you choose, or switch Abilities to auto and he chooses himself.')}
+      ${sec('Money', 'Purses, wagers and contracts bring it in; food, wages, men and steel take it out. Stay in debt past the days of grace and the creditors take the house, though an heir begins again with what the family kept.')}
+      ${sec('The province', 'Out through the east gate once you have fought your first games. Walking is free; going into a place or making camp ends the day. Farther from town is harder and richer. Games are held without you if you are away.')}
+    </div><div>
+      <h3>Keys</h3><table class="keys">${keys.map(([k, t]) => `<tr><td><b>${k}</b></td><td>${t}</td></tr>`).join('')}</table>
+      <p class="dim" style="font-size:12px">Hover over anything, anywhere, for what it means.</p>
+    </div></div>
+    <div class="row"><button class="primary" data-act="close">Close</button><button data-act="helptut"${tip('steward')}>Walk me through it again</button></div>`;
 }
 
 // ---------- modal queue ----------
@@ -312,7 +344,7 @@ function renderTop() {
     <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
     <button data-act="skipdays"${tip('skip')} ${dg > 1 ? '' : 'disabled'}>To the games<span class="key">G</span></button>`;
   const sw = (act, label, on, key) => `<button class="${on ? '' : 'off'}" data-act="${act}"${tip(key)}>${label}</button>`;
-  $('#sidefoot').innerHTML = `<button class="wide" data-act="saves"${tip('saves')}>Saves</button>
+  $('#sidefoot').innerHTML = `<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>
     ${sw('yardtoggle', 'Yard', !ui.noyard, 'yardbtn')}${sw('mute', 'Sound', !SFX.muted, 'sound')}${sw('musictoggle', 'Music', SFX.musicOn, 'music')}`;
 }
 
@@ -1794,6 +1826,8 @@ const ACTIONS = {
   tenter() { if (enterTourney(ui.tpick)) { ui.tpick = null; render(); } },
   tfight() { if (G.tourney && G.tourney.bout) startFight(null, G.tourney.bout); },
   saves() { ui.confirmSlot = null; ui.saveMsg = ''; showModal(savesModal()); },
+  help() { if (!modalQueue.length) showModal(helpModal()); },
+  helptut() { closeModal(); if (G.field) { tutorState().hints = true; tutorState().seen = {}; save(); render(); } else ACTIONS.tuton(); },
   slotload(v) { save(); if (loadSlot(+v)) afterLoad(); else refreshSaves('That slot could not be read.', true); },
   slotcopy(v) {
     if (slotInfo(+v) && !confirmSlot('copy' + v)) return;
@@ -1911,7 +1945,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -2063,7 +2097,7 @@ document.addEventListener('keydown', e => {
 });
 // Keys for everything done often, so the hand can stay off the mouse:
 //   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,
-//   left and right through a fighter's dossier pages, 1-5 to set the chosen fighter's work, B to buy the man chosen at market, Enter to dismiss a notice, 1-4 to answer an event.
+//   left and right through a fighter's dossier pages, 1-5 to set the chosen fighter's work, H for the page of help, B to buy the man chosen at market, Enter to dismiss a notice, 1-4 to answer an event.
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
   const at = document.activeElement || document.body;
@@ -2078,6 +2112,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
+  if (k === 'h' || k === 'F1') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.help(); return; }
   if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
