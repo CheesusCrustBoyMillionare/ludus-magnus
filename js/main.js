@@ -1695,6 +1695,13 @@ function fightLoop(ts) {
   f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - (out(q) ? 8 : 24) && f.hover.y < q.y + 4).sort((a, b) => (out(a) - out(b)) || Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
   SFX.hold(!!(f.B.pick || f.paused) && !f.B.over);
+  {                                           // the band follows the fight: who is failing, what kind of fight it is, and whether it is nearly done
+    const B = f.B, live = t => B.fighters.filter(q => q.team === t && !out(q)), frac = t => { const a = B.fighters.filter(q => q.team === t); return live(t).reduce((n, q) => n + Math.max(0, q.hp), 0) / Math.max(1, a.reduce((n, q) => n + q.maxHp, 0)); };
+    const mine = live(0), foes = live(1), on = !B.over && B.intro <= 0;
+    SFX.mood({ phase: B.intro > 0 ? 'intro' : B.over ? 'over' : 'fight', kind: B.death ? 'death' : B.hunt ? 'hunt' : '', won: B.winner === 0,
+      peril: on && frac(0) < 0.35 && frac(0) < frac(1),
+      climax: on && (B.time > 120 || (mine.length + foes.length <= 2 && Math.max(frac(0), frac(1)) < 0.45)) });
+  }
   if (f.B.pick && f.askedOf !== f.B.pick) SFX.play('ready');          // the fight has stopped for your man: a call to say so
   f.askedOf = f.B.pick || null;
   f.B.snd.length = 0;

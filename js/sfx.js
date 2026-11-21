@@ -319,7 +319,10 @@ const SFX = (() => {
   // as the crowd grows louder. 'wild' is the open country. Each follows how things stand (see mood and hold).
 
   const M = { mode: null, want: null, step: 0, next: 0, timer: 0, heat: 0, bar: null,
-    night: false, tense: false, festive: false, danger: 1, hold: false, motif: null, quiet: false, riff: null };
+    night: false, tense: false, festive: false, danger: 1, hold: false, motif: null, quiet: false, riff: null,
+    // and for the arena's piece, how the fight stands: 'intro', 'fight' or 'over'; whether your side is failing; whether it
+    // is to the death or against beasts; whether it has come down to the last of it; and, once over, who won
+    phase: 'fight', peril: false, kind: '', climax: false, won: false };
   // 'grim' is what the yard's tune turns to when the house is in debt, and the country's where it is most dangerous
   const SCALES = { ludus: [0, 2, 3, 5, 7, 9, 10], arena: [0, 1, 3, 5, 7, 8, 10], wild: [0, 2, 3, 5, 7, 8, 10], grim: [0, 1, 3, 5, 7, 8, 10] };
   const ROOT = 146.83;                                 // D below middle C
@@ -362,6 +365,7 @@ const SFX = (() => {
   const LUDUS_FIGURES = ['0-2-1-2-', '0-21--2-', '0--2-1--', '02-1-2--', '0---2-1-', '0-1-2-12'];
   const ARENA_DRUMS = ['D-ttD-t-', 'D-tDD-tt', 'D-ttD-tD', 'DtttD-t-'];
   const ARENA_BASS = [0, 0, 4, 0, 1, 0, 4, 6];                                   // the low string, one note a step
+  const ARENA_BASSES = [ARENA_BASS, [0, 4, 0, 4, 1, 0, 6, 4], [0, 0, 2, 0, 4, 0, 2, 1]];      // and the other ways it goes, a section at a time
   const pick1 = a => a[Math.floor(Math.random() * a.length)];
   const human = () => rnd(-0.008, 0.008);
 
@@ -394,7 +398,11 @@ const SFX = (() => {
       return bar;
     }
     if (!M.riff) M.riff = Array.from({ length: 8 }, (_, k) => (k === 0 || Math.random() < 0.5 ? pick1([0, 2, 4, 5, 7]) : null));      // this fight's own figure on the high string
-    return { drums: pick1(ARENA_DRUMS), shift: n % 8 >= 6 ? 3 : 0, fill: n % 4 === 3, roll: n % 8 === 7 };
+    // the fight has a tune of its own too, for the pipe: made once, and brought back in the second and fourth bar of each four
+    if (!M.motif) M.motif = makeMotif();
+    if (n % 8 === 0 || !M.bass) M.bass = n < 8 ? ARENA_BASS : pick1(ARENA_BASSES);
+    const tune = n % 4 === 1 ? vary(M.motif.a) : n % 4 === 3 ? (n % 8 === 7 ? M.motif.home : vary(M.motif.b)) : null;
+    return { drums: pick1(ARENA_DRUMS), shift: n % 8 >= 6 ? 3 : 0, fill: n % 4 === 3, roll: n % 8 === 7, tune };
   }
   function playStep(mode, n, t) {
     const i = n % 8, barN = Math.floor(n / 8);
@@ -417,23 +425,47 @@ const SFX = (() => {
       if (M.danger >= 3) { if (i === 0) dum(t, 0.07 + 0.02 * (M.danger - 3)); else if (i === 3) dum(t, 0.04); }             // far from home: a slow drum under it, like a pulse
       return;
     }
+    if (M.phase === 'intro') {                        // they are walking in: the drum alone, gathering, and one long call on the pipe
+      if (i % 2 === 0) dum(t, 0.14 + i * 0.012);
+      if (i >= 4) tek(t + M.beat / 2, 0.07 + (i - 4) * 0.015);
+      if (i === 0 && barN % 2 === 0) pipe(pitch(mode, barN % 4 ? 4 : 0, 0), 0.06, t, M.beat * 6);
+      if (i === 0) lyre(pitch(mode, 0, -1), 0.12, t + human(), 1.6);
+      return;
+    }
+    if (M.phase === 'over') {                         // it is settled: a slow pulse on the drum while the fallen are judged, and a note that says how it went
+      if (i === 0) { dum(t, 0.2); lyre(pitch(mode, 0, -1), 0.13, t + human(), 2.4); }
+      if (i === 3) dum(t, 0.1);
+      if (i === 4 && barN % 2 === 1) lyre(pitch(mode, M.won ? 4 : 1, 0), 0.08, t + human(), 2);
+      if (i === 0 && barN % 4 === 2) pipe(pitch(mode, M.won ? 2 : 0, 0), 0.045, t, M.beat * 7);
+      return;
+    }
     if (M.hold) {                                     // the fight waits on a choice: the band holds its breath
       if (i === 0) dum(t, 0.16);
       if (i % 4 === 0) lyre(pitch(mode, ARENA_BASS[i] + b.shift, -1), 0.08, t + human(), 0.9);
       return;
     }
-    const heat = M.heat, d = b.drums[i];
-    if (d === 'D') dum(t, 0.3); else if (d === 't' && !(heat < 0.12 && i % 2)) tek(t + human(), 0.16);      // the opening is spare; the drum fills in as the crowd warms
+    const heat = M.heat, d = b.drums[i], bass = M.bass || ARENA_BASS, death = M.kind === 'death', hunt = M.kind === 'hunt';
+    if (d === 'D') dum(t, death ? 0.34 : 0.3); else if (d === 't' && !(heat < 0.12 && i % 2)) tek(t + human(), 0.16);      // the opening is spare; the drum fills in as the crowd warms
+    if (death && i === 3) dum(t, 0.2);                                                                      // to the death: the drum is heavier, and comes again
+    if (hunt && (i === 2 || i === 5)) mvoice({ type: 'sine', f: 110, vol: 0.13, t: t + human(), dur: 0.22, attack: 0.003, lp0: 500 });      // against beasts: a second, higher drum
     if (b.fill && i >= 6) tek(t + M.beat / 2, 0.14);
     if (b.roll && i === 7) { dum(t + M.beat / 3, 0.18); dum(t + M.beat * 2 / 3, 0.24); }                    // every eighth bar ends in a roll
-    lyre(pitch(mode, ARENA_BASS[i] + b.shift, -1), i % 4 === 0 ? 0.15 : 0.1, t + human(), 0.5);
-    if (heat > 0.3) jingle(t, 0.05 + heat * 0.05);
-    if (heat > 0.3 && i % 2 === 1) jingle(t + M.beat / 2, 0.04);
+    if (M.climax && i % 2 === 1) tek(t + M.beat / 2, 0.1);                                                  // the last of it: the small drum never stops
+    lyre(pitch(mode, bass[i] + b.shift, -1), i % 4 === 0 ? 0.15 : 0.1, t + human(), 0.5);
+    if (M.peril) {                                    // your side is failing: the low string an octave down, the half-step above home pressed on, and no tune
+      if (i % 4 === 0) lyre(pitch(mode, bass[i] + b.shift, -2), 0.13, t + human(), 1.1);
+      if (i === 6) lyre(pitch(mode, 1, -1), 0.11, t + human(), 0.9);
+      if (i === 0 && barN % 2 === 0) pipe(pitch(mode, barN % 4 ? 1 : 0, -1), 0.06, t, M.beat * 7);
+      return;
+    }
+    if (heat > 0.3 && !(death && heat < 0.5)) jingle(t, 0.05 + heat * 0.05);
+    if (heat > 0.3 && i % 2 === 1 && !death) jingle(t + M.beat / 2, 0.04);
     if (heat > 0.5 && M.riff[i] !== null) lyre(pitch(mode, M.riff[i] + b.shift + (barN % 4 === 3 ? 2 : 0), 1), 0.09, t + human(), 0.7);   // the high string takes up its figure when the fight is good
-    if (heat > 0.65 && i === 0 && barN % 2 === 0) pipe(pitch(mode, 4 + b.shift, 0), 0.07, t, M.beat * 7);
+    if (heat > 0.25 && b.tune && !hunt) { for (const x of b.tune) if (x.at === i) pipe(pitch(mode, x.d + b.shift, 1), 0.05 + heat * 0.02, t, x.len * M.beat * 0.95); }      // and the pipe has the fight's own tune
+    else if (heat > 0.65 && i === 0 && barN % 2 === 0) pipe(pitch(mode, 4 + b.shift, 0), 0.07, t, M.beat * 7);
   }
   function setPiece(mode, t) {
-    M.mode = mode; M.step = 0; M.bar = null; M.motif = null; M.riff = null; M.hold = false;
+    M.mode = mode; M.step = 0; M.bar = null; M.motif = null; M.riff = null; M.bass = null; M.hold = false;
     M.beat = mode === 'arena' ? 60 / 112 / 2 : mode === 'wild' ? 60 / 52 / 2 : 60 / 66 / 2;                               // one step is half a beat
     M.next = t + 0.15;
     const arenaNow = mode === 'arena', f = ROOT / 2;
@@ -447,7 +479,7 @@ const SFX = (() => {
     if (M.want !== M.mode) setPiece(M.want, now);
     if (!M.mode) return;
     if (M.next < now) M.next = now + 0.05;                // the page was asleep: pick up from here, do not rush to catch up
-    while (M.next < now + 0.5) { playStep(M.mode, M.step++, M.next); M.next += M.beat; }
+    while (M.next < now + 0.5) { playStep(M.mode, M.step++, M.next); M.next += M.beat * (M.mode === 'arena' && M.climax && M.phase === 'fight' ? 0.9 : 1); }      // the last of a fight is taken quicker
   }
   function music(mode) {
     M.want = mode || null;
@@ -468,7 +500,7 @@ const SFX = (() => {
     // which piece plays: 'ludus', 'arena', or nothing
     music,
     // How things stand, for the band to follow: { night, tense, festive, danger }. Only what is given is changed.
-    mood(o) { for (const k in o) if (k in M && ['night', 'tense', 'festive', 'danger'].includes(k)) M[k] = o[k]; },
+    mood(o) { for (const k in o) if (k in M && ['night', 'tense', 'festive', 'danger', 'phase', 'peril', 'kind', 'climax', 'won'].includes(k)) M[k] = o[k]; },
     // The arena's piece holds back while the fight waits on the player.
     hold(on) { M.hold = !!on; },
     get musicOn() { return musicOn; },
