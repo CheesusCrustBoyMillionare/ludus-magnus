@@ -182,7 +182,7 @@ test('every event and every choice runs', () => game()(function () {
       n++;
     }
   }
-  assert(n >= 115, 'expected at least 115 event choices, ran ' + n);
+  assert(n >= 210, 'expected at least 210 event choices, ran ' + n);
 }));
 
 test('every style can fight every other, and every fallen fighter gets a verdict', () => game()(function () {
