@@ -272,7 +272,7 @@ function drawBust(ctx, g, col, colD) {
   const lid = shade(skin, 0.42), white = '#efe6d2', brow = shade(hair, 0.62);
   const eye = (x, shut, px) => {
     if (shut) { R(x, 24, 4, 1, lid); return; }
-    R(x, 23, 4, 1, lid); R(x, 24, 4, 1, white); R(x + px, 24, 2, 1, iris); R(x + px, 24, 1, 1, ink);
+    R(x, 23, 4, 1, lid); R(x, 24, 4, 1, white); R(x + px, 24, 2, 1, iris); R(x + px, 24, 1, 1, ink); R(x + px + 1, 24, 1, 1, shade(iris, 1.7));      // and the light in it
     if (mood === 'weary') { R(x, 24, 4, 1, lid); R(x + 1, 25, 2, 1, white); R(x + px, 25, 1, 1, iris); R(x, 27, 4, 1, skinDD); }
     else R(x, 25, 4, 1, skinD);
     if (mood === 'proud') { R(x, 22, 4, 1, lid); R(x, 23, 4, 1, white); R(x + px, 23, 2, 2, iris); R(x + px, 23, 1, 1, ink); }
@@ -295,6 +295,37 @@ function drawBust(ctx, g, col, colD) {
       const w = hw(y), c = 'rgba(40,28,20,.17)';
       if (y >= 31 && y <= 33) { R(24 - w, y, w - 5, 1, c); R(29, y, w - 5, 1, c); } else R(24 - w, y, w * 2, 1, c);
     }
+  }
+
+  // ---- where he comes from, and how long he has been at this ----
+  const origin = g.origin, bearded = seed % 5 < 2, veteran = (g.wins || 0) + (g.losses || 0) >= 10 || (g.rank || 0) >= 3;
+  if (veteran) {                                 // the years: lines across the brow, and at the corners of the eyes
+    R(19, 17, 10, 1, skinD); R(21, 19, 6, 1, skinD); R(15, 25, 1, 1, skinDD); R(32, 25, 1, 1, skinDD); R(16, 26, 1, 1, skinDD); R(31, 26, 1, 1, skinDD);
+    M2(17, 26, 4, 1, skinD);
+  }
+  if (seed % 11 === 0) R(seed % 2 ? 29 : 18, 30, 1, 1, shade(skin, 0.5));                         // a mole
+  if (seed % 13 < 2 && origin !== 'Numidia') for (let i = 0; i < 6; i++) R(17 + (i * 5) % 14, 26 + (i * 3) % 4, 1, 1, shade(skin, 0.82));      // freckles
+  if (origin === 'Thrace') {                     // tattooed, as his people are: a mark on the brow and a line of dots down the cheek
+    const tat = '#3f5a7a';
+    R(23, 16, 2, 1, tat); R(24, 15, 1, 3, tat); R(17, 27, 1, 1, tat); R(18, 29, 1, 1, tat); R(17, 31, 1, 1, tat); R(30, 27, 1, 1, tat); R(29, 29, 1, 1, tat);
+  } else if (origin === 'Gaul') {                // a long moustache, and a torc of twisted gold
+    if (!bearded) { R(20, 31, 8, 1, hair); R(19, 32, 2, 3, hair); R(27, 32, 2, 3, hairD); R(21, 31, 3, 1, hairL); }
+    R(19, 39, 10, 1, '#e8b545'); R(18, 38, 1, 1, '#e8b545'); R(29, 38, 1, 1, '#b6832c'); R(21, 39, 1, 1, '#fff0b0'); R(22, 40, 1, 1, '#b6832c'); R(25, 40, 1, 1, '#b6832c');
+  } else if (origin === 'Germania') {            // his beard in a plait, or his hair in one down the side of his face
+    if (bearded) { R(23, 36, 2, 5, hair); R(23, 37, 2, 1, hairD); R(23, 39, 2, 1, hairD); R(23, 41, 2, 1, '#8a2a20'); }
+    else { R(14, 20, 2, 15, hair); R(14, 23, 2, 1, hairD); R(14, 27, 2, 1, hairD); R(14, 31, 2, 1, hairD); R(14, 35, 2, 1, '#8a2a20'); }
+  } else if (origin === 'Numidia') {             // a ring of gold in his ear
+    R(13, 27, 1, 2, '#e8b545'); R(14, 28, 1, 1, '#fff0b0'); R(34, 27, 1, 2, '#b6832c');
+  } else if (origin === 'Hispania') {            // long at the sides, and a bronze charm at his throat
+    M2(15, 21, 1, 7, hair); R(22, 42, 4, 1, leather); R(23, 43, 2, 2, '#c8913c'); R(23, 43, 1, 1, '#e8b860');
+  } else if (origin === 'Greece' && !bearded) {  // clean-shaven, with a cleft in his chin
+    R(24, 34, 1, 2, skinD);
+  } else if (origin === 'Britannia') {           // painted with woad: three strokes across each cheek
+    const woad = '#4a6a9a';
+    for (let i = 0; i < 3; i++) { R(16, 26 + i * 2, 3 - (i & 1), 1, woad); R(29 + (i & 1), 26 + i * 2, 3 - (i & 1), 1, woad); }
+    R(22, 13, 4, 1, woad);
+  } else if (origin === 'Syria') {               // eyes lined with kohl, and a ring in one ear
+    R(17, 25, 4, 1, '#241812'); R(27, 25, 4, 1, '#241812'); R(16, 24, 1, 1, '#241812'); R(31, 24, 1, 1, '#241812'); R(34, 27, 1, 2, '#c9d1d9');
   }
 
   // scars on the face
@@ -333,6 +364,14 @@ function drawBust(ctx, g, col, colD) {
       R(18, 10, 5, 1, hairL); R(17, 12, 3, 1, hairL); R(24, 11, 1, 3, hairD); R(21, 13, 1, 2, hairD);
       if (style === 2) { M2(13, 14, 2, 20, hair); R(34, 14, 1, 20, hairD); }
     }
+    if (style !== 1 && (origin === 'Numidia' || origin === 'Greece' || seed % 7 === 3)) {       // tight curls
+      for (let y = 9; y <= 14; y += 2) for (let x = 17 + (y % 4 ? 1 : 0); x < 32; x += 3) { R(x, y, 1, 1, hairL); R(x + 1, y + 1, 1, 1, hairD); }
+    }
+    if (veteran && style !== 1) {                // grey coming in at the temples, and on some the hair going back from the brow
+      M2(15, 15, 2, 5, '#b4b0a6'); M2(16, 13, 2, 2, '#c8c4ba');
+      if (seed % 4 === 0) { R(20, 10, 8, 2, skin); R(21, 9, 6, 1, skin); R(20, 11, 2, 1, skinL); }
+    }
+    if (origin === 'Greece' && style !== 1) { R(16, 12, 16, 1, '#f1ead8'); R(16, 13, 16, 1, 'rgba(0,0,0,.15)'); }      // a white fillet round the hair
     if (g.cls === 'retiarius') { R(15, 14, 18, 2, team); R(15, 15, 18, 1, teamD); R(13, 15, 2, 5, teamD); }      // headband
     if (g.traits.includes('laureate')) {                       // the tournament's laurel
       const leaf = '#5a9a3a', leafL = '#8fc35a';
@@ -345,6 +384,15 @@ function drawBust(ctx, g, col, colD) {
     }
   }
   if (mood === 'weary') { R(15, 18, 1, 2, '#c8e8f8'); R(32, 26, 1, 2, '#c8e8f8'); R(15, 20, 1, 1, '#8fc0e0'); }
+  // ---- his standing, on the frame: bronze corners for a Gregarius, silver for a Veteranus, gold above that, and a champion's laurel ----
+  const rk = g.rank || 0;
+  if (rk > 0) {
+    const rc = ['', '#b98a34', '#c9d1d9', '#e8b545', '#e8b545'][Math.min(4, rk)], rl = shade(rc, 1.3), n = rk >= 3 ? 9 : 7;
+    for (const [x, y, w, h] of [[0, 0, n, 1], [0, 0, 1, n], [48 - n, 0, n, 1], [47, 0, 1, n], [0, 55, n, 1], [0, 56 - n, 1, n], [48 - n, 55, n, 1], [47, 56 - n, 1, n]]) R(x, y, w, h, rc);
+    R(0, 0, 3, 1, rl); R(0, 0, 1, 3, rl); R(45, 0, 3, 1, rl); R(0, 55, 3, 1, rl);
+    if (rk >= 3) { R(1, 1, 2, 2, rc); R(45, 1, 2, 2, rc); R(1, 53, 2, 2, rc); R(45, 53, 2, 2, rc); }
+    if (rk >= 4) for (let i = 0; i < 4; i++) { R(3 + i * 2, 52 - i, 2, 2, i % 2 ? '#5a9a3a' : '#8fc35a'); R(43 - i * 2, 52 - i, 2, 2, i % 2 ? '#5a9a3a' : '#8fc35a'); }
+  }
 }
 
 // Paints a fighter onto any portrait canvas. Beasts keep their arena drawing.
