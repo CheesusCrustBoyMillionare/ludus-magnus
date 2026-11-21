@@ -261,7 +261,7 @@ function drawYard(cv, T) {
     if (lv >= 3) { for (let xx = x - 2; xx <= x + w - 3; xx += 24) column(xx, GY - 46, 46); R(x - 3, GY - 49, w + 6, 4, '#f0e8d6'); }
     sign(x + w / 2, y - 17, 'BARRACKS ' + pips(lv, 3));
     perches.push([x + 22, y - (lv >= 2 ? 12 : 9)], [x + w - 24, y - (lv >= 2 ? 12 : 9)]);
-    hit(x, y - 12, x + w, GY, { tab: 'facilities' });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
   }
   // ---- infirmary: a cot under an awning, then a hut, then stone, then columns ----
   {
@@ -283,7 +283,7 @@ function drawYard(cv, T) {
       R(x + w / 2 - 5, y + 6, 10, 10, '#f2ecd8'); R(x + w / 2 - 1, y + 7, 1, 8, '#3f8a3a'); R(x + w / 2 - 2, y + 9, 3, 1, '#3f8a3a'); R(x + w / 2 - 1, y + 12, 3, 1, '#3f8a3a');
     }
     sign(x + w / 2, y - (lv ? (lv >= 2 ? 19 : 16) : 7), 'INFIRMARY ' + pips(lv, 3));
-    hit(x, y - 12, x + w, GY, { tab: 'facilities' });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
   }
   // ---- baths: a trough, then a bathhouse, then a dome, then a grand dome with columns ----
   {
@@ -306,7 +306,7 @@ function drawYard(cv, T) {
       smoke(x + w / 2, y - (lv >= 2 ? 22 : 4), 3 + lv, '#f4f8f8');
     }
     sign(x + w / 2, y - (lv >= 2 ? 32 : lv ? 12 : 7), 'BATHS ' + pips(lv, 3));
-    hit(x, y - 12, x + w, GY, { tab: 'facilities' });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
   }
   // ---- kitchen: what is over the fire depends on the rations ----
   {
@@ -403,7 +403,7 @@ function drawYard(cv, T) {
   if (gl >= 1) { R(452, 148, 2, 22, '#5e4426'); R(470, 148, 2, 22, '#5e4426'); R(450, 152, 24, 2, '#7a5a2a'); for (let i = 0; i < 4; i++) R(455 + i * 5, 136, 1, 18, i % 2 ? '#c1c7cc' : '#7a5a2a'); }
   if (gl >= 3) { R(476, GY - 6, 14, 6, '#c9c0aa'); R(479, GY - 30, 8, 24, '#d6ccb8'); R(480, GY - 37, 6, 7, '#d6ccb8'); R(479, GY - 30, 2, 24, '#b5aa94'); R(488, GY - 40, 1, 34, '#b5aa94'); R(480, GY - 39, 6, 2, '#a8452e'); }
   sign(300, YARD.H - 4, 'TRAINING GROUND ' + pips(gl, 3));
-  hit(190, GY + 8, 420, YARD.H, { tab: 'facilities', low: true });
+  hit(190, GY + 8, 420, YARD.H, { tab: 'ludus', school: true, low: true });
 
   // ---- who is where ----
   const names = [];

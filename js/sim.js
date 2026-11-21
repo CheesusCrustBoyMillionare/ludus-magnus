@@ -554,7 +554,7 @@ const auctionBids = A => [1, 1.25, 1.5].map(k => Math.round(A.worth * k / 5) * 5
 function auctionBlock(amount) {
   const A = G.auction;
   if (!A || A.done) return 'The lot is sold.';
-  if (G.roster.length >= capacity()) return 'No cell free: build more barracks or sell a man.';
+  if (G.roster.length >= capacity()) return 'No cell free: build more barracks at the Ludus, or sell a man.';
   if (G.denarii < amount) return `You are ${amount - G.denarii} denarii short.`;
   return '';
 }

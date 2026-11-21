@@ -190,7 +190,7 @@ const TUTORIAL = [
   { target: '#village', go: 'facilities', until: () => ui.tab === 'facilities',
     text: 'Walk to your own house, <b>Household</b>, at the top left.' },
   { tab: 'facilities', target: '#view .schoolbar',
-    text: 'Staff, buildings and rations, and each says exactly what it gives. Everything here costs money, up front or every day: this strip shows what a day costs and how long the purse will last. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
+    text: 'Staff, the house and rations, and each says exactly what it gives. The school\'s own buildings (barracks, training ground, infirmary, baths) are improved at the <b>Ludus</b>, under <b>The school</b>. Everything here costs money, up front or every day: this strip shows what a day costs and how long the purse will last. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
   { ch: 'The games', target: '[data-act=skipdays]', until: () => isGamesDay(),
     text: 'Games are held every fifth day. <b>To the games</b> (the G key) runs the days until then, stopping if anything needs you. Set your men to train first.' },
   { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
@@ -228,7 +228,7 @@ const HINTS = [
   { id: 'idle', when: () => G.day >= 3 && !isGamesDay() && G.roster.find(g => !g.away && g.injury <= 0 && g.activity === 'rest' && g.hp >= maxHp(g) && g.fatigue <= 0),
     text: g => `<b>${g.name}</b> is resting though he is whole and fresh: a day of training lost. Set him to a skill on his line, or with keys 1 to 5.` },
   { id: 'full', when: () => G.roster.length >= capacity() && G.day >= 2,
-    text: () => 'Every cell is taken. To buy another man, improve the <b>Barracks</b> under Household, or sell one: the dealer at the <b>Market</b> will tell you what he would pay.' },
+    text: () => 'Every cell is taken. To buy another man, improve the <b>Barracks</b> at the <b>Ludus</b> (the button <b>The school</b>), or sell one: the dealer at the <b>Market</b> will tell you what he would pay.' },
   { id: 'request', when: () => G.request && !G.request.done && !G.field && (G.request.type === 'tithe' || G.request.day === G.day) && G.request,
     text: r => `${PATRONS[r.patron].name} ask${r.patron === 'guild' ? '' : 's'} something of us, dominus: ${requestText(r)}. Done, it is worth ${r.favor} favour${r.pay ? ` and ${r.pay} denarii` : ''}; left undone, it costs four. It is written up under <b>Patrons</b>, where you may also <b>ask</b> things of them in your turn, once they know us.` },
   { id: 'called', when: () => (G.bouts || []).find(b => b.called && !b.done),
@@ -423,7 +423,8 @@ function helpModal() {
       + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, a triumph with armed captives and a cheap market, Saturnalia with no deaths and generous bookmakers, the Games of Mars with a duel for each fighting style, or the eight-man Laurel Tournament, where you may back any man for the laurel before the first round, tend your own between rounds, or enter nobody and watch. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days for more fame from its bouts; win enough of them and the house keeps its <b>crown</b>, which adds fame to every bout after.'),
     town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every games day.')
       + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
-      + sec('Household', 'Barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. Staff are hired by the day. Rations trade coin for morale.')
+      + sec('The school', 'At the <b>Ludus</b>, the button <b>The school</b> shows its own buildings: barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. The regimen is set there too.')
+      + sec('Household', 'Staff are hired by the day. Rations trade coin for morale. The shrine, the granary and the stables are built here.')
       + sec('Patrons', 'The <b>Magistrate</b> fattens purses and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts and the right choices win favour.')
       + sec('Rival houses', 'Killing their men, or losing yours to them, deepens a feud. At open feud a house calls you out: answer the grudge match and it cools; refuse and it costs you.')
       + sec('Contracts', 'Work away from the ludus for pay and favour: guard duty, caravans, hunts. A man sent out is gone until he comes home, and some come home changed.')
@@ -521,7 +522,7 @@ function villageMarks() { return { arena: G.bouts ? G.bouts.filter(b => !b.done)
 function renderView() {
   const v = { ludus: viewLudus, arena: viewArena, contracts: viewContracts, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
   const el = $('#view'), keep = {};
-  if (ui.shown !== ui.tab) ui.sellArm = ui.fireArm = null;       // a sale half-agreed is forgotten when you walk away
+  if (ui.shown !== ui.tab) { ui.sellArm = ui.fireArm = null; ui.school = ui.tab === 'ludus' && !!ui.schoolNext; ui.schoolNext = false; }       // a sale half-agreed is forgotten when you walk away
   if (ui.shown === ui.tab) el.querySelectorAll('[data-pane]').forEach(p => { keep[p.dataset.pane] = p.scrollTop; });
   el.innerHTML = v();
   el.querySelectorAll('[data-pane]').forEach(p => { if (keep[p.dataset.pane]) p.scrollTop = keep[p.dataset.pane]; });
@@ -725,14 +726,18 @@ function villageStatus(key) {
 }
 
 function viewLudus() {
-  if (!G.roster.length) return `<div class="fill"><div><h2>Gladiators</h2><div class="pane"><div class="panel">Your cells are empty. Visit the market.</div></div></div><div></div></div>`;
-  if (!byId(ui.sel)) ui.sel = G.roster[0].id;
-  return `<div class="fill">
-    <div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small>
+  const flip = `<button class="mini h2btn ${ui.school ? 'primary' : ''}" data-act="school"${tip(ui.school ? 'Back to the men.' : 'The school\'s own buildings: barracks, training ground, infirmary and baths, and how hard the men are worked.')}>${ui.school ? 'The men' : 'The school'}</button>`;
+  if (!G.roster.length && !ui.school) return `<div class="fill"><div><h2>Gladiators ${flip}</h2><div class="pane"><div class="panel">Your cells are empty. Visit the market.</div></div></div><div></div></div>`;
+  if (G.roster.length && !byId(ui.sel)) ui.sel = G.roster[0].id;
+  const left = ui.school
+    ? `<div><h2>The school <small>${G.roster.length} / ${capacity()}</small>${flip}</h2>${schoolPanel()}</div>`
+    : `<div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small>${flip}
         <label class="h2opt"${tip('autorest')}><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> the exhausted rest on their own</label></h2>
       ${schoolBar()}
-      <div class="pane" data-pane="roster"><div class="panel list">${rosterSorted().map(gladCard).join('')}${capacity() > G.roster.length ? `<div class="lrow emptycell"><span class="dim">${capacity() - G.roster.length} empty cell${capacity() - G.roster.length === 1 ? '' : 's'}. The slave market in the village has men for sale.</span></div>` : ''}</div></div></div>
-    <div><h2>Dossier</h2>${gladDetail(byId(ui.sel))}</div>
+      <div class="pane" data-pane="roster"><div class="panel list">${rosterSorted().map(gladCard).join('')}${capacity() > G.roster.length ? `<div class="lrow emptycell"><span class="dim">${capacity() - G.roster.length} empty cell${capacity() - G.roster.length === 1 ? '' : 's'}. The slave market in the village has men for sale.</span></div>` : ''}</div></div></div>`;
+  return `<div class="fill">
+    ${left}
+    <div><h2>Dossier</h2>${G.roster.length ? gladDetail(byId(ui.sel)) : ''}</div>
   </div>`;
 }
 
@@ -999,7 +1004,7 @@ function dealOf(m) {
 }
 // Why he cannot be bought, or nothing.
 function buyBlock(m) {
-  return G.roster.length >= capacity() ? 'No cell free: build more barracks or sell a man.' : G.denarii < m.price ? `You are ${m.price - G.denarii} denarii short.` : '';
+  return G.roster.length >= capacity() ? 'No cell free: build more barracks at the Ludus, or sell a man.' : G.denarii < m.price ? `You are ${m.price - G.denarii} denarii short.` : '';
 }
 // How he would sit among the men you have.
 function fitNotes(m) {
@@ -1072,7 +1077,7 @@ function viewMarket() {
   return `<div class="fill even">
     <div><h2>The slave market <small>${G.market.length} for sale</small></h2>
       <div class="panel schoolbar"><div class="tally">
-        <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. Barracks, under Household, add two at a time.')}><b class="num">${Math.max(0, free)}</b> cell${free === 1 ? '' : 's'} free</span>
+        <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. The barracks, improved at the Ludus under The school, add two at a time.')}><b class="num">${Math.max(0, free)}</b> cell${free === 1 ? '' : 's'} free</span>
         <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
         <span${tip('The dealer brings new men every games day, and takes away whoever was not sold.')}>fresh stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
         <span class="${scout ? 'gold' : ''}"${tip(scout ? 'Your scout shows each man\'s potential and whether the price is fair.' : TIPS.hidden)}>${scout ? 'scout at your side' : 'no scout: talent hidden'}</span></div></div>
@@ -1085,6 +1090,29 @@ function viewMarket() {
 // Where morale settles on these rations, with the cook and the Temple counted in.
 const moraleAt = i => Math.min(100, moraleBase(i));
 const grade = n => `<span class="pips">${'●'.repeat(n)}${'○'.repeat(3 - n)}</span>`;
+
+// The buildings of the school itself are improved at the school; the rest belong to the house.
+const SCHOOL_FACS = ['barracks', 'ground', 'infirmary', 'baths'];
+function facTile(k) {
+  const f = FACILITIES[k], l = G.fac[k] || 0, cost = FAC_COST[l];
+  return `<div class="htile"${tip(`${f.desc}\nNow: ${f.effect(l)}.${l < 3 ? `\nNext: ${f.effect(l + 1)}.` : ''}`)}><div class="hh"><b>${f.name}</b>${grade(l)}</div>
+      <small>${f.effect(l)}.</small>
+      ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < cost ? 'disabled' : ''}>Improve &mdash; ${cost}</button>` : '<span class="done">Fully built</span>'}</div>`;
+}
+const regimenButtons = () => REGIMENS.map((r, i) => `<button class="ration ${(G.regimen === undefined ? 1 : G.regimen) === i ? 'primary' : ''}" data-act="regimen" data-v="${i}"${tip(`${r.what}\nTraining ${Math.round(r.rate * 100)}% as fast, ${Math.round(r.tire * 100)}% as tiring; morale settles ${r.morale > 0 ? r.morale + ' higher' : r.morale < 0 ? -r.morale + ' lower' : 'where the table puts it'}.`)}><b>${r.name}</b><span>${r.rate === 1 ? 'as usual' : `${r.rate > 1 ? '+' : '&minus;'}${Math.abs(Math.round((r.rate - 1) * 100))}% learning`}</span></button>`).join('');
+// The school's own buildings and how hard the men are worked: the other face of the Ludus screen.
+function schoolPanel() {
+  const free = capacity() - G.roster.length, here = G.roster.filter(g => !g.away), hurt = G.roster.filter(g => g.injury > 0).length;
+  const rate = Math.round((1 + 0.2 * G.fac.ground) * (1 + 0.15 * staffLvl('doctore')) * regimen().rate * 100);
+  return `<div class="panel schoolbar"><div class="tally">
+      <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
+      <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. The barracks add two at a time.')}><b class="num">${G.roster.length}</b> of <b class="num">${capacity()}</b> cells taken</span>
+      <span${tip('The training ground, the doctore and the regimen together, before each man\'s own nature and state.')}>training at <b class="num">${rate}%</b></span>
+      <span class="${hurt ? 'bad' : ''}"><b class="num">${hurt}</b> injured</span></div></div>
+    <div class="pane" data-pane="school"><div class="htiles">${SCHOOL_FACS.map(facTile).join('')}</div>
+      <h2${tip('How hard the men are worked: it sets how fast they learn, how tired a day\'s drill leaves them, and where their spirits settle.')}>Regimen <small>${here.length} in the yard</small></h2><div class="rations">${regimenButtons()}</div>
+      <div class="panel dim" style="font-size:13px;margin-top:10px">These are the school's own walls: cells, the ground the men drill on, and where they are mended and rested. The house across the way keeps the staff, the table, the shrine, the stores and the stables.</div></div>`;
+}
 
 function viewFacilities() {
   const dg = daysToGames(), net = stipend() - upkeep(), fed = G.roster.filter(g => !g.away).length;
@@ -1105,18 +1133,12 @@ function viewFacilities() {
       <small>${h.name}. <span class="${cur ? (better ? 'good' : worse ? 'bad' : '') : 'good'}">${note}</span></small>
       <button class="mini ${worse ? '' : 'primary'}" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}>${cur ? 'Replace' : 'Hire'} &mdash; ${h.fee}</button></div>`;
   }).join('') || '<div class="listnote">No one is looking for work.</div>';
-  const fac = Object.entries(FACILITIES).map(([k, f]) => {
-    const l = G.fac[k] || 0, cost = FAC_COST[l];
-    return `<div class="htile"${tip(`${f.desc}\nNow: ${f.effect(l)}.${l < 3 ? `\nNext: ${f.effect(l + 1)}.` : ''}`)}><div class="hh"><b>${f.name}</b>${grade(l)}</div>
-      <small>${f.effect(l)}.</small>
-      ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < cost ? 'disabled' : ''}>Improve &mdash; ${cost}</button>` : '<span class="done">Fully built</span>'}</div>`;
-  }).join('');
+  const fac = Object.keys(FACILITIES).filter(k => !SCHOOL_FACS.includes(k)).map(facTile).join('');
   const avg = fed ? Math.round(G.roster.filter(g => !g.away).reduce((n, g) => n + g.morale, 0) / fed) : 0;
   const rations = RATIONS.map((r, i) => {
     const each = Math.max(1, r.cost - (boon('grain') ? 1 : 0)), on = G.ration === i;
     return `<button class="ration ${on ? 'primary' : ''}" data-act="ration" data-v="${i}"${tip(`${each} denarii a man each day before any savings. Morale drifts towards ${Math.round(moraleAt(i))}, three points a day.`)}><b>${r.name}</b><span>morale to ${Math.round(moraleAt(i))}</span></button>`;
   }).join('');
-  const regs = REGIMENS.map((r, i) => `<button class="ration ${(G.regimen === undefined ? 1 : G.regimen) === i ? 'primary' : ''}" data-act="regimen" data-v="${i}"${tip(`${r.what}\nTraining ${Math.round(r.rate * 100)}% as fast, ${Math.round(r.tire * 100)}% as tiring; morale settles ${r.morale > 0 ? r.morale + ' higher' : r.morale < 0 ? -r.morale + ' lower' : 'where the table puts it'}.`)}><b>${r.name}</b><span>${r.rate === 1 ? 'as usual' : `${r.rate > 1 ? '+' : '&minus;'}${Math.abs(Math.round((r.rate - 1) * 100))}% learning`}</span></button>`).join('');
   const last = net < 0 ? Math.floor(Math.max(0, G.denarii) / -net) : -1;
   return `<div class="fill even">
     <div><h2>Household <small>the fee once, the wage every day</small></h2>
@@ -1127,9 +1149,8 @@ function viewFacilities() {
         <span${tip('The hiring hall changes its faces every games day.')}>new faces ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span></div></div>
       <div class="pane" data-pane="staff"><div class="htiles">${staff}</div>
       <h2>Hiring hall <small>${G.hires.length} looking for a place</small></h2><div class="htiles">${hall}</div></div></div>
-    <div><h2>Buildings</h2><div class="pane" data-pane="fac"><div class="htiles">${fac}</div>
-      <div class="twogroups"><div><h2${tip('rations')}>Rations <small>${fed} at table &middot; morale ${avg}</small></h2><div class="rations">${rations}</div></div>
-        <div><h2${tip('How hard the men are worked: it sets how fast they learn, how tired a day\'s drill leaves them, and where their spirits settle.')}>Regimen</h2><div class="rations">${regs}</div></div></div>
+    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen.')}>the school's own buildings are at the Ludus</small></h2><div class="pane" data-pane="fac"><div class="htiles">${fac}</div>
+      <h2${tip('rations')}>Rations <small>${fed} at table &middot; morale ${avg}</small></h2><div class="rations">${rations}</div>
       ${ledger()}</div></div>
   </div>`;
 }
@@ -2174,7 +2195,9 @@ const ACTIONS = {
   yard(v, w, el, e) {                       // click a fighter to open his dossier, a building to go to its screen
     const h = typeof yardPick === 'function' ? yardPick(el, e) : null;
     if (!h) return;
-    if (h.fighter) { ui.sel = h.fighter; villageWalkTo('ludus'); } else villageWalkTo(h.tab);       // he walks there; nothing opens until he arrives
+    if (h.fighter) { ui.sel = h.fighter; ui.school = false; ui.schoolNext = false; villageWalkTo('ludus'); }
+    else if (h.school) { if (ui.tab === 'ludus') ui.school = true; else ui.schoolNext = true; villageWalkTo('ludus'); }      // the school's own walls are seen to at the school
+    else villageWalkTo(h.tab);       // he walks there; nothing opens until he arrives
     render();
   },
   activity(v, w, el) {
@@ -2318,6 +2341,7 @@ const ACTIONS = {
     if (ui.sellArm !== +v) { ui.sellArm = +v; render(); return; }
     ui.sellArm = null; SFX.ui('coin'); ACTIONS.sell(v);
   },
+  school() { ui.school = !ui.school; render(); },
   build(v) {
     const l = G.fac[v];
     if (l >= 3 || G.denarii < FAC_COST[l]) return;

@@ -1283,3 +1283,6 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .tbet button.mini { padding: 1px 8px; font-size: 10.5px; }
 .tpast small { color: var(--dim); }
 .tlog { font-size: 12px; margin-top: 2px; }
+
+/* ---- the Ludus: the men, or the school ---- */
+h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size: 10.5px; }

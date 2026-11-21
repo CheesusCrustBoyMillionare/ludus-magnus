@@ -344,7 +344,7 @@ const PLACE_SCENES = {
     if (G.denarii < 0) { E.P(366, 126, -1, { tunic: '#3a3a44', hair: '#2a1c14', item: 'scroll' }); E.P(380, 128, -1, { tunic: '#4a3a3a', hair: '#8a8a8a' }); E.sign(372, 100, 'THE CREDITORS', true); }
     E.shade(50, 124, 490);
     // what you have built: a plaque on the wall for each, with its pips
-    [['barracks', 96], ['ground', 186], ['infirmary', 404], ['baths', 494]].forEach(([k, x]) => E.sign(x, 106, `${FACILITIES[k].name.split(' ')[0].toUpperCase()} ${'●'.repeat(G.fac[k])}${'○'.repeat(3 - G.fac[k])}`, G.fac[k] >= 3));
+    [['shrine', 96], ['stores', 186], ['stables', 450]].forEach(([k, x]) => E.sign(x, 106, `${FACILITIES[k].name.split(' ')[0].toUpperCase()} ${'●'.repeat(G.fac[k])}${'○'.repeat(3 - G.fac[k])}`, G.fac[k] >= 3));
     for (let gy = 132; gy < 148; gy += 4) for (let gx = 258 + (gy % 8 ? 0 : 3); gx < 336; gx += 6) R(gx, gy, 3, 2, (gx + gy) % 3 ? '#c9b890' : '#a8452e');      // a mosaic walk up to the door
     R(52, 60, 6, 64, '#d8cdb6'); R(532, 60, 6, 64, '#d8cdb6'); R(52, 60, 1, 64, '#f0e8d6'); R(537, 60, 1, 64, '#b5aa94');
     for (let i = 0; i < 3; i++) { const q = (T * 0.25 + i / 3) % 1; E.ctx().globalAlpha = 0.4 * (1 - q); R(470 + Math.sin(q * 5 + i) * 3 + q * 8, 44 - q * 30, 3 + Math.round(q * 4), 3, '#d8d4cc'); } E.ctx().globalAlpha = 1; R(468, 40, 6, 8, '#8f8a84');      // the kitchen chimney
