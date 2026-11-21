@@ -132,37 +132,43 @@ const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', contracts: 'Contracts', mark
 const TUTORIAL = [
   { target: '#side',
     text: 'Welcome, dominus. This bar holds the day\'s figures and <b>End day</b>. The picture on the left is your school; the one on the right is the town, and you will do your business in it on foot. Hover over anything, anywhere, and I will explain it.' },
-  { tab: 'ludus', target: '.acts', until: () => G.roster.some(g => g.activity !== 'rest'),
-    text: 'These are your fighters. Each trains one thing a day, or rests. <b>Set one of them to train</b> with the small buttons on his line: strength, agility, endurance, skill.' },
+  { tab: 'ludus', target: '.lrow .acts', until: () => G.roster.some(g => g.activity !== 'rest'),
+    text: 'These are your fighters. Each drills one skill a day, or rests. <b>Set one of them to train</b> with the small buttons on his line: strength, agility or skill. Keys <b>1 to 5</b> do the same for whoever is chosen, and <b>Everyone</b>, above the list, gives one order to the whole school.' },
+  { tab: 'ludus', target: '.schoolbar',
+    text: 'This strip is the school at a glance: who is fit to fight, who is hurt, exhausted, away or idle, and what a day costs you. The button beside it puts the list in another order.' },
   { tab: 'ludus', target: '.statrow',
-    text: 'Click a fighter and his dossier opens here. Three skills decide how he fights, and each beats one of the others: Strength beats Agility, Agility beats Skill, Skill beats Strength. His highest is his style. The stars are his talent for each: more stars, faster gains.' },
+    text: 'Click a fighter and his dossier opens here. Three skills decide how he fights, and each beats one of the others: <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>. His highest is his style. The stars are his talent for each: more stars, faster gains. The <b>Today</b> line above says what his work will do, and when it will pay.' },
+  { tab: 'ludus', target: '[data-act=dtab][data-v=abil]', until: () => ui.tab === 'ludus' && ui.dtab === 'abil',
+    text: 'A dossier has five pages. <b>Open Abilities</b>, or step through the pages with the left and right arrow keys.' },
+  { tab: 'ludus', target: '.abcols',
+    text: 'Every kind of fighter learns his own abilities: one when a skill reaches 5, another at 10, a third at 16. He carries four into the arena. In a fight his gold bar fills as he gives and takes blows, and when it is full he uses one. You will be asked which.' },
   { tab: 'ludus', target: '[data-act=dtab][data-v=gear]', until: () => ui.tab === 'ludus' && ui.dtab === 'gear',
-    text: 'A dossier has four pages. <b>Open Gear.</b>' },
+    text: 'Now <b>open Gear</b>.' },
   { tab: 'ludus', target: '.gearlist',
-    text: 'What he wears. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and anything you buy is put on a man here. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
+    text: 'What he wears. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and will fit a piece straight onto a man. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
   { target: '[data-act=endday]', until: () => G.day >= 2,
     text: 'Nothing happens until the day ends. Press <b>End day</b>, or the E key.' },
-  { tab: 'ludus', target: '.bar.fat',
+  { tab: 'ludus', target: '.lrow .gauges',
     text: 'Three gauges on each line: health, fatigue, spirits. Training builds fatigue, and a tired man fights badly and can tear a muscle, so rest him before the games. With the box above the list ticked, the exhausted rest on their own.' },
   { target: '#village', go: 'contracts', until: () => ui.tab === 'contracts',
     text: 'There is paid work in town. That is you with the gold mark over your head, at the door of the Ludus. <b>Walk to Contracts</b>: steer with <b>W A S D</b>, or click the building and you will walk there yourself. Step onto its doorstep and it opens.' },
   { tab: 'contracts', target: '#view .panel.list',
-    text: 'Patrons hire fighters by the day. A man who suits the work has better odds, shown on his name when you choose him. It pays silver and favour, but he is <b>gone</b> for those days: no training, and no games if they fall while he is away. Each offer says whether he would be back in time. With two fighters, I would keep them home this week.' },
+    text: 'Patrons hire fighters by the day. The bar on each offer is the best chance your free men could manage; the offer itself says what it pays, what it risks, and <b>Pick the best</b> chooses who should go. But a man sent is <b>gone</b> for those days: no training, and no games if they fall while he is away. With two fighters, I would keep them home this week.' },
   { target: '#village', go: 'market', until: () => ui.tab === 'market',
     text: 'Now walk to the <b>Market</b>.' },
   { tab: 'market', target: '#view .panel.list',
-    text: 'Fresh stock every games day. The three numbers are a man\'s skills; you cannot see his talent without a scout. Your barracks hold three for now, and every man eats every day. Buy when you can feed him.' },
+    text: 'Fresh stock every games day. Each man shows his power and three skills, and his card says where he would stand among your own. You cannot see how fast he will learn without a scout. Your barracks hold three for now, and every man eats every day. Buy when you can feed him; the dealer will also buy your men, at half their worth.' },
   { target: '#village', go: 'facilities', until: () => ui.tab === 'facilities',
     text: 'Walk to your own house, <b>Household</b>, at the top left.' },
-  { tab: 'facilities', target: '#view .fill > div:last-child .panel.list',
-    text: 'Staff, buildings and rations. Everything here costs money, up front or every day, and the ledger shows what a day costs you now. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
+  { tab: 'facilities', target: '#view .schoolbar',
+    text: 'Staff, buildings and rations, and each says exactly what it gives. Everything here costs money, up front or every day: this strip shows what a day costs and how long the purse will last. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
   { target: '[data-act=skipdays]', until: () => isGamesDay(),
     text: 'Games are held every fifth day. <b>To the games</b> (the G key) runs the days until then, stopping if anything needs you. Set your men to train first.' },
   { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
     text: 'It is a games day: the number by the Arena\'s name is the bouts waiting. Walk to the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each line on the left is a bout; the one you choose opens here. Compare the strength numbers, start with one marked <b>Favoured</b>, click a fighter\'s name to enter him, and wager only if you trust him. <b>Send a man to the sand.</b>' },
-  { text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
+    text: 'Each line on the left is a bout; the one you choose opens here. Compare power, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>, click a fighter\'s name to enter him, and wager only if you trust him. <b>Send a man to the sand.</b>' },
+  { text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. After every fight you are shown what each man dealt, took and used. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
   { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. I will hold my tongue now, and speak up when something new happens.' },
 ];
 
@@ -170,12 +176,24 @@ const TUTORIAL = [
 const HINTS = [
   { id: 'debt', when: () => G.denarii < 0,
     text: () => `We are in debt, dominus. Stay there for ${graceDays()} days running and the creditors take the house. Sell a man, cut the rations, dismiss staff, or win a purse; and morale falls every day we owe.` },
+  { id: 'thin', when: () => { const net = stipend() - upkeep(); return net < 0 && G.denarii >= 0 && Math.floor(G.denarii / -net) < daysToGames(); },
+    text: () => 'At this rate the purse runs dry before the next games, dominus. <b>Household</b> shows where it goes: cheaper rations or one wage less would see us through, or a contract that pays before then.' },
   { id: 'hurt', when: () => G.roster.find(g => g.injury > 0 && !g.away),
     text: g => `<b>${g.name}</b> is wounded. He can neither train nor fight until he heals; the days left are on his line. A medicus and a better infirmary shorten it.` },
   { id: 'perk', when: () => G.roster.find(g => g.perkPending > 0),
     text: g => `<b>${g.name}</b> has earned a new rank. Open his dossier and press <b>Choose a perk</b>: three are offered, and the choice is for good.` },
+  { id: 'spent', when: () => G.roster.find(g => g.fatigue > 75 && g.injury <= 0 && !g.away),
+    text: g => `<b>${g.name}</b> is exhausted. His charge fills slowly in a fight, and if he trains like this he may tear a muscle. A day or two of rest mends it${G.autoRest ? '; he will take it himself while the box above the roster is ticked' : ''}.` },
+  { id: 'choose', when: () => G.roster.find(g => abilitiesKnown(g).length > 4),
+    text: g => `<b>${g.name}</b> now knows more abilities than he can carry. On the <b>Abilities</b> page of his dossier, click one to put it down and another to take it up: four go with him into the arena.` },
+  { id: 'idle', when: () => G.day >= 3 && !isGamesDay() && G.roster.find(g => !g.away && g.injury <= 0 && g.activity === 'rest' && g.hp >= maxHp(g) && g.fatigue <= 0),
+    text: g => `<b>${g.name}</b> is resting though he is whole and fresh: a day of training lost. Set him to a skill on his line, or with keys 1 to 5.` },
+  { id: 'full', when: () => G.roster.length >= capacity() && G.day >= 2,
+    text: () => 'Every cell is taken. To buy another man, improve the <b>Barracks</b> under Household, or sell one: the dealer at the <b>Market</b> will tell you what he would pay.' },
+  { id: 'grudge', when: () => (G.bouts || []).find(b => b.grudge && !b.done),
+    text: b => `<b>${b.house}</b> has called you out: there is a grudge match on today\'s card at the <b>Arena</b>. Answer it, win or lose, and the feud cools. Leave it and the Magistrate and your own men will think less of you.` },
   { id: 'gear', when: () => G.armoury.length > 0,
-    text: () => 'There is a spare piece in the armoury. Open a fighter\'s dossier, then <b>Gear</b>, to put it on him. A weapon only fits the fighting style it was made for.' },
+    text: () => 'There is a spare piece in the armoury. Choose it at the <b>Blacksmith</b> and press <b>Give him</b> beside a man\'s name, or open a fighter\'s dossier and then <b>Gear</b>. A weapon only fits the kind of fighter it was made for.' },
   { id: 'away', when: () => G.jobs.length > 0,
     text: () => 'Men are away from the house. The <b>Contracts</b> screen shows who, and when they are back. Word may come from the road asking what they should do; I will bring it to you.' },
   { id: 'quest', when: () => G.roster.find(g => g.quest && QUESTS[g.quest.id] && !g.away),
@@ -229,6 +247,12 @@ function renderTutor() {
     el.hidden = false;
     const target = s.target && !away ? document.querySelector(s.target) : away ? $('#village') : null;
     if (target) target.classList.add('tut-glow');
+    // he steps to the other side of the room rather than stand in front of what he is pointing at
+    el.classList.remove('aside');
+    if (target && target.id !== 'village' && target.id !== 'side') {
+      const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
+      if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) el.classList.add('aside');
+    }
     ui.wayTo = s.go || (away ? s.tab : null);                  // an arrow over the door he wants you at
     return;
   }
@@ -236,6 +260,7 @@ function renderTutor() {
     if (t.seen[h.id]) continue;
     const about = h.when();
     if (!about) continue;
+    el.classList.remove('aside');
     el.innerHTML = stewardSays('Your steward', h.text(about), `<button class="primary" data-act="hintok" data-v="${h.id}">Understood</button><button data-act="tutoff" style="margin-left:auto">No more advice</button>`);
     el.hidden = false;
     return;
@@ -1325,7 +1350,7 @@ function startFight(boutId, tourneyBout) {
       <li><b>When it is full, the fight stops</b> and you choose which of his abilities he uses: keys 1 to 4, or click. If you would rather they chose for themselves, switch <b>Abilities</b> to auto below the sand.</li>
       <li><b>Styles.</b> Strength beats Agility, Agility beats Skill, Skill beats Strength. The marks on the bout card show whose style has the edge.</li>
       <li><b>Throw in the cloth</b> (key C): your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once a bout, and never in a fight to the death.</li></ul>
-      <p>Below the sand you can run the fight faster or skip to the result. The crowd's bar matters: an exciting fight earns more fame.</p>
+      <p>Below the sand you can run the fight faster, <b>pause</b> it (Space), or skip to the result. Rest the mouse on any fighter to see what he is and what he carries. The crowd's bar matters: an exciting fight earns more fame.</p>
       <div class="row"><button class="primary" data-act="fightgo">To the sand</button></div>`);
     return;
   }

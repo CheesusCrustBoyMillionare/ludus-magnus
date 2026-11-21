@@ -697,3 +697,4 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .famerow .bar { margin: 0; }
 .kvs.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .kvs.three b { font-size: 14px; }
+#tutor.aside { right: auto; left: 16px; }
