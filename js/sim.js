@@ -563,10 +563,10 @@ function gearStats(g) {
 function gearPower(g) { const s = gearStats(g); return 1 + 0.07 * (s.dmg / 2) + 0.07 * (s.armor / 1.5); }
 // How the kit shows on the sprite: 0 to 3 for torso, blade and helmet; flags for the smaller pieces.
 function gearLook(g) {
-  if (g.beast) return { armor: 0, weapon: 0, head: 0, legs: false, arms: false, shoulders: false };
-  if (!g.gear) return { armor: g.armor, weapon: g.weapon, head: g.armor, legs: false, arms: g.armor >= 1, shoulders: false };
+  if (g.beast) return { armor: 0, weapon: 0, head: 0, legs: false, arms: false, shoulders: false, legsT: 0, armsT: 0, shouldersT: 0 };
+  if (!g.gear) return { armor: g.armor, weapon: g.weapon, head: g.armor, legs: false, arms: g.armor >= 1, shoulders: false, legsT: 0, armsT: g.armor >= 1 ? 1 : 0, shouldersT: 0 };
   const t = it => (it ? (it.r <= 1 ? 1 : it.r <= 3 ? 2 : 3) : 0), x = g.gear;
-  return { armor: t(x.chest), weapon: t(x.weapon), head: t(x.head), legs: !!x.legs, arms: !!x.arms, shoulders: !!x.shoulders };
+  return { armor: t(x.chest), weapon: t(x.weapon), head: t(x.head), legs: !!x.legs, arms: !!x.arms, shoulders: !!x.shoulders, legsT: t(x.legs), armsT: t(x.arms), shouldersT: t(x.shoulders) };      // the T's are each piece's own grade, for its colour
 }
 
 function equip(g, itemId) {

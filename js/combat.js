@@ -590,15 +590,25 @@ function drawFighter(ctx, f, o) {
   ctx.restore();
 }
 
+// A fighter, with a dark line round him so he stands clear of the sand and of the men beside him.
+// The line is the figure itself in ink, drawn a pixel off in each direction, with the figure on top.
+const SPRITE_EDGE = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 function drawSprite(ctx, o) {
-  // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,windP,recoil,bash,guard,flash,down,falling,yielded,snare,cheer,shadow}
   if (o.g.beast) { drawBeast(ctx, o); return; }
+  if (!o.plain) {
+    const edge = Object.assign({}, o, { solid: 'rgba(30,18,9,.62)', shadow: { len: 0, a: 0 } });
+    for (const [dx, dy] of SPRITE_EDGE) { edge.x = o.x + dx; edge.y = o.y + dy; drawSpriteBody(ctx, edge); }
+  }
+  drawSpriteBody(ctx, o);
+}
+function drawSpriteBody(ctx, o) {
+  // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,windP,recoil,bash,guard,flash,down,falling,yielded,snare,cheer,shadow,solid}
   const g = o.g, c = CLASSES[g.cls], cls = g.cls, d = o.facing;
   const look = gearLook(g), armorT = look.armor, weaponT = look.weapon;
   const X = Math.round(o.x), Y = Math.round(o.y) - (o.cheer && Math.sin(o.cheer * 9) > 0.3 ? 2 : 0);
   const white = o.flash > 0;
   let lean = 0;       // sideways shift of everything above the hips: into a blow, back from a hit
-  const P = (x, y, w, h, col) => { ctx.fillStyle = white ? '#fff' : col; ctx.fillRect(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h); };
+  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : col); ctx.fillRect(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h); };
   const L = (x0, y0, x1, y1, w, col) => {
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)), o2 = w >> 1;
     for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; P(Math.round(x0 + (x1 - x0) * t) - o2, Math.round(y0 + (y1 - y0) * t) - o2, w, w, col); }
@@ -606,21 +616,26 @@ function drawSprite(ctx, o) {
 
   const skin = g.look.skin, skinD = shade(skin, 0.76), skinL = shade(skin, 1.18), hair = g.look.hair;
   const team = o.col || TEAM_COL[o.team], teamD = o.colD || TEAM_DARK[o.team], teamL = shade(team, 1.3);
-  const metal = look.head >= 3 ? '#b4bec8' : look.head === 2 ? '#dcae48' : '#b98a34';
+  const metalOf = t => t >= 3 ? '#b4bec8' : t === 2 ? '#dcae48' : '#b98a34';        // bronze, then gilt, then bright steel
+  const metal = metalOf(look.head);
   const metalD = shade(metal, 0.68), metalL = shade(metal, 1.4);
+  const legM = metalOf(look.legsT || look.head), legML = shade(legM, 1.4);           // greaves, pauldrons and arm guard each in their own grade
+  const shM = metalOf(look.shouldersT), shML = shade(shM, 1.4), shMD = shade(shM, 0.68);
   const blade = ['#8d9094', '#c1c7cc', '#e4e9ed', '#fbf6dc'][weaponT], bladeD = shade(blade, 0.72);
   const hilt = weaponT >= 3 ? '#e8b545' : weaponT >= 1 ? '#8a6230' : '#5e4222';
   const gold = '#e8b545', wood = '#7a5a2a', cloth = '#ddd3ba', clothD = '#b0a488', leather = '#6b4526', ink = '#1c1310';
   const torso = [skin, '#d6c8a2', skin, '#aeb8c2'][armorT], torsoD = [skinD, '#b0a078', skinD, '#7c8792'][armorT];
   const helmed = (cls === 'murmillo' || cls === 'thraex' || cls === 'hoplomachus') && !o.noHelm;
   const manica = cls === 'murmillo' || cls === 'thraex' || cls === 'retiarius' || look.arms;
-  const arm = manica ? '#cfc4a6' : skin, armD = manica ? '#a2977a' : skinD;
+  const plated = look.armsT >= 2;                 // a good arm guard is scaled metal, not wrapped linen
+  const arm = plated ? shade(metalOf(look.armsT), 0.92) : manica ? '#cfc4a6' : skin, armD = plated ? shade(metalOf(look.armsT), 0.62) : manica ? '#a2977a' : skinD;
   const seed = g.id * 7919 % 97;
 
   // shadow: a pool under the feet, drawn out along the ground when the light is low
   const sh = o.shadow || { len: 0, a: 0.2 };
-  ctx.fillStyle = `rgba(0,0,0,${sh.a})`;
+  ctx.fillStyle = `rgba(0,0,0,${o.solid ? 0 : sh.a})`;
   ctx.fillRect(X - 9, Y - 2, 18 + sh.len, 3); ctx.fillRect(X - 6, Y + 1, 12 + sh.len, 1);
+  if (!o.solid) { ctx.fillStyle = `rgba(0,0,0,${(sh.a * 0.9).toFixed(3)})`; ctx.fillRect(X - 5, Y - 1, 10, 2); ctx.fillStyle = `rgba(0,0,0,${sh.a})`; }      // darkest right under his feet
   if (sh.len) { ctx.fillRect(X - 5, Y - 3, 12 + sh.len, 1); ctx.fillRect(X + 9 + sh.len, Y - 2, 3, 2); }
 
   // ---- lying on the sand ----
@@ -641,14 +656,14 @@ function drawSprite(ctx, o) {
   // ---- pose ----
   const kneel = o.yielded || o.falling;
   const ph = (o.walk || 0) * Math.PI / 2;                       // walk cycle: one stride every four units of o.walk
-  const by = kneel ? 8 : (o.moving ? (Math.abs(Math.sin(ph)) > 0.7 ? 1 : 0) : (Math.sin((o.clock || 0) * 2.6) > 0.55 ? 1 : 0));
+  const by = kneel ? 8 : (o.moving ? (Math.abs(Math.sin(ph)) > 0.7 ? 1 : 0) : (Math.sin((o.clock || 0) * (o.hurt >= 2 ? 5.4 : 2.6)) > 0.55 ? 1 : 0));      // breathing: a badly hurt man pants
   const striking = !kneel && !o.cheer && !o.windup && o.atkAnim > 0.45;
   // lean forward on the move and into a blow; rock back while winding up or when struck
-  const leanAmt = kneel ? 0 : (o.moving ? 1 : 0) + (striking ? 2 : o.atkAnim > 0 && !o.windup ? 1 : 0) - (o.windup ? 1 : 0) - Math.round((o.recoil || 0) * 2);
+  const leanAmt = kneel ? 0 : (o.moving ? 1 : 0) + (striking ? 2 : o.atkAnim > 0 && !o.windup ? 1 : 0) - (o.windup ? 1 : 0) - Math.round((o.recoil || 0) * 2) + (o.hurt >= 3 && !striking && !o.windup && !o.cheer ? 1 : 0);      // and stoops
   const sway = (o.moving ? -1 : 0) + (Math.sin((o.clock || 0) * 3.1 + seed) > 0.6 ? -1 : 0) - (striking ? 1 : 0);   // crests and plumes trail behind
 
   // ---- legs ----
-  const greave = (x, lift, tall) => { P(x, (tall ? -10 : -8) - lift, 4, tall ? 9 : 7, metal); P(x + 1, (tall ? -10 : -8) - lift, 1, tall ? 9 : 7, metalL); };
+  const greave = (x, lift, tall) => { P(x, (tall ? -10 : -8) - lift, 4, tall ? 9 : 7, legM); P(x + 1, (tall ? -10 : -8) - lift, 1, tall ? 9 : 7, legML); };
   const leg = (x, lift, back, gr) => {
     P(x, -13, 4, 7, back ? skinD : skin);
     P(x, -7 - lift, 4, 6, back ? skinD : skin);
@@ -693,7 +708,7 @@ function drawSprite(ctx, o) {
     P(-5, -28 + by, 10, 1, gold); P(-5, -19 + by, 10, 1, gold);
     P(-6, -29 + by, 5, 3, '#cfd7df'); P(-6, -27 + by, 5, 1, '#7c8792');
   }
-  if (look.shoulders && armorT !== 3) { P(-6, -29 + by, 5, 3, metal); P(-6, -29 + by, 5, 1, metalL); P(-6, -27 + by, 5, 1, metalD); }
+  if (look.shoulders && armorT !== 3) { P(-6, -29 + by, 5, 3, shM); P(-6, -29 + by, 5, 1, shML); P(-6, -27 + by, 5, 1, shMD); if (look.shouldersT >= 3) P(-5, -30 + by, 3, 1, shML); }
   P(-1, -29 + by, 3, 1, skinD);
   // ---- wounds: the worse he is hurt, the more of it shows ----
   if (o.hurt) {
@@ -711,6 +726,7 @@ function drawSprite(ctx, o) {
     P(-3, -33 + by, 7, 4, metal); P(1, -33 + by, 3, 3, metalD);
     P(1, -32 + by, 1, 1, ink); P(3, -32 + by, 1, 1, ink); P(2, -31 + by, 1, 1, ink);
     P(-5, -34 + by, 11, 1, metalL); P(-5, -33 + by, 2, 3, metal); P(-2, -30 + by, 5, 1, metalD);
+    if (look.head === 3 && Math.sin((o.clock || 0) * 0.8 + seed) > 0.93) { P(-2, -37 + by, 1, 1, '#ffffff'); P(-3, -36 + by, 1, 1, '#ffffff'); }      // and on a fine helm
     if (cls === 'murmillo') {            // tall fin crest
       P(-4, -39 + by, 8, 1, metalD);
       P(-5, -40 + by, 8, 1, team); P(-5 + sway, -42 + by, 8, 2, team); P(-4 + sway, -43 + by, 6, 1, teamL); P(3, -41 + by, 1, 2, team);
@@ -725,7 +741,7 @@ function drawSprite(ctx, o) {
     }
   } else {
     P(-3, -36 + by, 7, 7, skin); P(-3, -30 + by, 7, 1, skinD); P(-3, -36 + by, 1, 7, skinD);
-    P(2, -34 + by, 1, 1, ink); P(1, -35 + by, 3, 1, shade(hair, 0.8)); P(4, -33 + by, 1, 1, skin); P(2, -31 + by, 2, 1, skinD); P(-1, -34 + by, 1, 2, skinD);
+    P(2, -34 + by, 1, 1, Math.sin((o.clock || 0) * 1.3 + seed) > 0.975 ? skinD : ink); P(1, -35 + by, 3, 1, shade(hair, 0.8));      // he blinks P(4, -33 + by, 1, 1, skin); P(2, -31 + by, 2, 1, skinD); P(-1, -34 + by, 1, 2, skinD);
     const style = seed % 3;
     if (style !== 1) { P(-3, -37 + by, 7, 2, hair); P(-3, -35 + by, 2, 3, hair); } else P(-3, -36 + by, 6, 1, shade(hair, 1.2));
     if (style === 2) P(-4, -35 + by, 2, 6, hair);
@@ -792,12 +808,13 @@ function drawSprite(ctx, o) {
         L(tx, ty, tx + rx * 4, ty + ry * 4, 2, blade); tx += rx * 4; ty += ry * 4;
       }
       P(Math.round(tx), Math.round(ty) - 1, 1, 1, '#ffffff');
+      if (weaponT === 3) { const q = ((o.clock || 0) * 0.55 + seed * 0.13) % 1; if (q < 0.22) { const k = q / 0.22; P(Math.round(hx + vx * (1 + (len - 1) * k)), Math.round(hy + vy * (1 + (len - 1) * k)), 1, 1, '#ffffff'); } }      // a glint runs up a fine blade
       P(Math.round(hx - vy) - 1, Math.round(hy + vx) - 1, 2, 2, hilt); P(Math.round(hx + vy) - 1, Math.round(hy - vx) - 1, 2, 2, hilt);
     }
     L(-1, -26 + by, A.e[0], A.e[1] + by, 3, arm); L(A.e[0], A.e[1] + by, hx, hy, 3, arm);
     if (manica) P(A.e[0] - 1, A.e[1] + by - 1, 3, 1, armD);
     P(hx - 1, hy - 1, 3, 3, skin); P(hx - 1, hy + 1, 3, 1, skinD);
-    if (striking && o.atkAnim > 0.55) {          // the sweep of the blow: a fading trail from the wind-up to the strike
+    if (striking && o.atkAnim > 0.55 && !o.solid) {          // the sweep of the blow: a fading trail from the wind-up to the strike
       const reach = long ? 16 : c.weapon === 'gladius' ? 9 : 7;
       for (let i = 1; i <= 5; i++) {
         const t = i / 6, m = mix(K.windup, K.strike, t), n = Math.hypot(m.v[0], m.v[1]) || 1;
@@ -807,7 +824,7 @@ function drawSprite(ctx, o) {
     }
 
     // ---- off hand: shield, net or second blade ----
-    const so = o.bash ? 4 : o.guard > 0 ? 2 : 0, sy = (o.guard > 0 ? -3 : 0) + by;
+    const so = o.bash ? 4 : o.guard > 0 ? 2 : 0, sy = (o.guard > 0 ? -3 : 0) + by + (o.moving && Math.sin(ph * 2) > 0.2 ? 1 : 0);      // the shield rides with his stride
     if (cls === 'murmillo') {
       const sx = 4 + so;
       P(sx, -29 + sy, 6, 19, teamD); P(sx + 1, -28 + sy, 4, 17, team); P(sx + 1, -28 + sy, 1, 17, teamL);
@@ -844,7 +861,7 @@ function drawSprite(ctx, o) {
 
   lean = 0;
   // ---- snared in the net ----
-  if (o.snare > 0) {
+  if (o.snare > 0 && !o.solid) {
     ctx.fillStyle = 'rgba(232,220,180,.75)';
     for (let i = -10; i <= 10; i += 4) ctx.fillRect(X + i, Y - 38, 1, 38);
     for (let j = -38; j <= -2; j += 5) ctx.fillRect(X - 10, Y + j, 21, 1);
