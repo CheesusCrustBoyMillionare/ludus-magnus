@@ -769,8 +769,8 @@ function pickRivals(H, size, budget, t, booked) {
 
 function emptyGear() { return { weapon: null, head: null, chest: null, legs: null, arms: null, shoulders: null }; }
 function makeItem(slot, r, cls) { return { id: ++G.nextId, slot, r, cls: slot === 'weapon' ? cls : null }; }
-function itemName(it) { return it.relic ? RELICS[it.relic].name : MATERIAL[it.r] + ' ' + (it.slot === 'weapon' ? WEAPON_NAMES[it.cls] : SLOT_INFO[it.slot].piece); }
-function itemPrice(it) { return Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price * (it.relic ? 2 : 1) / 5) * 5; }
+function itemName(it) { return it.relic ? RELICS[it.relic].name : MATERIAL[it.r] + ' ' + (it.slot === 'weapon' ? WEAPON_NAMES[it.cls] : SLOT_INFO[it.slot].piece) + (it.fit && FITS[it.fit] ? ', ' + FITS[it.fit].name.toLowerCase() : ''); }
+function itemPrice(it) { return Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price * (it.relic ? 2 : 1) * (it.fit ? 1.3 : 1) / 5) * 5; }
 // what the blacksmith charges you; selling back is always half the full price
 function buyPrice(it) { return boon('bargain') ? Math.round(itemPrice(it) * 0.85 / 5) * 5 : itemPrice(it); }
 function fits(it, g) { return it.slot !== 'weapon' || it.cls === g.cls; }
@@ -779,7 +779,7 @@ const pc = v => Math.round(v * 100) + '%';
 // What one piece does, as numbers. Used for combat, tooltips and comparisons.
 function itemStats(it) {
   const k = it.r + 1, z = { dmg: 0, armor: 0, dodge: 0, block: 0, speed: 0, stunRes: 0, critRes: 0, bleedRes: 0, hamRes: 0, armRes: 0 };
-  if (it.slot === 'weapon') { z.dmg = WEAPON_DMG[it.r]; return z; }
+  if (it.slot === 'weapon') { z.dmg = WEAPON_DMG[it.r]; if (it.fit && FITS[it.fit]) FITS[it.fit].add(z); return z; }
   z.armor = ARMOR_TOTAL[it.r] * SLOT_INFO[it.slot].share;
   z.dodge = -0.006;                                           // every piece is weight to carry
   if (it.slot === 'head') { z.stunRes = 0.07 * k; z.critRes = 0.01 * k; }
@@ -787,18 +787,94 @@ function itemStats(it) {
   if (it.slot === 'arms') { z.armRes = 0.11 * k; z.block = 0.006 * k; }
   if (it.slot === 'shoulders') z.bleedRes = 0.11 * k;
   if (it.relic) RELICS[it.relic].add(z);                       // a piece out of the old stories (wilds.js)
+  if (it.fit && FITS[it.fit]) FITS[it.fit].add(z);             // and what the smith has done to it since
   return z;
+}
+// ---- work the smith will do on a piece you own ----
+// A fitting: one to a piece, and for good. weapon: whether it is for blades or for armour.
+const FITS = {
+  weighted:  { name: 'Weighted', weapon: true,  what: '+0.8 damage a blow, but 1% less dodge for the weight of it.', add: z => { z.dmg += 0.8; z.dodge -= 0.01; } },
+  balanced:  { name: 'Balanced', weapon: true,  what: '+2% block and +1% dodge: it comes back to guard quicker.', add: z => { z.block += 0.02; z.dodge += 0.01; } },
+  studded:   { name: 'Studded',  weapon: false, what: 'Takes a sixth more off every blow.', add: z => { z.armor *= 7 / 6; } },
+  padded:    { name: 'Padded',   weapon: false, what: 'Stuns are 10% shorter and telling blows 2% less likely.', add: z => { z.stunRes += 0.1; z.critRes += 0.02; } },
+  lightened: { name: 'Lightened', weapon: false, what: 'Costs no dodge to wear, and gives 0.4% back; a tenth less protection.', add: z => { z.dodge = Math.max(z.dodge, 0) + 0.004; z.armor *= 0.9; } },
+};
+// The best grade this forge can make.
+const forgeMax = () => { let m = 0; SMITH_ODDS[G.smith.level].forEach((v, i) => { if (v > 0) m = i; }); return m; };
+// A piece of yours, wherever it is: on the racks or on a man.
+function findItem(id) {
+  const a = G.armoury.find(x => x.id === +id);
+  if (a) return { it: a, g: null };
+  for (const g of G.roster) for (const k of SLOTS) if (g.gear && g.gear[k] && g.gear[k].id === +id) return { it: g.gear[k], g };
+  return null;
+}
+// Reforging takes a piece up one grade, for less than the difference in price. One piece between games.
+function reforgeCost(it) { return it.r >= 6 ? 0 : Math.max(10, Math.round((itemPrice(Object.assign({}, it, { r: it.r + 1 })) - itemPrice(it)) * 0.9 / 5) * 5); }
+function reforgeBlock(it) {
+  if (it.relic) return 'No smith living would put a hammer to it.';
+  if (it.r >= 6) return 'There is no better steel.';
+  if (it.r >= forgeMax()) return `This forge can make nothing better than grade ${RARITY[forgeMax()]}. Improve the forge.`;
+  if (G.smith.reforged === dealCycle()) return 'He has reforged one piece since the last games, and it is slow work.';
+  if (G.denarii < reforgeCost(it)) return `You are ${reforgeCost(it) - G.denarii} denarii short.`;
+  return '';
+}
+function reforge(id) {
+  const f = findItem(id);
+  if (!f || reforgeBlock(f.it)) return false;
+  G.denarii -= reforgeCost(f.it); f.it.r++; G.smith.reforged = dealCycle();
+  log(`The smith reforges a piece: ${itemName(f.it)}.`, 'gold');
+  return true;
+}
+function fitCost(it) { return Math.max(15, Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price * 0.3 / 5) * 5); }
+function fitBlock(it, k) {
+  const F = FITS[k];
+  if (!F || F.weapon !== (it.slot === 'weapon')) return 'That is not work for this kind of piece.';
+  if (it.relic) return 'No smith living would put a hammer to it.';
+  if (it.fit) return 'It has been worked on already.';
+  if (G.smith.level < 1) return 'A village smith does not know the work. Improve the forge.';
+  if (G.denarii < fitCost(it)) return `You are ${fitCost(it) - G.denarii} denarii short.`;
+  return '';
+}
+function fitItem(id, k) {
+  const f = findItem(id);
+  if (!f || fitBlock(f.it, k)) return false;
+  G.denarii -= fitCost(f.it); f.it.fit = k;
+  return true;
+}
+// A commission: a piece of the kind you name, at the best grade the forge makes, ready at the next games.
+function orderItemCost(slot) { return Math.round(ITEM_PRICE[forgeMax()] * SLOT_INFO[slot].price * 1.2 / 5) * 5; }
+function orderItemBlock(slot) {
+  if (G.smith.order) return 'He is at work on a commission of yours already.';
+  if (G.denarii < orderItemCost(slot)) return `You are ${orderItemCost(slot) - G.denarii} denarii short.`;
+  return '';
+}
+function orderItem(slot, cls) {
+  if (!SLOT_INFO[slot] || (slot === 'weapon' && !CLASSES[cls]) || orderItemBlock(slot)) return false;
+  G.denarii -= orderItemCost(slot); G.smith.order = { slot, cls: slot === 'weapon' ? cls : null, r: forgeMax() };
+  return true;
+}
+// Spare pieces that would better nobody you have, and are not the best of their kind on the racks.
+function outclassed() {
+  const gain = (x, g) => { const cur = g.gear && g.gear[x.slot]; return fits(x, g) && (!cur || itemStats(x).dmg + itemStats(x).armor > itemStats(cur).dmg + itemStats(cur).armor + 1e-9); };
+  return G.armoury.filter(x => !x.relic && !G.roster.some(g => gain(x, g)) && G.armoury.some(y => y !== x && y.slot === x.slot && y.cls === x.cls && (y.r > x.r || (y.r === x.r && y.id < x.id))));
+}
+function sellOutclassed() {
+  const list = outclassed(); let sum = 0;
+  for (const x of list) { sum += Math.round(itemPrice(x) / 2); G.armoury = G.armoury.filter(y => y !== x); }
+  G.denarii += sum;
+  return { n: list.length, sum };
 }
 function itemEffect(it) {
   const z = itemStats(it);
-  if (it.slot === 'weapon') return `+${z.dmg} damage on every blow. Only a ${CLASSES[it.cls].name} can use it.`;
+  const fitted = it.fit && FITS[it.fit] ? ` ${FITS[it.fit].name}: ${FITS[it.fit].what}` : '';
+  if (it.slot === 'weapon') return `+${+z.dmg.toFixed(1)} damage on every blow. Only a ${CLASSES[it.cls].name} can use it.${fitted}`;
   const bits = [`Takes ${z.armor.toFixed(1)} damage off every blow`];
   if (it.slot === 'head') bits.push(`stuns are ${pc(z.stunRes)} shorter`, `telling blows against him ${pc(z.critRes)} less likely`);
   if (it.slot === 'chest') bits.push('the heaviest protection of any piece');
   if (it.slot === 'legs') bits.push(`${pc(z.hamRes)} chance to shrug off a hamstring`, `moves ${pc(z.speed)} faster`);
   if (it.slot === 'arms') bits.push(`${pc(z.armRes)} chance to shrug off an arm wound`, `+${(z.block * 100).toFixed(1)}% block with a shield`);
   if (it.slot === 'shoulders') bits.push(`${pc(z.bleedRes)} chance to shrug off a bleeding wound`);
-  return bits.join('; ') + '.' + (it.relic ? ' ' + RELICS[it.relic].note : '');
+  return bits.join('; ') + '.' + (it.relic ? ' ' + RELICS[it.relic].note : '') + fitted;
 }
 
 // Everything a fighter's kit adds up to. Rivals and champions have no individual pieces:
@@ -818,6 +894,7 @@ function gearStats(g) {
     s.dmg += z.dmg; s.armor += z.armor; s.dodge += z.dodge; s.block += z.block; s.speed += z.speed;
     s.stunRes += z.stunRes; s.critRes += z.critRes; s.bleedRes += z.bleedRes; s.hamRes += z.hamRes; s.armRes += z.armRes;
   }
+  { const worn = ARMOR_SLOTS.map(a => g.gear[a]); if (worn.every(Boolean)) { s.armor *= worn.every(x => x.r === worn[0].r) ? 1.14 : 1.08; s.full = worn.every(x => x.r === worn[0].r) ? 2 : 1; } }      // a full harness, and a matched one
   { const fb = staffLvl('faber'); if (fb && G.roster.includes(g)) { if (g.gear.weapon) s.dmg += 0.3 * fb; if (ARMOR_SLOTS.some(a => g.gear[a])) s.armor += 0.25 * fb; } }      // the armourer keeps what your men wear
   return s;
 }
@@ -851,6 +928,7 @@ function stripGear(g) {
 // The blacksmith's stock changes every games day. A better smith offers more pieces and rarer ones.
 function genSmith() {
   const S = G.smith, odds = SMITH_ODDS[S.level];
+  if (S.order) { const it = makeItem(S.order.slot, S.order.r, S.order.cls); G.armoury.push(it); log(`The smith has finished your commission: ${itemName(it)} is on the racks.`, 'gold'); S.order = null; }
   const styles = G.roster.map(g => g.cls);
   S.stock = [];
   for (let i = 0; i < 4 + S.level; i++) {

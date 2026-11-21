@@ -1512,7 +1512,7 @@ function gearBlock(g) {
     return `<div class="gslot"><span class="lbl"${tip(slot)}>${ic('slot-' + slot)}</span><div><div class="worn">${worn}${atSmith ? `<small class="gold"${tip('The blacksmith has something better for this slot today. He will fit it straight onto him.')}>smith: ${atSmith} better</small>` : ''}</div>${choices ? `<div class="spare">${choices}${more}</div>` : ''}</div></div>`;
   }).join('');
   const gs = gearStats(g), bare = SLOTS.filter(k => !g.gear[k]).length;
-  return `<div class="today"><span class="lbl">Kit</span><div><b class="num">+${gs.dmg.toFixed(1)}</b> damage on every blow &middot; <b class="num">${gs.armor.toFixed(1)}</b> taken off every blow against him${gs.dodge < 0 ? ` &middot; <span class="bad">${(gs.dodge * 100).toFixed(1)}%</span> dodge for the weight` : ''}.${bare ? ` ${bare} of 6 slots ${bare === 1 ? 'is' : 'are'} bare.` : ''}
+  return `<div class="today"><span class="lbl">Kit</span><div><b class="num">+${gs.dmg.toFixed(1)}</b> damage on every blow &middot; <b class="num">${gs.armor.toFixed(1)}</b> taken off every blow against him${gs.dodge < 0 ? ` &middot; <span class="bad">${(gs.dodge * 100).toFixed(1)}%</span> dodge for the weight` : ''}.${bare ? ` ${bare} of 6 slots ${bare === 1 ? 'is' : 'are'} bare.` : ''}${gs.full ? ` <span class="gold"${tip('All five pieces of armour worn: 8% more protection, or 14% if they are all of one grade.')}>${gs.full === 2 ? 'A matched harness: +14%.' : 'A full harness: +8%.'}</span>` : ''}
       ${better.length ? `<button class="mini primary" data-act="wearbest" data-v="${g.id}" style="margin-left:6px"${tip('Puts on the best spare piece from your racks for every slot where one would be a gain.')}>Wear the best from the racks (${better.length})</button>` : ''}</div></div>
     <div class="gearlist two">${rows}</div>`;
 }
@@ -1531,7 +1531,8 @@ function viewSmith() {
   const range = RARITY.filter((_, i) => odds[i] > 0);
   const best = it => G.roster.filter(g => fits(it, g) && (!g.gear[it.slot] || g.gear[it.slot].r < it.r)).map(g => g.name);
   const mine = G.armoury.slice().sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || b.r - a.r);
-  const it = keepSel('isel', S.stock.concat(mine)), own = !!it && G.armoury.includes(it);
+  const wornAll = G.roster.flatMap(g => SLOTS.map(k => g.gear && g.gear[k]).filter(Boolean));
+  const it = keepSel('isel', S.stock.concat(mine, wornAll)), own = !!it && G.armoury.includes(it), wearer = it ? G.roster.find(g => SLOTS.some(k => g.gear && g.gear[k] === it)) : null, yours = own || !!wearer;
   const row = (x, mineToo) => lrow('isel', x.id, `${itemArt(x, 28)}<div class="grow"><span class="t">${itemTag(x)} <small class="inl">${itemGist(x)}</small></span>
       <small>${SLOT_INFO[x.slot].name}${x.slot === 'weapon' ? ' &middot; ' + CLASSES[x.cls].name : ''}${best(x).length ? ' &middot; <span class="good">better for ' + best(x).join(', ') + '</span>' : x.slot === 'weapon' && !G.roster.some(g => g.cls === x.cls) ? ' &middot; <span class="dim">no one of yours can use it</span>' : ''}</small></div>
       <span class="end">${mineToo ? `<span class="dim">sells for ${Math.round(itemPrice(x) / 2)}</span>` : `<b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`}</span>`, 'smithrow');
@@ -1542,26 +1543,31 @@ function viewSmith() {
   // every man's kit at a glance: one cell a slot
   const kit = G.roster.map(g => {
     const gs = gearStats(g);
-    return `<div class="kitrow"><span class="nm">${g.name}</span>${SLOTS.map(slot => { const x = g.gear && g.gear[slot]; return x ? `<span class="rar r${x.r}"${tip(`${itemName(x)}: ${itemEffect(x)}`)}>${RARITY[x.r]}</span>` : `<span class="rar none"${tip(`${SLOT_INFO[slot].name}: ${slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}.`)}>&middot;</span>`; }).join('')}<small class="num">+${gs.dmg.toFixed(0)} dmg &middot; ${gs.armor.toFixed(1)} off</small></div>`;
+    return `<div class="kitrow"><span class="nm">${g.name}</span>${SLOTS.map(slot => { const x = g.gear && g.gear[slot]; return x ? `<span class="rar r${x.r} ${ui.isel === x.id ? 'sel' : ''}" data-act="rowsel" data-v="isel" data-w="${x.id}" style="cursor:pointer"${tip(`${itemName(x)}: ${itemEffect(x)}\nClick to have the smith work on it.`)}>${RARITY[x.r]}${x.fit ? '<i>&bull;</i>' : ''}</span>` : `<span class="rar none"${tip(`${SLOT_INFO[slot].name}: ${slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}.`)}>&middot;</span>`; }).join('')}<small class="num ${gs.full ? 'gold' : ''}"${gs.full ? tip(gs.full === 2 ? 'A full harness, all of one grade: 14% more protection.' : 'A full harness: 8% more protection. All five pieces of one grade would make it 14%.') : ''}>+${gs.dmg.toFixed(0)} dmg &middot; ${gs.armor.toFixed(1)} off${gs.full === 2 ? '+' : ''}</small></div>`;
   }).join('');
   const kitHead = `<div class="kitrow head"><span class="nm"></span>${SLOTS.map(slot => `<span${tip(SLOT_INFO[slot].name)}>${ic('slot-' + slot)}</span>`).join('')}<small></small></div>`;
   let card = '';
   if (it) {
-    const price = buyPrice(it), short = !own && G.denarii < price;
+    const price = buyPrice(it), short = !yours && G.denarii < price;
     const wearers = G.roster.filter(g => fits(it, g)).map(g => ({ g, dl: itemDelta(it, g) })).sort((a, b) => b.dl.d - a.dl.d).map(({ g, dl }) => {
       const cur = g.gear[it.slot];
-      return `<div class="lrow wearer" style="cursor:default"><div class="grow"><span class="t">${g.name} <small class="inl">${CLASSES[g.cls].name} &middot; power ${rating(g)}</small></span>
+      return `<div class="lrow wearer" style="cursor:default"${tip(`${g.name}, ${CLASSES[g.cls].name}, power ${rating(g)}. Now: ${cur ? RARITY[cur.r] + ' ' + itemName(cur) : 'nothing'}.`)}><div class="grow"><span class="t">${g.name} <small class="inl">${CLASSES[g.cls].name} &middot; power ${rating(g)}</small></span>
           <small>now: ${cur ? `${RARITY[cur.r]} ${itemName(cur)}` : it.slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}</small></div>
         <span class="end num ${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.text}</span>
-        ${own ? `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="equip" data-v="${g.id}" data-w="${it.id}">Give him</button>`
+        ${wearer ? '' : own ? `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="equip" data-v="${g.id}" data-w="${it.id}">Give him</button>`
               : `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="smithgive" data-v="${it.id}" data-w="${g.id}" ${short ? 'disabled' : ''}>Buy for him</button>`}</div>`;
     }).join('');
     card = `<div class="panel item"><div class="itemhead">${itemArt(it, 60)}<div style="flex:1"><h3>${itemTag(it)}</h3>
       <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div>
       <div style="font-size:13px;margin-top:3px">${itemEffect(it)}</div></div></div>
-      <div class="buyrow" style="margin:0 0 6px">${own ? `<button data-act="smithsell" data-v="${it.id}"${tip('He buys back at half the full price.')}>Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button><small class="dim">It is on your racks. Give it to a man below, or sell it back.</small>`
+      ${yours ? (() => {
+        const rb = reforgeBlock(it), work = Object.keys(FITS).filter(k => FITS[k].weapon === (it.slot === 'weapon'));
+        return `<div class="workrow"><span class="lbl"${tip('Work the smith will do on a piece you own, on the racks or on a man.')}>Smith's work</span>
+          <button class="mini" data-act="reforge" data-v="${it.id}" ${rb ? 'disabled' : ''}${tip(`Takes it up one grade, to ${it.r < 6 ? RARITY[it.r + 1] : RARITY[6]}, for less than a new piece would cost. One piece between games.${rb ? '\n' + rb : ''}`)}>Reforge${it.r < 6 ? ` to ${RARITY[it.r + 1]} &mdash; ${reforgeCost(it)}` : ''}</button>
+          ${it.fit ? `<span class="chip gold"${tip(FITS[it.fit].what)}>${FITS[it.fit].name}</span>` : work.map(k => { const fb = fitBlock(it, k); return `<button class="mini" data-act="fit" data-v="${it.id}" data-w="${k}" ${fb ? 'disabled' : ''}${tip(`${FITS[k].what}\nOne fitting to a piece, and for good.${fb ? '\n' + fb : ''}`)}>${FITS[k].name}</button>`; }).join('') + `<small class="dim num">${fitCost(it)}</small>`}</div>`; })() : ''}
+      <div class="buyrow" style="margin:0 0 6px">${wearer ? `<small class="dim">Worn by <b>${wearer.name}</b>. Take it off him in his dossier to sell it or hand it on.</small>` : own ? `<button data-act="smithsell" data-v="${it.id}"${tip('He buys back at half the full price.')}>Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button><small class="dim">It is on your racks. Give it to a man below, or sell it back.</small>`
             : `<button data-act="smithbuy" data-v="${it.id}" ${short ? 'disabled' : ''}${tip('Buy it for the racks, to give out later. Key: B')}>Buy for the racks &mdash; ${price}</button><small class="${short ? 'bad' : 'dim'}">${short ? `You are ${price - G.denarii} denarii short.` : `Leaves you ${G.denarii - price}. Or buy it straight onto a man below.`}</small>`}</div>
-      ${wearers ? `<div class="sendhead"><span>Who could wear it, best gain first</span></div><div class="list wearers">${wearers}</div>` : `<div class="dim" style="font-size:13px">${it.slot === 'weapon' ? `Only a ${CLASSES[it.cls].name} can use it, and you have none.` : 'You have no one to wear it.'}</div>`}
+      ${wearer ? '' : wearers ? `<div class="sendhead"><span>Who could wear it, best gain first</span></div><div class="list wearers ${G.roster.filter(g => fits(it, g)).length > 4 ? 'twoup' : ''}">${wearers}</div>` : `<div class="dim" style="font-size:13px">${it.slot === 'weapon' ? `Only a ${CLASSES[it.cls].name} can use it, and you have none.` : 'You have no one to wear it.'}</div>`}
     </div>`;
   }
   const up = lv < 4 ? SMITH_COST[lv] : 0;
@@ -1569,7 +1575,13 @@ function viewSmith() {
       <div style="flex:1;min-width:200px"><h3${tip('smithlevel')}>${SMITH_NAMES[lv]} <span class="pips">${'●'.repeat(lv)}${'○'.repeat(4 - lv)}</span></h3>
       <div class="dim" style="font-size:13px">Offers ${4 + lv} pieces each games day, graded ${range[0]} to ${range[range.length - 1]}.${lv < 4 ? ` <span class="gold">Improved: ${5 + lv} pieces, graded ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0)[0]} to ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0).slice(-1)[0]}.</span>` : ' There is no finer forge in the empire.'}</div></div>
       ${lv < 4 ? `<div style="text-align:right"><button data-act="smithup" ${G.denarii < up ? 'disabled' : ''}>Improve the forge &mdash; ${up}</button>${G.denarii < up ? `<small class="bad" style="display:block;font-size:11px">short by ${up - G.denarii}</small>` : ''}</div>` : ''}
-    </div></div>`;
+    </div>
+    <div class="workrow" style="margin-top:6px"><span class="lbl"${tip(`Pay now, a fifth over the price, and a piece of the kind you name is on your racks at the next games: grade ${RARITY[forgeMax()]}, the best this forge makes.`)}>Commission</span>
+      ${S.order ? `<b class="gold">${RARITY[S.order.r]} ${S.order.slot === 'weapon' ? WEAPON_NAMES[S.order.cls] : SLOT_INFO[S.order.slot].piece}</b> <small class="dim">ready at the next games</small>`
+        : [...new Set(G.roster.map(g => g.cls))].map(k => `<button class="mini" data-act="smithorder" data-v="weapon" data-w="${k}" ${orderItemBlock('weapon') ? 'disabled' : ''}${tip(`A grade ${RARITY[forgeMax()]} ${WEAPON_NAMES[k]} for ${orderItemCost('weapon')}.`)}>${WEAPON_NAMES[k]}</button>`).join('')
+          + ARMOR_SLOTS.map(k => `<button class="mini" data-act="smithorder" data-v="${k}" ${orderItemBlock(k) ? 'disabled' : ''}${tip(`A grade ${RARITY[forgeMax()]} ${SLOT_INFO[k].piece} for ${orderItemCost(k)}.`)}>${SLOT_INFO[k].piece}</button>`).join('')}</div>
+    ${outclassed().length ? `<div class="workrow" style="margin-top:4px"><span class="lbl">Racks</span><button class="mini ${ui.clearArm ? 'primary' : ''}" data-act="smithclear"${tip(`Sells the ${outclassed().length} spare piece${outclassed().length === 1 ? '' : 's'} that would better nobody you have and are not the best of their kind on the racks: ${outclassed().map(x => RARITY[x.r] + ' ' + itemName(x)).join(', ')}.`)}>${ui.clearArm ? 'Sure? ' : ''}Sell what no one needs &mdash; ${outclassed().reduce((n, x) => n + Math.round(itemPrice(x) / 2), 0)}</button></div>` : ''}
+    </div>`;
   return `<div class="fill even">
     <div><h2>For sale <small>${S.stock.length} piece${S.stock.length === 1 ? '' : 's'}</small></h2>
       <div class="panel schoolbar"><div class="tally">
@@ -2200,6 +2212,10 @@ const ACTIONS = {
   smithgive(v, w) { const g = byId(w); if (g && buyItem(v)) { equip(g, v); save(); render(); } },      // bought and straight onto a man
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
   smithup() { if (upgradeSmith()) { save(); render(); } },
+  reforge(v) { if (reforge(v)) { SFX.ui('gear'); save(); render(); } },
+  fit(v, w) { if (fitItem(v, w)) { SFX.ui('gear'); save(); render(); } },
+  smithorder(v, w) { if (orderItem(v, w)) { SFX.ui('coin'); save(); render(); } },
+  smithclear() { if (!ui.clearArm) { ui.clearArm = true; render(); return; } ui.clearArm = false; const r = sellOutclassed(); if (r.n) { SFX.ui('coin'); log(`${r.n} spare piece${r.n === 1 ? '' : 's'} sold back to the smith for ${r.sum} denarii.`); } save(); render(); },
   wearbest(v) { const g = byId(v); if (!g) return; for (const it of bestSpares(g)) equip(g, it.id); save(); render(); },
   tactic(v, w) { const g = byId(v); if (g && TACTICS[w]) { g.tactic = w; save(); render(); } },
   equip(v, w) { const g = byId(v); if (g && equip(g, w)) { save(); render(); } },

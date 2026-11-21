@@ -275,6 +275,41 @@ test('the market: backgrounds, haggling, holding, sending for a man, and the auc
   assert(won && lost && !badNumber(G), 'both ends of an auction were seen');
 }));
 
+test('the smith: reforging, fittings, commissions, a full harness, and clearing the racks', () => game()(function () {
+  newGame(); G.denarii = 20000; const g = G.roster[0];
+  // reforging: one grade, only as far as the forge can go, once between games
+  const blade = makeItem('weapon', 1, g.cls); G.armoury.push(blade);
+  assert(forgeMax() === 2 && reforgeCost(blade) > 0 && reforgeCost(blade) < itemPrice(makeItem('weapon', 2, g.cls)), 'reforging is cheaper than buying new');
+  const d0 = G.denarii, c0 = reforgeCost(blade);
+  assert(reforge(blade.id) && blade.r === 2 && G.denarii === d0 - c0 && !reforge(blade.id), 'a piece goes up a grade, once between games');
+  G.smith.reforged = -1; assert(reforgeBlock(blade) && !reforge(blade.id), 'a village forge cannot better grade D');
+  G.smith.level = 4; assert(reforge(blade.id) && blade.r === 3, 'a better forge can');
+  // worn pieces can be worked on too
+  const helm = makeItem('head', 2); g.gear.head = helm; G.smith.reforged = -1;
+  assert(findItem(helm.id).g === g && reforge(helm.id) && helm.r === 3, 'a worn piece is reforged where it sits');
+  // fittings: one to a piece, the right kind, and they change what it does and is called
+  const w0 = itemStats(blade).dmg;
+  assert(!fitItem(blade.id, 'padded') && fitItem(blade.id, 'weighted') && Math.abs(itemStats(blade).dmg - w0 - 0.8) < 1e-9 && /weighted/.test(itemName(blade)) && /Weighted/.test(itemEffect(blade)), 'a weighted blade');
+  assert(!fitItem(blade.id, 'balanced'), 'one fitting to a piece');
+  const a0 = itemStats(helm).armor; assert(fitItem(helm.id, 'studded') && itemStats(helm).armor > a0 * 1.16 && /Studded/.test(itemEffect(helm)), 'a studded helm');
+  G.smith.level = 0; const cu = makeItem('chest', 1); G.armoury.push(cu); assert(!fitItem(cu.id, 'padded'), 'a village smith does no fittings'); G.smith.level = 4;
+  // a commission is paid for now and delivered with the next stock
+  const d1 = G.denarii, n = G.armoury.length;
+  assert(orderItem('legs') && G.denarii === d1 - orderItemCost('legs') && !orderItem('arms') && G.smith.order, 'one commission at a time');
+  genSmith(); assert(G.armoury.length === n + 1 && G.armoury[G.armoury.length - 1].slot === 'legs' && G.armoury[G.armoury.length - 1].r === 6 && !G.smith.order, 'and it comes with the next games');
+  // a full harness protects better than its pieces, and a matched one better still
+  const h = G.roster[1]; ARMOR_SLOTS.forEach((k, i) => { h.gear[k] = makeItem(k, i === 0 ? 3 : 2); });
+  const sum = ARMOR_SLOTS.reduce((t, k) => t + itemStats(h.gear[k]).armor, 0);
+  assert(Math.abs(gearStats(h).armor - sum * 1.08) < 1e-9 && gearStats(h).full === 1, 'a full harness');
+  h.gear.head = makeItem('head', 2); const sum2 = ARMOR_SLOTS.reduce((t, k) => t + itemStats(h.gear[k]).armor, 0);
+  assert(Math.abs(gearStats(h).armor - sum2 * 1.14) < 1e-9 && gearStats(h).full === 2, 'a matched harness');
+  // clearing the racks sells only what is outclassed
+  G.armoury = [makeItem('arms', 5), makeItem('arms', 0), makeItem('arms', 0)]; G.roster.forEach(x => { x.gear.arms = makeItem('arms', 6); });
+  const out = outclassed(), d2 = G.denarii, r = sellOutclassed();
+  assert(out.length === 2 && r.n === 2 && G.armoury.length === 1 && G.armoury[0].r === 5 && G.denarii === d2 + r.sum, 'the best spare of a kind is kept');
+  assert(!badNumber(G), 'the smith left a bad number');
+}));
+
 test('every event and every choice runs', () => game()(function () {
   let n = 0;
   for (const id of Object.keys(EVENTS)) {

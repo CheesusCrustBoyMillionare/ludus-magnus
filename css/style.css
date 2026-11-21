@@ -1206,3 +1206,15 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 [data-pane="market"] .lrow.lud .l2 { height: 17px; margin-top: 0; }
 [data-pane="market"] .lrow.lud .t { line-height: 1.2; }
 [data-pane="market"] .lrow.lud .chip { font-size: 9.5px; padding: 0 5px; }
+
+/* ---- the smith's work ---- */
+.workrow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 6px; }
+.workrow .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-right: 3px; }
+.workrow button.mini { padding: 1px 8px; font-size: 10.5px; }
+.workrow .chip { margin: 0; }
+.kitrow .rar.sel { box-shadow: 0 0 0 2px var(--gold); }
+.kitrow .rar i { font-style: normal; font-size: 8px; vertical-align: 3px; color: #fff0b0; }
+.wearers.twoup { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+.wearers.twoup .lrow { min-height: 32px; padding-top: 3px; padding-bottom: 3px; }
+.wearers.twoup .lrow small { display: none; }
+.wearers.twoup .lrow { min-height: 28px; padding-top: 2px; padding-bottom: 2px; }
