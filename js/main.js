@@ -2018,7 +2018,11 @@ document.addEventListener('mousemove', e => {
   prov.mouse = { u: (e.clientX - r.left) / r.width, v: (e.clientY - r.top) / r.height };
 });
 // A click on the sand while an ability is being announced cuts the announcement short.
-document.addEventListener('click', e => { if (fight && fight.B && fight.B.cut && e.target.id === 'arenaCanvas') fight.B.cut.t = fight.B.cut.dur; });
+document.addEventListener('click', e => {
+  if (!fight || !fight.B || e.target.id !== 'arenaCanvas') return;
+  if (fight.B.cut) fight.B.cut.t = fight.B.cut.dur;
+  else if (fight.B.intro > 0.5) fight.B.intro = 0.5;               // and one during the entrance sends the card away
+});
 // Where the mouse is over the sand, in the fight's own units, so that a man can be looked at.
 document.addEventListener('mousemove', e => {
   if (!fight) return;

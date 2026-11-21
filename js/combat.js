@@ -87,7 +87,7 @@ function createBattle(teamA, teamB, opts) {
     exc: 0.15, excSum: 0, death: !!opts.death, hunt: !!opts.hunt, mercy: opts.mercy || [0, 0],
     hitstop: 0, shake: 0, slowmo: 0, clock: 0, flashT: 0,
     light: opts.light || (opts.death ? 'dusk' : 'day'),          // bouts to the death are fought as the sun goes down
-    intro: opts.noIntro ? 0 : 2.6,
+    intro: opts.noIntro ? 0 : 4.6, introDur: 4.6,
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
     parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [], vfx: [],
@@ -458,15 +458,22 @@ function stepOutro(B, dt) {
 }
 
 function stepIntro(B, dt) {
+  const was = B.introDur - B.intro;
   B.intro -= dt;
+  const ti = B.introDur - B.intro, at = v => was < v && ti >= v;
   for (const f of B.fighters) {
-    const dx = f.markX - f.x;
+    const dx = f.markX - f.x, moved = f.moving;
     f.moving = Math.abs(dx) > 0.5;
-    if (f.moving) { f.x += Math.sign(dx) * Math.min(Math.abs(dx), 30 * dt); f.walk += dt * 8; }
+    if (f.moving) { f.x += Math.sign(dx) * Math.min(Math.abs(dx), 30 * dt); f.walk += dt * 8; if (Math.random() < dt * 5) fxDust(B, f.x, f.y, 1); }
+    else if (moved && !f.g.beast) f.flourish = 1.1;                       // on his mark, he salutes the stands
+    f.flourish = Math.max(0, f.flourish - dt);
   }
+  if (at(0.75)) { snd(B, 'cutin', 0.7); B.shake = 2; B.flashT = 0.1; }    // the two halves of the card meet
   if (B.intro <= 0) {
-    B.fighters.forEach(f => { f.x = f.markX; f.moving = false; });
+    B.fighters.forEach(f => { f.x = f.markX; f.moving = false; f.flourish = 0; });
     B.texts.push({ x: 107, y: 64, str: B.wild ? 'AT THEM!' : 'PUGNATE!', col: '#ffd24a', life: 1.3, big: true });
+    B.shake = 2.5; B.flashT = 0.12;
+    for (const f of B.fighters) vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 14, r0: 3, col: '#f2e2b8', dur: 0.4, a: 0.7 });
     snd(B, 'start');
   }
 }
@@ -1017,6 +1024,108 @@ const STYLE_COL = { str: '#e2695c', agi: '#ffd24a', skl: '#8fc0ff' };
 // The announcement of an ability: the sand dims, a slanted band in his side's colour sweeps in with streaks of speed,
 // his likeness close up at one end and the ability's name at the other, and it is gone again in under a second.
 // Drawn on the interface layer (320 by 180). Your side comes in from the left, the other from the right.
+// The card before a fight. Two halves come in from the two sides, each in its side's colour with its men drawn large;
+// they meet with a clash and VS between them; beneath, whose style has the edge and how the two sides weigh against each
+// other. Then the halves part and the cloth falls.
+function drawIntro(ctx, B, T) {
+  const ti = B.introDur - B.intro, cl = v => clamp(v, 0, 1);
+  const e = 1 - Math.pow(1 - cl((ti - 0.3) / 0.45), 3), o = Math.pow(cl((0.55 - B.intro) / 0.45), 2), live = Math.min(e, 1 - o);
+  if (live <= 0) return;
+  const side = t => B.fighters.filter(f => f.team === t), one = t => side(t).length === 1 ? side(t)[0] : null;
+  const power = t => side(t).reduce((n, q) => n + q.g.stats.str + q.g.stats.agi + q.g.stats.skl, 0);
+  const beast = t => side(t).some(f => f.g.beast);
+  const clash = ti - 0.75, jolt = clash >= 0 && clash < 0.3 ? 1 - clash / 0.3 : 0;
+  const top = 50, bot = 112, mid = 160, skew = 12;
+  ctx.save();
+  ctx.fillStyle = `rgba(8,5,2,${(0.5 * live).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180);
+  for (const t of [0, 1]) {
+    const dir = t ? -1 : 1, off = -dir * ((1 - e) * 230 + o * 230) + (jolt ? Math.round(Math.sin(ti * 90 + t) * jolt * 2) : 0);
+    const fs = side(t), col = B.col[t], colD = B.colD[t];
+    const inner = mid - dir * 3 + off, outer = (t ? 340 : -20) + off;
+    const half = () => { ctx.beginPath(); ctx.moveTo(outer, top); ctx.lineTo(inner + skew, top); ctx.lineTo(inner - skew, bot); ctx.lineTo(outer, bot); ctx.closePath(); };
+    half(); ctx.fillStyle = colD; ctx.fill();
+    const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, 'rgba(255,255,255,.2)'); g.addColorStop(0.5, col); g.addColorStop(1, 'rgba(0,0,0,.4)');
+    half(); ctx.globalAlpha = 0.85; ctx.fillStyle = g; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.save(); half(); ctx.clip();
+    for (let i = 0; i < 9; i++) {               // the light moving across it
+      const y = top + 3 + (i * 29) % (bot - top - 6), x = ((i * 67 + T * dir * 90) % 240 + 240) % 240 + (t ? 150 : -40);
+      ctx.fillStyle = `rgba(255,255,255,${(0.06 + (i % 3) * 0.04).toFixed(2)})`; ctx.fillRect(x + off, y, 30 + (i % 4) * 12, 1);
+    }
+    // its men, large: one alone stands tall, a band stands in a rank
+    const show = fs.slice(0, 4), n = show.length, zoom = n === 1 ? 2.3 : n === 2 ? 1.8 : 1.45, x0 = (t ? 320 - (n === 1 ? 34 : 26) : (n === 1 ? 34 : 26)) + off, gap = n === 1 ? 0 : Math.min(18, 36 / (n - 1));
+    show.forEach((f, i) => {
+      const k = n - 1 - i, x = x0 + dir * k * gap, bob = Math.round(Math.sin(T * 3 + i * 1.7) * 0.6);
+      ctx.save(); ctx.translate(Math.round(x), bot + (f.g.beast ? (n === 1 ? 2 : 0) : n === 1 ? 34 : 14) + (f.g.beast ? 0 : bob) + (k % 2 ? -3 : 0)); ctx.scale(zoom, zoom);
+      drawSprite(ctx, { x: 0, y: 0, facing: dir, g: f.g, team: f.team, col, colD, moving: false, walk: 0, clock: T + i, atkAnim: 0, flash: clash >= 0 && clash < 0.08 ? 1 : 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: f.noHelm, cheer: n === 1 && clash > 0.5 && clash < 1.5 && !f.g.beast ? T : 0 });
+      ctx.restore();
+    });
+    ctx.restore();
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(t ? inner : outer, top - 2, Math.abs(inner - outer) + skew, 2); ctx.fillRect(t ? inner - skew : outer, bot, Math.abs(inner - outer) + skew, 2);
+    // who they are
+    const f1 = one(t), tx = mid - dir * 20 + off, ta = cl((ti - 0.55) / 0.3);
+    ctx.globalAlpha = ta; ctx.textAlign = t ? 'left' : 'right'; ctx.textBaseline = 'alphabetic';
+    const name = f1 ? (f1.g.beast ? 'A ' + f1.c.name : f1.g.name) : (B.names ? B.names[t] : `${fs.length} fighters`);
+    let size = 12; ctx.font = `bold ${size}px Cinzel, Georgia, serif`;
+    while (size > 6 && ctx.measureText(name.toUpperCase()).width > (f1 ? 92 : 66)) { size--; ctx.font = `bold ${size}px Cinzel, Georgia, serif`; }
+    ctx.fillStyle = 'rgba(20,10,4,.85)'; ctx.fillText(name.toUpperCase(), tx + 1, 70 + 1.2); ctx.fillStyle = '#fff6dc'; ctx.fillText(name.toUpperCase(), tx, 70);
+    ctx.font = 'bold 5px Consolas, monospace';
+    const lines = [];
+    if (f1 && f1.g.beast) lines.push(['A BEAST', '#f1e6c8']);
+    else if (f1) {
+      lines.push([`THE ${f1.c.name.toUpperCase()}`, '#f1e6c8']);
+      lines.push([`POWER ${power(t)}   ${f1.style ? STAT_NAMES[f1.style].toUpperCase() : 'NO STYLE'}`, f1.style ? STYLE_COL[f1.style] : '#c9b9a0']);
+      if ((f1.g.wins || 0) + (f1.g.losses || 0) > 0) lines.push([`${f1.g.wins || 0} WON   ${f1.g.losses || 0} LOST`, '#c9b9a0']);
+    } else {
+      lines.push([`${fs.length} FIGHTERS   POWER ${power(t)}`, '#f1e6c8']);
+      const ns = fs.map(f => f.g.beast ? f.c.name : f.g.name);
+      for (let i = 0; i < Math.min(ns.length, 6); i += 2) lines.push([ns.slice(i, i + 2).join(', ').toUpperCase() + (i + 2 >= 6 && ns.length > 6 ? ' ...' : ''), '#c9b9a0']);
+    }
+    lines.forEach(([str, c], i) => { ctx.fillStyle = 'rgba(20,10,4,.7)'; ctx.fillText(str, tx + 0.6, 79.6 + i * 7); ctx.fillStyle = c; ctx.fillText(str, tx, 79 + i * 7); });
+    ctx.globalAlpha = 1;
+  }
+  // VS, struck where the halves meet
+  if (clash >= 0 && !o) {
+    const k = cl(clash / 0.16), sc = 3 - 2 * k, vy = (top + bot) / 2;
+    ctx.save(); ctx.translate(mid, vy); ctx.rotate(-0.12); ctx.scale(sc, sc);
+    ctx.fillStyle = 'rgba(14,8,4,.9)'; ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(14, 0); ctx.lineTo(0, 15); ctx.lineTo(-14, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#e0aa3e'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.font = 'bold 13px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = k < 1 ? '#ffffff' : '#ffd24a'; ctx.fillText('VS', 0, 1);
+    ctx.restore();
+    for (let i = 0; i < 10; i++) {              // and the sparks off it
+      const an = i * 0.628 + 0.3, r = 12 + clash * 90; if (clash > 0.45) break;
+      ctx.globalAlpha = 1 - clash / 0.45; ctx.fillStyle = i % 2 ? '#fff6dc' : '#ffd24a'; ctx.fillRect(mid + Math.cos(an) * r, vy + Math.sin(an) * r * 0.7, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // beneath: how the two sides weigh against each other, and whose style has the edge
+  const ba = cl((ti - 1.15) / 0.35) * (1 - o);
+  if (ba > 0) {
+    ctx.globalAlpha = ba; ctx.textBaseline = 'alphabetic';
+    let y = bot + 6;
+    if (!beast(0) && !beast(1)) {
+      const pa = power(0), pb = power(1), w = 150, x = mid - w / 2, cut = Math.round(w * pa / Math.max(1, pa + pb) * ba + w / 2 * (1 - ba));
+      ctx.fillStyle = 'rgba(10,6,3,.85)'; ctx.fillRect(x - 1, y - 1, w + 2, 6);
+      ctx.fillStyle = B.col[0]; ctx.fillRect(x, y, cut, 4); ctx.fillStyle = B.col[1]; ctx.fillRect(x + cut, y, w - cut, 4);
+      ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(x, y, w, 1);
+      ctx.fillStyle = '#fff6dc'; ctx.fillRect(x + cut - 0.5, y - 2, 1, 8); ctx.fillStyle = '#e0aa3e'; ctx.fillRect(mid - 0.25, y + 4, 0.5, 2);
+      ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = '#f1e6c8'; ctx.textAlign = 'right'; ctx.fillText(pa, x - 4, y + 4.5); ctx.textAlign = 'left'; ctx.fillText(pb, x + w + 4, y + 4.5);
+      y += 10;
+    }
+    const a = one(0), b = one(1); let word = null, wc = '#f1e6c8';
+    if (a && b && a.style && b.style && a.style !== b.style) {
+      const mine = STYLE_BEATS[a.style] === b.style, theirs = STYLE_BEATS[b.style] === a.style;
+      if (mine || theirs) { const w = mine ? a.style : b.style, l = mine ? b.style : a.style; word = `${STAT_NAMES[w].toUpperCase()} BEATS ${STAT_NAMES[l].toUpperCase()}`; wc = mine ? '#ff9a8a' : '#9cc4ff'; }
+    }
+    ctx.font = 'bold 5px Consolas, monospace'; ctx.textAlign = 'center';
+    if (word) { const sw = ctx.measureText(word).width; ctx.fillStyle = 'rgba(10,6,3,.8)'; ctx.fillRect(mid - sw / 2 - 5, y, sw + 10, 8); ctx.fillStyle = wc; ctx.fillText(word, mid, y + 5.8); y += 10; }
+    if (B.death) { const str = 'SINE MISSIONE  -  TO THE DEATH', sw = ctx.measureText(str).width; ctx.fillStyle = 'rgba(40,6,4,.9)'; ctx.fillRect(mid - sw / 2 - 5, top - 13, sw + 10, 8); ctx.fillStyle = '#ff6a5a'; ctx.fillText(str, mid, top - 7.2); }
+    ctx.globalAlpha = 1;
+  }
+  if (ti > 1.6 && !o) { ctx.globalAlpha = 0.5; ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO SKIP', 316, 176); ctx.globalAlpha = 1; }
+  ctx.restore();
+}
+
 function drawCutIn(ctx, B, T) {
   // In beats, so that the whole of its time is used: the band slams across, the man draws back while the name of the
   // thing is struck out a letter at a time, then he lets fly - and the one it is meant for is seen to take it.
@@ -1674,32 +1783,7 @@ function drawBattle(ctx, B) {
   ctx.globalAlpha = 1;
 
   // entrance: who is fighting whom, what each is, and whose style has the edge
-  if (B.intro > 0) {
-    const side = t => B.fighters.filter(f => f.team === t), one = t => side(t).length === 1 ? side(t)[0] : null;
-    const label = t => {
-      const fs = side(t);
-      if (fs.length === 1 && fs[0].g.beast) return 'A ' + fs[0].c.name.toLowerCase();
-      return fs.length === 1 ? `${fs[0].g.name} the ${fs[0].c.name}` : (B.names ? B.names[t] : fs.map(f => f.g.name).join(', '));
-    };
-    const sub = t => { const f = one(t), sum = side(t).reduce((n, q) => n + q.g.stats.str + q.g.stats.agi + q.g.stats.skl, 0); return f ? (f.g.beast ? 'A BEAST' : `POWER ${sum}  ${f.style ? STAT_NAMES[f.style].toUpperCase() : 'NO STYLE'}`) : `${side(t).length} FIGHTERS  POWER ${sum}`; };
-    ctx.globalAlpha = Math.min(1, B.intro / 0.4);
-    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 62, 320, 34);
-    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(0, 62, 320, 1); ctx.fillRect(0, 95, 320, 1);
-    ctx.font = 'bold 8px Cinzel, Georgia, serif';
-    ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a8a'; ctx.fillText(label(0), 148, 75);
-    ctx.textAlign = 'left'; ctx.fillStyle = '#9cc4ff'; ctx.fillText(label(1), 172, 75);
-    ctx.font = 'bold 5px Consolas, monospace';
-    ctx.textAlign = 'right'; ctx.fillStyle = '#e8d7b0'; ctx.fillText(sub(0), 148, 83);
-    ctx.textAlign = 'left'; ctx.fillText(sub(1), 172, 83);
-    ctx.textAlign = 'center'; ctx.font = 'bold 6px Cinzel, Georgia, serif';
-    ctx.fillStyle = '#e0aa3e'; ctx.fillText('VS', 160, 76);
-    const a = one(0), b = one(1);
-    if (a && b && a.style && b.style && a.style !== b.style) {
-      const mine = STYLE_BEATS[a.style] === b.style, theirs = STYLE_BEATS[b.style] === a.style;
-      if (mine || theirs) { const w = mine ? a.style : b.style, l = mine ? b.style : a.style; ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = mine ? '#ff9a8a' : '#9cc4ff'; ctx.fillText(`${STAT_NAMES[w].toUpperCase()} BEATS ${STAT_NAMES[l].toUpperCase()}`, 160, 92); }
-    }
-    ctx.globalAlpha = 1;
-  }
+  if (B.intro > 0) drawIntro(ctx, B, T);
 
   // crowd meter
   ctx.textAlign = 'center';
