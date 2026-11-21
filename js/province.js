@@ -437,7 +437,7 @@ function drawProvince(cv, T) {
     ctx.globalAlpha = 1; ctx.font = 'bold 7px Consolas, monospace';
   }
   ctx.textAlign = 'center'; ctx.font = 'bold 7px Consolas, monospace';
-  const tip = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : town(F) < 60 ? 'W A S D OR CLICK TO WALK  -  M FOR THE WHOLE MAP  -  WALK BACK INTO THE TOWN TO GO HOME' : '';
+  const tip = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : town(F) < 60 ? 'W A S D OR CLICK TO WALK  -  M FOR THE WHOLE MAP  -  R TO GO HOME' : '';
   if (tip) { const w = Math.ceil(ctx.measureText(tip).width) + 12; ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 18, w, 12); ctx.fillStyle = '#f5d584'; ctx.fillText(tip, PROV.VW / 2, PROV.VH - 9); }
 }
 const town = F => Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y);
@@ -578,6 +578,7 @@ function renderWilds() {
   if (sel) body = `<div class="row" style="margin:6px 0"><button data-act="campback">&laquo; Back to the camp</button></div>${gladDetail(sel)}`;
   else body = `<canvas id="wildMini" width="240" height="180" data-act="bigmap"${tip('minimap')} style="cursor:pointer"></canvas>
       <div class="row" style="margin:8px 0"><button class="primary" data-act="makecamp"${tip('makecamp')} style="flex:1">Make camp<span class="key">E</span></button><button data-act="bigmap"${tip('bigmap')}>${prov.big ? 'Close map' : 'Whole map'}<span class="key">M</span></button><button data-act="help" style="padding-left:9px;padding-right:9px"${tip('The keys, and the rules of the trade in a page. Key: H')}>?</button></div>
+      <div class="row" style="margin:0 0 8px"><button data-act="wildgo" data-v="home" style="flex:1"${tip('Sets the column on the road back to the town gate, by the shortest way it can walk. It goes in when it gets there. You can still steer away, or click elsewhere, to change your mind.')}>Go home<span class="key">R</span></button></div>
       ${lead ? `<div class="lead"${tip('eagle')}><b class="gold">The eagle of the Seventeenth.</b> ${lead}</div>` : ''}
       ${journeys ? `<div class="lead"><b class="gold">Promised.</b>${journeys}</div>` : ''}
       <div class="pane" data-pane="camp"><h2>Places known <small>click to walk there</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>

@@ -205,7 +205,17 @@ function comboStep(B, f, dt) {
   if (--c.left <= 0) { f.combo = null; f.cd = f.atkTime * 0.6; } else c.t = 0.13;
 }
 
+// Where the fight is being watched (B.cutins), an ability is announced before it lands: the fight holds, a band
+// crosses the screen with the man's likeness and the ability's name (drawCutIn in combat.js), and only then does
+// castNow do the work. Unwatched fights, and a second cast while one is already being announced, go straight through.
 function castAbility(B, f, ab) {
+  const many = B.fighters.length > 6;
+  if (!B.cutins || B.cut || (many && f.team !== 0)) return castNow(B, f, ab);
+  B.cut = { f, ab, t: 0, dur: f.team === 0 ? 0.95 : 0.62 };       // your own men get the longer look
+  f.charge = 100; f.state = 'ready'; f.move = null;
+  snd(B, 'cutin', 1, f, f.g.beast ? 'beast' : '');
+}
+function castNow(B, f, ab) {
   const x = ab.fx;
   let t = f.target && !out(f.target) ? f.target : null;
   if (!t) for (const o of B.fighters) if (o.team !== f.team && !out(o) && (!t || Math.hypot(o.x - f.x, o.y - f.y) < Math.hypot(t.x - f.x, t.y - f.y))) t = o;

@@ -188,6 +188,8 @@ const SFX = (() => {
     stun(v, pan) { tone({ f0: 620, f1: 560, dur: 0.5, vol: 0.07, attack: 0.004, vib: 0.03, pan, wet: 0.5 }); tone({ f0: 930, f1: 860, dur: 0.35, vol: 0.035, attack: 0.004, vib: 0.03, pan, wet: 0.5 }); },
     // your man is charged and the fight waits on you: a rising pair of notes on the horn
     ready() { brass(392, 0.14, 0.05, 0, 0.5); brass(587, 0.32, 0.06, 0.13, 0.5); },
+    // an ability is announced: a rush of air across the stands, and one beat of the drum
+    cutin(v, pan) { noise({ dur: 0.3, type: 'bandpass', f0: 350, f1: 3200, vol: 0.3, q: 1.2, attack: 0.1, pan, wet: 0.35 }); drum(0.3, 0.03, pan); tone({ f0: 880, f1: 1320, dur: 0.22, vol: 0.035, attack: 0.05, delay: 0.05, pan, wet: 0.4 }); cheer(0.08); },
     special(v, pan, kind) {
       if (kind === 'beast') {                      // a roar, not a flourish
         tone({ type: 'sawtooth', f0: 105, f1: 58, dur: 0.55, vol: 0.3, attack: 0.05, lp: 420, lp1: 900, vib: 0.05, pan, wet: 0.6 });

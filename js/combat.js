@@ -474,6 +474,12 @@ function stepBattle(B, dt) {
   if (B.over) { stepOutro(B, dt); return; }
   if (B.intro > 0) { stepIntro(B, dt); return; }
   if (B.pick) { if (out(B.pick) || !B.ask) B.pick = null; else return; }      // stopped, waiting for the player to choose an ability
+  if (B.cut) {                                // an ability is being announced: everything waits until the band has crossed
+    B.cut.t += dt;
+    if (B.cut.t < B.cut.dur && B.cutins) return;
+    const c = B.cut; B.cut = null;
+    if (!out(c.f)) castNow(B, c.f, c.ab);
+  }
   if (B.hitstop > 0) { B.hitstop -= dt; return; }
   B.time += dt;
   B.exc = clamp(B.exc - 0.012 * dt, 0, 1);
@@ -932,6 +938,55 @@ function drawIcon(ctx, name, x, y, s) {
 }
 const STYLE_COL = { str: '#e2695c', agi: '#ffd24a', skl: '#8fc0ff' };
 
+// The announcement of an ability: the sand dims, a slanted band in his side's colour sweeps in with streaks of speed,
+// his likeness close up at one end and the ability's name at the other, and it is gone again in under a second.
+// Drawn on the interface layer (320 by 180). Your side comes in from the left, the other from the right.
+function drawCutIn(ctx, B, T) {
+  const c = B.cut, f = c.f, p = clamp(c.t / c.dur, 0, 1), dir = f.team === 0 ? 1 : -1;
+  const inK = Math.min(1, p / 0.2), e = 1 - (1 - inK) * (1 - inK), outK = p > 0.84 ? (p - 0.84) / 0.16 : 0, o2 = outK * outK;
+  const off = dir * (-(1 - e) * 360 + o2 * 360);                 // where the band is: in from its own side, out the other
+  const top = 52, bot = 124, skew = 14, col = B.col[f.team], colD = B.colD[f.team];
+  ctx.save();
+  ctx.fillStyle = `rgba(8,5,2,${(0.55 * Math.min(e, 1 - o2)).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180);
+  // the band, slanted
+  const band = () => { ctx.beginPath(); ctx.moveTo(-30 + off + skew, top); ctx.lineTo(350 + off + skew, top); ctx.lineTo(350 + off - skew, bot); ctx.lineTo(-30 + off - skew, bot); ctx.closePath(); };
+  band(); ctx.fillStyle = colD; ctx.fill();
+  const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(0.5, col); g.addColorStop(1, 'rgba(0,0,0,.35)');
+  band(); ctx.globalAlpha = 0.85; ctx.fillStyle = g; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.save(); band(); ctx.clip();
+  // streaks of speed, running the way he is going
+  for (let i = 0; i < 16; i++) {
+    const y = top + 3 + (i * 37) % (bot - top - 6), len = 26 + (i % 4) * 16, x = ((i * 83 + T * dir * 520) % 420 + 420) % 420 - 50;
+    ctx.fillStyle = `rgba(255,255,255,${(0.1 + (i % 3) * 0.07).toFixed(2)})`; ctx.fillRect(x, y, len, i % 5 ? 1 : 2);
+  }
+  // his likeness, close up: the same figure the sand shows, three times the size, caught in mid-blow
+  const px = (dir > 0 ? 62 : 258) + off * 1.15, zoom = 2.5;
+  ctx.save();
+  ctx.translate(Math.round(px), bot + 44); ctx.scale(zoom, zoom);
+  ctx.globalAlpha = 0.28; drawSprite(ctx, { x: -dir * 7, y: 0, facing: dir, g: f.g, team: f.team, col, colD, moving: false, walk: 0, clock: T, atkAnim: 0.9, flash: 1, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: f.noHelm });
+  ctx.globalAlpha = 1; drawSprite(ctx, { x: 0, y: 0, facing: dir, g: f.g, team: f.team, col, colD, moving: false, walk: 0, clock: T, atkAnim: 0.9, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: f.noHelm });
+  ctx.restore();
+  ctx.restore();
+  // gold along both edges
+  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(Math.min(0, off), top - 2, 320 + Math.abs(off), 2); ctx.fillRect(Math.min(0, off), bot, 320 + Math.abs(off), 2);
+  ctx.fillStyle = '#fff0b0'; ctx.fillRect(Math.min(0, off), top - 2, 320 + Math.abs(off), 0.5);
+  // the name of it, coming in from the other side
+  const tx = (dir > 0 ? 204 : 116) - off * 0.55, name = c.ab.name.toUpperCase();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  let size = 19; ctx.font = `bold ${size}px Cinzel, Georgia, serif`;
+  while (size > 9 && ctx.measureText(name).width > 176) { size--; ctx.font = `bold ${size}px Cinzel, Georgia, serif`; }
+  ctx.fillStyle = 'rgba(20,10,4,.85)'; ctx.fillText(name, tx + 1, 92 + 1.5);
+  ctx.fillStyle = '#fff6dc'; ctx.fillText(name, tx, 92);
+  ctx.font = 'bold 6px Consolas, monospace';
+  const sub = f.g.beast ? f.g.name.toUpperCase() : `${f.g.name.toUpperCase()}${c.ab.skill ? '  -  ' + STAT_NAMES[c.ab.skill].toUpperCase() : ''}`, sw = ctx.measureText(sub).width;
+  ctx.fillStyle = 'rgba(20,10,4,.6)'; ctx.fillRect(tx - sw / 2 - 9, 99, sw + 18, 10);
+  if (c.ab.skill) drawIcon(ctx, c.ab.skill, tx - sw / 2 - 7, 101.5, 0.5);
+  ctx.fillStyle = c.ab.skill ? STYLE_COL[c.ab.skill] : '#ffd24a'; ctx.fillText(sub, tx + 3, 106.5);
+  // and a blink of light as it goes
+  if (p > 0.86) { ctx.fillStyle = `rgba(255,248,228,${(0.5 * (1 - (p - 0.86) / 0.14)).toFixed(3)})`; ctx.fillRect(0, 0, 320, 180); }
+  ctx.restore();
+}
+
 // The corner panels: one line a fighter. His style, his name, his health over his charge, and whatever ails or aids him.
 function drawHud(ctx, B) {
   const rows = [0, 0], many = B.fighters.length > 10, rh = many ? 6 : 12, T = B.clock;
@@ -1350,6 +1405,7 @@ function drawBattle(ctx, B) {
     lines.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillText(t, cx + 3, cy + 6 + i * 6); });
     ctx.textAlign = 'center';
   }
+  if (B.cut) drawCutIn(ctx, B, T);
   if (B.paused && !B.over) { ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(110, 78, 100, 18); ctx.fillStyle = '#e0aa3e'; ctx.fillText('PAUSED', 160, 91); }
 
   if (B.over) {

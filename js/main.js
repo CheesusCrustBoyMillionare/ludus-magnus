@@ -2,7 +2,7 @@
 // Interface: screens, modals, and the arena overlay.
 
 const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {}, dtab: 'stats', noyard: false };
-try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; } catch (e) { /* storage unavailable */ }
+try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
 const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
@@ -314,7 +314,7 @@ function renderTutor() {
 function helpModal() {
   const keys = [['W A S D', 'walk: the lanista in town, the column in the province'], ['E', 'end the day; in the province, make camp'], ['G', 'run the days to the next games'],
     ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'],
-    ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand, or dismiss a notice'], ['M', 'the whole map of the province'],
+    ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand, or dismiss a notice'], ['M', 'the whole map of the province'], ['R', 'in the province: set out for home'],
     ['1 to 4', 'in a fight: choose the ability'], ['Space', 'in a fight: pause'], ['C', 'in a fight: throw in the cloth'], ['Esc', 'close'], ['H', 'this page']];
   const sec = (h, body) => `<h3>${h}</h3><p>${body}</p>`;
   return `<h2>How the trade is plied</h2>
@@ -1531,6 +1531,7 @@ function startFight(boutId, tourneyBout) {
   G.denarii -= wager;
   const B = createBattle(picks, boutEnemies(b), { ask: !ui.autoCast, death: b.death, mercy: [mercyBonus(), 0], tier: b.final ? 4 : tier(), names: ['Your ludus', b.hunt ? 'The beasts' : b.house], hunt: !!b.hunt,
     foeCol: b.houseId && houseDef(b.houseId).col, foeColD: b.houseId && houseDef(b.houseId).colD });
+  B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
   SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { bout: b, B, speed: 1, wager, pay: odds.pay, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your ludus</span> <span class="dim">vs</span> <span style="color:${b.houseId ? houseDef(b.houseId).col : '#6fa4e6'}">${b.house}</span>${b.death ? ' &middot; <span class="death">to the death</span>' : ''}`;
@@ -1546,6 +1547,7 @@ function startWildFight() {
   const picks = fieldParty();
   if (!picks.length) { G.field.fight = null; return; }
   const B = createBattle(picks, F.foes, { ask: !ui.autoCast, wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
+  B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
   SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { wild: true, bout: null, B, speed: 1, wager: 0, pay: 0, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your school</span> <span class="dim">against</span> <span style="color:#6fa4e6">${F.title}</span>`;
@@ -1579,12 +1581,13 @@ function villageGate() {
 function paintOrders() {
   if (!fight) return;
   const B = fight.B, pick = B.pick && !out(B.pick) ? B.pick : null;
-  const state = [canOrder(B, 'yield'), pick ? pick.g.id : 0, !!ui.autoCast, B.over].join();
+  const state = [canOrder(B, 'yield'), pick ? pick.g.id : 0, !!ui.autoCast, B.over, !!ui.noCut].join();
   if (state === fight.ordState) return;
   fight.ordState = state;
   $('#ordYield').disabled = !canOrder(B, 'yield');
   $('#ordYield').style.visibility = B.hunt ? 'hidden' : 'visible';
   $('#autoCast').textContent = ui.autoCast ? 'Abilities: auto' : 'Abilities: ask me';
+  $('#cutBtn').textContent = ui.noCut ? 'Cut-ins: off' : 'Cut-ins: on';
   // the fight has stopped for one of yours: his abilities, to choose from
   const el = $('#arenaPick');
   el.hidden = !pick;
@@ -1634,7 +1637,7 @@ function finishFight() {
   if (!f || f.finished) return;
   f.finished = true;
   cancelAnimationFrame(f.raf);
-  f.B.ask = false; f.B.pick = null;             // nobody is asked while the rest is played out unseen
+  f.B.ask = false; f.B.pick = null; f.B.cutins = false;             // nobody is asked, and nothing announced, while the rest is played out unseen
   $('#arenaPick').hidden = true;
   let guard = 0;
   while ((!f.B.over || f.B.outro <= f.B.outroEnd) && guard++ < 20000) stepBattle(f.B, 1 / 30);
@@ -1935,6 +1938,7 @@ const ACTIONS = {
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
+  cutins() { ui.noCut = !ui.noCut; try { localStorage.setItem('ludus-magnus-cutins', ui.noCut ? '0' : '1'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.cutins = !ui.noCut; fight.ordState = ''; paintOrders(); } },
   abil(v, w) { const g = byId(v); if (g && toggleAbility(g, w)) { save(); render(); } },
   skip() { finishFight(); },
   pause() { if (fight && !fight.finished && !fight.B.over) { fight.paused = !fight.paused; paintSpeed(); } },
@@ -1942,8 +1946,8 @@ const ACTIONS = {
   wildclick(v, w, el, e) { provClick(el, e); },
   wildgo(v) {
     const F = G.field; if (!F) return;
-    const st = v === 'home' ? { x: WILD.TOWN.x + 22, y: WILD.TOWN.y } : siteById(v); if (!st) return;
-    const path = provPath(F.x, F.y, st.x, st.y);
+    const st = v === 'home' ? { x: WILD.TOWN.x + 12, y: WILD.TOWN.y } : siteById(v); if (!st) return;      // home: right up to the gate, so that arriving takes you in
+    const path = provPath(F.x, F.y, st.x, st.y) || (v === 'home' ? provPath(F.x, F.y, WILD.TOWN.x + 22, WILD.TOWN.y) : null);
     if (path) { prov.path = path; if (prov.big) { prov.big = false; render(); } } else prov.hint = performance.now() + 1600;
   },
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
@@ -1974,7 +1978,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', cutins: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -2142,7 +2146,7 @@ document.addEventListener('keydown', e => {
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
   if (k === 'h' || k === 'F1') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.help(); return; }
-  if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
+  if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'r') { e.preventDefault(); SFX.ui('tick'); ACTIONS.wildgo('home'); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
   if (k === 'ArrowUp' || k === 'ArrowDown') {
