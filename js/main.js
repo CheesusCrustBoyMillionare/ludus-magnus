@@ -15,6 +15,7 @@ const TIPS = {
   fame: 'Fame comes from winning bouts, and more from exciting ones. It opens greater arenas with richer purses and stronger opponents.',
   games: 'Games are held every fifth day. Bouts can only be fought on a games day.',
   skip: 'Advance day by day until the games, stopping early if an event needs your decision or men come home from the road. Key: G',
+  steward: 'Starts the walk through the first week again from the beginning, and has the steward explain each new thing the first time it happens.',
   endday: 'Every fighter trains or rests, you pay for food and wages, and tomorrow comes. Key: E',
   saves: 'Save slots, backups, export and import.',
   health: 'Carried into the arena as it stands. Resting restores far more than training does.',
@@ -64,7 +65,7 @@ const TIPS = {
   quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
   sound: 'Turns every sound in the game on or off, music included.',
   music: 'Turns the music on or off and leaves the other sounds alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
-  yardbtn: 'Shows or hides the picture of your ludus. Hidden, the list beneath it has the whole height.',
+  yardbtn: 'Shows or hides the picture of your school. Hidden, the list beneath it has the whole height. The village stays: it is how you get about.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
@@ -112,49 +113,123 @@ document.addEventListener('mousemove', e => { if (tipTarget) placeTip(e); });
 // ---------- the steward: a first-week tutorial ----------
 // A step with "until" completes itself when the player does the thing; the others wait for Next.
 
-const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', market: 'Market', facilities: 'Household' };
+const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', contracts: 'Contracts', market: 'Market', facilities: 'Household', smith: 'Blacksmith', patrons: 'Patrons', rivals: 'Rivals', chronicle: 'Chronicle' };
+
+// ---------- the steward ----------
+// He teaches in two ways. First a short walk through the first week, mostly by having you do each thing once
+// (a step with `until` moves on by itself when you have done it). After that he keeps quiet until something
+// happens for the first time, and then says what it means, once.
+
 const TUTORIAL = [
+  { target: '#side',
+    text: 'Welcome, dominus. This bar holds the day\'s figures and <b>End day</b>. The picture on the left is your school; the one on the right is the town, and you will do your business in it on foot. Hover over anything, anywhere, and I will explain it.' },
   { tab: 'ludus', target: '.acts', until: () => G.roster.some(g => g.activity !== 'rest'),
-    text: 'These are your fighters. Each trains one stat a day, or rests. <b>Set one of them to train</b> using the buttons on his row.' },
+    text: 'These are your fighters. Each trains one thing a day, or rests. <b>Set one of them to train</b> with the small buttons on his line: strength, agility, endurance, skill.' },
   { tab: 'ludus', target: '.statrow',
-    text: 'Click a fighter to open his dossier. Four stats decide how he fights, and the stars show his talent for each: more stars, faster gains. Hover over anything on the screen for an explanation.' },
+    text: 'Click a fighter and his dossier opens here. Four stats decide how he fights. The stars are his talent for each: more stars, faster gains, so train a man where his stars are.' },
+  { tab: 'ludus', target: '[data-act=dtab][data-v=gear]', until: () => ui.tab === 'ludus' && ui.dtab === 'gear',
+    text: 'A dossier has four pages. <b>Open Gear.</b>' },
+  { tab: 'ludus', target: '.gearlist',
+    text: 'What he wears. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and anything you buy is put on a man here. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
   { target: '[data-act=endday]', until: () => G.day >= 2,
-    text: 'Nothing happens until the day ends. Press <b>End day</b>.' },
+    text: 'Nothing happens until the day ends. Press <b>End day</b>, or the E key.' },
   { tab: 'ludus', target: '.bar.fat',
-    text: 'Training builds fatigue. An exhausted man risks injury and enters the arena short of breath, so rest him before the games. With the box above the roster ticked, exhausted fighters rest on their own.' },
-  { target: '[data-act=tab][data-v=market]', until: () => ui.tab === 'market',
-    text: 'Open the <b>Market</b>.' },
-  { tab: 'market',
-    text: 'New stock arrives every games day. You cannot see a recruit\'s talent without a scout, and your barracks hold only three men for now. Buy when you can afford another mouth to feed.' },
-  { target: '[data-act=tab][data-v=facilities]', until: () => ui.tab === 'facilities',
-    text: 'Open <b>Household</b>.' },
-  { tab: 'facilities',
-    text: 'Here you hire staff, improve the ludus and set rations. Everything on this page costs money, either up front or every day. The ledger shows your daily spending.' },
+    text: 'Three gauges on each line: health, fatigue, spirits. Training builds fatigue, and a tired man fights badly and can tear a muscle, so rest him before the games. With the box above the list ticked, the exhausted rest on their own.' },
+  { target: '#village', go: 'contracts', until: () => ui.tab === 'contracts',
+    text: 'There is paid work in town. That is you with the gold mark over your head, at the door of the Ludus. <b>Walk to Contracts</b>: steer with <b>W A S D</b>, or click the building and you will walk there yourself. Step onto its doorstep and it opens.' },
+  { tab: 'contracts', target: '#view .panel.list',
+    text: 'Patrons hire fighters by the day. A man who suits the work has better odds, shown on his name when you choose him. It pays silver and favour, but he is <b>gone</b> for those days: no training, and no games if they fall while he is away. Each offer says whether he would be back in time. With two fighters, I would keep them home this week.' },
+  { target: '#village', go: 'market', until: () => ui.tab === 'market',
+    text: 'Now walk to the <b>Market</b>.' },
+  { tab: 'market', target: '#view .panel.list',
+    text: 'Fresh stock every games day. The four numbers are a man\'s stats; you cannot see his talent without a scout. Your barracks hold three for now, and every man eats every day. Buy when you can feed him.' },
+  { target: '#village', go: 'facilities', until: () => ui.tab === 'facilities',
+    text: 'Walk to your own house, <b>Household</b>, at the top left.' },
+  { tab: 'facilities', target: '#view .fill > div:last-child .panel.list',
+    text: 'Staff, buildings and rations. Everything here costs money, up front or every day, and the ledger shows what a day costs you now. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
   { target: '[data-act=skipdays]', until: () => isGamesDay(),
-    text: 'Games are held every fifth day. <b>To the games</b> skips ahead until then, stopping if something needs your decision.' },
-  { target: '[data-act=tab][data-v=arena]', until: () => ui.tab === 'arena' || !isGamesDay(),
-    text: 'It is a games day. Open the <b>Arena</b>.' },
+    text: 'Games are held every fifth day. <b>To the games</b> (the G key) runs the days until then, stopping if anything needs you. Set your men to train first.' },
+  { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
+    text: 'It is a games day: the number by the Arena\'s name is the bouts waiting. Walk to the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each line is a bout; click one to see it. Compare your fighter\'s strength with his opponent\'s, choose who to send, and wager if you trust him. Winning pays a purse and fame, and fame opens greater arenas. <b>Pick a fighter and send him to the sand.</b>' },
-  { text: 'A beaten fighter may be spared or killed by the crowd, and wounds keep men out for days. Fighters also earn rank from their bouts, and each new rank lets you choose a perk in his dossier.' },
-  { text: 'Three more things, when you are ready. <b>Patrons</b> reward your favour. <b>Rivals</b> shows the other houses and your feuds with them. And a festival comes every fifteen days: watch the Arena tab for it. The <b>Blacksmith</b> sells weapons and armour, graded F to S. Your campaigns are kept under <b>Saves</b>, top right. I will leave you to it.' },
+    text: 'Each line on the left is a bout; the one you choose opens here. Compare the strength numbers, start with one marked <b>Favoured</b>, click a fighter\'s name to enter him, and wager only if you trust him. <b>Send a man to the sand.</b>' },
+  { text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
+  { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. I will hold my tongue now, and speak up when something new happens.' },
 ];
+
+// Things he explains the first time they happen. `when` returns whatever the text needs, or nothing.
+const HINTS = [
+  { id: 'debt', when: () => G.denarii < 0,
+    text: () => `We are in debt, dominus. Stay there for ${graceDays()} days running and the creditors take the house. Sell a man, cut the rations, dismiss staff, or win a purse; and morale falls every day we owe.` },
+  { id: 'hurt', when: () => G.roster.find(g => g.injury > 0 && !g.away),
+    text: g => `<b>${g.name}</b> is wounded. He can neither train nor fight until he heals; the days left are on his line. A medicus and a better infirmary shorten it.` },
+  { id: 'perk', when: () => G.roster.find(g => g.perkPending > 0),
+    text: g => `<b>${g.name}</b> has earned a new rank. Open his dossier and press <b>Choose a perk</b>: three are offered, and the choice is for good.` },
+  { id: 'gear', when: () => G.armoury.length > 0,
+    text: () => 'There is a spare piece in the armoury. Open a fighter\'s dossier, then <b>Gear</b>, to put it on him. A weapon only fits the fighting style it was made for.' },
+  { id: 'away', when: () => G.jobs.length > 0,
+    text: () => 'Men are away from the house. The <b>Contracts</b> screen shows who, and when they are back. Word may come from the road asking what they should do; I will bring it to you.' },
+  { id: 'quest', when: () => G.roster.find(g => g.quest && !g.away),
+    text: g => `You gave <b>${g.name}</b> your word. His journey waits in his dossier, under <b>Story</b>: send him when you can spare him, and do not leave him waiting more than a few days.` },
+  { id: 'asked', when: () => G.contracts.find(c => c.asked),
+    text: c => `${PATRONS[c.patron].name} has asked for your house by name: see <b>Contracts</b>. It is worth more favour than ordinary work, and leaving it on the board until the next games will cost you.` },
+  { id: 'festival', when: () => G.festival && G.festival.day - G.day <= 5 && G.festival.day > G.day,
+    text: () => `A festival is coming: <b>${FESTIVALS[G.festival.type].name}</b>. ${FESTIVALS[G.festival.type].blurb} It is held with the ordinary games; have your best men rested for it.` },
+  { id: 'tourney', when: () => G.tourney && G.tourney.state === 'open',
+    text: () => 'The lists are open at the <b>Arena</b>. One champion, three bouts in a day with little rest between, and the laurel for the last man standing. He sits out the ordinary games.' },
+  { id: 'feud', when: () => G.houses.find(H => H.grudge >= 40),
+    text: H => `The feud with <b>${houseDef(H.id).name}</b> has gone far enough that their champion will call you out at the next games. Refuse him and the town, and your own men, will think less of you. See <b>Rivals</b>.` },
+  { id: 'bond', when: () => G.bonds.length > 0,
+    text: () => 'Two of your men have taken to each other, for good or ill. Friends hit harder side by side, and grieve if one falls; rivals train harder and fight worse together. It is on the <b>Story</b> page of each.' },
+  { id: 'morale', when: () => G.roster.find(g => g.morale < 30 && !g.away),
+    text: g => `<b>${g.name}</b> is in low spirits. Such men train slowly and yield early, and one sent on the road may not come back. Better rations, a cook, the baths and victories all help.` },
+  { id: 'tier', when: () => tier() >= 1,
+    text: () => `The house has a name now: we fight at the <b>${TIERS[tier()].name}</b>. Richer purses, harder men, and some bouts are now <b>to the death</b>, marked in red. Look twice before you enter one.` },
+  { id: 'veteran', when: () => G.roster.find(g => g.wins >= 8),
+    text: g => `<b>${g.name}</b> has eight victories. You may grant him the wooden sword, on the <b>Orders</b> page of his dossier: he leaves for good, the city talks of it, and every man in the yard trains harder.` },
+];
+
+// The steward's notes on this save. Older saves have none: they get advice only if they ask for it.
+function tutorState() {
+  const t = G.tut || (G.tut = { step: 0, on: false });
+  if (t.hints === undefined) t.hints = !!t.on;
+  if (!t.seen) t.seen = {};
+  return t;
+}
+const stewardSays = (head, text, buttons, done) => `<div class="who">${head}</div>${done === undefined ? '' : `<div class="bar prog"><i style="width:${Math.round(done * 100)}%"></i></div>`}<p>${text}</p><div class="row">${buttons}</div>`;
 
 function renderTutor() {
   const el = $('#tutor');
   document.querySelectorAll('.tut-glow').forEach(x => x.classList.remove('tut-glow'));
-  const t = G && G.tut;
-  if (!t || !t.on) { el.hidden = true; return; }
-  while (t.step < TUTORIAL.length && TUTORIAL[t.step].until && TUTORIAL[t.step].until()) t.step++;
-  if (t.step >= TUTORIAL.length) { t.on = false; save(); el.hidden = true; return; }
-  const s = TUTORIAL[t.step], away = s.tab && s.tab !== ui.tab;
-  el.innerHTML = `<div class="who">Your steward &middot; ${t.step + 1} of ${TUTORIAL.length}</div>
-    <p>${s.text}${away ? `<br><span class="dim">Go to the ${TAB_NAMES[s.tab]} tab.</span>` : ''}</p>
-    <div class="row">${s.until ? '' : `<button class="primary" data-act="tutnext">${t.step === TUTORIAL.length - 1 ? 'Thank you' : 'Next'}</button>`}
-    <button data-act="tutoff">Dismiss him</button></div>`;
-  el.hidden = false;
-  const target = s.target && !away ? document.querySelector(s.target) : away ? document.querySelector(`[data-act=tab][data-v=${s.tab}]`) : null;
-  if (target) target.classList.add('tut-glow');
+  const t = G && tutorState();
+  ui.wayTo = null;
+  if (!t || G.ruin || (!t.on && !t.hints)) { el.hidden = true; return; }
+  if (t.on) {
+    while (t.step < TUTORIAL.length && TUTORIAL[t.step].until && TUTORIAL[t.step].until()) t.step++;
+    if (t.step >= TUTORIAL.length) { t.on = false; save(); }
+  }
+  if (t.on) {
+    const s = TUTORIAL[t.step], away = s.tab && s.tab !== ui.tab, last = t.step === TUTORIAL.length - 1;
+    el.innerHTML = stewardSays(`Your steward &middot; ${t.step + 1} of ${TUTORIAL.length}`,
+      s.text + (away ? `<br><span class="dim">Walk to ${TAB_NAMES[s.tab]}.</span>` : ''),
+      `${s.until ? '<span class="dim" style="font-size:12px">Do it, and I will go on.</span>' : `<button class="primary" data-act="tutnext">${last ? 'Thank you' : 'Next'}</button>`}
+       ${TUTORIAL.slice(0, t.step).some(x => !x.until) ? '<button data-act="tutback">Back</button>' : ''}
+       <button data-act="tutoff" style="margin-left:auto">Dismiss him</button>`, t.step / TUTORIAL.length);
+    el.hidden = false;
+    const target = s.target && !away ? document.querySelector(s.target) : away ? $('#village') : null;
+    if (target) target.classList.add('tut-glow');
+    ui.wayTo = s.go || (away ? s.tab : null);                  // an arrow over the door he wants you at
+    return;
+  }
+  for (const h of HINTS) {
+    if (t.seen[h.id]) continue;
+    const about = h.when();
+    if (!about) continue;
+    el.innerHTML = stewardSays('Your steward', h.text(about), `<button class="primary" data-act="hintok" data-v="${h.id}">Understood</button><button data-act="tutoff" style="margin-left:auto">No more advice</button>`);
+    el.hidden = false;
+    return;
+  }
+  el.hidden = true;
 }
 
 // ---------- modal queue ----------
@@ -177,6 +252,7 @@ function render() {
   renderTop(); renderTabs(); renderView(); paintPortraits();
   // a browser may briefly pair a cached page with newer scripts; never let a missing yard stop the game
   if (typeof startYard === 'function') startYard();
+  if (typeof startVillage === 'function') startVillage();
   renderTutor();
   if (ui.dev) renderDev();
 }
@@ -201,13 +277,12 @@ function renderTop() {
 }
 
 const TAB_KEYS = ['ludus', 'arena', 'contracts', 'rivals', 'market', 'smith', 'facilities', 'patrons', 'chronicle'];
-function renderTabs() {
-  const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0, asked = G.contracts.filter(c => c.asked).length;
-  const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['contracts', 'Contracts'], ['rivals', 'Rivals'], ['market', 'Market'], ['smith', 'Blacksmith'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
-  $('#app').classList.toggle('noyard', ui.noyard);
-  $('#tabs').innerHTML = tabs.map(([id, name]) =>
-    `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}${id === 'contracts' && asked ? `<span class="badge">${asked}</span>` : ''}<span class="key">${TAB_KEYS.indexOf(id) + 1}</span></button>`).join('');
-}
+// The screens are reached on foot now (see village.js); all that is left to do here is hide or show the school picture.
+function renderTabs() { $('#app').classList.toggle('noyard', ui.noyard); }
+// Called by the village when the lanista steps onto a doorstep.
+function villageEnter(key) { if (ui.tab === key) return; ui.tab = key; SFX.ui('tick'); render(); }
+// What waits inside a building, shown as a number by its name on the map.
+function villageMarks() { return { arena: G.bouts ? G.bouts.filter(b => !b.done).length : 0, contracts: G.contracts.filter(c => c.asked).length }; }
 
 // The view is rebuilt after every action, so each scrolling pane is put back where the player left it.
 function renderView() {
@@ -846,7 +921,7 @@ function viewChronicle() {
   return `<div class="fill">
     <div><h2>Chronicle</h2><div class="pane" data-pane="log"><div class="panel log">${rows}</div></div></div>
     <div><h2>The house</h2><div class="pane" data-pane="house">${fallen || '<div class="panel dim">No fighter of this house has died yet.</div>'}${dynastyPanel()}
-      <p style="margin-top:14px" class="row"><button data-act="tuton">Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p></div></div>
+      <p style="margin-top:14px" class="row"><button data-act="tuton"${tip('steward')}>Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p></div></div>
   </div>`;
 }
 
@@ -896,6 +971,18 @@ function startFight(boutId, tourneyBout) {
   if (!b || b.done) return;
   const picks = tourneyBout ? [byId(G.tourney.entrant)].filter(Boolean) : (ui.picks[b.id] || []).map(byId).filter(g => g && canFight(g));
   if (picks.length !== b.size) return;
+  const tut = tutorState();
+  if ((tut.on || tut.hints) && !tut.seen.fight) {
+    tut.seen.fight = true; save(); ui.heldFight = [boutId, tourneyBout];
+    showModal(`<h2>Before he goes out</h2>
+      <p>Your men fight on their own, as they were trained and as their standing orders say. You can still shout from the rail:</p>
+      <ul><li><b>Press!</b> They hit harder and faster for a few breaths, and guard worse.</li>
+      <li><b>Hold!</b> They guard, and get their wind back.</li>
+      <li><b>Throw in the cloth.</b> Your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once a bout, and never in a fight to the death.</li></ul>
+      <p>The keys are 1, 2 and 3. Below the sand you can run the fight faster or skip to the result. The crowd's bar matters: an exciting fight earns more fame.</p>
+      <div class="row"><button class="primary" data-act="fightgo">To the sand</button></div>`);
+    return;
+  }
   const wager = Math.min(ui.wagers[b.id] || 0, Math.max(0, G.denarii));
   const odds = winOdds(picks, boutEnemies(b));
   G.denarii -= wager;
@@ -969,11 +1056,12 @@ function finishFight() {
 // ---------- actions ----------
 
 const ACTIONS = {
-  tab(v) { ui.tab = v; render(); },
+  tab(v) { ui.tab = v; villagePlace(v); render(); },                 // a jump, for the dev drawer and the steward; the player walks
+  village(v, w, el, e) { const k = villagePick(el, e); if (k) villageWalkTo(k); },
   yard(v, w, el, e) {                       // click a fighter to open his dossier, a building to go to its screen
     const h = typeof yardPick === 'function' ? yardPick(el, e) : null;
     if (!h) return;
-    if (h.fighter) { ui.sel = h.fighter; ui.tab = 'ludus'; } else ui.tab = h.tab;
+    if (h.fighter) { ui.sel = h.fighter; villageWalkTo('ludus'); } else villageWalkTo(h.tab);       // he walks there; nothing opens until he arrives
     render();
   },
   activity(v, w, el) {
@@ -1010,7 +1098,7 @@ const ACTIONS = {
     paintModal(); render();
     if (G.pendingEvent) showEvent();          // another matter is waiting behind this one
   },
-  dossier(v) { ui.sel = +v; ui.tab = 'ludus'; render(); },
+  dossier(v) { ui.sel = +v; villageWalkTo('ludus'); render(); },
   rowsel(v, w) { ui[v] = /^\d+$/.test(w) ? +w : w; render(); },
   dtab(v) { ui.dtab = v; render(); },
   yardtoggle() {
@@ -1171,10 +1259,13 @@ const ACTIONS = {
     };
     inp.click();
   },
-  tutstart() { G.tut = { step: 0, on: true }; save(); closeModal(); render(); },
-  tuton() { G.tut = { step: 0, on: true }; ui.tab = 'ludus'; save(); render(); },
-  tutnext() { G.tut.step++; save(); renderTutor(); },
-  tutoff() { G.tut.on = false; save(); renderTutor(); },
+  tutstart() { G.tut = { step: 0, on: true, hints: true, seen: {} }; ui.tab = 'ludus'; villagePlace('ludus'); ui.dtab = 'stats'; save(); closeModal(); render(); },
+  tuton() { G.tut = { step: 0, on: true, hints: true, seen: {} }; ui.tab = 'ludus'; villagePlace('ludus'); ui.dtab = 'stats'; save(); render(); },
+  tutnext() { G.tut.step++; save(); render(); },
+  tutback() { let i = G.tut.step - 1; while (i > 0 && TUTORIAL[i].until) i--; G.tut.step = Math.max(0, i); save(); render(); },
+  tutoff() { G.tut.on = false; G.tut.hints = false; save(); renderTutor(); },
+  hintok(v) { tutorState().seen[v] = true; save(); renderTutor(); },
+  fightgo() { closeModal(); const f = ui.heldFight; ui.heldFight = null; if (f) startFight(f[0], f[1]); },
   ruinstep(v) { G.ruin.step = +v; save(); refreshRuin(); },
   ruinpick(v) { ruinFighter(+v || null); save(); refreshRuin(); },
   ruinboon(v) { ruinBoon(v); save(); refreshRuin(); },
@@ -1223,10 +1314,10 @@ const CHANGES = {
 // What each kind of click sounds like. Anything not named here makes the plain click; '' is silent
 // (it makes its own sound, or the thing it starts does).
 const CLICK_SOUND = {
-  tab: 'tick', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', qwith: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
+  tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', qwith: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate', qsend: 'gate',
-  endday: '', forceend: '', skipdays: '', fight: '', tfight: '', order: '', mute: '', musictoggle: 'click', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', skipdays: '', fight: '', tfight: '', order: '', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1249,10 +1340,12 @@ function intro() {
       <li>Set each fighter to <b>train</b> or <b>rest</b>, then end the day.</li>
       <li>Every fifth day there are <b>games</b>. Win bouts for purses and fame.</li>
       <li>Fame opens greater arenas. At ${FINAL_FAME} fame, the Emperor sends for you.</li>
-      <li>Hire staff under <b>Household</b>, court the powerful under <b>Patrons</b>, and choose a perk each time a fighter earns a new rank.</li>
+      <li>Between games, hire men out on <b>contracts</b>, arm them at the <b>Blacksmith</b>, hire staff under <b>Household</b> and court the powerful under <b>Patrons</b>.</li>
       <li>Tired or wounded men lose. Dead men stay dead.</li>
       <li>Stay in debt for ${graceDays()} days and the creditors take the ludus. That is not the end: your heir begins again, with whatever the family managed to keep.</li>
-    </ul><div class="row"><button class="primary" data-act="tutstart">Show me the ropes</button><button data-act="close">I know the trade</button></div>`);
+    </ul>
+    <p class="dim" style="font-size:13px">Your steward can walk you through the first week (about five minutes), and afterwards speak up only when something new happens. You can dismiss him at any time, and call him back from the Chronicle.</p>
+    <div class="row"><button class="primary" data-act="tutstart">Show me the ropes</button><button data-act="close">I know the trade</button></div>`);
 }
 
 // ---------- dev tools (Shift+Y) ----------
@@ -1320,7 +1413,7 @@ const DEV = {
     fight.B.fighters.filter(f => f.team === (v === 'win' ? 1 : 0) && !f.down && !f.yielded).forEach(f => { f.hp = 1; });
     return v === 'win' ? 'The opposition is on its last legs.' : 'Your side is on its last legs.';
   },
-  tutorial: () => { G.tut = { step: 0, on: true }; ui.tab = 'ludus'; return 'The steward is back at step one.'; },
+  tutorial: () => { G.tut = { step: 0, on: true, hints: true, seen: {} }; ui.tab = 'ludus'; villagePlace('ludus'); ui.dtab = 'stats'; return 'The steward is back at step one.'; },
 };
 
 function devPanel() {
@@ -1359,7 +1452,7 @@ document.addEventListener('keydown', e => {
   if (kind) { e.preventDefault(); ACTIONS.order(kind); }
 });
 // Keys for everything done often, so the hand can stay off the mouse:
-//   1-9 the screens, E end the day, G to the games, up and down through the list on screen,
+//   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,
 //   left and right through a fighter's dossier pages, Enter to dismiss a notice, 1-4 to answer an event.
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
@@ -1373,7 +1466,7 @@ document.addEventListener('keydown', e => {
     else if (/^[1-9]$/.test(k) && opts[+k - 1]) press(opts[+k - 1]);
     return;
   }
-  if (/^[1-9]$/.test(k) && TAB_KEYS[+k - 1]) { e.preventDefault(); SFX.ui('tick'); ACTIONS.tab(TAB_KEYS[+k - 1]); return; }
+  if (villageKey(e, true)) { e.preventDefault(); return; }
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
   if (k === 'ArrowUp' || k === 'ArrowDown') {
@@ -1389,6 +1482,8 @@ document.addEventListener('keydown', e => {
     if (DTABS[i]) { e.preventDefault(); SFX.ui('tick'); ACTIONS.dtab(DTABS[i][0]); }
   }
 });
+document.addEventListener('keyup', e => { villageKey(e, false); });
+addEventListener('blur', () => villageStill());             // a key let go while the window was elsewhere would leave him walking
 document.addEventListener('keydown', e => {
   if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || (e.key !== 'Y' && e.key !== 'y')) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || document.body).tagName) && document.activeElement.type !== 'checkbox') return;

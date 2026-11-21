@@ -454,3 +454,33 @@ h2 .h2opt { float: right; font: 12px Georgia, serif; letter-spacing: 0; text-tra
   #modalBox > .row { justify-content: flex-start; }
   #tutor { right: 16px; }
 }
+
+/* the steward's panel: how far through his walk you are, and room for three buttons */
+#tutor .bar { height: 4px; margin: 5px 0 0; }
+#tutor .row { flex-wrap: nowrap; gap: 6px; }
+#tutor .row button { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+#tutor { width: min(360px, calc(var(--vw, 100vw) - 32px)); }
+
+/* =====================================================================================
+   Two pictures across the top: the school on the left, the village on the right. The village is
+   how you get about, so it never hides. The bar on the right keeps only the figures, the two
+   buttons that move time on, and the small switches.
+   ===================================================================================== */
+#side { width: 132px; }
+#topbar .title { font-size: 12px; letter-spacing: .1em; }
+.fill, .fill.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+#yard { width: calc((100% - 14px) * 0.5 - 6px); }
+#village { position: absolute; z-index: 2; right: 3px; top: 3px; width: calc((100% - 14px) * 0.5 - 6px); height: auto; aspect-ratio: 59 / 19; display: block;
+  image-rendering: pixelated; cursor: pointer; background: #7e9a4b; border: 1px solid var(--edge); box-shadow: 0 0 0 2px var(--bronze), 0 0 0 3px var(--edge), 0 5px 0 #0009; }
+#app .fill > div, #app:not(.noyard) .fill > div:first-child { padding-top: calc(((100cqw - 14px) * 0.5 - 6px) * 19 / 59 + 14px); }
+#app.noyard .fill:not(.one) > div:first-child { padding-top: 0; }
+#tutor { right: 158px; }
+#modal { padding-right: calc(164px * var(--z, 1)); }
+@media (max-width: 1000px) {
+  #village { position: static; width: 100%; margin: 3px 0 10px; }
+  #app .fill > div, #app:not(.noyard) .fill > div:first-child { padding-top: 0; }
+  #modal { padding-right: 16px; }
+  #tutor { right: 16px; }
+}
+#topbar button { font-size: 12px; letter-spacing: .02em; white-space: nowrap; }
+#topbar button.primary { font-size: 14px; }
