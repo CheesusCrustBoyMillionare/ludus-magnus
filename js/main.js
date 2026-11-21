@@ -300,6 +300,7 @@ function villageMarks() { return { arena: G.bouts ? G.bouts.filter(b => !b.done)
 function renderView() {
   const v = { ludus: viewLudus, arena: viewArena, contracts: viewContracts, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
   const el = $('#view'), keep = {};
+  if (ui.shown !== ui.tab) ui.sellArm = null;       // a sale half-agreed is forgotten when you walk away
   if (ui.shown === ui.tab) el.querySelectorAll('[data-pane]').forEach(p => { keep[p.dataset.pane] = p.scrollTop; });
   el.innerHTML = v();
   el.querySelectorAll('[data-pane]').forEach(p => { if (keep[p.dataset.pane]) p.scrollTop = keep[p.dataset.pane]; });
@@ -636,30 +637,76 @@ function viewArena() {
   </div>`;
 }
 
+// What the dealer is asking against what the man is worth: only a scout can tell you.
+function dealOf(m) {
+  const r = m.price / Math.max(1, value(m) + (m.gear && m.gear.weapon ? itemPrice(m.gear.weapon) * 0.6 : 0));
+  return r < 1.07 ? ['good', 'Fair price', 'Your scout says the dealer is asking little more than he is worth.'] : r > 1.17 ? ['bad', 'Dear', 'Your scout says the dealer is asking well over what he is worth.'] : null;
+}
+// Why he cannot be bought, or nothing.
+function buyBlock(m) {
+  return G.roster.length >= capacity() ? 'No cell free: build more barracks or sell a man.' : G.denarii < m.price ? `You are ${m.price - G.denarii} denarii short.` : '';
+}
+// How he would sit among the men you have.
+function fitNotes(m) {
+  const mine = G.roster, out = [], st = styleOf(m);
+  if (!mine.length) return ['He would be your first fighter.'];
+  const weaker = mine.filter(g => rating(g) < rating(m)).length;
+  out.push(weaker === mine.length ? '<b class="good">Stronger than every man you have.</b>' : weaker ? `Stronger than ${weaker} of your ${mine.length}.` : `Weaker than every man you have${mine.length === 1 ? '' : ' today'}.`);
+  const same = mine.filter(g => g.cls === m.cls).length;
+  out.push(same ? `You have ${same} ${CLASSES[m.cls].name}${same === 1 ? '' : ' fighters'} already.` : `<b class="good">Your first ${CLASSES[m.cls].name}.</b>`);
+  if (st) {
+    const n = mine.filter(g => styleOf(g) === st).length, by = mine.filter(g => styleOf(g) === STYLE_LOSES[st]).length;
+    out.push(n ? `${n} of your men ${n === 1 ? 'fights' : 'fight'} in the ${STAT_NAMES[st].toLowerCase()} style too.` : `<b class="good">No one of yours fights in the ${STAT_NAMES[st].toLowerCase()} style</b>: he would answer ${STAT_NAMES[STYLE_BEATS[st]].toLowerCase()} fighters${by ? '' : ', whom nobody of yours beats'}.`);
+  }
+  return out;
+}
+
 function viewMarket() {
-  const full = G.roster.length >= capacity(), g = keepSel('msel', G.market), scout = staffLvl('scout');
-  const rows = G.market.map(m => lrow('msel', m.id, `<canvas width="48" height="56" style="width:36px;height:42px" data-mportrait="${m.id}"></canvas>
-      <div class="grow"><span class="t">${m.name} ${styleMark(m)}</span><small>${CLASSES[m.cls].name} of ${m.origin} &middot; power ${rating(m)} (${STATS.map(s => m.stats[s]).join(' / ')})</small></div>
-      <span class="end"><b class="num ${G.denarii < m.price ? 'bad' : 'gold'}">${m.price}</b></span>`)).join('')
-    || '<div class="listnote">The dealer has nothing left until the next games.</div>';
-  const card = g ? `<div class="panel">
-      <div class="row" style="align-items:flex-start">
+  const full = G.roster.length >= capacity(), g = keepSel('msel', G.market), scout = staffLvl('scout'), dg = daysToGames(), free = capacity() - G.roster.length;
+  const skills = m => STATS.map(k => `<span class="sk"${tip(`${STAT_NAMES[k]} ${m.stats[k]}`)}>${ic(k)}<b class="num">${m.stats[k]}</b></span>`).join('');
+  const rows = G.market.map(m => {
+    const deal = scout ? dealOf(m) : null, why = buyBlock(m);
+    return lrow('msel', m.id, `<canvas width="48" height="56" style="width:34px;height:40px" data-mportrait="${m.id}"></canvas>
+      <div class="grow"><span class="t">${m.name} ${styleMark(m)} <small class="inl">${CLASSES[m.cls].name} of ${m.origin}</small></span>
+        <div class="l2"><span class="sks"${tip('rating')}><b class="num pw">${rating(m)}</b>${skills(m)}</span>${scout ? `<span class="chip gold"${tip('talent')}>Potential ${potential(m)}</span>` : ''}${m.gear && m.gear.weapon ? `<span class="chip"${tip('He comes with his own weapon, and it is in the price.')}>Armed</span>` : ''}${m.traits.map(t => `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>`).join('')}${deal ? `<span class="chip ${deal[0] === 'good' ? 'gold' : 'red'}"${tip(deal[2])}>${deal[1]}</span>` : ''}</div></div>
+      <span class="end price"${why ? tip(why) : ''}><b class="num ${why ? 'bad' : 'gold'}">${m.price}</b><small>${Math.round(m.price / rating(m))} a point</small></span>`, 'lud');
+  }).join('') || '<div class="listnote">The dealer has nothing left until the next games.</div>';
+  const mine = G.roster.map(r => {
+    const armed = ui.sellArm === r.id;
+    return prow(`<div class="grow"><span class="t">${r.name} ${styleMark(r)} <small class="inl">${CLASSES[r.cls].name} &middot; power ${rating(r)} &middot; ${r.wins}W ${r.losses}L</small></span></div>
+      ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}"${tip('sell')}>${armed ? 'Sure? Sell' : 'Sell'} &mdash; ${Math.round(value(r) / 2)}</button>`}`);
+  }).join('');
+  const why = g ? buyBlock(g) : '';
+  const card = g ? `<div class="panel dossier">
+      <div class="dhead">
         <canvas class="portrait" width="96" height="112" data-mportrait="${g.id}"></canvas>
-        <div style="flex:1"><h3>${g.name}</h3>
-          <div class="dim" style="font-size:13px">${CLASSES[g.cls].name} of ${g.origin}</div>
-          <div class="dim" style="font-size:13px">${CLASSES[g.cls].desc}</div>
-          <div style="font-size:13px">${ratingLine(g, !scout)} &middot; ${styleMark(g)}</div>
-          <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div></div>
+        <div style="flex:1"><h2>${g.name}</h2>
+          <div>${CLASSES[g.cls].name} of ${g.origin}</div>
+          <div>${ratingLine(g, !scout)} &middot; ${styleMark(g)}</div>
+          <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div>
+          <div class="buyrow"><button class="primary" data-act="buy" data-v="${g.id}" ${why ? 'disabled' : ''}${tip('Buy him and put him in a cell. Key: B')}>Buy &mdash; ${g.price} denarii</button>
+            <small class="${why ? 'bad' : 'dim'}">${why || `Leaves you ${G.denarii - g.price}. He eats ${Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0))} a day.`}</small></div>
+        </div>
       </div>
-      <div style="margin-top:8px">${statRows(g, !scout)}</div>
-      <div style="margin:8px 0">${traitList(g)}</div>
-      <button class="primary" data-act="buy" data-v="${g.id}" ${full || G.denarii < g.price ? 'disabled' : ''}>Buy &mdash; ${g.price} denarii</button>
+      <div class="dbody" data-pane="recruit">
+        <div class="today"><span class="lbl">In your school</span><div>${fitNotes(g).join(' ')}</div></div>
+        ${statRows(g, !scout)}
+        ${scout ? '' : `<div class="dim" style="font-size:12px;margin-top:2px">The stars are hidden: you cannot judge how fast he will learn without a scout.</div>`}
+        <hr class="sep">${traitList(g)}<hr class="sep">
+        <div class="dim" style="font-size:13px">${CLASSES[g.cls].desc}</div>
+        <div class="dim" style="font-size:13px;margin-top:4px">${abilitiesKnown(g).length ? `Knows ${abilitiesKnown(g).map(a => `<b>${a.name}</b>`).join(', ')}.` : 'Knows no abilities yet: a skill at 5 teaches the first.'}</div>
+      </div>
     </div>` : '';
   return `<div class="fill even">
-    <div><h2>The slave market <small>${G.roster.length} / ${capacity()} cells filled</small></h2>
-      <div class="pane" data-pane="market">${full ? '<p class="bad" style="margin:0 0 6px">Your barracks are full. Build more cells or sell a fighter.</p>' : ''}<div class="panel list">${rows}</div>
-      <div class="listnote">New stock every games day. The three numbers are strength, agility and skill.</div></div></div>
-    <div><h2>The man</h2><div class="pane" data-pane="recruit">${card}</div></div>
+    <div><h2>The slave market <small>${G.market.length} for sale</small></h2>
+      <div class="panel schoolbar"><div class="tally">
+        <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. Barracks, under Household, add two at a time.')}><b class="num">${Math.max(0, free)}</b> cell${free === 1 ? '' : 's'} free</span>
+        <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
+        <span${tip('The dealer brings new men every games day, and takes away whoever was not sold.')}>fresh stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
+        <span class="${scout ? 'gold' : ''}"${tip(scout ? 'Your scout shows each man\'s potential and whether the price is fair.' : TIPS.hidden)}>${scout ? 'scout at your side' : 'no scout: talent hidden'}</span></div></div>
+      <div class="pane" data-pane="market"><div class="panel list">${rows}</div>
+      ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight">${mine}</div>` : ''}</div></div>
+    <div><h2>The man</h2>${card}</div>
   </div>`;
 }
 
@@ -1311,6 +1358,10 @@ const ACTIONS = {
     log(`${g.name} the ${CLASSES[g.cls].name} is bought at market.`);
     ui.sel = g.id; save(); render();
   },
+  msell(v) {                                   // from the market: asked twice, since it cannot be undone
+    if (ui.sellArm !== +v) { ui.sellArm = +v; render(); return; }
+    ui.sellArm = null; SFX.ui('coin'); ACTIONS.sell(v);
+  },
   build(v) {
     const l = G.fac[v];
     if (l >= 3 || G.denarii < FAC_COST[l]) return;
@@ -1486,7 +1537,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1630,7 +1681,7 @@ document.addEventListener('keydown', e => {
 });
 // Keys for everything done often, so the hand can stay off the mouse:
 //   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,
-//   left and right through a fighter's dossier pages, 1-5 to set the chosen fighter's work, Enter to dismiss a notice, 1-4 to answer an event.
+//   left and right through a fighter's dossier pages, 1-5 to set the chosen fighter's work, B to buy the man chosen at market, Enter to dismiss a notice, 1-4 to answer an event.
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
   const at = document.activeElement || document.body;
@@ -1655,6 +1706,7 @@ document.addEventListener('keydown', e => {
     if (to) { press(to); const now = $('#view .lrow.sel[data-act]'); if (now) now.scrollIntoView({ block: 'nearest' }); } else e.preventDefault();
     return;
   }
+  if (k === 'b' && ui.tab === 'market') return press($('#view [data-act=buy]'));
   if (/^[1-5]$/.test(k) && ui.tab === 'ludus') return press($(`#view .lrow.sel .acts button:nth-child(${k})`));
   if ((k === 'ArrowLeft' || k === 'ArrowRight') && ui.tab === 'ludus') {
     const i = DTABS.findIndex(t => t[0] === ui.dtab) + (k === 'ArrowRight' ? 1 : -1);

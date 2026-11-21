@@ -584,3 +584,13 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .progcell small { display: block; font-size: 10px; color: var(--dim); text-transform: none; letter-spacing: 0; line-height: 1.1; margin-top: 1px; }
 .statrow { grid-template-columns: 112px 24px minmax(30px, 1fr) auto; align-items: start; }
 .statrow .statname small { display: block; line-height: 1; margin: 0 0 2px 22px; }
+
+/* the market: what he costs, what he is, and where he would stand among your own */
+.lrow .end.price { line-height: 1.1; }
+.lrow .end.price b { font-size: 15px; }
+.lrow .end.price small { font-size: 10px; color: var(--dim); }
+.buyrow { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.buyrow small { font-size: 12px; line-height: 1.25; }
+.buyrow small.bad { color: #f08a7c; }
+.panel.list.tight .lrow { min-height: 28px; padding-top: 2px; padding-bottom: 2px; }
+.panel.list.tight small.inl { display: inline; font-size: 11px; color: var(--dim); margin-left: 4px; }
