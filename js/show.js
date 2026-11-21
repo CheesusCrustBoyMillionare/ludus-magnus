@@ -132,6 +132,40 @@ function showBanner(ctx, x, c, cD, T, gust) {
 }
 
 // Behind the fighters: the crowd, the editor, cloth in the wind, what lies on the sand, the shimmer of heat.
+// What moves in the country behind a fight outside the walls: birds over the hills, things on the air, and at a camp
+// the fire, its smoke, and the outlaws' banner.
+function showWild(ctx, B, T, gust) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const k = B.wild, seed = B.wseed || 1;
+  for (let i = 0; i < 4; i++) {                 // birds
+    const bx = ((i * 139 + seed + T * (9 + i * 3)) % 500) - 36, by = 10 + (i * 11 + seed) % 26 + Math.sin(T * 0.8 + i) * 3, f = Math.sin(T * 8 + i * 2) > 0 ? 1 : 0;
+    R(bx - 3, by - f, 3, 1, '#2a2a33'); R(bx + 1, by - f, 3, 1, '#2a2a33'); R(bx, by + 1 - f, 1, 1, '#2a2a33');
+  }
+  if (k === 'rock') for (let i = 0; i < 2; i++) {             // and over a lair, something that waits its turn
+    const a = T * 0.5 + i * 3.1, cx = 214 + Math.cos(a) * (60 + i * 20), cy = 20 + Math.sin(a) * 7, f = Math.sin(T * 5 + i) > 0 ? 1 : 0;
+    R(cx - 4, cy - f, 4, 1, '#1c1310'); R(cx + 1, cy - f, 4, 1, '#1c1310'); R(cx - 1, cy, 3, 2, '#1c1310');
+  }
+  // things on the air: leaves in a wood, dust on the rock, ash at a camp, seed-down among the stones
+  const col = k === 'forest' ? ['#a8762e', '#6f9a4a', '#c9a23a'] : k === 'rock' ? ['#c9c2ae', '#a39c88'] : k === 'camp' ? ['#d8d4cc', '#8a8478'] : ['#f4f0e0', '#e8e0c8'];
+  for (let i = 0; i < (k === 'forest' ? 14 : 9); i++) {
+    const p = (T * (0.05 + (i % 4) * 0.012) + i * 0.173 + seed * 0.01) % 1, x = ((i * 97 + seed * 3 + T * 6 * gust) % 460) - 16 + Math.sin(T * 1.3 + i) * 5;
+    const y = k === 'camp' ? 96 - p * 80 : 20 + p * 210;
+    ctx.globalAlpha = Math.min(1, Math.sin(p * Math.PI) * 1.6) * 0.8;
+    R(x, y, k === 'forest' ? 2 : 1, 1, col[i % col.length]); if (k === 'forest' && Math.sin(T * 6 + i) > 0) R(x + 1, y + 1, 1, 1, col[i % col.length]);
+  }
+  ctx.globalAlpha = 1;
+  if (k === 'camp') {
+    const fl = Math.sin(T * 13) > 0 ? 1 : 0, k2 = 0.8 + Math.sin(T * 9) * 0.2;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 6; i++) { const r = 34 - i * 5; ctx.fillStyle = `rgba(255,150,60,${(0.04 * k2).toFixed(3)})`; ctx.fillRect(214 - r, 94 - Math.round(r * 0.5), r * 2, r); }
+    ctx.globalCompositeOperation = 'source-over';
+    R(209, 85 - fl, 10, 9 + fl, '#e2702a'); R(211, 83 - fl * 2, 6, 9, '#f08a3a'); R(212, 86 - fl, 4, 6, '#f5c04a'); R(213, 88, 2, 4, '#fff0b0');
+    for (let i = 0; i < 4; i++) { const q = (T * 0.3 + i / 4) % 1; ctx.globalAlpha = 0.45 * (1 - q); R(212 + Math.sin(q * 5 + i) * 4 + q * 12 * gust, 80 - q * 46, 4 + Math.round(q * 5), 3 + Math.round(q * 3), '#cfcac0'); }
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < 12; i++) { const dy = Math.round(Math.sin(T * 6 - i * 0.8) * 1.4 * (i / 11) * gust * 0.6); R(152 + i, 31 + dy, 1, i > 8 ? 6 : 8, i % 5 < 3 ? '#8a2a20' : '#6a1f18'); }      // their banner
+  }
+}
+
 function showBack(ctx, B, T) {
   const S = B.show || showInit(B);
   showStep(B, T);
@@ -159,6 +193,7 @@ function showBack(ctx, B, T) {
     } else if (wave && !bored) drawSpectator(ctx, p, 2);
   }
   const gust = 1 + (0.5 + 0.5 * Math.sin(T * 0.45)) * 1.4;
+  if (B.wild) showWild(ctx, B, T, gust);
   if (!B.wild) {                      // the editor, the banners and the pennants belong to an arena
   showEditor(ctx, B, T);
   showBanner(ctx, 48, B.col[0], B.colD[0], T, gust); showBanner(ctx, 368, B.col[1], B.colD[1], T + 2, gust);

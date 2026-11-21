@@ -1128,32 +1128,98 @@ const ARENA_AISLES = [70, 142, 278, 350];       // x of each flight of stairs up
 // A fight outside the walls has no stands and no wall: trees, rock, a palisade or old stones, and open ground.
 function renderWild(B) {
   const cv = document.createElement('canvas'); cv.width = 428; cv.height = 240;
-  const ctx = cv.getContext('2d'), k = B.wild;
+  const ctx = cv.getContext('2d'), k = B.wild, seed = B.wseed || (B.wseed = 1 + Math.floor(Math.random() * 900));      // no two fights on quite the same ground
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
-  const h = i => Math.abs(Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1;
+  const h = i => Math.abs(Math.sin((i + seed) * 127.1 + 311.7) * 43758.5453) % 1;
+  const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
   const ground = { forest: '#6f8a45', rock: '#8f8a78', camp: '#8a7650', ruin: '#7f8a55' }[k] || '#6f8a45';
-  for (let y = 0; y < 44; y += 4) R(0, y, 428, 4, shade('#a9c8dc', 0.86 + y / 300));                     // sky
-  for (let x = 0; x < 428; x += 2) { const t = 34 + Math.round(Math.sin(x * 0.021) * 7 + Math.sin(x * 0.05 + 2) * 4); R(x, t, 2, 60 - t, '#7f9a8a'); }   // far hills
-  for (let x = 0; x < 428; x += 2) { const t = 50 + Math.round(Math.sin(x * 0.034 + 1) * 6 + Math.sin(x * 0.09) * 3); R(x, t, 2, 40, '#5f7f5a'); }
+  const gD = shade(ground, 0.84), gL = shade(ground, 1.14);
+
+  // ---- sky: paler toward the horizon, a low sun, a few clouds ----
+  for (let y = 0; y < 60; y += 3) R(0, y, 428, 3, shade('#9cc0d8', 0.9 + y / 190));
+  blob(330 - (seed % 200), 18, 9, 9, '#fdf4d0'); blob(330 - (seed % 200), 18, 14, 14, 'rgba(253,244,208,.25)');
+  for (let c = 0; c < 4; c++) { const cx = 40 + h(c + 40) * 350, cy = 8 + h(c + 50) * 22; blob(cx, cy, 20 + h(c) * 14, 3, '#eef5f8'); blob(cx + 8, cy - 3, 11, 3, '#f8fbfc'); blob(cx - 6, cy + 2, 14, 2, '#dfeaf0'); }
+  // ---- two ranges of far hills, bluer and fainter the further off ----
+  for (let x = 0; x < 428; x += 2) { const t = 36 + Math.round(Math.sin(x * 0.019 + seed) * 8 + Math.sin(x * 0.047 + 2) * 4); R(x, t, 2, 46, '#8fa9a6'); if (h(x) > 0.82) R(x, t, 2, 1, '#a3bab6'); }
+  for (let x = 0; x < 428; x += 2) { const t = 52 + Math.round(Math.sin(x * 0.031 + 1 + seed) * 6 + Math.sin(x * 0.085) * 3); R(x, t, 2, 30, '#6c8b68'); if (h(x + 300) > 0.7) R(x, t - 2, 2, 2, '#5c7a58'); }
+  // ---- the ground: broad lights and darks, then grain, then a place worn smooth in the middle ----
   R(0, 78, 428, 162, ground);
-  for (let i = 0; i < 520; i++) R(h(i) * 426, 84 + h(i + 900) * 154, 1 + Math.round(h(i + 5) * 2), 1, shade(ground, i % 2 ? 0.88 : 1.12));
-  const tree = (x, y, s) => { R(x - 2 * s, y - 16 * s, 4 * s, 16 * s, '#4a3320'); R(x - 2 * s, y - 16 * s, s, 16 * s, '#33230f'); for (const [ox, oy, r, c] of [[0, -30, 15, '#2f5226'], [-9, -22, 11, '#35602b'], [9, -24, 12, '#2a4a22'], [-2, -34, 9, '#4a7a36']]) for (let yy = -r; yy <= r; yy++) { const hw = Math.round(r * Math.sqrt(1 - yy * yy / (r * r))) * s; R(x + ox * s - hw, y + (oy + yy) * s, hw * 2, s, c); } };
-  if (k === 'forest') { for (let i = 0; i < 16; i++) tree(10 + i * 28 + h(i) * 10, 80 + h(i + 3) * 8, 1); for (let i = 0; i < 22; i++) { const x = h(i + 60) * 420; R(x, 80 + h(i + 70) * 6, 9, 5, '#3f6a30'); R(x + 1, 79 + h(i + 70) * 6, 6, 2, '#57863a'); } }
-  else if (k === 'rock') {
-    for (let x = 0; x < 428; x += 3) { const t = 22 + Math.round(Math.sin(x * 0.03) * 9 + h(x) * 6); R(x, t, 3, 64 - t + 20, '#77705f'); R(x, t, 3, 2, '#a39c88'); if (h(x + 7) > 0.7) R(x, t + 6 + h(x) * 30, 1, 10, '#5d5749'); }
-    R(176, 46, 76, 40, '#1a1410'); R(182, 40, 64, 8, '#1a1410'); R(190, 36, 48, 5, '#1a1410'); R(172, 84, 84, 3, '#5d5749');
-    for (let i = 0; i < 9; i++) { const x = 20 + h(i + 20) * 390; R(x, 82 + h(i) * 10, 12, 6, '#77705f'); R(x, 82 + h(i) * 10, 12, 1, '#a39c88'); }
+  for (let n = 0; n < 16; n++) blob(h(n + 10) * 428, 96 + h(n + 20) * 136, 26 + h(n + 30) * 34, 4 + h(n + 31) * 7, n % 2 ? 'rgba(255,250,210,.06)' : 'rgba(30,40,10,.07)');
+  blob(214, 164, 150, 46, 'rgba(240,225,180,.07)'); blob(214, 164, 96, 28, 'rgba(240,225,180,.06)');
+  for (let n = 0; n < 620; n++) R(h(n) * 426, 84 + h(n + 900) * 154, 1 + Math.round(h(n + 5) * 2), 1, n % 2 ? gD : gL);
+  const tuft = (x, y, c) => { R(x, y - 3, 1, 3, c); R(x + 1, y - 2, 1, 2, shade(c, 1.2)); R(x + 2, y - 4, 1, 4, c); R(x - 1, y - 1, 1, 1, c); };
+  const stone = (x, y, w, c) => { R(x, y - 3, w, 3, c); R(x + 1, y - 4, w - 2, 1, c); R(x + 1, y - 4, w - 3, 1, shade(c, 1.25)); R(x, y - 1, w, 1, shade(c, 0.7)); R(x - 1, y, w + 3, 1, 'rgba(0,0,0,.2)'); };
+  const tree = (x, y, sc, dark) => {
+    const tk = dark ? '#3a2a1c' : '#4a3320', pal = dark ? ['#27432a', '#2c4c2f', '#223b26', '#33562f'] : ['#2f5226', '#35602b', '#2a4a22', '#4a7a36'];
+    R(x - 2 * sc, y - 16 * sc, 4 * sc, 16 * sc, tk); R(x - 2 * sc, y - 16 * sc, sc, 16 * sc, shade(tk, 0.7)); R(x + sc, y - 12 * sc, sc, 3 * sc, shade(tk, 1.3));
+    for (const [ox, oy, r, ci] of [[0, -30, 15, 0], [-9, -22, 11, 1], [9, -24, 12, 2], [-2, -34, 9, 3]]) blob(x + ox * sc, y + oy * sc, r * sc, r * sc, pal[ci]);
+    if (!dark) { blob(x - 5 * sc, y - 37 * sc, 5 * sc, 3 * sc, '#5a8c40'); blob(x + 6 * sc, y - 31 * sc, 4 * sc, 2 * sc, '#56883e'); }
+  };
+  const bush = (x, y, c) => { blob(x, y - 3, 7, 4, c); blob(x - 4, y - 1, 5, 3, shade(c, 0.86)); blob(x + 2, y - 5, 4, 2, shade(c, 1.2)); };
+
+  if (k === 'forest') {
+    for (let n = 0; n < 22; n++) tree(n * 20 + h(n + 200) * 12, 76 + h(n + 210) * 4, 0.7, true);                      // the wood behind, dark and close
+    for (let n = 0; n < 15; n++) tree(8 + n * 30 + h(n) * 12, 82 + h(n + 3) * 8, 1, false);
+    for (let n = 0; n < 5; n++) { const x = 30 + n * 90 + h(n + 77) * 40; ctx.fillStyle = 'rgba(255,248,200,.07)'; for (let q = 0; q < 70; q++) ctx.fillRect(Math.round(x + q * 0.5), 14 + q, 12, 1); }      // light coming down through the leaves
+    for (let n = 0; n < 24; n++) bush(h(n + 60) * 428, 86 + h(n + 70) * 7, n % 3 ? '#3f6a30' : '#4a7a36');
+    const lx = 60 + h(1) * 260; R(lx, 100, 44, 6, '#5a4026'); R(lx, 100, 44, 2, '#74552f'); R(lx - 2, 100, 3, 6, '#8a6a3a'); R(lx - 1, 102, 1, 2, '#5a4026'); R(lx + 12, 97, 2, 4, '#5a4026'); for (let q = 0; q < 4; q++) R(lx + 6 + q * 9, 104, 4, 2, '#4f7a3a');      // a fallen trunk, mossed over
+    for (let n = 0; n < 160; n++) R(h(n + 400) * 426, 92 + h(n + 410) * 146, 2, 1, ['#8a6a3a', '#a8762e', '#6a5a2a'][n % 3]);          // last year's leaves
+    for (let n = 0; n < 9; n++) { const x = h(n + 500) * 420, y = 100 + h(n + 510) * 120; R(x, y - 2, 1, 2, '#e8dcc0'); R(x - 1, y - 3, 3, 1, n % 2 ? '#b8452e' : '#c9a763'); }      // mushrooms
+  } else if (k === 'rock') {
+    for (let x = 0; x < 428; x += 3) {           // the cliff: banded, ledged, cracked
+      const t = 20 + Math.round(Math.sin(x * 0.03 + seed) * 9 + h(x) * 6);
+      R(x, t, 3, 82 - t, '#77705f'); R(x, t, 3, 2, '#a39c88'); R(x, t + 2, 3, 1, '#8a8371');
+      for (let b = t + 9; b < 82; b += 9 + Math.round(h(x + b) * 2)) R(x, b + Math.round(Math.sin(x * 0.05) * 2), 3, 1, '#655f50');
+      if (h(x + 7) > 0.72) R(x, t + 6 + h(x) * 30, 1, 12, '#55503f');
+    }
+    for (let n = 0; n < 6; n++) { const x = h(n + 80) * 400, y = 40 + h(n + 81) * 30; R(x, y, 22 + h(n) * 16, 2, '#8f8875'); R(x, y + 2, 22 + h(n) * 16, 2, '#5d5749'); }      // ledges
+    R(172, 48, 84, 38, '#16110d'); R(178, 42, 72, 8, '#16110d'); R(188, 38, 52, 5, '#16110d'); R(200, 35, 28, 4, '#16110d'); R(196, 60, 36, 26, '#0c0907');      // the mouth of the lair
+    R(168, 84, 92, 3, '#5d5749'); for (let n = 0; n < 7; n++) { const x = 178 + n * 11; R(x, 87 + (n % 2), 5, 1, '#efe8d8'); R(x + 1, 86 + (n % 2), 1, 3, '#d8d0bc'); }      // what it has left at its door
+    R(206, 90, 6, 4, '#efe8d8'); R(207, 91, 1, 1, '#1c1310'); R(210, 91, 1, 1, '#1c1310');
+    const dx = 40 + h(2) * 60; R(dx, 40, 3, 46, '#4a3a2a'); R(dx - 9, 48, 10, 2, '#4a3a2a'); R(dx + 2, 44, 12, 2, '#4a3a2a'); R(dx - 12, 44, 2, 5, '#4a3a2a'); R(dx + 13, 38, 2, 7, '#4a3a2a');      // a dead tree
+    for (let n = 0; n < 16; n++) stone(10 + h(n + 20) * 400, 86 + h(n) * 16, 8 + Math.round(h(n + 9) * 10), n % 2 ? '#77705f' : '#8a8371');
+    for (let n = 0; n < 260; n++) R(h(n + 600) * 426, 90 + h(n + 610) * 148, 2, 1, n % 3 ? '#77705f' : '#a39c88');      // scree
+    for (let n = 0; n < 10; n++) bush(h(n + 700) * 428, 96 + h(n + 710) * 12, '#6a7a4a');
   } else if (k === 'camp') {
-    for (let x = 0; x < 428; x += 6) { const t = 52 + Math.round(h(x) * 6); R(x, t, 5, 86 - t, '#6b4f2c'); R(x, t, 1, 86 - t, '#4a3620'); R(x + 1, t - 3, 3, 3, '#6b4f2c'); }
-    R(190, 58, 48, 28, '#2a1d12');
-    for (const tx of [70, 330]) { for (let i = 0; i < 26; i++) R(tx - i, 60 + i, i * 2, 1, i % 6 < 3 ? '#b8a880' : '#a09068'); R(tx - 4, 72, 8, 14, '#2a1d12'); }
-    R(206, 92, 16, 3, '#3a2a1c'); R(210, 86, 8, 6, '#e2702a'); R(212, 84, 4, 4, '#f5c04a');
+    for (let n = 0; n < 6; n++) tree(20 + n * 80 + h(n) * 20, 70, 0.8, true);
+    for (let x = 0; x < 428; x += 6) {           // the palisade: sharpened stakes, lashed with rope
+      const t = 50 + Math.round(h(x) * 6);
+      R(x, t, 5, 86 - t, '#6b4f2c'); R(x, t, 1, 86 - t, '#4a3620'); R(x + 3, t, 1, 86 - t, '#7d5e36'); R(x + 1, t - 3, 3, 3, '#6b4f2c'); R(x + 2, t - 5, 1, 2, '#7d5e36');
+    }
+    R(0, 62, 428, 2, '#a8905c'); R(0, 74, 428, 2, '#8f7a4c');
+    R(186, 54, 56, 32, '#231811'); R(184, 52, 3, 34, '#5a4026'); R(241, 52, 3, 34, '#5a4026'); R(182, 50, 64, 3, '#7d5e36');      // the gate, standing open
+    R(30, 22, 4, 64, '#5a4026'); R(62, 22, 4, 64, '#5a4026'); R(26, 40, 44, 3, '#7d5e36'); R(28, 24, 40, 16, '#4a3620'); R(26, 18, 44, 5, '#8a6a3a'); R(30, 12, 36, 6, '#a8452e'); R(34, 8, 28, 4, '#b8553a');      // a watch tower
+    const tent = (tx, c1, c2) => { for (let q = 0; q < 28; q++) R(tx - q, 58 + q, q * 2, 1, Math.floor(q / 3) % 2 ? c1 : c2); R(tx - 5, 72, 10, 14, '#231811'); R(tx - 1, 54, 2, 5, '#5a4026'); };
+    tent(110, '#b8a880', '#a09068'); tent(330, '#a8785a', '#8f6248');
+    R(268, 76, 12, 10, '#7a5a34'); R(268, 76, 12, 2, '#94703f'); R(282, 80, 9, 6, '#6b4f2c'); R(282, 80, 9, 1, '#8a6a3a');        // crates
+    for (let q = 0; q < 3; q++) { R(376 + q * 5, 62, 1, 24, '#5a4026'); R(375 + q * 5, 60, 3, 3, '#c1c7cc'); } R(372, 74, 20, 2, '#5a4026');      // spears racked
+    R(150, 30, 2, 56, '#3a2a1c');                // the pole their banner flies from (the cloth is drawn live)
+    R(204, 94, 20, 3, '#3a2a1c'); R(208, 92, 12, 2, '#2a1d12'); for (let q = 0; q < 6; q++) R(202 + q * 4, 96, 3, 2, '#77705f');      // the fire's ring of stones
+    for (let n = 0; n < 240; n++) R(h(n + 800) * 426, 90 + h(n + 810) * 148, 3, 1, n % 2 ? '#7a6644' : '#9a865e');
+    for (let q = 0; q < 2; q++) { ctx.fillStyle = 'rgba(60,40,20,.12)'; for (let x = 0; x < 428; x += 2) ctx.fillRect(x, 150 + q * 12 + Math.round(Math.sin(x * 0.02) * 5), 2, 2); }      // cart ruts
   } else {
-    for (let i = 0; i < 9; i++) tree(24 + i * 50, 76 + h(i) * 6, 1);
-    for (const [x, hh] of [[60, 44], [120, 30], [178, 52], [250, 52], [310, 24], [368, 40]]) { R(x, 86 - hh, 12, hh, '#c9c3ae'); R(x, 86 - hh, 3, hh, '#a8a290'); R(x - 2, 86 - hh, 16, 3, '#dcd6c2'); R(x - 2, 83, 16, 3, '#b5af9b'); }
-    R(176, 30, 88, 6, '#c9c3ae'); R(176, 30, 88, 1, '#e4dfcd'); R(280, 88, 46, 7, '#b5af9b'); R(284, 86, 30, 3, '#c9c3ae');
+    for (let n = 0; n < 9; n++) { const x = 16 + n * 50 + h(n) * 14; R(x - 1, 34, 3, 46, '#3a2a1c'); for (let q = 0; q < 44; q++) R(x - Math.round(5 * Math.sin(q / 44 * Math.PI) + 1), 34 + q - 12, Math.round(10 * Math.sin(q / 44 * Math.PI)) + 3, 1, q % 3 ? '#2f4a2e' : '#3a5a36'); }      // cypresses behind
+    const column = (x, hh, broken) => {
+      R(x, 86 - hh, 12, hh, '#c9c3ae'); R(x, 86 - hh, 3, hh, '#a8a290'); R(x + 9, 86 - hh, 2, hh, '#e4dfcd'); for (let q = 2; q < 10; q += 2) R(x + q, 86 - hh + 3, 1, hh - 6, '#b5af9b');
+      R(x - 2, 83, 16, 3, '#b5af9b'); R(x - 3, 85, 18, 2, '#a8a290');
+      if (!broken) { R(x - 2, 86 - hh, 16, 3, '#dcd6c2'); R(x - 3, 86 - hh - 2, 18, 2, '#e4dfcd'); } else { R(x, 86 - hh, 4, 2, '#7f8a55'); R(x + 5, 86 - hh - 2, 4, 3, '#c9c3ae'); }
+      for (let q = 0; q < hh; q += 3) if (h(x + q) > 0.6) R(x + (q % 2 ? 0 : 9), 86 - q, 3, 2, '#4f7a3a');          // ivy has found it
+    };
+    [[52, 44, true], [112, 30, true], [176, 54, false], [252, 54, false], [314, 24, true], [370, 40, true]].forEach(([x, hh, br]) => column(x, hh, br));
+    R(170, 22, 100, 8, '#c9c3ae'); R(170, 22, 100, 2, '#e4dfcd'); R(170, 28, 100, 2, '#a8a290'); for (let q = 0; q < 9; q++) R(176 + q * 11, 24, 6, 3, '#b5af9b');      // what is left of the lintel
+    for (const [x, y, w] of [[286, 92, 40], [70, 100, 26], [334, 108, 22]]) { R(x, y - 8, w, 8, '#c9c3ae'); R(x, y - 8, w, 2, '#e4dfcd'); R(x, y - 1, w, 1, '#a8a290'); for (let q = 4; q < w; q += 8) R(x + q, y - 7, 1, 6, '#b5af9b'); R(x - 1, y, w + 3, 1, 'rgba(0,0,0,.2)'); }      // drums of fallen columns
+    for (let gy = 96; gy < 236; gy += 20) for (let gx = (gy / 20 % 2) * 22 - 10; gx < 428; gx += 44) {           // the old paving, with grass coming through
+      if (h(gx * 7 + gy) > 0.42) { R(gx + 2, gy + 2, 40, 16, 'rgba(210,204,186,.20)'); R(gx + 2, gy + 2, 40, 1, 'rgba(240,236,220,.25)'); R(gx + 2, gy + 17, 40, 1, 'rgba(60,60,40,.2)'); }
+    }
+    for (let n = 0; n < 10; n++) bush(h(n + 60) * 428, 88 + h(n + 70) * 6, '#57863a');
   }
-  for (let i = 0; i < 5; i++) R(0, 78 + i * 4, 428, 4, `rgba(20,30,10,${(0.3 * (1 - i / 5)).toFixed(3)})`);
+  // ---- grass and stones about the place, and darker growth along the near edge to frame the fight ----
+  const tc = k === 'rock' ? '#7a8456' : k === 'camp' ? '#7f8a4a' : '#4f7a34';
+  for (let n = 0; n < (k === 'camp' ? 40 : 90); n++) tuft(h(n + 1000) * 424, 94 + h(n + 1010) * 142, n % 4 ? tc : shade(tc, 1.2));
+  for (let n = 0; n < (k === 'rock' ? 0 : 9); n++) stone(h(n + 1100) * 410, 104 + h(n + 1110) * 126, 5 + Math.round(h(n + 1120) * 5), '#8a8371');
+  for (let n = 0; n < 26; n++) { const x = n * 17 + h(n + 1200) * 10; bush(x, 240 + h(n + 1210) * 3, shade(tc, 0.6)); }
+  for (let n = 0; n < 5; n++) R(0, 78 + n * 4, 428, 4, `rgba(20,30,10,${(0.3 * (1 - n / 5)).toFixed(3)})`);
+  for (let n = 0; n < 4; n++) R(0, 224 + n * 4, 428, 4, `rgba(15,20,8,${(0.06 + n * 0.05).toFixed(3)})`);
   return cv;
 }
 
