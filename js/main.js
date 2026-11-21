@@ -2,7 +2,7 @@
 // Interface: screens, modals, and the arena overlay.
 
 const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {}, dtab: 'stats', noyard: false };
-try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.fspeed = +localStorage.getItem('ludus-magnus-fspeed') || 1; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
+try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.fspeed = +localStorage.getItem('ludus-magnus-fspeed') || 1; ui.fixedCam = localStorage.getItem('ludus-magnus-fixedcam') === '1'; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
 const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
@@ -1554,6 +1554,7 @@ function startFight(boutId, tourneyBout) {
   const B = createBattle(picks, boutEnemies(b), { ask: !ui.autoCast, death: b.death, mercy: [mercyBonus(), 0], tier: b.final ? 4 : tier(), names: ['Your ludus', b.hunt ? 'The beasts' : b.house], hunt: !!b.hunt,
     foeCol: b.houseId && houseDef(b.houseId).col, foeColD: b.houseId && houseDef(b.houseId).colD });
   B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
+  B.fixedCam = !!ui.fixedCam;
   SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { bout: b, B, speed: ui.fspeed || 1, wager, pay: odds.pay, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your ludus</span> <span class="dim">vs</span> <span style="color:${b.houseId ? houseDef(b.houseId).col : '#6fa4e6'}">${b.house}</span>${b.death ? ' &middot; <span class="death">to the death</span>' : ''}`;
@@ -1570,6 +1571,7 @@ function startWildFight() {
   if (!picks.length) { G.field.fight = null; return; }
   const B = createBattle(picks, F.foes, { ask: !ui.autoCast, wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
   B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
+  B.fixedCam = !!ui.fixedCam;
   SFX.init(); SFX.play('horn'); SFX.music('arena');
   fight = { wild: true, bout: null, B, speed: ui.fspeed || 1, wager: 0, pay: 0, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your school</span> <span class="dim">against</span> <span style="color:#6fa4e6">${F.title}</span>`;
@@ -1678,6 +1680,7 @@ function paintSpeed() {
   $('#muteBtn').classList.toggle('off', !!SFX.muted);
   $('#pauseBtn').classList.toggle('on', !!(fight && fight.paused));
   $('#logBtn').classList.toggle('on', !!ui.flog);
+  $('#camBtn').textContent = ui.fixedCam ? 'Camera: fixed' : 'Camera: follows';
   document.querySelectorAll('#arenaCtl [data-act="speed"]').forEach(b => b.classList.toggle('on', fight && +b.dataset.v === fight.speed));
 }
 function fightLoop(ts) {
@@ -1688,6 +1691,7 @@ function fightLoop(ts) {
   f.B.paused = !!f.paused;
   if (!f.paused) for (let i = 0; i < Math.max(1, f.speed); i++) stepBattle(f.B, f.speed < 1 ? dt * f.speed : dt);
   // whoever the mouse is resting on gets a card saying what he is
+  { const V = f.B.view || { z: 1, ox: 0, oy: 0 }; f.hover = f.mouse ? { x: (f.mouse.u * 1280 - V.ox) / (WORLD * V.z), y: (f.mouse.v * 720 - V.oy) / (WORLD * V.z) } : null; }
   f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - (out(q) ? 8 : 24) && f.hover.y < q.y + 4).sort((a, b) => (out(a) - out(b)) || Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
   SFX.hold(!!(f.B.pick || f.paused) && !f.B.over);
@@ -2064,6 +2068,7 @@ const ACTIONS = {
     fight.armed = null; if (giveOrder(fight.B, v)) paintOrders();
   },
   abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
+  fcam() { ui.fixedCam = !ui.fixedCam; try { localStorage.setItem('ludus-magnus-fixedcam', ui.fixedCam ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) fight.B.fixedCam = ui.fixedCam; paintSpeed(); },
   flog() { ui.flog = !ui.flog; if (fight) fight.logSig = ''; paintFightLog(); paintSpeed(); },
   abpickai() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && !out(B.pick) && pickAbility(B, aiPickAbility(B, B.pick).id)) paintOrders(); },
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
@@ -2142,7 +2147,7 @@ document.addEventListener('click', e => {
 document.addEventListener('mousemove', e => {
   if (!fight) return;
   const cv = $('#arenaCanvas'), r = cv.getBoundingClientRect();
-  fight.hover = e.target === cv ? { x: (e.clientX - r.left) / r.width * 1280 / WORLD, y: (e.clientY - r.top) / r.height * 720 / WORLD } : null;
+  fight.mouse = e.target === cv ? { u: (e.clientX - r.left) / r.width, v: (e.clientY - r.top) / r.height } : null;
 });
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-chg]');

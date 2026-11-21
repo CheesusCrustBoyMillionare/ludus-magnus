@@ -1352,15 +1352,16 @@ function drawFatal(ctx, B, T) {
 // for how long, what he has done in this fight, and the abilities he carries.
 function drawInspect(ctx, B, who, T) {
   const g = who.g, w = 122, col = B.col[who.team], colD = B.colD[who.team], gone = out(who);
-  const fx = who.x * Z, fy = who.y * Z, tg = !gone && who.target && !out(who.target) ? who.target : null;
+  const V = B.view || { z: 1, ox: 0, oy: 0 }, sx = f => f.x * Z * V.z + V.ox / SCALE, sy = f => f.y * Z * V.z + V.oy / SCALE;
+  const fx = sx(who), fy = sy(who), tg = !gone && who.target && !out(who.target) ? who.target : null;
   ctx.save(); ctx.textBaseline = 'alphabetic';
   // on the sand: a ring under him, and a line to his man
   ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.6 + 0.3 * Math.sin(T * 6);
-  ctx.beginPath(); ctx.ellipse(fx, fy, 9, 3, 0, 0, 6.283); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(fx, fy, 9 * V.z, 3 * V.z, 0, 0, 6.283); ctx.stroke();
   if (tg) {
     ctx.globalAlpha = 0.55; ctx.setLineDash([2, 1.5]); ctx.lineDashOffset = -T * 8; ctx.strokeStyle = col;
-    ctx.beginPath(); ctx.moveTo(fx, fy - 1); ctx.lineTo(tg.x * Z, tg.y * Z - 1); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = B.col[tg.team]; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.ellipse(tg.x * Z, tg.y * Z, 7, 2.4, 0, 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(fx, fy - 1); ctx.lineTo(sx(tg), sy(tg) - 1); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = B.col[tg.team]; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.ellipse(sx(tg), sy(tg), 7 * V.z, 2.4 * V.z, 0, 0, 6.283); ctx.stroke();
   }
   ctx.globalAlpha = 1;
   // what goes on it
@@ -1997,18 +1998,35 @@ function drawBattle(ctx, B) {
   const shx = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake) * SCALE : 0;
   const shy = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake * 0.6) * SCALE : 0;
 
-  // the camera closes in on the blow that ends it, then draws back for the verdict
-  const cam = B.cam || (B.cam = { z: 1, x: 214, y: 120, t: performance.now() });
-  const now = performance.now(), cdt = Math.min(0.1, (now - cam.t) / 1000), ck = 1 - Math.pow(0.004, cdt);
+  // The camera. While they fight it follows them: it frames the men still standing, coming closer when they are
+  // bunched and drawing back when they spread, in a few fixed steps so that the picture is not forever creeping. It
+  // closes on the man the fight has stopped for, hard on the blow that ends it, gives a little at a heavy blow, and
+  // stands back for the verdict and the reckoning. B.fixedCam holds it still except for those last two.
+  const cam = B.cam || (B.cam = { z: 1, x: 214, y: 120, lv: 1, t: performance.now() });
+  const now = performance.now(), cdt = Math.min(0.1, (now - cam.t) / 1000);
   cam.t = now;
-  const picking = B.pick && !out(B.pick) ? B.pick : null;
-  const want = B.over && B.finish && B.outro < 0.55 ? 1.5 : picking ? 1.18 : 1;
-  const focus = want >= 1.5 ? B.finish : picking;
-  if (focus) { cam.tx = focus.x * 2; cam.ty = focus.y * 2 - 16; if (cam.z === 1) { cam.x = cam.tx; cam.y = cam.ty; } }
+  const picking = B.pick && !out(B.pick) ? B.pick : null, finish = B.over && B.finish && B.outro < 0.55;
+  let want = finish ? 1.5 : picking ? 1.18 : 1, slow = false;
+  const focus = finish ? B.finish : picking;
+  if (focus) { cam.tx = focus.x * 2; cam.ty = focus.y * 2 - 16; cam.lv = 1; }
+  else if (!B.fixedCam && B.intro <= 0 && !B.over) {
+    const live = B.fighters.filter(f => !out(f));
+    if (live.length) {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (const f of live) { x0 = Math.min(x0, f.x * 2); x1 = Math.max(x1, f.x * 2); y0 = Math.min(y0, f.y * 2); y1 = Math.max(y1, f.y * 2); }
+      const fit = Math.min(428 / (x1 - x0 + 170), 240 / (y1 - y0 + 124));
+      let best = 1; for (const l of [1, 1.12, 1.25]) if (fit >= l * (l > cam.lv ? 1.08 : 1)) best = l;      // it takes a little more room to go closer than to stay close
+      cam.lv = best; want = best; slow = true;
+      cam.tx = (x0 + x1) / 2; cam.ty = (y0 + y1) / 2 - 24;
+    }
+  } else cam.lv = 1;
+  if (cam.z === 1 && cam.tx != null) { cam.x = cam.tx; cam.y = cam.ty; }
+  const ck = 1 - Math.pow(slow ? 0.1 : 0.004, cdt);
   cam.z += (want - cam.z) * ck; if (Math.abs(cam.z - want) < 0.004) cam.z = want;
   if (cam.tx != null) { cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; }
-  const cz = cam.z, CW = 1280, CH = 720;
+  const cz = cam.z + (B.fixedCam || finish ? 0 : Math.min(0.05, B.flashT * 0.45)), CW = 1280, CH = 720;      // and it starts forward at a heavy blow
   const cox = cz === 1 ? 0 : clamp(CW / 2 - cam.x * FINE * cz, CW - 428 * FINE * cz, 0), coy = cz === 1 ? 0 : clamp(CH / 2 - cam.y * FINE * cz, CH - 240 * FINE * cz, 0);
+  B.view = { z: cz, ox: cox, oy: coy };       // for whatever needs to find a man on the screen, or the mouse on the sand
   const view = unit => ctx.setTransform(unit * cz * K, 0, 0, unit * cz * K, (cox + shx) * K, (coy + shy) * K);
 
   // ---- sprite-pixel layer: backdrop, crowd, blood, fighters ----
