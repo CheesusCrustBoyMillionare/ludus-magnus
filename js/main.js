@@ -343,6 +343,8 @@ function paintModal() {
   if (!modalQueue.length) { m.hidden = true; return; }
   $('#modalBox').innerHTML = modalQueue[0];
   $('#modalBox').classList.toggle('wide', modalQueue[0].startsWith('<div class="res">'));
+  $('#modalBox').classList.toggle('evbox', modalQueue[0].startsWith('<div class="ev">'));
+  if (typeof paintEventArt === 'function') paintEventArt();
   if (typeof paintResultFaces === 'function') paintResultFaces();
   m.hidden = false;
 }
@@ -1507,12 +1509,80 @@ function paintPortraits() {
 
 // ---------- events and end states ----------
 
+// ---- a matter that wants an answer ----
+// Where each kind of thing happens, for the picture over it: the yard unless it is somewhere else.
+const EVENT_SCENE = {
+  market: ['volunteer', 'merchant', 'fugitive', 'cargo', 'coins', 'hound', 'thief'],
+  smith: ['smithCart', 'dig'],
+  facilities: ['healer', 'masseur', 'fever', 'meat', 'rats', 'tax'],
+  patrons: ['feast', 'dinner', 'vigil', 'omen', 'rites', 'sponsor', 'fix', 'procession', 'noble', 'widow'],
+  arena: ['gift', 'graffiti', 'poet', 'sculptor', 'admirers', 'tout'],
+  rivals: ['poach', 'poison', 'truce', 'sparring', 'boast', 'spy'],
+};
+function eventScene(id) {
+  const E = EVENTS[id];
+  if (E.wild) return '';
+  if (E.field) return 'contracts';
+  for (const k in EVENT_SCENE) if (EVENT_SCENE[k].includes(id)) return k;
+  return 'ludus';
+}
+let evFaces = [];
+// Whoever it concerns, with his face: the men named in it, or the stranger at the gate.
+function eventPeople(c) {
+  evFaces = [];
+  for (const k of ['g', 'a', 'b']) { const v = c && c[k], g = typeof v === 'number' ? byId(v) : v && v.stats && v.name ? v : null; if (g && !evFaces.includes(g)) evFaces.push(g); }
+  if (!evFaces.length) return '';
+  return `<div class="evwho">${evFaces.map((g, i) => `<div><canvas width="96" height="112" data-evface="${i}"></canvas><div><b>${g.name}</b><small>${CLASSES[g.cls] ? CLASSES[g.cls].name : ''} &middot; power ${rating(g)}${G.roster.includes(g) ? ` &middot; ${g.wins}W ${g.losses}L` : ' &middot; a stranger'}</small>
+      ${G.roster.includes(g) ? `<div class="evbars"><span${tip('health')}>${bar('hp', g.hp, maxHp(g))}</span><span${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</span><span${tip('morale')}>${bar('mor', g.morale, 100)}</span></div>` : ''}</div></div>`).join('')}</div>`;
+}
+const eventArt = id => { const sc = eventScene(id), y = $('#yard'); return sc ? `<canvas class="evart" data-evart="${sc}" width="${y && y.width > 100 ? y.width : 1180}" height="${y && y.width > 100 ? y.height : 380}"></canvas>` : ''; };
+function paintEventArt() {
+  document.querySelectorAll('[data-evface]').forEach(cv => { const g = evFaces[+cv.dataset.evface]; if (g) try { drawPortrait(cv, g, 0); } catch (e) { cv.style.display = 'none'; } });
+  document.querySelectorAll('[data-evart]').forEach(cv => {
+    try { const T = performance.now() / 1000; if (cv.dataset.evart === 'ludus') drawYard(cv, T); else drawPlace(cv, T, cv.dataset.evart); } catch (e) { cv.style.display = 'none'; }
+  });
+}
+// How things stood before an answer was given, and what the answer changed: shown under the outcome so that nobody has
+// to take the telling's word for it.
+function eventSnap() {
+  const men = {}; for (const g of G.roster) men[g.id] = { name: g.name, morale: g.morale, fatigue: g.fatigue, injury: g.injury, hp: g.hp, str: g.stats.str, agi: g.stats.agi, skl: g.stats.skl, traits: g.traits.slice(), xp: g.xp || 0 };
+  const feud = {}; for (const H of G.houses) feud[H.id] = H.grudge;
+  return { den: G.denarii, fame: G.fame, pat: Object.assign({}, G.patrons), men, feud, arm: G.armoury.length };
+}
+function eventDiff(b) {
+  const out = [], add = (text, cls) => out.push(`<span class="chip ${cls || ''}">${text}</span>`), sg = n => (n > 0 ? '+' : '&minus;') + Math.abs(Math.round(n));
+  if (G.denarii !== b.den) add(`${sg(G.denarii - b.den)} denarii`, G.denarii > b.den ? 'gold' : 'red');
+  if (G.fame !== b.fame) add(`Fame ${sg(G.fame - b.fame)}`, G.fame > b.fame ? 'gold' : 'red');
+  for (const k in b.pat) if (Math.round(G.patrons[k] - b.pat[k])) add(`${PATRONS[k].name.replace(/^The /, '')} ${sg(G.patrons[k] - b.pat[k])}`, G.patrons[k] > b.pat[k] ? 'good' : 'red');
+  for (const H of G.houses) { const d = Math.round(H.grudge - (b.feud[H.id] || 0)); if (d) add(`Feud with ${houseDef(H.id).name} ${sg(d)}`, d > 0 ? 'red' : 'good'); }
+  if (G.armoury.length > b.arm) add(`${G.armoury.length - b.arm} piece${G.armoury.length - b.arm === 1 ? '' : 's'} for the racks`, 'gold');
+  for (const g of G.roster) if (!b.men[g.id]) add(`${g.name} joins the ludus`, 'gold');
+  for (const id in b.men) if (!G.roster.some(g => g.id === +id)) add(`${b.men[id].name} is gone`, 'red');
+  // what it did to each man; the same thing done to several is said once
+  const per = [];
+  for (const g of G.roster) {
+    const o = b.men[g.id]; if (!o) continue;
+    const bits = [];
+    for (const k of STATS) if (g.stats[k] > o[k]) bits.push([`${STAT_NAMES[k]} +${g.stats[k] - o[k]}`, 1]);
+    for (const t of g.traits) if (!o.traits.includes(t) && TRAITS[t]) bits.push([`now ${TRAITS[t].name}`, TRAITS[t].good ? 1 : -1]);
+    if (g.injury > o.injury) bits.push([`laid up ${g.injury} day${g.injury === 1 ? '' : 's'}`, -1]); else if (g.injury < o.injury) bits.push([g.injury ? `mends sooner (${g.injury}d)` : 'healed', 1]);
+    if (Math.round(g.hp - o.hp) > 0 && g.injury >= o.injury) bits.push([`health ${sg(g.hp - o.hp)}`, 1]);
+    if (Math.round(g.morale - o.morale)) bits.push([`morale ${sg(g.morale - o.morale)}`, g.morale > o.morale ? 1 : -1]);
+    if (Math.round(g.fatigue - o.fatigue)) bits.push([`fatigue ${sg(g.fatigue - o.fatigue)}`, g.fatigue < o.fatigue ? 1 : -1]);
+    if ((g.xp || 0) > o.xp) bits.push([`experience +${(g.xp || 0) - o.xp}`, 1]);
+    for (const [t, good] of bits) { let e = per.find(x => x.t === t); if (!e) per.push(e = { t, good, who: [] }); e.who.push(g.name); }
+  }
+  for (const e of per) add(`${e.who.length >= 3 && e.who.length === G.roster.length ? 'Every man' : e.who.length > 3 ? e.who.length + ' men' : e.who.join(', ')}: ${e.t}`, e.good > 0 ? 'good' : 'red');
+  return out.length ? `<div class="evfx"><span class="lbl">What changed</span>${out.join('')}</div>` : '';
+}
 function showEvent() {
   const pe = G.pendingEvent;
   if (!pe || !EVENTS[pe.id]) { G.pendingEvent = null; return; }
   const E = EVENTS[pe.id];
-  const btns = E.opts.map((o, i) => `<button data-act="evopt" data-v="${i}" ${o.ok && !o.ok(pe.c) ? 'disabled' : ''}>${o.label(pe.c)}</button>`).join('');
-  showModal(`<h2>${E.title}</h2><p>${E.text(pe.c)}</p><div class="row">${btns}</div>`);
+  const btns = E.opts.map((o, i) => { const ok = !o.ok || o.ok(pe.c); return `<button class="evopt" data-act="evopt" data-v="${i}" ${ok ? '' : 'disabled'}><span class="k">${i + 1}</span><span>${o.label(pe.c)}</span>${ok ? '' : '<small>not possible now</small>'}</button>`; }).join('');
+  showModal(`<div class="ev">${eventArt(pe.id)}<h2>${E.title}</h2>${eventPeople(pe.c)}<p class="evtext">${E.text(pe.c)}</p>
+    <div class="evopts">${btns}</div>
+    <div class="evfoot"><span>Your purse: <b class="num ${G.denarii < 0 ? 'bad' : ''}">${G.denarii}</b> denarii</span><span>Keys 1&ndash;${E.opts.length} answer</span></div></div>`);
   SFX.ui('scroll');
 }
 
@@ -1845,11 +1915,13 @@ const ACTIONS = {
   evopt(v) {
     const pe = G.pendingEvent; if (!pe) { closeModal(); return; }
     const E = EVENTS[pe.id];
+    if (E.opts[+v].ok && !E.opts[+v].ok(pe.c)) return;
+    const before = eventSnap(), art = eventArt(pe.id);
     const res = E.opts[+v].run(pe.c);
     if (G.field && G.field.fight) { G.pendingEvent = null; save(); closeModal(); startWildFight(); return; }       // it has come to blows
     log(`${E.title}: ${res}`);
     G.pendingEvent = null; nextEvent(); save();
-    modalQueue[0] = `<h2>${E.title}</h2><p>${res}</p>${okBtn()}`;
+    modalQueue[0] = `<div class="ev">${art}<h2>${E.title}</h2><p class="evtext">${res}</p>${eventDiff(before)}<div class="row"><button class="primary" data-act="close">Continue<span class="k">Enter</span></button></div></div>`;
     paintModal(); render();
     if (G.pendingEvent) showEvent();          // another matter is waiting behind this one
   },
@@ -2280,6 +2352,13 @@ function renderDev() {
   if (!ui.dev) { el.hidden = true; return; }
   el.innerHTML = devPanel(); el.hidden = false;
 }
+// A matter waiting for an answer takes the number keys, and Enter goes on from its outcome.
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.altKey || e.metaKey || $('#modal').hidden || !document.querySelector('#modalBox .ev')) return;
+  const opts = [...document.querySelectorAll('#modalBox .evopt')];
+  if (opts.length && /^[1-9]$/.test(e.key)) { const b = opts[+e.key - 1]; if (b && !b.disabled) { e.preventDefault(); b.click(); } }
+  else if (!opts.length && e.key === 'Enter') { const b = document.querySelector('#modalBox .ev [data-act="close"]'); if (b) { e.preventDefault(); b.click(); } }
+});
 // 1, 2 and 3 shout the orders while a fight is on
 document.addEventListener('keydown', e => {
   if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
