@@ -142,16 +142,67 @@ const SFX = (() => {
 
   // ---- the arena. Each takes (strength, left-to-right position, kind) ----
   const arena = {
+    // A blow landing. kind says what struck and what it struck: 'beast', or the striker's class (which tells the weapon),
+    // with ' armor' added when the man hit is well armoured. Strength above 1.2 is a telling blow.
     hit(v, pan, kind) {
-      const hard = v > 1.2, p = rnd(0.88, 1.14);
-      if (kind === 'beast') { tone({ type: 'sawtooth', f0: 120 * p, f1: 70, dur: 0.2, vol: 0.22, lp: 700, pan, wet: 0.3 }); noise({ dur: 0.1, f0: 1100, f1: 250, vol: 0.4, pan, wet: 0.3 }); }
-      else { noise({ dur: 0.035, type: 'highpass', f0: 4200 * p, vol: 0.2 * v, pan, wet: 0.2 }); noise({ dur: 0.1, f0: 1700 * p, f1: 260, vol: 0.42 * v, pan, wet: 0.3 }); }
+      const k = kind || '', hard = v > 1.2, p = rnd(0.88, 1.14);
+      if (k.includes('beast')) { tone({ type: 'sawtooth', f0: 120 * p, f1: 70, dur: 0.2, vol: 0.22, lp: 700, pan, wet: 0.3 }); noise({ dur: 0.1, f0: 1100, f1: 250, vol: 0.4, pan, wet: 0.3 }); }
+      else if (k.includes('retiarius') || k.includes('hoplomachus')) {      // a point driven in: a short hard knock, and less of the tearing
+        noise({ dur: 0.05, type: 'bandpass', f0: 950 * p, f1: 520, vol: 0.75 * v, q: 1.6, attack: 0.002, pan, wet: 0.25 });
+        noise({ dur: 0.08, f0: 1300 * p, f1: 240, vol: 0.26 * v, pan, wet: 0.3 });
+      } else if (k.includes('dimachaerus')) {      // two blades: two cuts, a breath apart
+        for (let n = 0; n < 2; n++) { noise({ dur: 0.03, type: 'highpass', f0: (4000 + n * 900) * p, vol: 0.17 * v, delay: n * 0.05, pan, wet: 0.2 }); noise({ dur: 0.07, f0: 1900 * p, f1: 320, vol: 0.3 * v, delay: n * 0.05, pan, wet: 0.3 }); }
+      } else if (k.includes('thraex')) {           // a curved blade drawn across: it hisses as it goes
+        noise({ dur: 0.09, type: 'bandpass', f0: 2400 * p, f1: 5200, vol: 0.3 * v, q: 1.8, attack: 0.01, pan, wet: 0.25 });
+        noise({ dur: 0.1, f0: 1500 * p, f1: 260, vol: 0.34 * v, pan, wet: 0.3 });
+      } else { noise({ dur: 0.035, type: 'highpass', f0: 4200 * p, vol: 0.2 * v, pan, wet: 0.2 }); noise({ dur: 0.1, f0: 1700 * p, f1: 260, vol: 0.42 * v, pan, wet: 0.3 }); }
       tone({ f0: 150 * p, f1: 48, dur: 0.13, vol: 0.4 * v, attack: 0.003, pan, wet: 0.25 });
+      if (k.includes('armor')) clang(1050 * rnd(0.85, 1.2), 0.05 * v, 0.16, pan, 0.4, 0.004);      // and the plate it found on the way
       if (hard) {                                  // a telling blow: a crack, a deeper thud, and the stands gasp
         noise({ dur: 0.07, type: 'bandpass', f0: 2600, f1: 1200, vol: 0.4, q: 1.2, pan, wet: 0.45 });
         tone({ f0: 88, f1: 30, dur: 0.3, vol: 0.5, attack: 0.003, pan, wet: 0.4 });
         cheer(0.14);
       }
+    },
+    // he was not there: feet turning on the sand, and the blade going through air
+    dodge(v, pan) {
+      const p = rnd(0.85, 1.2);
+      noise({ dur: 0.06, type: 'highpass', f0: 2100 * p, vol: 0.11, attack: 0.008, pan });
+      noise({ dur: 0.11, type: 'bandpass', f0: 600 * p, f1: 2200 * p, vol: 0.3, q: 1.6, attack: 0.03, delay: 0.02, pan, wet: 0.15 });
+    },
+    // one foot coming down on raked sand
+    walk(v, pan) { noise({ dur: 0.06, type: 'bandpass', f0: 620 * rnd(0.8, 1.25), f1: 260, vol: 0.9 * v, q: 0.9, attack: 0.005, pan, wet: 0.15 }); },
+    // the first wound of the fight: the stands draw breath
+    firstblood() { cheer(0.2); noise({ dur: 0.5, type: 'bandpass', f0: 640, f1: 420, vol: 0.22, q: 1.4, attack: 0.12, wet: 0.5 }); },
+    // your man is failing: his own heart, twice
+    heart() { tone({ f0: 62, f1: 40, dur: 0.13, vol: 0.12, attack: 0.004 }); tone({ f0: 58, f1: 38, dur: 0.15, vol: 0.09, attack: 0.004, delay: 0.21 }); },
+    // the two halves of the card before a fight come together: iron on iron, and the drum
+    clash() {
+      noise({ dur: 0.22, type: 'bandpass', f0: 400, f1: 2800, vol: 0.26, q: 1.2, attack: 0.09, wet: 0.3 });
+      clang(520 * rnd(0.97, 1.03), 0.085, 0.7, -0.3, 0.55, 0.2); clang(690 * rnd(0.97, 1.03), 0.07, 0.6, 0.3, 0.55, 0.21);
+      drum(0.3, 0.2); cheer(0.14);
+    },
+    // the blow let go, in an ability's announcement: steel through air, the ring of it, and the weight behind it
+    strike(v, pan, kind) {
+      if (kind === 'beast') { tone({ type: 'sawtooth', f0: 150, f1: 70, dur: 0.3, vol: 0.24, attack: 0.02, lp: 500, lp1: 1100, vib: 0.05, pan, wet: 0.5 }); noise({ dur: 0.25, f0: 900, f1: 260, vol: 0.3, attack: 0.02, pan, wet: 0.5 }); return; }
+      noise({ dur: 0.13, type: 'bandpass', f0: 1100, f1: 5200, vol: 0.42, q: 2, attack: 0.02, pan, wet: 0.3 });
+      clang(1500 * rnd(0.95, 1.05), 0.05, 0.4, pan, 0.5, 0.06);
+      tone({ f0: 96, f1: 40, dur: 0.22, vol: 0.3, attack: 0.004, delay: 0.05, pan, wet: 0.35 });
+    },
+    // the word of how it ended comes down: for a win the drum and two horns together, for a loss the drum and a falling note
+    verdict(v, pan, kind) {
+      drum(0.5, 0);
+      if (kind === 'won') { brass(262, 0.5, 0.08, 0.02, 0.6); brass(392, 0.5, 0.07, 0.02, 0.6); cheer(0.3); }
+      else { tone({ type: 'triangle', f0: 131, f1: 92, dur: 0.9, vol: 0.2, attack: 0.02, wet: 0.6 }); noise({ dur: 0.8, type: 'bandpass', f0: 500, f1: 280, vol: 0.24, q: 1.2, attack: 0.2, wet: 0.6 }); }
+    },
+    // a man's death, shown: the blow, a great weight falling a long way, and then one bell
+    fatal(v, pan) {
+      noise({ dur: 0.09, type: 'bandpass', f0: 2600, f1: 1100, vol: 0.45, q: 1.2, pan, wet: 0.45 });
+      drum(0.6, 0, pan);
+      tone({ f0: 74, f1: 24, dur: 1.2, vol: 0.55, attack: 0.008, delay: 0.03, wet: 0.5 });
+      noise({ dur: 0.5, f0: 420, f1: 70, vol: 0.4, delay: 0.03, wet: 0.45 });
+      clang(196, 0.11, 1.9, 0, 0.6, 0.42); tone({ f0: 98, dur: 1.5, vol: 0.07, attack: 0.02, delay: 0.42, wet: 0.5 });
+      cheer(0.4);
     },
     block(v, pan, kind) {
       const big = kind === 'big';

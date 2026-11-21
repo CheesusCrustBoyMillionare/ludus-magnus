@@ -223,7 +223,7 @@ function resolveAttack(B, a, d, o) {
   if (Math.random() < dodge) {
     chargeUp(d, 5);
     d.kx = a.facing * 40;
-    fxText(B, d, 'dodge', '#cfe0ff'); snd(B, 'miss', 1, a);
+    fxText(B, d, 'dodge', '#cfe0ff'); snd(B, 'dodge', 1, d);
     B.exc += 0.015 * d.show;
     tryRiposte(B, d);
     return 'dodge';
@@ -251,7 +251,7 @@ function resolveAttack(B, a, d, o) {
     const who = Object.keys(e.who);
     e.str = `${e.base}: ${e.dmg} to ${who.length > 1 ? who.length + ' foes' : who[0]}${blocked ? ' (blocked)' : ''}`; e.life = Math.max(e.life, 4.5);
   } else if (!o.ability) {
-    if (!B.firstBlood && !blocked) { B.firstBlood = true; feed(B, `First blood to ${a.g.name}`, a.team, 'hit'); }
+    if (!B.firstBlood && !blocked) { B.firstBlood = true; feed(B, `First blood to ${a.g.name}`, a.team, 'hit'); snd(B, 'firstblood'); }
     else if (crit && !blocked && dmg >= d.maxHp * 0.12 && d.hp > 0) feed(B, `${a.g.name} lands a telling blow on ${d.g.name}: ${dmg}`, a.team, 'hit');
   }
   d.flash = 0.12;
@@ -278,7 +278,7 @@ function resolveAttack(B, a, d, o) {
   } else {
     fxText(B, d, (crit ? '!' : '') + dmg, crit ? '#ffd24a' : '#ffffff');
     fxBlood(B, d, crit ? 9 : 4, a.facing);
-    snd(B, 'hit', crit ? 1.5 : 1, d, a.g.beast ? 'beast' : '');
+    snd(B, 'hit', crit ? 1.5 : clamp(0.75 + dmg / d.maxHp * 2.2, 0.75, 1.15), d, a.g.beast ? 'beast' : a.g.cls + (d.armor >= 3 ? ' armor' : ''));      // by what struck, what it struck, and how hard
     // a heavy blow to the head can tear a helmet off; it lies where it lands
     if (crit && !d.noHelm && (d.g.cls === 'murmillo' || d.g.cls === 'thraex' || d.g.cls === 'hoplomachus') && chance(0.4)) {
       d.noHelm = true;
@@ -473,7 +473,7 @@ function decideVerdicts(B) {
 function stepOutro(B, dt) {
   const was = B.outro;
   B.outro += dt;
-  if (was < 0.55 && B.outro >= 0.55) { B.shake = 2.5; B.flashT = B.winner === 0 ? 0.12 : 0; snd(B, 'cutin', 0.6); }      // the word of it lands
+  if (was < 0.55 && B.outro >= 0.55) { B.shake = 2.5; B.flashT = B.winner === 0 ? 0.12 : 0; snd(B, 'verdict', 1, null, B.winner === 0 ? 'won' : 'lost'); }      // the word of it lands
   for (const f of B.fighters) {
     f.flash = Math.max(0, f.flash - dt);
     if (!f.revealAt || f.revealed || B.outro < f.revealAt) continue;
@@ -499,11 +499,15 @@ function stepIntro(B, dt) {
   for (const f of B.fighters) {
     const dx = f.markX - f.x, moved = f.moving;
     f.moving = Math.abs(dx) > 0.5;
-    if (f.moving) { f.x += Math.sign(dx) * Math.min(Math.abs(dx), 30 * dt); f.walk += dt * 8; if (Math.random() < dt * 5) fxDust(B, f.x, f.y, 1); }
+    if (f.moving) {
+      f.x += Math.sign(dx) * Math.min(Math.abs(dx), 30 * dt); f.walk += dt * 8; if (Math.random() < dt * 5) fxDust(B, f.x, f.y, 1);
+      f.stepT = (f.stepT || 0) + dt; if (f.stepT > 0.3 && B.fighters.length <= 6) { f.stepT = 0; snd(B, 'walk', f.g.beast ? 0.6 : 1, f); }
+    }
     else if (moved && !f.g.beast) f.flourish = 1.1;                       // on his mark, he salutes the stands
     f.flourish = Math.max(0, f.flourish - dt);
   }
-  if (at(0.75)) { snd(B, 'cutin', 0.7); B.shake = 2; B.flashT = 0.1; }    // the two halves of the card meet
+  if (at(0.55)) snd(B, 'clash');             // it is heard a little before it is seen, for the sound has its own wind-up
+  if (at(0.75)) { B.shake = 2; B.flashT = 0.1; }    // the two halves of the card meet
   if (B.intro <= 0) {
     B.fighters.forEach(f => { f.x = f.markX; f.moving = false; f.flourish = 0; });
     B.texts.push({ x: 107, y: 64, str: B.wild ? 'AT THEM!' : 'PUGNATE!', col: '#ffd24a', life: 1.3, big: true });
@@ -516,7 +520,7 @@ function stepIntro(B, dt) {
 function stepBattle(B, dt) {
   if (B.fatal) {                              // a death is being shown: nothing else moves until it has been
     const was = B.fatal.t; B.fatal.t += dt;
-    if (was < 0.55 && B.fatal.t >= 0.55) { snd(B, 'down', 1, B.fatal.f); snd(B, 'killed', 0.8, B.fatal.f); }
+    if (was < 0.55 && B.fatal.t >= 0.55) snd(B, 'fatal', 1, B.fatal.f);
     if (B.fatal.t < B.fatal.dur && B.cutins) { B.clock += dt; return; }
     B.fatal = null;
   }
@@ -527,13 +531,15 @@ function stepBattle(B, dt) {
   if (B.pick) { if (out(B.pick) || !B.ask) B.pick = null; else return; }      // stopped, waiting for the player to choose an ability
   if (B.cut) {                                // an ability is being announced: everything waits until the band has crossed
     B.cut.t += dt;
-    if (!B.cut.struck && B.cut.t >= B.cut.ts && B.cutins) { B.cut.struck = true; snd(B, 'hop', 0.7, B.cut.f); }
+    if (!B.cut.struck && B.cut.t >= B.cut.ts && B.cutins) { B.cut.struck = true; snd(B, 'strike', 1, B.cut.f, B.cut.f.g.beast ? 'beast' : ''); }
     if (B.cut.t < B.cut.dur && B.cutins) return;
     const c = B.cut; B.cut = null;
     if (!out(c.f)) castNow(B, c.f, c.ab);
   }
   if (B.hitstop > 0) { B.hitstop -= dt; return; }
   B.time += dt;
+  B.heartT = (B.heartT || 0) + dt;
+  if (B.heartT > 0.9 && B.fighters.some(f => f.team === 0 && !out(f) && !f.g.beast && f.hp < f.maxHp * 0.25)) { B.heartT = 0; snd(B, 'heart'); }
   B.exc = clamp(B.exc - 0.012 * dt, 0, 1);
   B.excSum += B.exc * dt;
   for (const f of B.fighters) updateFighter(B, f, dt);
