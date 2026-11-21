@@ -436,10 +436,13 @@ function decideVerdicts(B) {
     f.revealAt = 1.2 + i * 0.9; i++;
   }
   B.outroEnd = 1.8 + i * 0.9 + (i ? 0.9 : 0);
+  B.cardAt = B.outroEnd - 0.3; B.outroEnd += 3.2;                // and then the reckoning of it is shown, before the sand is left
 }
 
 function stepOutro(B, dt) {
+  const was = B.outro;
   B.outro += dt;
+  if (was < 0.55 && B.outro >= 0.55) { B.shake = 2.5; B.flashT = B.winner === 0 ? 0.12 : 0; snd(B, 'cutin', 0.6); }      // the word of it lands
   for (const f of B.fighters) {
     f.flash = Math.max(0, f.flash - dt);
     if (!f.revealAt || f.revealed || B.outro < f.revealAt) continue;
@@ -1123,6 +1126,99 @@ function drawIntro(ctx, B, T) {
     ctx.globalAlpha = 1;
   }
   if (ti > 1.6 && !o) { ctx.globalAlpha = 0.5; ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO SKIP', 316, 176); ctx.globalAlpha = 1; }
+  ctx.restore();
+}
+
+// How a fight ends. The word of it - VICTORY or DEFEAT - comes across on a band and stays while the fallen are judged;
+// then the reckoning comes up from below: who carried the day, what he did, how long it took and what the stands made of it.
+function drawOutro(ctx, B, T) {
+  const o = B.outro, won = B.winner === 0, cl = v => clamp(v, 0, 1), wt = B.winner;
+  if (o < 0.55) return;
+  if (!B.endWord) {                             // how it was settled, fixed the moment it is first told
+    const d = B.lastDown && B.lastDown.team !== wt ? B.lastDown : null, gave = B.fighters.filter(f => f.team !== wt && f.yielded);
+    B.endWord = B.decision ? 'ON THE EDITOR\'S DECISION' : !d && gave.length ? (gave.length > 1 ? 'THEY YIELD' : `${gave[0].g.name.toUpperCase()} YIELDS`) : d ? `${(d.g.beast ? 'THE ' + d.c.name : d.g.name).toUpperCase()} ${d.yielded ? 'YIELDS' : d.g.beast ? 'IS SLAIN' : 'IS DOWN'}` : '';
+    const side = B.fighters.filter(f => f.team === wt), up = side.filter(f => !out(f));
+    B.hero = (up.length ? up : side).slice().sort((a, b) => b.dmgDealt - a.dmgDealt)[0] || null;
+  }
+  const e = 1 - Math.pow(1 - cl((o - 0.55) / 0.3), 3), dir = won ? 1 : -1, off = -dir * (1 - e) * 340;
+  const top = 42, bot = 66, skew = 8, gold = won ? '#e0aa3e' : '#8e1b14';
+  ctx.save();
+  // the light of it: gold spreading for a win, the day going dark for a loss
+  if (won) {
+    ctx.globalAlpha = 0.5 * e;
+    for (let i = 0; i < 12; i++) { const an = i / 12 * 6.283 + T * 0.15, w = 0.07; ctx.fillStyle = i % 2 ? 'rgba(255,226,122,.16)' : 'rgba(255,246,220,.10)'; ctx.beginPath(); ctx.moveTo(160, 54); ctx.lineTo(160 + Math.cos(an - w) * 260, 54 + Math.sin(an - w) * 260); ctx.lineTo(160 + Math.cos(an + w) * 260, 54 + Math.sin(an + w) * 260); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  } else {
+    const g = ctx.createRadialGradient(160, 96, 40, 160, 96, 190); g.addColorStop(0, 'rgba(20,4,4,0)'); g.addColorStop(1, `rgba(20,4,4,${(0.6 * e).toFixed(3)})`); ctx.fillStyle = g; ctx.fillRect(0, 0, 320, 180);
+  }
+  // the band
+  const band = () => { ctx.beginPath(); ctx.moveTo(-20 + off + skew, top); ctx.lineTo(340 + off + skew, top); ctx.lineTo(340 + off - skew, bot); ctx.lineTo(-20 + off - skew, bot); ctx.closePath(); };
+  band(); ctx.fillStyle = won ? 'rgba(46,30,8,.92)' : 'rgba(26,6,6,.92)'; ctx.fill();
+  const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, won ? 'rgba(255,220,120,.30)' : 'rgba(160,40,30,.25)'); g.addColorStop(0.55, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)');
+  band(); ctx.fillStyle = g; ctx.fill();
+  ctx.save(); band(); ctx.clip();
+  for (let i = 0; i < 10; i++) { const y = top + 2 + (i * 13) % (bot - top - 3), x = ((i * 71 + T * dir * 60) % 380 + 380) % 380 - 30; ctx.fillStyle = `rgba(255,255,255,${(0.04 + (i % 3) * 0.03).toFixed(2)})`; ctx.fillRect(x, y, 26 + (i % 4) * 10, 1); }
+  ctx.restore();
+  ctx.fillStyle = gold; ctx.fillRect(Math.min(0, off) - 4, top - 1.5, 328 + Math.abs(off), 1.5); ctx.fillRect(Math.min(0, off) - 4, bot, 328 + Math.abs(off), 1.5);
+  if (won) { ctx.fillStyle = '#fff0b0'; ctx.fillRect(Math.min(0, off) - 4, top - 1.5, 328 + Math.abs(off), 0.5); }
+  // the word, struck a letter at a time
+  const msg = won ? 'VICTORY' : 'DEFEAT', t0 = 0.7, step = 0.05;
+  ctx.font = 'bold 17px Cinzel, Georgia, serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const sp = 2.5, mw = ctx.measureText(msg).width + sp * (msg.length - 1); let x = 160 - mw / 2;
+  for (let i = 0; i < msg.length; i++) {
+    const age = o - t0 - i * step, cw = ctx.measureText(msg[i]).width;
+    if (age >= 0) {
+      const pop = age < 0.16 ? 1 - age / 0.16 : 0, y = 59 - pop * 5;
+      ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillText(msg[i], x + 1, y + 1.5);
+      ctx.fillStyle = pop > 0.4 ? '#ffffff' : won ? '#ffd24a' : '#e2695c'; ctx.fillText(msg[i], x, y);
+    }
+    x += cw + sp;
+  }
+  const done = t0 + msg.length * step, ua = cl((o - done) / 0.3);
+  if (ua > 0) {
+    if (won) for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) {           // laurel to either side of it
+      const lx = 160 + sd * (mw / 2 + 10 + i * 5 * ua), ly = 55 - Math.sin(i / 4 * 2.2) * 4;
+      ctx.globalAlpha = ua; ctx.fillStyle = i % 2 ? '#5a9a3a' : '#8fc35a'; ctx.fillRect(lx - 1.5, ly - 1, 3, 2); ctx.fillRect(lx - 0.5, ly + 1, 1, 1.5);
+    }
+    ctx.globalAlpha = ua; ctx.font = 'bold 4.5px Consolas, monospace'; ctx.textAlign = 'center';
+    if (B.endWord) { ctx.fillStyle = won ? '#f1e6c8' : '#d8b0a8'; ctx.fillText(B.endWord, 160, 64.2); }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- the reckoning ----
+  const h = B.hero, ca = B.cardAt === undefined || !h ? 0 : 1 - Math.pow(1 - cl((o - B.cardAt) / 0.4), 3);
+  if (ca > 0) {
+    const cw = 232, ch = 50, cx = 160 - cw / 2, cy = 112 + (1 - ca) * 74, col = B.col[wt], colD = B.colD[wt], k = cl((o - B.cardAt - 0.3) / 0.7);
+    ctx.fillStyle = 'rgba(12,7,4,.93)'; ctx.fillRect(cx, cy, cw, ch);
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(cx, cy - 1, cw, 1); ctx.fillRect(cx, cy + ch, cw, 1);
+    // him, large, in his side's colour
+    ctx.save(); ctx.beginPath(); ctx.rect(cx, cy, 54, ch); ctx.clip();
+    ctx.fillStyle = colD; ctx.fillRect(cx, cy, 54, ch);
+    const g3 = ctx.createLinearGradient(0, cy, 0, cy + ch); g3.addColorStop(0, 'rgba(255,255,255,.18)'); g3.addColorStop(0.5, col); g3.addColorStop(1, 'rgba(0,0,0,.4)'); ctx.globalAlpha = 0.85; ctx.fillStyle = g3; ctx.fillRect(cx, cy, 54, ch); ctx.globalAlpha = 1;
+    ctx.translate(cx + 27, cy + ch + (h.g.beast ? -3 : 16)); ctx.scale(h.g.beast ? 1.3 : 1.9, h.g.beast ? 1.3 : 1.9);
+    drawSprite(ctx, { x: 0, y: 0, facing: wt ? -1 : 1, g: h.g, team: h.team, col, colD, moving: false, walk: 0, clock: T, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: h.noHelm, cheer: !h.g.beast && !out(h) ? T : 0 });
+    ctx.restore();
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(cx + 54, cy, 0.7, ch);
+    const tx = cx + 62; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = won ? '#ffd24a' : '#e2695c';
+    ctx.fillText(B.fighters.filter(f => f.team === wt).length > 1 ? (won ? 'HERO OF THE FIGHT' : 'THEIR BEST') : won ? 'THE VICTOR' : 'YOUR CONQUEROR', tx, cy + 8);
+    ctx.font = 'bold 10px Cinzel, Georgia, serif'; ctx.fillStyle = '#fff6dc';
+    ctx.fillText((h.g.beast ? 'The ' + h.c.name : h.g.name).toUpperCase().slice(0, 22), tx, cy + 19);
+    // what he did, counted up
+    const stats = [['DAMAGE', Math.round(h.dmgDealt)], ['BEST BLOW', Math.round(h.best)], ['TAKEN', Math.round(h.dmgTaken)], ['ABILITIES', Object.values(h.used || {}).reduce((a, b) => a + b, 0)]];
+    stats.forEach(([lab, val], i) => {
+      const sx = tx + i * 42;
+      ctx.font = 'bold 9px Cinzel, Georgia, serif'; ctx.fillStyle = i === 2 ? '#e2a090' : '#ffd24a'; ctx.fillText(Math.round(val * k), sx, cy + 33);
+      ctx.font = '4px Consolas, monospace'; ctx.fillStyle = '#c9b9a0'; ctx.fillText(lab, sx, cy + 38.5);
+    });
+    // and the fight as a whole
+    const mine = B.fighters.filter(f => f.team === 0), up = mine.filter(f => !out(f)).length, secs = Math.round(B.time);
+    const avg = B.time > 0 ? B.excSum / B.time : 0, parts = [`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`];
+    if (mine.length > 1) parts.push(`${up} OF ${mine.length} OF YOURS STANDING`);
+    if (!B.wild && !B.hunt) parts.push(avg > 0.55 ? 'THE CROWD ROARS' : avg > 0.3 ? 'THE CROWD IS PLEASED' : 'THE CROWD WANTED MORE');
+    ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = '#f1e6c8'; ctx.fillText(parts.join('   -   '), tx, cy + 46.5);
+    if (o > B.cardAt + 1) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 5); ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO GO ON', cx + cw - 3, cy + 6); ctx.globalAlpha = 1; }
+  }
   ctx.restore();
 }
 
@@ -1822,11 +1918,5 @@ function drawBattle(ctx, B) {
   if (B.cut) drawCutIn(ctx, B, T);
   if (B.paused && !B.over) { ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(110, 78, 100, 18); ctx.fillStyle = '#e0aa3e'; ctx.fillText('PAUSED', 160, 91); }
 
-  if (B.over) {
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 16px Cinzel, Georgia, serif';
-    const msg = B.winner === 0 ? 'VICTORY' : 'DEFEAT';
-    ctx.fillStyle = '#000'; ctx.fillText(msg, 161, 83);
-    ctx.fillStyle = B.winner === 0 ? '#ffd24a' : '#e2695c'; ctx.fillText(msg, 160, 82);
-  }
+  if (B.over) drawOutro(ctx, B, T);
 }

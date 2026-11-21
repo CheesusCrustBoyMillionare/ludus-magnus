@@ -2022,6 +2022,7 @@ document.addEventListener('click', e => {
   if (!fight || !fight.B || e.target.id !== 'arenaCanvas') return;
   if (fight.B.cut) fight.B.cut.t = fight.B.cut.dur;
   else if (fight.B.intro > 0.5) fight.B.intro = 0.5;               // and one during the entrance sends the card away
+  else if (fight.B.over && fight.B.outro > 0.8) fight.B.outro = fight.B.outroEnd;      // and one when it is over goes on to the result
 });
 // Where the mouse is over the sand, in the fight's own units, so that a man can be looked at.
 document.addEventListener('mousemove', e => {
