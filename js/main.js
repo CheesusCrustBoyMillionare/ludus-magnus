@@ -1773,6 +1773,12 @@ const ACTIONS = {
   pause() { if (fight && !fight.finished && !fight.B.over) { fight.paused = !fight.paused; paintSpeed(); } },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
+  wildgo(v) {
+    const F = G.field; if (!F) return;
+    const st = v === 'home' ? { x: WILD.TOWN.x + 22, y: WILD.TOWN.y } : siteById(v); if (!st) return;
+    const path = provPath(F.x, F.y, st.x, st.y);
+    if (path) { prov.path = path; if (prov.big) { prov.big = false; render(); } } else prov.hint = performance.now() + 1600;
+  },
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
   makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); fieldDay('camp'); SFX.ui('day'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
@@ -1801,7 +1807,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1811,6 +1817,14 @@ document.addEventListener('click', e => {
   if (!ui.musicBegun) { ui.musicBegun = true; if (!fight) SFX.music(G && G.field ? 'wild' : 'ludus'); }
   if (fn && !el.classList.contains('off')) { const s = act in CLICK_SOUND ? CLICK_SOUND[act] : 'click'; if (s) SFX.ui(s); }
   if (fn) fn(el.dataset.v, el.dataset.w, el, e);
+});
+// Where the mouse is over the map of the province, so that a place can say what it is.
+document.addEventListener('mousemove', e => {
+  if (!G || !G.field) return;
+  const cv = $('#wildCanvas');
+  if (e.target !== cv) { prov.mouse = null; return; }
+  const r = cv.getBoundingClientRect();
+  prov.mouse = { u: (e.clientX - r.left) / r.width, v: (e.clientY - r.top) / r.height };
 });
 // Where the mouse is over the sand, in the fight's own units, so that a man can be looked at.
 document.addEventListener('mousemove', e => {

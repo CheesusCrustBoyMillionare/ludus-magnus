@@ -721,3 +721,10 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 #modalBox button.mini { padding: 2px 9px; font-size: 11px; }
 #modalBox button.danger { background: linear-gradient(180deg, #c8463a, #8e1b14); color: #fff; border-color: #5c120d; }
 .slotfacts span { font-size: 10px; color: #4a3a22; } .slothead .when { color: #4a3a22; }
+
+/* the province: the places you know of, as a list to set out from */
+#camp .place { min-height: 0; padding: 2px 8px; }
+#camp .place small { font-size: 11px; }
+#camp .place .t.gold { color: var(--gold); }
+.skulls { flex: none; display: inline-flex; gap: 2px; }
+.skulls i { width: 7px; height: 8px; background: #e2695c; border-radius: 2px 2px 1px 1px; box-shadow: inset 0 -2px 0 #9a3a30; }

@@ -201,6 +201,53 @@ function provHome() {
   if (G.pendingEvent) showEvent();
 }
 
+// ---------- what is known of a place ----------
+const SITE_WHAT = {
+  lair: 'Beasts live here. A fight.', camp: 'Outlaws. A fight, and what they have stolen.', ruin: 'Old stones. There may be something left, or something waiting.',
+  shrine: 'A god keeps this place.', hermit: 'A man who lives alone, and knows the country.', hamlet: 'A few families who want no trouble.', healer: 'She mends what the road has done.',
+  merchant: 'He buys and sells, far from any market.', quarry: 'Where men are worked to death.', slavers: 'Men who deal in people. A hard fight.', vow: 'A promise made is kept here.',
+  master: 'An old fighter keeps bees here.', deserter: 'He served under the eagle.', battlefield: 'Where the Seventeenth died.', chief: 'The outlaw king\'s own hold. The hardest fight in the province.',
+  barrow: 'A king lies here, and does not lie easy.', cache: 'Something is buried here.', herb: 'It grows nowhere else.',
+};
+const SITE_QUIET = ['shrine', 'hermit', 'hamlet', 'healer', 'merchant', 'cache', 'herb', 'deserter', 'quarry', 'vow', 'master'];
+// Skulls of danger: nought for a place where nobody will fight you.
+function siteDanger(s) {
+  if (!siteLive(s) || SITE_QUIET.includes(s.kind)) return 0;
+  return s.kind === 'chief' || s.kind === 'barrow' ? 5 : s.kind === 'slavers' ? 3 : s.kind === 'battlefield' ? 4 : s.tier;
+}
+const siteKnown = s => (!!wildMap().marks[s.id] && !siteDone(s)) || (!!wildMap().seen[s.id] && siteShown(s));
+const COMPASS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+const wayTo = (x, y) => { const F = G.field, d = Math.hypot(x - F.x, y - F.y); return d < 40 ? 'close by' : `${Math.max(1, Math.round(d / 100))} mile${Math.round(d / 100) > 1 ? 's' : ''} ${COMPASS[Math.round(Math.atan2(y - F.y, x - F.x) / (Math.PI / 4) + 8) % 8]}`; };
+// Whatever the mouse is resting on: a known place, the town, or nothing.
+function provHover() {
+  const m = prov.mouse, F = G.field;
+  if (!m || !F) return null;
+  const x = prov.big ? m.u * WILD.W : prov.camX + m.u * PROV.VW, y = prov.big ? m.v * WILD.H : prov.camY + m.v * PROV.VH, reach = prov.big ? 46 : 15;
+  let best = null, bd = reach;
+  for (const st of wildSites()) { if (!siteKnown(st)) continue; const d = Math.hypot(st.x - x, st.y - y); if (d < bd) { bd = d; best = st; } }
+  if (!best && Math.hypot(WILD.TOWN.x - x, WILD.TOWN.y - y) < reach + 8) return { home: true, x: WILD.TOWN.x, y: WILD.TOWN.y };
+  return best;
+}
+// A small card by the mouse. u is the size of one unit of text (1 on the close view, 2 on the whole map).
+function provCard(ctx, px, py, lines, skulls, u, W, H) {
+  ctx.font = `bold ${6 * u}px Consolas, monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const w = Math.max(...lines.map(l => ctx.measureText(l[0]).width), skulls * 6 * u) + 8 * u, h = (lines.length * 8 + (skulls ? 8 : 0) + 4) * u;
+  const x = Math.round(clamp(px + 10 * u, 2, W - w - 2)), y = Math.round(clamp(py - h - 6 * u, 2, H - h - 2));
+  ctx.fillStyle = 'rgba(16,10,6,.92)'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(x, y, w, u); ctx.fillRect(x, y + h - u, w, u);
+  lines.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillText(t, x + 4 * u, y + (8 + i * 8) * u); });
+  for (let i = 0; i < skulls; i++) { const sx = x + 4 * u + i * 6 * u, sy = y + (lines.length * 8 + 3) * u; ctx.fillStyle = '#e2695c'; ctx.fillRect(sx, sy, 5 * u, 4 * u); ctx.fillRect(sx + u, sy + 4 * u, 3 * u, 2 * u); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(sx + u, sy + u, u, u); ctx.fillRect(sx + 3 * u, sy + u, u, u); }
+}
+function hoverLines(hv) {
+  if (hv.home) return [[['HOME', '#f5d584'], ['Walk in at the gate to go home.', '#f2e6cc'], [wayTo(hv.x, hv.y).toUpperCase(), '#a8947a']], 0];
+  const done = siteDone(hv), mark = wildMap().marks[hv.id] && !done, dz = siteDanger(hv);
+  const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
+  if (done) lines.push(['Dealt with.', '#a8947a']);
+  else { lines.push([SITE_WHAT[hv.kind] || '', '#d8c8a8']); if (mark) lines.push(['Marked: something sent you here.', '#f5d584']); if (!dz) lines.push(['No danger known.', '#9fce86']); }
+  lines.push([wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO WALK THERE', '#a8947a']);
+  return [lines, done ? 0 : dz];
+}
+
 // ---------- drawing ----------
 function provIcon(ctx, s, T, done) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = done ? shade('#8a8478', 0.6 + ((x + y) % 3) * 0.12) : c; ctx.fillRect(Math.round(s.x + x), Math.round(s.y + y), w, h); };
@@ -325,9 +372,9 @@ function drawProvince(cv, T) {
     const seen = wildSeen(s.x, s.y), mark = M.marks[s.id] && !siteDone(s);
     if (mark) { const b = Math.round(Math.sin(T * 5) * 2); ctx.globalAlpha = 0.9; R(s.x - 1, s.y - 26 + b, 3, 7, '#f5d584'); R(s.x - 1, s.y - 17 + b, 3, 2, '#f5d584'); ctx.globalAlpha = 1; if (!seen) for (let i = -3; i <= 3; i++) { R(s.x + i, s.y + i, 2, 2, '#8a2a20'); R(s.x + i, s.y - i, 2, 2, '#8a2a20'); } }
     if (!(seen && siteShown(s)) && !mark) continue;
-    const live = siteLive(s), near = Math.hypot(s.x - F.x, s.y - F.y) < 90;
+    const near = Math.hypot(s.x - F.x, s.y - F.y) < 90;
     if (siteDone(s)) { if (near) tag(s.x, s.y + 16, s.name.toUpperCase() + ' - DONE', '#a8947a'); continue; }
-    if (near || mark) tag(s.x, s.y + 16, s.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc', null, live && !['shrine', 'hermit', 'hamlet', 'healer', 'merchant', 'cache', 'herb', 'deserter', 'quarry', 'vow', 'master'].includes(s.kind) ? (s.kind === 'chief' || s.kind === 'barrow' ? 5 : s.kind === 'slavers' ? 3 : s.kind === 'battlefield' ? 4 : s.tier) : 0);
+    if (near || mark) tag(s.x, s.y + 16, s.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc', null, siteDanger(s));
   }
   // the regions' names, written across the country in old ink
   ctx.font = 'bold 11px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(70,48,24,.42)';
@@ -352,6 +399,14 @@ function drawProvince(cv, T) {
   };
   for (const s of sites) if (M.marks[s.id] && !siteDone(s) && siteLive(s)) point(s.x, s.y, s.kind === 'cache' ? 'DIG' : s.kind === 'herb' ? 'HERB' : QUEST_SITE[s.kind] ? 'JOURNEY' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) ? 'EAGLE' : 'MARKED', '#2a1a0c', '#f5d584');
   point(tx, ty, 'HOME', '#2a1a0c', '#f1ead8');
+  // whatever the mouse is on says what it is
+  const hv = provHover();
+  if (hv) {
+    const [lines, sk] = hoverLines(hv), hx = hv.x - camX, hy = hv.y - camY;
+    ctx.strokeStyle = 'rgba(245,213,132,.8)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(hx) - 11.5, Math.round(hy) - 12.5, 23, 20);
+    provCard(ctx, hx, hy - 8, lines, sk, 1, PROV.VW, PROV.VH);
+    ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
+  }
   // night falls when camp is made, and lifts again
   const nk = (performance.now() - prov.night) / 1700;
   if (nk >= 0 && nk < 1) {
@@ -384,18 +439,42 @@ function drawOverview(cv, T) {
   for (const r of WILD_REGIONS) ctx.fillText(r.name.toUpperCase(), r.x, r.y);
   if (prov.path) for (let i = 1; i < prov.path.length; i += 2) R(prov.path[i].x - 3, prov.path[i].y - 3, 6, 6, '#f5d584');
   const dot = (x, y, r, c) => { R(x - r - 3, y - r - 3, r * 2 + 6, r * 2 + 6, '#1a110c'); R(x - r, y - r, r * 2, r * 2, c); };
+  // how far from home the country turns worse: a dotted ring for each skull
+  const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
+  [330, 600, 900, 1250].forEach((rad, n) => {
+    for (let a = 0; a < 360; a += rad < 500 ? 4 : 2) { const x = tx + Math.cos(a * Math.PI / 180) * rad, y = ty + Math.sin(a * Math.PI / 180) * rad; if (x > 0 && y > 0 && x < WILD.W && y < WILD.H) R(x - 2, y - 2, 5, 5, 'rgba(120,40,30,.5)'); }
+    const lx = tx + rad * 0.72, ly = ty - rad * 0.72;
+    if (lx < WILD.W - 60 && ly > 30) for (let q = 0; q <= n + 1; q++) { R(lx + q * 20 - 4, ly - 18, 16, 13, 'rgba(120,40,30,.75)'); R(lx + q * 20, ly - 5, 8, 5, 'rgba(120,40,30,.75)'); }
+  });
   ctx.font = 'bold 20px Consolas, monospace';
-  const name = (x, y, t, c) => { const w = ctx.measureText(t).width + 14; R(x - w / 2, y + 14, w, 26, 'rgba(24,16,10,.85)'); ctx.fillStyle = c; ctx.fillText(t, x, y + 33); };
+  const name = (x, y, t, c) => { const w = ctx.measureText(t).width + 14; R(x - w / 2, y + 36, w, 26, 'rgba(24,16,10,.85)'); ctx.fillStyle = c; ctx.fillText(t, x, y + 55); };
+  const hv = provHover();
   for (const s of wildSites()) {
-    const mark = M.marks[s.id] && !siteDone(s);
-    if (!mark && !(M.seen[s.id] && siteShown(s))) continue;
-    if (siteDone(s)) { dot(s.x, s.y, 5, '#8a8478'); continue; }
-    if (mark) { const b = Math.sin(T * 5) > 0 ? 2 : 0; dot(s.x, s.y, 9 + b, '#f5d584'); name(s.x, s.y, s.name.toUpperCase(), '#f5d584'); }
-    else dot(s.x, s.y, 7, '#c23b2e');
+    if (!siteKnown(s) && !(M.seen[s.id] && siteShown(s))) continue;
+    const mark = M.marks[s.id] && !siteDone(s), unseen = mark && !M.seen[s.id];
+    if (mark) { const b = Math.sin(T * 5) > 0 ? 3 : 0; ctx.strokeStyle = '#f5d584'; ctx.lineWidth = 5; ctx.strokeRect(s.x - 40 - b, s.y - 42 - b, 80 + b * 2, 74 + b * 2); }
+    if (s === hv) { ctx.strokeStyle = '#fff6d8'; ctx.lineWidth = 3; ctx.strokeRect(s.x - 36, s.y - 38, 72, 66); }
+    if (unseen) { for (let q = -14; q <= 14; q += 2) { R(s.x + q - 3, s.y + q - 3, 7, 7, '#8a2a20'); R(s.x + q - 3, s.y - q - 3, 7, 7, '#8a2a20'); } }
+    else { ctx.save(); ctx.translate(s.x, s.y); ctx.scale(4, 4); provIcon(ctx, { x: 0, y: 0, kind: s.kind }, T, siteDone(s)); ctx.restore(); }
+    if (mark) name(s.x, s.y, s.name.toUpperCase(), '#f5d584');
   }
-  dot(WILD.TOWN.x, WILD.TOWN.y, 12, '#f1ead8'); name(WILD.TOWN.x, WILD.TOWN.y, 'HOME', '#f1ead8');
-  if (Math.floor(T * 2.5) % 2) dot(F.x, F.y, 9, '#7a2a8a');
+  for (const pk of F.packs) if (wildSeen(pk.x, pk.y)) { dot(pk.x, pk.y, 5, '#c23b2e'); }
+  ctx.save(); ctx.translate(tx, ty); ctx.scale(2.4, 2.4);
+  R(-18, -12, 36, 21, '#b8ab94'); R(-18, -12, 36, 2, '#d8cdb6'); R(-14, -8, 9, 6, '#b5522e'); R(-3, -9, 10, 7, '#a8482a'); R(9, -7, 6, 5, '#b5522e'); R(-12, 0, 8, 5, '#d8c9a2'); R(2, 0, 9, 5, '#e2c98f'); R(14, -5, 5, 9, '#8f846e');
+  ctx.restore();
+  name(tx, ty, 'HOME', '#f1ead8');
+  // you: a banner that stands over everything
+  const fb = Math.floor(T * 2.5) % 2 ? 4 : 0;
+  R(F.x - 3, F.y - 46 - fb, 6, 46 + fb, '#1a110c'); R(F.x - 1, F.y - 44 - fb, 2, 44 + fb, '#f1ead8'); R(F.x + 1, F.y - 46 - fb, 34, 22, '#1a110c'); R(F.x + 3, F.y - 44 - fb, 30, 18, '#7a2a8a'); R(F.x + 9, F.y - 39 - fb, 18, 8, '#f5d584');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // the key to the map
+  const key = [['#7a2a8a', 'YOU'], ['#f5d584', 'MARKED FOR YOU'], ['#c23b2e', 'A ROAMING BAND'], ['#8a8478', 'DEALT WITH'], ['rgba(120,40,30,.9)', 'SKULLS: HOW HARD THE COUNTRY IS']];
+  ctx.font = 'bold 11px Consolas, monospace'; ctx.textAlign = 'left';
+  const kw = Math.max(...key.map(q => ctx.measureText(q[1]).width)) + 34;
+  ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(8, 8, kw, key.length * 16 + 10);
+  key.forEach(([c, t], n) => { ctx.fillStyle = c; ctx.fillRect(16, 15 + n * 16, 10, 10); ctx.fillStyle = '#f2e6cc'; ctx.fillText(t, 32, 24 + n * 16); });
+  if (hv) { const [lines, sk] = hoverLines(hv); provCard(ctx, hv.x * k, hv.y * k - 14, lines, sk, 2, cv.width, cv.height); }
+  ctx.textAlign = 'center';
   ctx.font = 'bold 14px Consolas, monospace';
   const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = ctx.measureText(msg).width + 24;
   ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(cv.width / 2 - w / 2, cv.height - 34, w, 24);
@@ -415,7 +494,18 @@ function drawMini(cv) {
   const dot = (x, y, c, r) => { ctx.fillStyle = '#1a110c'; ctx.fillRect(x / 10 - r - 1, y / 10 - r - 1, r * 2 + 2, r * 2 + 2); ctx.fillStyle = c; ctx.fillRect(x / 10 - r, y / 10 - r, r * 2, r * 2); };
   for (const st of wildSites()) { if (siteDone(st)) continue; if (M.marks[st.id]) dot(st.x, st.y, '#f5d584', 2); else if (M.seen[st.id] && siteShown(st)) dot(st.x, st.y, '#c23b2e', 1); }
   dot(WILD.TOWN.x, WILD.TOWN.y, '#f1ead8', 2);
+  ctx.strokeStyle = 'rgba(26,17,12,.75)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(prov.camX / 10) + 0.5, Math.round(prov.camY / 10) + 0.5, PROV.VW / 10, PROV.VH / 10);
   if (Math.floor(performance.now() / 400) % 2) dot(F.x, F.y, '#7a2a8a', 2);
+}
+
+// The places you know of and have not dealt with, nearest first, to set out for with a click.
+function placesHtml() {
+  const F = G.field, M = wildMap();
+  const all = wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => ({ st, d: Math.hypot(st.x - F.x, st.y - F.y), mark: !!M.marks[st.id] })).sort((a, b) => (b.mark - a.mark) || a.d - b.d);
+  const row = (id, nm, sub, dz, gold) => `<div class="lrow place" data-act="wildgo" data-v="${id}"><div class="grow"><span class="t ${gold ? 'gold' : ''}">${nm}</span><small>${sub}</small></div>${dz ? `<span class="skulls">${'<i></i>'.repeat(dz)}</span>` : ''}</div>`;
+  return all.slice(0, 5).map(({ st, mark }) => row(st.id, st.name, `${mark ? 'marked &middot; ' : ''}${wayTo(st.x, st.y)}`, siteDanger(st), mark)).join('')
+    + row('home', 'Home', wayTo(WILD.TOWN.x, WILD.TOWN.y), 0, false)
+    + (all.length > 5 ? `<div class="listnote">and ${all.length - 5} more on the whole map</div>` : '');
 }
 
 function provFrame(ts) {
@@ -430,7 +520,10 @@ function provFrame(ts) {
       if (busy || prov.big) villageStill(); else provStep(dt);
       if (G.field && !(arena && !arena.hidden)) {
         drawProvince(cv, T);
-        if (ts - prov.mini > 400) { prov.mini = ts; const m = document.getElementById('wildMini'); if (m) drawMini(m); }
+        if (ts - prov.mini > 400) {
+          prov.mini = ts; const m = document.getElementById('wildMini'); if (m) drawMini(m);
+          const pl = document.getElementById('placeList'); if (pl) { const h = placesHtml(); if (pl.dataset.h !== String(h.length) + h.slice(0, 80)) { pl.innerHTML = h; pl.dataset.h = String(h.length) + h.slice(0, 80); } }
+        }
         if (ts - prov.saved > 6000 && !busy) { prov.saved = ts; save(); }
       }
     } catch (e) { console.error(e); prov.raf = 0; return; }
@@ -443,7 +536,7 @@ function campRow(g) {
   const state = g.injury > 0 ? `<span class="chip red">Wounded ${g.injury}d</span>` : g.fatigue > 75 ? '<span class="chip red">Exhausted</span>' : g.perkPending > 0 ? '<span class="chip gold">Perk</span>' : '';
   return `<div class="lrow grow-row" data-act="campsel" data-v="${g.id}">
     <canvas width="48" height="56" style="width:25px;height:29px" data-portrait="${g.id}"></canvas>
-    <div class="grow"><span class="t">${g.name}</span><small>${CLASSES[g.cls].name} &middot; strength ${Math.round(power(g))}</small></div>
+    <div class="grow"><span class="t">${g.name} ${styleMark(g)}</span><small>${CLASSES[g.cls].name} &middot; power ${rating(g)}</small></div>
     <div class="chips">${state}</div>
     <div class="gauges"><div${tip('health')}>${bar('hp', g.hp, maxHp(g))}</div><div${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</div><div${tip('morale')}>${bar('mor', g.morale, 100)}</div></div>
   </div>`;
@@ -467,8 +560,9 @@ function renderWilds() {
       <div class="row" style="margin:8px 0"><button class="primary" data-act="makecamp"${tip('makecamp')} style="flex:1">Make camp<span class="key">E</span></button><button data-act="bigmap"${tip('bigmap')}>${prov.big ? 'Close map' : 'Whole map'}<span class="key">M</span></button></div>
       ${lead ? `<div class="lead"${tip('eagle')}><b class="gold">The eagle of the Seventeenth.</b> ${lead}</div>` : ''}
       ${journeys ? `<div class="lead"><b class="gold">Promised.</b>${journeys}</div>` : ''}
+      <div class="pane" data-pane="camp"><h2>Places known <small>click to walk there</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>
       <h2>The school <small>${fieldParty().length} fit of ${men.length}</small></h2>
-      <div class="pane" data-pane="camp"><div class="panel list">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
+      <div class="panel list">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
       <div class="listnote"${tip('fieldrules')}>${Math.round(wildExplored() * 100)}% of the province walked &middot; ${M.cleared} places dealt with</div></div>`;
   $('#camp').innerHTML = head + body;
   if (!prov.raf) { prov.last = 0; prov.prev = 0; prov.raf = requestAnimationFrame(provFrame); }
