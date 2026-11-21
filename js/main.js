@@ -511,52 +511,93 @@ function suitTip(g, D, need, land) {
 const pickChip = (act, v, g, on, D, need, land) =>
   `<span class="chip pick ${on ? 'on' : ''} ${flightRisk(g) ? 'red' : ''}" data-act="${act}" data-v="${v}" data-w="${g.id}"${tip(suitTip(g, D, need, land))}>${g.name} <span class="num">${asPct(jobOdds(D, need, [g], 0, land))}</span></span>`;
 
+// The men who would do this work best together, from those free to go: every team is tried, bonds and all.
+function bestTeam(c) {
+  const avail = G.roster.filter(canSend);
+  if (avail.length < c.size) return null;
+  let best = null, bp = -1;
+  const go = (from, team) => {
+    if (team.length === c.size) { const p = contractOdds(c, team); if (p > bp) { bp = p; best = team.slice(); } return; }
+    for (let k = from; k < avail.length; k++) { team.push(avail[k]); go(k + 1, team); team.pop(); }
+  };
+  go(0, []);
+  return { men: best, p: bp };
+}
+// What the road is likely to cost each man sent: [chance of a wound, chance of death], given the chance of success.
+function roadRisk(D, p) {
+  const wound = D.danger * (p * 0.18 + (1 - p) * 0.55);
+  const death = D.danger >= 0.5 ? (1 - p) * D.danger * 0.55 * clamp(D.danger * 0.25 - mercyBonus(), 0.02, 0.3) : 0;
+  return [wound, death];
+}
+const oddsBar = p => `<div class="bar odds"><i class="${p >= 0.75 ? 'hi' : p >= 0.5 ? 'mid' : 'lo'}" style="width:${Math.round(p * 100)}%"></i><u style="left:50%"></u></div>`;
+
 function contractCard(c) {
   const D = CONTRACTS[c.type];
   const picks = ui.cpicks[c.id] = (ui.cpicks[c.id] || []).filter(id => canSend(byId(id)));
-  const avail = G.roster.filter(canSend), men = picks.map(byId), ready = men.length === c.size;
+  const avail = G.roster.filter(canSend).sort((a, b) => aptitude(b, D, c.land).score - aptitude(a, D, c.land).score), men = picks.map(byId), ready = men.length === c.size;
   const chips = avail.length ? avail.map(g => pickChip('cpick', c.id, g, picks.includes(g.id), D, c.need, c.land)).join('') : '<span class="dim">Nobody is free to send.</span>';
-  const p = ready ? contractOdds(c, men) : 0;
+  const best = bestTeam(c), p = ready ? contractOdds(c, men) : 0, isBest = ready && best && Math.abs(best.p - p) < 0.001;
   const suits = D.cls.map(k => CLASSES[k].name).concat(D.likes.slice(0, 3).map(t => TRAITS[t].name.toLowerCase())).join(', ');
-  const stat = STATS.filter(s => D.w[s] >= 0.3).sort((a, b) => D.w[b] - D.w[a]).map(s => STAT_NAMES[s].toLowerCase()).join(' and ');
-  const runners = men.filter(flightRisk);
-  return `<div class="panel">
+  const stat = STATS.filter(k => D.w[k] >= 0.3).sort((a, b) => D.w[b] - D.w[a]).map(k => `${ic(k)} ${STAT_NAMES[k]}`).join(' &nbsp; ');
+  const runners = men.filter(flightRisk), lose = c.asked ? 6 : 4;
+  const [wound, death] = roadRisk(D, ready ? p : best ? best.p : 0.5);
+  const gamesDay = (() => { for (let d = G.day; d < G.day + c.days; d++) if (d % GAMES_EVERY === 0) return d; return 0; })();
+  const pct1 = x => x < 0.005 ? 'none' : x < 0.01 ? 'under 1%' : asPct(x);
+  return `<div class="panel offer">
     <h3>${D.name} <small>${PATRONS[c.patron].name}</small></h3>
     ${c.asked ? `<div><span class="chip gold"${tip('asked')}>Asked of you by name</span></div>` : ''}
-    <p style="margin:6px 0">${D.text(c)}</p>
-    <div class="kv"><span${tip('contract')}>Pay</span><b><span class="gold num">${c.pay}</span> denarii &middot; favour <span class="num">+${c.favor}</span>${D.fame ? ` &middot; fame <span class="num">+${D.fame * (1 + tier())}</span>` : ''}</b>
-      <span>Away</span><b><span class="num">${c.days}</span> day${c.days === 1 ? '' : 's'} &middot; ${missesGames(c.days) ? '<span class="bad">misses the games</span>' : '<span class="good">back before the games</span>'}</b>
-      <span${tip('danger')}>Risk</span><b class="${D.danger >= 0.65 ? 'bad' : ''}">${DANGER_WORD(D.danger)}</b>
-      <span>Calls for</span><b style="font-weight:normal;text-align:right">${stat}<br><small>${suits}</small></b></div>
-    <div style="margin:8px 0 4px">Send ${c.size === 1 ? 'one man' : c.size + ' men'}:</div>
+    <p style="margin:2px 0">${D.text(c)}</p>
+    <div class="kvs">
+      <div${tip('contract')}><span>Pay</span><b class="num gold">${c.pay}</b><small>${Math.round(c.pay / c.size / c.days)} a man a day</small></div>
+      <div><span>Away</span><b class="num">${c.days} day${c.days === 1 ? '' : 's'}</b><small class="${gamesDay ? 'bad' : 'good'}">${gamesDay ? `misses the games on day ${gamesDay}` : 'back before the games'}</small></div>
+      <div${tip('danger')}><span>Risk</span><b class="${D.danger >= 0.65 ? 'bad' : ''}">${DANGER_WORD(D.danger)}</b><small>wound ${pct1(wound)}${death >= 0.005 ? `, death ${pct1(death)}` : ''} a man</small></div>
+      <div><span>Calls for</span><b class="calls">${stat}</b><small>${suits}</small></div>
+    </div>
+    <div class="outcomes">
+      <div><b class="good">If it goes well</b> ${c.pay} denarii, ${PATRONS[c.patron].name.replace(/^The /, 'the ')} favour +${c.favor}${D.fame ? `, fame +${D.fame * (1 + tier())}` : ''}.${D.trait ? ` A man may come home ${TRAITS[D.trait].name.toLowerCase()}: ${TRAITS[D.trait].desc.replace(/\.$/, '').replace(/^./, ch => ch.toLowerCase())}.` : ''}${D.feud ? ' It will make an enemy among the rival houses.' : ''}</div>
+      <div><b class="bad">If it goes badly</b> No pay, and favour -${lose}.${D.danger >= 0.5 ? ' On work this dangerous a man may not come home.' : ''}</div>
+      <div class="dim">Either way they learn on the road as if they had trained, and come home tired.</div>
+    </div>
+    <div class="sendhead"><span>Send ${c.size === 1 ? 'one man' : c.size + ' men'}, best suited first</span>
+      ${best ? `<button class="mini" data-act="cbest" data-v="${c.id}" ${isBest ? 'disabled' : ''}${tip('Choose whoever gives the best chance together, of the men free to go. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
     <div>${chips}</div>
-    <div class="row" style="margin-top:8px">
+    <div class="sendrow">
       <button class="primary" data-act="csend" data-v="${c.id}" ${ready ? '' : 'disabled'}>Send ${ready ? namesOf(men) : ''}</button>
-      ${ready ? `<span${tip('odds')}>Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b> <span class="dim">${oddsWord(p).toLowerCase()}</span></span>` : `<span class="dim">Choose ${c.size - men.length} more.</span>`}
+      ${ready ? `<div class="oddsbox"${tip('odds')}><div>Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b> <span class="dim">${oddsWord(p).toLowerCase()} &middot; worth about ${Math.round(c.pay * p)} on average</span></div>${oddsBar(p)}</div>`
+        : `<span class="dim">${avail.length < c.size ? `It needs ${c.size}, and only ${avail.length} ${avail.length === 1 ? 'is' : 'are'} free.` : `Choose ${c.size - men.length} more.`}</span>`}
     </div>
     ${runners.length ? `<div class="bad" style="font-size:13px;margin-top:4px"${tip('flight')}>${namesOf(runners)} may not come back.</div>` : ''}
   </div>`;
 }
 
 function viewContracts() {
-  const c = keepSel('csel', G.contracts);
-  const rows = G.contracts.map(x => { const D = CONTRACTS[x.type]; return lrow('csel', x.id,
+  const c = keepSel('csel', G.contracts), dg = daysToGames(), free = G.roster.filter(canSend).length, gone = G.roster.filter(g => g.away).length, asked = G.contracts.find(x => x.asked);
+  const rows = G.contracts.map(x => {
+    const D = CONTRACTS[x.type], b = bestTeam(x);
+    return lrow('csel', x.id,
     `<div class="grow"><span class="t">${D.name}${x.asked ? ` <span class="chip gold"${tip('asked')}>Asked by name</span>` : ''}</span>
-      <small>${PATRONS[x.patron].name} &middot; ${x.size === 1 ? 'one man' : x.size + ' men'} &middot; ${x.days} day${x.days === 1 ? '' : 's'} &middot; ${DANGER_WORD(D.danger).toLowerCase()}</small></div>
+      <small>${PATRONS[x.patron].name} &middot; ${x.size === 1 ? 'one man' : x.size + ' men'} &middot; ${x.days} day${x.days === 1 ? '' : 's'}${missesGames(x.days) ? ' <span class="bad">over the games</span>' : ''} &middot; <span class="${D.danger >= 0.65 ? 'bad' : ''}">${DANGER_WORD(D.danger).toLowerCase()}</span></small></div>
+     <div class="bestodds"${tip(b ? `The best you could send today: ${namesOf(b.men)}.` : 'You have too few men free for this.')}>${b ? `${oddsBar(b.p)}<small>at best ${asPct(b.p)}</small>` : '<small class="bad">too few free</small>'}</div>
      <span class="end"><b class="gold num">${x.pay}</b></span>`); }).join('')
     || '<div class="listnote">Nobody in town has work for your men today. New offers come with each games day.</div>';
-  const away = G.jobs.map(J => prow(`<div class="grow"><span class="t">${jobTitle(J)}</span><small>${J.kind === 'quest' ? 'a journey of his own' : PATRONS[J.patron].name} &middot; back ${backWhen(J)}</small></div>
-      <span class="end">${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')}</span>`)).join('')
+  const away = G.jobs.map(J => { const len = Math.max(1, J.end - J.start); return prow(`<div class="grow"><span class="t">${jobTitle(J)}</span><small>${J.kind === 'quest' ? 'a journey of his own' : `${PATRONS[J.patron].name} &middot; ${J.pay} denarii if it goes well`} &middot; back ${backWhen(J)}</small></div>
+      <div class="bestodds"${tip(`Day ${Math.min(len, G.day - J.start)} of ${len}.`)}>${bar('prog', G.day - J.start, len)}</div>
+      <span class="end">${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')}</span>`); }).join('')
     || '<div class="listnote">Every man is in the yard.</div>';
   const waiting = G.roster.filter(g => g.quest && QUESTS[g.quest.id]).map(g => prow(`<div class="grow"><span class="t">${QUESTS[g.quest.id].name}</span><small>${QUESTS[g.quest.id].where} &middot; take the school there</small></div>
       <span class="end"><span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span></span>`)).join('');
   return `<div class="fill even">
     <div><h2>Work on offer <small>until the next games</small></h2>
+      <div class="panel schoolbar"><div class="tally">
+        <span class="${free ? '' : 'bad'}"><b class="num">${free}</b> free to send</span>
+        ${gone ? `<span class="gold"><b class="num">${gone}</b> away</span>` : ''}
+        <span${tip('The board is cleared and filled again every games day.')}>new offers ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
+        ${asked ? `<span class="gold"${tip('asked')}>${PATRONS[asked.patron].name} asks for you by name</span>` : ''}</div></div>
       <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
-        ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}</div></div>
-    <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}
-      <div class="dim" style="font-size:12px;margin-top:8px">Contracts pay about half what the same men would win at the games, and earn favour with the patron who offered them. Men who are away do not train and miss any games held while they are gone. From time to time a fighter of some standing will ask leave for a journey of his own.</div></div></div>
+        ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
+        <div class="listnote">Contracts pay about half what the same men would win at the games. Men who are away do not fight in games held while they are gone.</div></div></div>
+    <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}</div></div>
   </div>`;
 }
 
@@ -1430,6 +1471,12 @@ const ACTIONS = {
     }
     ui.cpicks[c.id] = p; render();
   },
+  cbest(v) {
+    const c = G.contracts.find(x => x.id === +v), b = c && bestTeam(c); if (!b) return;
+    const ids = b.men.map(g => g.id);
+    for (const k in ui.cpicks) ui.cpicks[k] = ui.cpicks[k].filter(x => !ids.includes(x));
+    ui.cpicks[c.id] = ids; render();
+  },
   csend(v) { if (sendContract(v, ui.cpicks[v] || [])) { delete ui.cpicks[v]; render(); } },
   smithbuy(v) { if (buyItem(v)) { save(); render(); } },
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
@@ -1642,7 +1689,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1812,6 +1859,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (k === 'b' && ui.tab === 'market') return press($('#view [data-act=buy]'));
+  if (k === 'b' && ui.tab === 'contracts') return press($('#view [data-act=cbest]'));
   if (/^[1-5]$/.test(k) && ui.tab === 'ludus') return press($(`#view .lrow.sel .acts button:nth-child(${k})`));
   if ((k === 'ArrowLeft' || k === 'ArrowRight') && ui.tab === 'ludus') {
     const i = DTABS.findIndex(t => t[0] === ui.dtab) + (k === 'ArrowRight' ? 1 : -1);

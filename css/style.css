@@ -648,3 +648,21 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .kvs small { display: block; font-size: 11px; color: var(--dim); line-height: 1.25; }
 .rivalrow .end { width: 30px; font-size: 13px; }
 .rivalrow .end.bad { color: #f08a7c; }
+
+/* contracts: what the work pays and risks, who would do it best, and how likely they are to bring it off */
+.bar.odds i.hi { background: #5f9a48; } .bar.odds i.mid { background: var(--gold); } .bar.odds i.lo { background: #b93a2e; }
+.bestodds { flex: none; width: 86px; text-align: right; }
+.bestodds .bar { height: 7px; margin: 0 0 1px; }
+.bestodds small { font-size: 10px; color: var(--dim); }
+.offer { display: grid; gap: 7px; }
+.offer h3 { margin: 0; }
+.offer .kvs b { font-size: 14px; } .offer .kvs b.calls { font: 12px Georgia, serif; display: block; white-space: nowrap; }
+.offer .kvs b.calls .ic { width: 13px; height: 13px; vertical-align: -2px; }
+.offer .kvs small.bad { color: #f08a7c; } .offer .kvs small.good { color: #9fce86; }
+.outcomes { display: grid; gap: 3px; font-size: 13px; line-height: 1.35; padding: 5px 9px; background: rgba(0, 0, 0, .18); border-left: 3px solid var(--bronze-d); }
+.outcomes b { font-weight: normal; margin-right: 3px; } .outcomes b.good { color: #9fce86; } .outcomes b.bad { color: #f08a7c; }
+.sendhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+.sendrow { display: flex; align-items: center; gap: 12px; }
+.sendrow button { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oddsbox { flex: 1; min-width: 0; font-size: 13px; }
+.oddsbox .bar { height: 8px; margin: 3px 0 0; }
