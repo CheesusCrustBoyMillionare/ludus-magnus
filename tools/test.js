@@ -187,6 +187,35 @@ test('rival houses: dealings, challenges, and the houses fighting each other', (
   assert(G.fame < f0 + 1, 'ducking your own challenge costs fame');
 }));
 
+test('patrons: petitions spend favour, requests are asked and settled', () => game()(function () {
+  newGame(); G.denarii = 1000; G.day = 2;
+  // a stranger is not listened to
+  G.patrons.guild = 10;
+  assert(!petition('guild', 'advance').ok, 'a patron who does not know you grants nothing');
+  // an advance: money now, favour spent, and only one petition between games
+  G.patrons.guild = 50; const d0 = G.denarii;
+  assert(petition('guild', 'advance').ok && G.denarii > d0 && G.patrons.guild === 42, 'an advance pays and costs favour');
+  assert(!petition('guild', 'grain').ok, 'one petition to a patron between games');
+  // grain at cost: the men eat for nothing until the next games
+  G.petitioned = {}; assert(foodCost() > 0 && petition('guild', 'grain').ok && foodCost() === 0, 'grain at the Guild\'s cost');
+  // a richer card
+  G.patrons.magistrate = 60; assert(petition('magistrate', 'card').ok, 'a richer card is granted');
+  G.day = GAMES_EVERY; G.request = null; genBouts(); const rich = G.bouts.reduce((n, b) => n + b.purse, 0);
+  G.richCard = 0; genBouts(); const plain = G.bouts.reduce((n, b) => n + b.purse, 0);
+  assert(rich > plain * 1.2, 'purses are larger on a richer card: ' + rich + ' against ' + plain);
+  assert(foodCost() > 0, 'the grain runs out at the games');
+  // the temple heals
+  G.patrons.temple = 60; G.roster[0].injury = 4; G.roster[0].hp = 5;
+  assert(petition('temple', 'heal').ok && G.roster[0].injury === 2 && G.roster[0].hp === maxHp(G.roster[0]), 'the priests mend wounds');
+  // a request: a tithe paid is favour gained; one left undone is favour lost
+  G.request = { patron: 'temple', type: 'tithe', cost: 30, day: G.day, favor: 9, pay: 0 }; let f0 = G.patrons.temple;
+  assert(payTithe() && G.request.done && G.patrons.temple === f0 + 9, 'an offering made');
+  G.request = { patron: 'guild', type: 'show', day: 1, favor: 8, pay: 40 }; f0 = G.patrons.guild;      // asked at an earlier games, and never done
+  genRequest();
+  assert(G.patrons.guild === f0 - 4, 'a request left undone costs favour');
+  assert(!badNumber(G), 'patrons left a bad number');
+}));
+
 test('every event and every choice runs', () => game()(function () {
   let n = 0;
   for (const id of Object.keys(EVENTS)) {

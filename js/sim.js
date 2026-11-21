@@ -168,7 +168,80 @@ function staffLvl(role) { return G.staff[role] ? G.staff[role].skill : 0; }
 function wages() { return Object.values(G.staff).reduce((s, x) => s + x.wage, 0); }
 function stipend() { return Math.round(G.patrons.guild / 10 * (1 + tier())); }
 function favor(k, d) { G.patrons[k] = clamp(G.patrons[k] + d, 0, 100); }
-function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + G.patrons.temple * 0.001 - (G.rigged && G.rigged >= G.day ? 0.15 : 0); }
+function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus') + G.patrons.temple * 0.001 - (G.rigged && G.rigged >= G.day ? 0.15 : 0) + (G.blessed && G.blessed >= G.day ? 0.1 : 0); }
+// ---- what may be asked of a patron, and what a patron may ask of you ----
+// A petition spends favour for something now. One may be put to each patron between one games and the next, and only
+// by a house he knows well enough to listen to.
+const nextGames = () => G.day + (daysToGames() || GAMES_EVERY);
+const hottestHouse = () => G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0];
+const PETITIONS = {
+  magistrate: [
+    { id: 'card', name: 'A richer card', cost: 10, need: 35, desc: 'Every purse at the next games is half as large again.',
+      run: () => { G.richCard = nextGames(); return 'He has a word with the men who pay for the games. The next card will be worth fighting for.'; } },
+    { id: 'fine', name: 'Have a rival fined', cost: 12, need: 40, desc: 'The house you have the worst feud with loses 25 renown. They will know who asked.',
+      block: () => hottestHouse().grudge >= 15 ? '' : 'You have no quarrel worth bringing before him.',
+      run: () => { const H = hottestHouse(); H.prestige = Math.max(0, H.prestige - 25); feud(H, 8); return `${houseDef(H.id).name} is found to have broken some ordinance of the games, and pays for it in the forum.`; } },
+  ],
+  guild: [
+    { id: 'advance', name: 'An advance', cost: 8, need: 20, desc: () => `${guildAdvance()} denarii now, against the stipend.`,
+      run: () => { const n = guildAdvance(); G.denarii += n; return `A clerk counts ${n} denarii onto the table and writes your name in a long book.`; } },
+    { id: 'grain', name: 'Grain at their cost', cost: 10, need: 35, desc: 'Your men eat for nothing until the next games.',
+      run: () => { G.grainUntil = nextGames(); return 'Their carts will stop at your gate first. Until the next games the barley costs you nothing.'; } },
+  ],
+  temple: [
+    { id: 'blessing', name: 'A blessing on the school', cost: 10, need: 20, desc: 'Every man\'s morale +15, and the fallen are spared a tenth more often at the next games.',
+      run: () => { G.roster.forEach(g => { g.morale = clamp(g.morale + 15, 0, 100); }); G.blessed = nextGames(); return 'The priests come with fire and laurel and go round every cell. The men stand straighter for it.'; } },
+    { id: 'heal', name: 'The priests\' care', cost: 12, need: 35, desc: 'Every wound mends two days sooner, and every man is made whole.',
+      block: () => G.roster.some(g => !g.away && (g.injury > 0 || g.hp < maxHp(g))) ? '' : 'Nobody here needs it.',
+      run: () => { G.roster.forEach(g => { if (g.away) return; g.injury = Math.max(0, g.injury - 2); g.hp = maxHp(g); }); return 'The temple keeps men who know wounds better than any medicus. They work through the night.'; } },
+  ],
+};
+const guildAdvance = () => 60 + tier() * 60 + stipend() * 3;
+// Why a petition cannot be put just now, or nothing if it can.
+function petitionBlock(k, P) {
+  if ((G.petitioned || {})[k] === dealCycle()) return 'You have asked something of them since the last games.';
+  if (G.patrons[k] < P.need) return `They do not know you well enough yet: it takes ${P.need} favour.`;
+  return P.block ? P.block() : '';
+}
+function petition(k, id) {
+  const P = (PETITIONS[k] || []).find(x => x.id === id);
+  if (!P) return { ok: false, text: '' };
+  const why = petitionBlock(k, P);
+  if (why) return { ok: false, text: why };
+  (G.petitioned = G.petitioned || {})[k] = dealCycle();
+  const text = P.run();                         // what it gives is reckoned before the favour is spent
+  favor(k, -P.cost);
+  log(`Asked of ${PATRONS[k].name}: ${P.name.toLowerCase()}. Favour -${P.cost}.`);
+  return { ok: true, text };
+}
+// A patron sometimes wants something of you: asked on the morning of the games, and settled by the morning of the next.
+function genRequest() {
+  const old = G.request;
+  if (old && !old.done) { favor(old.patron, -4); log(`${PATRONS[old.patron].name} asked something of you, and it was not done. Favour -4.`, 'bad'); }
+  G.request = null;
+  if (G.field || !G.roster.length || !chance(0.65)) return;
+  const k = pick(Object.keys(PATRONS)), t = tier();
+  G.request = k === 'magistrate' ? { patron: k, type: 'wins', need: 2, got: 0, day: G.day, favor: 8, pay: round5(PURSE[t] * 0.5) }
+    : k === 'guild' ? { patron: k, type: 'show', day: G.day, favor: 8, pay: round5(PURSE[t] * 0.6) }
+    : { patron: k, type: 'tithe', cost: 30 + t * 30, day: G.day, favor: 9, pay: 0 };
+  log(`${PATRONS[k].name} asks something of you: ${requestText(G.request)}.`, 'gold');
+}
+function requestText(r) {
+  return r.type === 'wins' ? `win ${r.need} bouts at today's games` : r.type === 'show' ? 'win a bout today that has the crowd on its feet'
+    : `an offering of ${r.cost} denarii before the next games`;
+}
+function fulfilRequest(lines) {
+  const r = G.request; if (!r || r.done) return;
+  r.done = true; favor(r.patron, r.favor); G.denarii += r.pay;
+  const say = `${PATRONS[r.patron].name} had what was asked. Favour +${r.favor}${r.pay ? `, and ${r.pay} denarii` : ''}.`;
+  log(say, 'gold'); if (lines) lines.push(`<span class="gold">${say}</span>`);
+}
+function payTithe() {
+  const r = G.request;
+  if (!r || r.done || r.type !== 'tithe' || G.denarii < r.cost) return false;
+  G.denarii -= r.cost; fulfilRequest(); return true;
+}
+
 function giftCost(k) { return Math.round((40 + 25 * G.gifts[k]) * (1 + tier() * 0.5) / 5) * 5; }
 
 function genHires() {
@@ -286,7 +359,7 @@ function tier() {
 function capacity() { return 3 + 2 * G.fac.barracks; }
 function isGamesDay() { return G.day % GAMES_EVERY === 0; }
 function daysToGames() { return isGamesDay() ? 0 : GAMES_EVERY - (G.day % GAMES_EVERY); }
-function foodCost() { return G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)); }
+function foodCost() { return G.grainUntil && G.grainUntil > G.day ? 0 : G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)); }
 function upkeep() { return foodCost() + wages(); }
 
 // ---------- the dynasty: ruin, heirs and what the family keeps ----------
@@ -1051,6 +1124,7 @@ function genBouts() {
       house: "The Emperor's Champions", purse: 3000, fame: 300,
     });
   }
+  if (G.richCard && G.richCard >= G.day) bouts.forEach(b => { if (!b.final) b.purse = round5(b.purse * 1.5); });      // the Magistrate was asked for a richer card
   G.bouts = bouts;
 }
 
@@ -1145,6 +1219,7 @@ function endDay() {
   if (G.festival.day - G.day === 5) log(`Heralds cry it through the town: ${FESTIVALS[G.festival.type].name}, in five days.`, 'gold');
   if (isGamesDay()) {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
+    genRequest();
     genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts();
     log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
   } else { G.bouts = null; G.tourney = null; }
@@ -1229,9 +1304,9 @@ function applyBoutResult(bout, B, wager, pay) {
   if (win) G.tally.wins++; else G.tally.losses++;
   if (win) {
     purse = boon('laurel') ? Math.round(bout.purse * 1.1 / 5) * 5 : bout.purse;
-    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1));
+    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1));
     mine.forEach(f => { f.g.fame += Math.round(fameGain / mine.length); });
-    if (wager) wagerGain = Math.round(wager * pay);
+    if (wager) wagerGain = Math.round(wager * pay * (G.patrons.guild >= 80 ? 1.2 : 1));
     log(`Victory over ${bout.house}: ${purse} denarii, +${fameGain} fame.`, 'good');
   } else {
     purse = bout.death ? 0 : Math.round(bout.purse * 0.15 / 5) * 5;
@@ -1257,6 +1332,12 @@ function applyBoutResult(bout, B, wager, pay) {
     if (win && G.roster.includes(g) && g.promise && g.wins >= g.promise.at && !G.pendingEvent) G.pendingEvent = { id: 'promiseDue', c: { g: g.id } };
   }
   if (win) { favor('magistrate', bout.death ? 2 : 1); if (avgExc > 0.4) favor('guild', 2); }
+  if (G.patrons.temple >= 80) mine.forEach(f => { if (G.roster.includes(f.g) && f.g.injury > 1) f.g.injury--; });       // the temple's own surgeons
+  { const r = G.request;
+    if (r && !r.done && r.day === G.day && win) {
+      if (r.type === 'wins') { r.got++; if (r.got >= r.need) fulfilRequest(lines); }
+      else if (r.type === 'show' && avgExc >= 0.45) fulfilRequest(lines);
+    } }
   if (G.fix) {
     if (!win) { purse += G.fix.pay; favor('guild', 8); lines.push(`As agreed, ${G.fix.pay} denarii change hands quietly.`); }
     else { favor('guild', -15); lines.push('<span class="bad">The Guild men who paid for your defeat are ruined, and furious.</span>'); }

@@ -1137,3 +1137,17 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 [data-pane^="house-"] .housecard { gap: 5px; }
 
 [data-pane="houses"] > h2 { margin-top: 6px; } .panel.rnews { padding: 4px 10px; }
+
+/* ---- patrons: what you may ask, and what is asked of you ---- */
+.patron .asks { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; border-top: 1px solid rgba(110, 72, 26, .45); padding-top: 5px; }
+.patron .asks .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); width: 100%; }
+.patron .asks button { padding: 2px 8px; font-size: 11px; }
+.patron .asks button small { opacity: .75; font: bold 10px Consolas, monospace; margin-left: 3px; }
+.patron .asks .moves { margin-left: auto; font-size: 11px; color: var(--dim); text-decoration: underline dotted; cursor: help; }
+.today.preq { margin: 6px 0 0; align-items: center; }
+.today.preq.done { border-left-color: #5f9a48; }
+[data-pane="patrons"] { margin-top: 8px; }
+.patron { gap: 4px; }
+
+.preqs.two { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px; }
+.patron .dealmsg { font-size: 12px; padding: 3px 8px; }

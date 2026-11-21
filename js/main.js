@@ -229,6 +229,8 @@ const HINTS = [
     text: g => `<b>${g.name}</b> is resting though he is whole and fresh: a day of training lost. Set him to a skill on his line, or with keys 1 to 5.` },
   { id: 'full', when: () => G.roster.length >= capacity() && G.day >= 2,
     text: () => 'Every cell is taken. To buy another man, improve the <b>Barracks</b> under Household, or sell one: the dealer at the <b>Market</b> will tell you what he would pay.' },
+  { id: 'request', when: () => G.request && !G.request.done && !G.field && (G.request.type === 'tithe' || G.request.day === G.day) && G.request,
+    text: r => `${PATRONS[r.patron].name} ask${r.patron === 'guild' ? '' : 's'} something of us, dominus: ${requestText(r)}. Done, it is worth ${r.favor} favour${r.pay ? ` and ${r.pay} denarii` : ''}; left undone, it costs four. It is written up under <b>Patrons</b>, where you may also <b>ask</b> things of them in your turn, once they know us.` },
   { id: 'called', when: () => (G.bouts || []).find(b => b.called && !b.done),
     text: b => `Your challenge to <b>${b.house}</b> is on today's card at the <b>Arena</b>: their champion, for a double purse. You called it, dominus. If no man of ours appears, the town will not let us forget it.` },
   { id: 'grudge', when: () => (G.bouts || []).find(b => b.grudge && !b.done),
@@ -1120,11 +1122,11 @@ function ledger() {
 const STANDING = [[80, 'Devoted'], [60, 'Trusted'], [35, 'Friendly'], [15, 'Known'], [0, 'A stranger']];
 // What each patron gives at a given favour, as lines: [what, whether you have it].
 const PATRON_GIVES = {
-  magistrate: f => [[`Purses <b class="num">+${Math.round(f * 0.3)}%</b>`, f > 0], ['He sometimes asks for you by name on the contract board', f >= 35], ['You may accuse a rival school before him', f >= 40], ['An extra bout at every games', f >= 60]],
-  guild: f => [[`A stipend of <b class="num">${Math.round(f / 10 * (1 + tier()))}</b> denarii a day`, f >= 5], ['They sometimes ask for you by name on the contract board', f >= 35]],
-  temple: f => [[`Morale settles <b class="num">${Math.round(f / 10)}</b> higher`, f >= 5], [`The fallen are spared <b class="num">${Math.round(f * 0.1)}%</b> more often`, f >= 5], ['The priests sometimes ask for you by name on the contract board', f >= 35]],
+  magistrate: f => [[`Purses <b class="num">+${Math.round(f * 0.3)}%</b>`, f > 0], ['He sometimes asks for you by name on the contract board', f >= 35], ['You may accuse a rival school before him', f >= 40], ['An extra bout at every games', f >= 60], ['Fame from every bout <b class="num">+10%</b>', f >= 80]],
+  guild: f => [[`A stipend of <b class="num">${Math.round(f / 10 * (1 + tier()))}</b> denarii a day`, f >= 5], ['They sometimes ask for you by name on the contract board', f >= 35], ['Wagers won pay <b class="num">a fifth more</b>', f >= 80]],
+  temple: f => [[`Morale settles <b class="num">${Math.round(f / 10)}</b> higher`, f >= 5], [`The fallen are spared <b class="num">${Math.round(f * 0.1)}%</b> more often`, f >= 5], ['The priests sometimes ask for you by name on the contract board', f >= 35], ['Wounds from the arena mend a day sooner', f >= 80]],
 };
-const PATRON_MARKS = { magistrate: [35, 40, 60], guild: [35], temple: [35] };
+const PATRON_MARKS = { magistrate: [35, 40, 60, 80], guild: [20, 35, 80], temple: [20, 35, 80] };
 // What moves each patron, as the rules have it.
 const PATRON_WAYS = {
   magistrate: [['good', 'Every bout won (more if to the death), the Laurel Tournament, his contracts, outlaws and bandits handed over.'], ['bad', 'Ducking a grudge bout, staying away from his dinners, failing his contracts.']],
@@ -1139,6 +1141,25 @@ function giftGain(k, f) {
   return `morale +${Math.round(to / 10) - Math.round(f / 10)}, the fallen spared ${Math.round(to * 0.1) - Math.round(f * 0.1)}% more`;
 }
 
+// What a patron has asked of you, if anything, and how it stands.
+function patronRequest() {
+  const r = G.request; if (!r) return '';
+  const P = PATRONS[r.patron], reward = `Favour +${r.favor}${r.pay ? ` and ${r.pay} denarii` : ''}; left undone, favour &minus;4.`;
+  if (r.done) return `<div class="today preq done"><span class="lbl">Asked of you</span><div><b>${P.name}</b> had what was asked. It is remembered.</div></div>`;
+  const stale = r.type !== 'tithe' && r.day !== G.day;
+  const what = r.type === 'wins' ? `win <b>${r.need}</b> bouts at ${stale ? 'the games just gone' : 'today\'s games'} (<b class="num">${r.got}</b> so far)` : r.type === 'show' ? `win a bout ${stale ? 'at the games just gone' : 'today'} with the crowd on its feet (a crowd at 45 or better over the whole bout)` : `an offering of <b class="num">${r.cost}</b> denarii before the next games`;
+  return `<div class="today preq"><span class="lbl">Asked of you</span><div><b>${P.name}</b> ask${r.patron === 'guild' ? '' : 's'}: ${what}. <span class="dim">${stale ? 'The day has passed: it will be held against you at the next games. ' : ''}${reward}</span>
+    ${r.type === 'tithe' ? `<button class="mini primary" data-act="tithe" ${G.denarii < r.cost ? 'disabled' : ''} style="margin-left:6px">Make the offering &mdash; ${r.cost}</button>` : ''}</div></div>`;
+}
+// What has been granted and is still running.
+function patronBoons() {
+  const b = [];
+  if (G.richCard && G.richCard >= G.day) b.push('a richer card at the next games');
+  if (G.grainUntil && G.grainUntil > G.day) b.push(`grain at the Guild's cost for ${G.grainUntil - G.day} more day${G.grainUntil - G.day === 1 ? '' : 's'}`);
+  if (G.blessed && G.blessed >= G.day) b.push('the temple\'s blessing on your fallen at the next games');
+  if (G.rigged && G.rigged >= G.day) b.push('<span class="bad">a bought man at the editor\'s elbow, against you</span>');
+  return b.length ? `<div class="today preq"><span class="lbl">In force</span><div>${b.join(' &middot; ')}</div></div>` : '';
+}
 function viewPatrons() {
   const dg = daysToGames();
   const cards = Object.entries(PATRONS).map(([k, p]) => {
@@ -1146,13 +1167,17 @@ function viewPatrons() {
     const work = (G.contracts || []).filter(c => c.patron === k), asked = work.some(c => c.asked), out = (G.jobs || []).filter(J => J.patron === k).length;
     const gives = PATRON_GIVES[k](f).map(([t, on]) => `<li class="${on ? 'on' : 'off'}">${t}</li>`).join('');
     const why = f >= 100 ? 'Favour could go no higher.' : G.denarii < cost ? `You are ${cost - G.denarii} denarii short.` : '';
+    const asks = PETITIONS[k].map(P => { const no = petitionBlock(k, P), armed = ui.petArm === k + ':' + P.id, what = typeof P.desc === 'function' ? P.desc() : P.desc;
+      return `<button class="${armed ? 'primary' : ''}" data-act="petition" data-v="${k}" data-w="${P.id}" ${no ? 'disabled' : ''}${tip(`${what}\nIt costs ${P.cost} favour, and wants ${P.need}.${no ? '\n' + no : ''}`)}>${armed ? 'Sure?' : P.name} <small>&minus;${P.cost}</small></button>`; }).join('');
+    const said = ui.petMsg && ui.petMsg.k === k && ui.petMsg.day === G.day ? `<div class="dealmsg ${ui.petMsg.ok ? '' : 'bad'}">${ui.petMsg.text}</div>` : '';
+    const ways = PATRON_WAYS[k].map(([c, t]) => `${c === 'good' ? 'Pleased by' : 'Angered by'}: ${t}`).join('\n');
     return `<div class="panel patron">
       <h3>${p.name} <small class="${f >= 60 ? 'gold' : f < 15 ? 'dim' : ''}">${stand}</small></h3>
       <div class="dim" style="font-size:13px">${p.desc}</div>
       <div class="favour"${tip('favour')}><span>Favour</span><div class="bar prog"><i style="width:${pct(f, 100)}%"></i>${PATRON_MARKS[k].map(m => `<u class="${f >= m ? 'got' : ''}" style="left:${m}%"></u>`).join('')}</div><b class="num">${Math.round(f)}</b></div>
       <div class="dim" style="font-size:12px">${next ? `${Math.ceil(next - f)} more to the next mark, at ${next}.` : 'Every mark reached.'} One point fades ${dg === 0 ? 'today' : `in ${dg} day${dg === 1 ? '' : 's'}`}.</div>
       <ul class="gives">${gives}</ul>
-      <div class="ways">${PATRON_WAYS[k].map(([c, t]) => `<div><b class="${c}">${c === 'good' ? 'Pleased by' : 'Angered by'}</b> ${t}</div>`).join('')}</div>
+      <div class="asks"><span class="lbl"${tip('Spend favour for something now. One petition to each patron between one games and the next.')}>Ask of ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}</span>${asks}<span class="moves"${tip(ways)}>what moves ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}?</span></div>${said}
       <div class="work ${asked ? 'gold' : 'dim'}">${work.length ? `${work.length} offer${work.length === 1 ? '' : 's'} of work on the board${asked ? ', <b>one asking for you by name</b>: ignoring it costs favour' : ''}.` : 'No work on the board from here.'}${out ? ` ${out} of your outings ${out === 1 ? 'is' : 'are'} in ${k === 'guild' ? 'their' : k === 'temple' ? 'her' : 'his'} service now.` : ''}</div>
       <div class="buyrow"><button class="primary" data-act="gift" data-v="${k}" ${why ? 'disabled' : ''}>Send a gift &mdash; ${cost}</button>
         <small class="${why ? 'bad' : 'dim'}">${why || `Favour +10: ${giftGain(k, f)}. The next gift will cost more.`}</small></div>
@@ -1164,6 +1189,7 @@ function viewPatrons() {
       <span class="good"${tip('What the Guild pays you every day, set by their favour and your standing.')}>stipend <b class="num">+${stipend()}</b> a day</span>
       <span${tip('favour')}>favour fades by one ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
       ${G.fix ? `<span class="bad"><b>You have agreed to lose your next bout for ${G.fix.pay} denarii.</b> Win it and the Guild will not forgive you.</span>` : ''}</div></div>
+    <div class="preqs ${patronRequest() && patronBoons() ? 'two' : ''}">${patronRequest()}${patronBoons()}</div>
     <div class="pane" data-pane="patrons"><div class="threecol">${cards}</div></div></div></div>`;
 }
 
@@ -2219,6 +2245,16 @@ const ACTIONS = {
     log(`${s.name} the ${STAFF_ROLES[v].name.toLowerCase()} is dismissed.`);
     save(); render();
   },
+  // A petition spends favour, so it is asked twice.
+  petition(v, w) {
+    const key = v + ':' + w;
+    if (ui.petArm !== key) { ui.petArm = key; SFX.ui('warn'); render(); return; }
+    ui.petArm = null;
+    const r = petition(v, w);
+    ui.petMsg = { k: v, day: G.day, ok: r.ok, text: r.text };
+    SFX.ui(r.ok ? 'chime' : 'thud'); save(); render();
+  },
+  tithe() { if (payTithe()) { SFX.ui('coin'); save(); render(); } },
   gift(v) {
     const c = giftCost(v);
     if (G.denarii < c || G.patrons[v] >= 100) return;
