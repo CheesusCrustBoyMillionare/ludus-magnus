@@ -769,3 +769,7 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 #modalBox:has(.helpcols) { max-width: 820px; }
 #sidefoot .wide + .wide { margin-top: 3px; }
 #camp .row button { white-space: nowrap; }
+
+/* the four scenes are drawn at a whole-number scale at or above what the screen shows (fitScenes in main.js),
+   so they are only ever shrunk a little: smoothly, not by dropping rows of pixels */
+#yard, #village, #wildCanvas, #arenaCanvas { image-rendering: auto; }

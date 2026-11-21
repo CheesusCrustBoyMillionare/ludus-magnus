@@ -276,7 +276,7 @@ function provIcon(ctx, s, T, done) {
 
 function drawProvince(cv, T) {
   if (prov.big) return drawOverview(cv, T);
-  const F = G.field, ctx = cv.getContext('2d'), S = PROV.S;
+  const F = G.field, ctx = cv.getContext('2d'), S = PROV.S = cv.width / PROV.VW;      // a whole number, chosen for the screen (see fitScenes in main.js)
   const camX = prov.camX = clamp(Math.round(F.x - PROV.VW / 2), 0, WILD.W - PROV.VW), camY = prov.camY = clamp(Math.round(F.y - PROV.VH / 2), 0, WILD.H - PROV.VH);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(provLand(), camX, camY, PROV.VW, PROV.VH, 0, 0, PROV.VW * S, PROV.VH * S);
@@ -365,6 +365,19 @@ function drawProvince(cv, T) {
     }
   }
   ctx.globalAlpha = 1;
+
+  // the same hour and the same weather as over the town: the colour of the light, a brand in the dark, rain
+  const sky = yardSky(sceneClock()), wx = yardWeather(sceneClock());
+  if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
+  if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
+  if (sky.night > 0.25) {
+    const la = Math.min(1, (sky.night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 5; i++) { const r = 26 - i * 5; ctx.fillStyle = `rgba(255,170,80,${(0.07 * la).toFixed(3)})`; ctx.fillRect(Math.round(F.x - r), Math.round(F.y - 8 - r * 0.7), r * 2, Math.round(r * 1.4)); }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = la; R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 10, 1, 4, '#3a2a1c'); ctx.globalAlpha = 1;
+  }
+  ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
 
   // names, and marks that show even through the fog
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
@@ -470,19 +483,20 @@ function drawOverview(cv, T) {
   // you: a banner that stands over everything
   const fb = Math.floor(T * 2.5) % 2 ? 4 : 0;
   R(F.x - 3, F.y - 46 - fb, 6, 46 + fb, '#1a110c'); R(F.x - 1, F.y - 44 - fb, 2, 44 + fb, '#f1ead8'); R(F.x + 1, F.y - 46 - fb, 34, 22, '#1a110c'); R(F.x + 3, F.y - 44 - fb, 30, 18, '#7a2a8a'); R(F.x + 9, F.y - 39 - fb, 18, 8, '#f5d584');
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const U = cv.width / 960;
+  ctx.setTransform(U, 0, 0, U, 0, 0);
   // the key to the map
   const key = [['#7a2a8a', 'YOU'], ['#f5d584', 'MARKED FOR YOU'], ['#c23b2e', 'A ROAMING BAND'], ['#8a8478', 'DEALT WITH'], ['rgba(120,40,30,.9)', 'SKULLS: HOW HARD THE COUNTRY IS']];
   ctx.font = 'bold 11px Consolas, monospace'; ctx.textAlign = 'left';
   const kw = Math.max(...key.map(q => ctx.measureText(q[1]).width)) + 34;
   ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(8, 8, kw, key.length * 16 + 10);
   key.forEach(([c, t], n) => { ctx.fillStyle = c; ctx.fillRect(16, 15 + n * 16, 10, 10); ctx.fillStyle = '#f2e6cc'; ctx.fillText(t, 32, 24 + n * 16); });
-  if (hv) { const [lines, sk] = hoverLines(hv); provCard(ctx, hv.x * k, hv.y * k - 14, lines, sk, 2, cv.width, cv.height); }
+  if (hv) { const [lines, sk] = hoverLines(hv); provCard(ctx, hv.x * k / U, hv.y * k / U - 14, lines, sk, 2, 960, 720); }
   ctx.textAlign = 'center';
   ctx.font = 'bold 14px Consolas, monospace';
   const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = ctx.measureText(msg).width + 24;
-  ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(cv.width / 2 - w / 2, cv.height - 34, w, 24);
-  ctx.fillStyle = '#f5d584'; ctx.fillText(msg, cv.width / 2, cv.height - 17);
+  ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(960 / 2 - w / 2, 720 - 34, w, 24);
+  ctx.fillStyle = '#f5d584'; ctx.fillText(msg, 960 / 2, 720 - 17);
 }
 
 // The whole province on a hand's breadth: what you have walked, where you are, and what is marked.

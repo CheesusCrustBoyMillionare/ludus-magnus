@@ -1137,6 +1137,7 @@ function drawBattle(ctx, B) {
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#1a1210'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const K = ctx.canvas.width / 1280;          // how many canvas pixels to one of the arena's own (see fitScenes in main.js)
   const shx = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake) * SCALE : 0;
   const shy = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake * 0.6) * SCALE : 0;
 
@@ -1150,9 +1151,9 @@ function drawBattle(ctx, B) {
   if (focus) { cam.tx = focus.x * 2; cam.ty = focus.y * 2 - 16; if (cam.z === 1) { cam.x = cam.tx; cam.y = cam.ty; } }
   cam.z += (want - cam.z) * ck; if (Math.abs(cam.z - want) < 0.004) cam.z = want;
   if (cam.tx != null) { cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; }
-  const cz = cam.z, CW = ctx.canvas.width, CH = ctx.canvas.height;
+  const cz = cam.z, CW = 1280, CH = 720;
   const cox = cz === 1 ? 0 : clamp(CW / 2 - cam.x * FINE * cz, CW - 428 * FINE * cz, 0), coy = cz === 1 ? 0 : clamp(CH / 2 - cam.y * FINE * cz, CH - 240 * FINE * cz, 0);
-  const view = unit => ctx.setTransform(unit * cz, 0, 0, unit * cz, cox + shx, coy + shy);
+  const view = unit => ctx.setTransform(unit * cz * K, 0, 0, unit * cz * K, (cox + shx) * K, (coy + shy) * K);
 
   // ---- sprite-pixel layer: backdrop, crowd, blood, fighters ----
   view(FINE);
@@ -1191,6 +1192,14 @@ function drawBattle(ctx, B) {
   showFront(ctx, B, T);       // dust, things thrown from the stands
 
   // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
+  // by day the arena takes the weather and a little of the hour from the same sky as the yard; a dusk bout has its own light
+  if (!dusk && typeof yardSky === 'function') {
+    const sky = yardSky(sceneClock()), wx = yardWeather(sceneClock()), tint = sceneTint(sky, B.wild ? 0.6 : 0.3);
+    if (tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, 428, 240); ctx.globalCompositeOperation = 'source-over'; }
+    if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.1 * wx.over).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
+    if (wx.wet > 0) { ctx.fillStyle = `rgba(70,45,20,${(0.14 * wx.wet).toFixed(3)})`; ctx.fillRect(0, 86, 428, 154); }
+    sceneRain(ctx, 428, 240, T, wx.rain, 90);
+  }
   if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
   for (const x of B.wild ? [] : ARENA_TORCHES) {
     const fl = Math.sin(T * 13 + x) > 0 ? 1 : 0;
@@ -1207,6 +1216,7 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = `rgba(20,10,4,${(0.05 * (dusk ? 1.6 : 1)).toFixed(3)})`;
     ctx.fillRect(0, 86, 14 - i * 3, 154); ctx.fillRect(428 - 14 + i * 3, 86, 14 - i * 3, 154); ctx.fillRect(0, 240 - 10 + i * 2, 428, 10 - i * 2);
   }
+  if (typeof sceneVignette === 'function') sceneVignette(ctx, 428, 240, 0.22);
   if (B.flashT > 0) { ctx.fillStyle = `rgba(255,250,235,${Math.min(0.2, B.flashT * 1.8).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
 
   // ---- world-unit layer: nets, bars, floating text ----
@@ -1259,7 +1269,7 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = t.col; ctx.fillText(t.str, t.x * Z, t.y * Z);
   }
   ctx.globalAlpha = 1;
-  ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+  ctx.setTransform(SCALE * K, 0, 0, SCALE * K, 0, 0);
 
   drawHud(ctx, B);
 

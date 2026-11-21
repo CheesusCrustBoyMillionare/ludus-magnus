@@ -90,6 +90,28 @@ function mixHex(a, b, t) {
   const p = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)], x = p(a), y = p(b);
   return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
+// ---------- one light for every scene ----------
+// The yard keeps the hour and the weather (yardSky, yardWeather). The town, the province and the arena ask it,
+// so that dusk falls and rain comes on everywhere at once. T here is always the clock of the page, in seconds.
+const sceneClock = () => performance.now() / 1000;
+// The colour of the hour, at full strength or part of the way from plain daylight.
+function sceneTint(sky, k) { return k >= 1 ? sky.tint : mixHex('#ffffff', sky.tint, k); }
+// The corners fall away a little, so the eye rests on the middle. Drawn in the scene's own units.
+function sceneVignette(ctx, w, h, a) {
+  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.5, w / 2, h / 2, Math.hypot(w, h) * 0.6);
+  g.addColorStop(0, 'rgba(26,15,6,0)'); g.addColorStop(1, `rgba(26,15,6,${a})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+}
+// Rain across a scene w by h units: slanting streaks, heavier as amt goes to 1.
+function sceneRain(ctx, w, h, T, amt, n) {
+  if (!(amt > 0)) return;
+  ctx.fillStyle = `rgba(200,215,235,${(0.5 * amt).toFixed(3)})`;
+  for (let i = 0, m = Math.round((n || 70) * amt); i < m; i++) {
+    const x = Math.floor(((i * 97.3 - T * 70) % (w + 30) + (w + 30)) % (w + 30) - 15), y = Math.floor((i * 61.7 + T * 340 + (i % 7) * 13) % (h + 10) - 5);
+    ctx.fillRect(x, y, 1, 4); ctx.fillRect(x - 1, y + 4, 1, 2);
+  }
+}
+
 function yardSky(T) {
   let u = ((T / YARD_DAY) + 0.2) % 1;                         // begin in mid-morning
   if (yardForce && yardForce.u != null) u = yardForce.u;
@@ -107,6 +129,7 @@ function yardSky(T) {
 }
 
 function drawYard(cv, T) {
+  YARD.S = cv.width / 590;                    // whatever whole number of canvas pixels to the unit the screen calls for (see fitScenes in main.js)
   const main = cv.getContext('2d'), GY = YARD.GY, F = G.fac, t = tier();
   let ctx = main;                           // drawing switches to the scene layer once the sky is done
   ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0);
@@ -552,6 +575,7 @@ function drawYard(cv, T) {
     ctx.globalAlpha = 1;
   }
   late.forEach(f => f());
+  sceneVignette(ctx, 590, 190, 0.3);
 }
 
 function yardFrame(ts) {

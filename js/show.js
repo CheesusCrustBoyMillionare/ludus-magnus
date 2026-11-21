@@ -187,7 +187,7 @@ function showBack(ctx, B, T) {
     const cv = ctx.canvas;
     for (let y = 80; y < 100; y++) {
       const a = Math.sin(T * 3.1 + y * 0.83) * (1 - (y - 80) / 26);
-      if (Math.abs(a) > 0.62) ctx.drawImage(cv, 0, y * FINE, cv.width, FINE, a > 0 ? 1 : -1, y, 428, 1);
+      if (Math.abs(a) > 0.62) { const k = cv.width / 1280; ctx.drawImage(cv, 0, y * FINE * k, cv.width, FINE * k, a > 0 ? 1 : -1, y, 428, 1); }
     }
   }
 }

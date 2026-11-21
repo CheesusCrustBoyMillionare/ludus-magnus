@@ -199,7 +199,7 @@ function vilPerson(ctx, X, Y, o) {
 
 // Everything that does not move, drawn once.
 function villageLayer() {
-  if (vil.layer) return vil.layer;
+  if (vil.layer && vil.layer.width === VILLAGE.W * VILLAGE.S) return vil.layer;
   const cv = document.createElement('canvas'); cv.width = VILLAGE.W * VILLAGE.S; cv.height = VILLAGE.H * VILLAGE.S;
   const ctx = cv.getContext('2d'); ctx.setTransform(VILLAGE.S, 0, 0, VILLAGE.S, 0, 0); ctx.imageSmoothingEnabled = false;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
@@ -313,6 +313,7 @@ function drawVillage(cv, T) {
   villageStep(dt, frozen || !!G.field);            // while the school is out in the province the same keys walk the column there, not him here
 
   const ctx = cv.getContext('2d');
+  VILLAGE.S = cv.width / VILLAGE.W;           // a whole number, chosen for the screen (see fitScenes in main.js); the still layer is redrawn to match
   ctx.setTransform(VILLAGE.S, 0, 0, VILLAGE.S, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(villageLayer(), 0, 0, VILLAGE.W, VILLAGE.H);
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
@@ -452,6 +453,8 @@ function drawVillage(cv, T) {
     for (let i = 0, n = Math.round(70 * wx.rain); i < n; i++) { const x = Math.floor(((i * 97.3 - T * 70) % 620 + 620) % 620 - 15), y = Math.floor((i * 61.7 + T * 340 + (i % 7) * 13) % 200 - 5); ctx.fillRect(x, y, 1, 4); ctx.fillRect(x - 1, y + 4, 1, 2); }
   }
   if (wx.gust > 0) { ctx.globalAlpha = wx.gust; for (let i = 0; i < 6; i++) R((i * 211 + T * 120) % 640 - 20, 20 + (i * 43) % 160 - Math.abs(Math.sin(T * 5 + i)) * 8, 2, 1, i % 2 ? '#6f8a3a' : '#a8722e'); ctx.globalAlpha = 1; }
+
+  sceneVignette(ctx, 590, 190, 0.3);
 
   // what the mouse is resting on: a gold line round it, and a word about it along the foot of the map
   const hov = vil.hover ? villageAt(vil.hover.x, vil.hover.y) : null, hp = hov && hov !== 'gate' ? placeOf(hov) : null;

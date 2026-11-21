@@ -108,6 +108,35 @@ function fitScreen() {
 }
 addEventListener('resize', fitScreen);
 fitScreen();
+
+// Each scene is drawn at a whole number of canvas pixels to one of its own units: the smallest whole number that is
+// at least what the screen really shows, and never fewer than `min`. The browser then only ever shrinks the picture
+// a little, smoothly, so every pixel of the art comes out the same size on any screen, and big screens get more of them.
+// (Before, the canvases had one fixed size and were stretched by an uneven amount: pixels of two sizes at 1440p and 4K.)
+const SCENES = { yard: [590, 190, 2], village: [590, 190, 2], wildCanvas: [480, 360, 2], arenaCanvas: [1280, 720, 1] };
+function fitScene(cv, devW) {
+  const spec = SCENES[cv.id];
+  if (!spec || !(devW > 8)) return;                        // hidden: leave it as it is
+  const k = Math.max(spec[2], Math.min(6, Math.ceil(devW / spec[0] - 0.04)));
+  if (cv.width === spec[0] * k) return;
+  cv.width = spec[0] * k; cv.height = spec[1] * k;         // this clears it; the scene redraws on its next frame
+  if (cv.id === 'arenaCanvas' && typeof fight !== 'undefined' && fight && fight.B) drawBattle(cv.getContext('2d'), fight.B);
+}
+function fitScenes() {
+  if (typeof ResizeObserver !== 'function') return;
+  const ro = new ResizeObserver(list => {
+    for (const e of list) {
+      const box = e.devicePixelContentBoxSize && e.devicePixelContentBoxSize[0];
+      fitScene(e.target, box ? box.inlineSize : e.target.getBoundingClientRect().width * (devicePixelRatio || 1));
+    }
+  });
+  for (const id in SCENES) {
+    const cv = document.getElementById(id);
+    if (!cv) continue;
+    try { ro.observe(cv, { box: 'device-pixel-content-box' }); } catch (err) { ro.observe(cv); }
+  }
+}
+fitScenes();
 function hideTip() { tipTarget = null; const el = $('#tip'); if (el) el.hidden = true; }
 document.addEventListener('mouseover', e => {
   const el = e.target.closest ? e.target.closest('[data-tip]') : null;
@@ -1968,7 +1997,7 @@ document.addEventListener('mousemove', e => {
 document.addEventListener('mousemove', e => {
   if (!fight) return;
   const cv = $('#arenaCanvas'), r = cv.getBoundingClientRect();
-  fight.hover = e.target === cv ? { x: (e.clientX - r.left) / r.width * cv.width / WORLD, y: (e.clientY - r.top) / r.height * cv.height / WORLD } : null;
+  fight.hover = e.target === cv ? { x: (e.clientX - r.left) / r.width * 1280 / WORLD, y: (e.clientY - r.top) / r.height * 720 / WORLD } : null;
 });
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-chg]');
