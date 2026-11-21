@@ -1358,19 +1358,54 @@ function drawCutIn(ctx, B, T) {
 }
 
 // The corner panels: one line a fighter. His style, his name, his health over his charge, and whatever ails or aids him.
+// What ails or aids a man, as small pictures: a drop for bleeding, a boot for a cut leg, a blade for a hurt arm, a mesh
+// for the net, a star for a daze, an arrow down for weakness and up for a rousing, a mark for a man left open.
+const HUD_MARKS = {
+  bleed: ['#ff3a2a', '..#..', '.###.', '#####', '#####', '.###.'],
+  ham:   ['#ffd24a', '..##.', '..##.', '..##.', '.###.', '####.'],
+  arm:   ['#ff9a3a', '..#..', '..#..', '..#..', '.###.', '..#..'],
+  net:   ['#d8c79a', '#.#.#', '.#.#.', '#.#.#', '.#.#.', '#.#.#'],
+  stun:  ['#ffffff', '.#.#.', '#####', '.###.', '#####', '.#.#.'],
+  weak:  ['#b0a690', '.###.', '.###.', '#####', '.###.', '..#..'],
+  buff:  ['#6aa8ff', '..#..', '.###.', '#####', '.###.', '.###.'],
+  open:  ['#ff8a4a', '#####', '#...#', '#.#.#', '#...#', '#####'],
+};
+function hudMarks(f) {
+  const m = [];
+  if (f.bleed > 0) m.push('bleed'); if (f.hamstrung) m.push('ham'); if (f.armWound) m.push('arm'); if (f.snare > 0) m.push('net');
+  if (f.stun > 0.3) m.push('stun'); if (f.weakT > 0) m.push('weak'); if (f.open > 0) m.push('open'); if (f.buff) m.push('buff');
+  return m;
+}
+function drawMark(ctx, k, x, y, u) {            // u: the size of one of its dots
+  const m = HUD_MARKS[k];
+  ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(x - u, y - u, u * 7, u * 7);
+  ctx.fillStyle = m[0];
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) if (m[r + 1][c] === '#') ctx.fillRect(x + c * u, y + r * u, u, u);
+}
+// The health a bar shows lags the health a man has, so that what a blow took is seen for a moment before it goes.
+function hudLag(B) {
+  const T = B.clock, dt = clamp(T - (B.hudT === undefined ? T : B.hudT), 0, 0.1); B.hudT = T;
+  for (const f of B.fighters) {
+    if (f.hudHp === undefined || f.hudHp < f.hp) f.hudHp = f.hp;
+    else if (f.hudHp > f.hp) { if (f.flash > 0) f.hudHold = 0.35; f.hudHold = Math.max(0, (f.hudHold || 0) - dt); if (!f.hudHold) f.hudHp = Math.max(f.hp, f.hudHp - f.maxHp * 0.6 * dt); }
+  }
+}
 function drawHud(ctx, B) {
   const rows = [0, 0], many = B.fighters.length > 10, rh = many ? 6 : 12, T = B.clock;
   ctx.font = 'bold 5px Consolas, monospace';
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   for (const f of B.fighters) {
-    const x = f.team ? 222 : 2, y = 2 + rows[f.team]++ * rh, gone = out(f), ready = !gone && f.charge >= 100;
+    const x = f.team ? 222 : 2, y = 2 + rows[f.team]++ * rh, gone = out(f), ready = !gone && f.charge >= 100, frac = clamp(f.hp / f.maxHp, 0, 1), low = !gone && frac < 0.25;
     ctx.fillStyle = 'rgba(0,0,0,.74)'; ctx.fillRect(x, y, 96, rh - 1);
     ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, 2, rh - 1);
     if (ready) { ctx.fillStyle = `rgba(255,210,74,${(0.18 + 0.14 * Math.sin(T * 9)).toFixed(3)})`; ctx.fillRect(x + 2, y, 94, rh - 1); }
+    if (low) { ctx.fillStyle = `rgba(200,30,20,${(0.14 + 0.12 * Math.sin(T * 7)).toFixed(3)})`; ctx.fillRect(x + 2, y, 94, rh - 1); }
+    if (!gone && f.flash > 0) { ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(x + 2, y, 94, rh - 1); }      // he has just been hit
+    if (B.pick === f) { ctx.fillStyle = '#ffd24a'; ctx.fillRect(x, y, 96, 0.6); ctx.fillRect(x, y + rh - 1.6, 96, 0.6); }
     const nx = many ? x + 4 : x + 10;
     if (!many) { if (f.style) drawIcon(ctx, f.style, x + 3.5, y + 2.5, 0.5); else { ctx.fillStyle = '#6b5f50'; ctx.fillRect(x + 4.5, y + 5, 4, 1); } }
-    ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
-    const bx = x + 44, bw = 48;
+    ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
+    const bx = x + 44, bw = many ? 48 : 37;
     if (gone) {
       const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);
       ctx.fillStyle = slain ? '#e2695c' : '#c9b9a0';
@@ -1379,21 +1414,19 @@ function drawHud(ctx, B) {
     }
     const by = many ? y + 1 : y + 2, bh = many ? 2 : 3, sy = many ? y + 4 : y + 7, sh = many ? 1 : 2;
     ctx.fillStyle = '#3a1512'; ctx.fillRect(bx, by, bw, bh);
-    ctx.fillStyle = B.col[f.team]; ctx.fillRect(bx, by, Math.ceil(bw * f.hp / f.maxHp), bh);
-    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(bx, by, Math.ceil(bw * f.hp / f.maxHp), 1);
+    const lag = clamp((f.hudHp === undefined ? f.hp : f.hudHp) / f.maxHp, 0, 1);
+    if (lag > frac) { ctx.fillStyle = '#fff0c8'; ctx.fillRect(bx, by, Math.ceil(bw * lag), bh); }       // what the last blow took, still showing
+    ctx.fillStyle = low && Math.sin(T * 7) > 0 ? shade(B.col[f.team], 1.35) : B.col[f.team]; ctx.fillRect(bx, by, Math.ceil(bw * frac), bh);
+    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(bx, by, Math.ceil(bw * frac), 1);
     ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, sy, bw, sh);
     ctx.fillStyle = ready ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(bx, sy, Math.ceil(bw * f.charge / 100), sh);
     if (!many) {
       for (let i = 1; i < 4; i++) { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(bx + bw * i / 4, sy, 0.5, sh); }
-      let px = nx;                              // what ails or aids him, under his name
-      const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, y + 8, 3, 2); px += 4; };
-      if (f.bleed > 0) pip('#ff3a2a');
-      if (f.hamstrung) pip('#ffd24a');
-      if (f.armWound) pip('#ff9a3a');
-      if (f.snare > 0) pip('#d8c79a');
-      if (f.stun > 0.3) pip('#ffffff');
-      if (f.weakT > 0) pip('#a39a88');
-      if (f.buff) pip('#6aa8ff');
+      // his health in figures, and READY when he is charged
+      ctx.textAlign = 'right'; ctx.fillStyle = low ? '#ff8a7a' : '#f2e6cc'; ctx.fillText(Math.max(0, Math.ceil(f.hp)), x + 94, y + 5.5);
+      if (ready) { ctx.font = 'bold 3.5px Consolas, monospace'; ctx.fillStyle = '#fff0b0'; ctx.fillText('READY', x + 94, y + 9.6); ctx.font = 'bold 5px Consolas, monospace'; }
+      ctx.textAlign = 'left';
+      hudMarks(f).slice(0, 8).forEach((k, i) => drawMark(ctx, k, nx + 0.5 + i * 4, y + 7.4, 0.5));      // what ails or aids him, under his name
     } else {
       let px = bx + bw + 1;
       const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, y + 1, 1.5, 3); px += 2; };
@@ -1822,21 +1855,16 @@ function drawBattle(ctx, B) {
   view(SCALE);
   ctx.textAlign = 'center';
   ctx.font = 'bold 5px Consolas, monospace';
+  hudLag(B);
   for (const f of B.fighters) {
     if (out(f) || B.intro > 0) continue;
     const fx = f.x * Z, x = Math.round(fx) - 7, y = Math.round(f.y * Z) - Math.round(f.tall * FINE / SCALE) - 4, ny = y - 3 - f.team * 6;
     ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, 16, 5);
     ctx.fillStyle = '#3a1512'; ctx.fillRect(x, y, 14, 2);
-    ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, Math.ceil(14 * f.hp / f.maxHp), 2);
-    ctx.fillStyle = f.charge >= 100 ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(x, y + 2, Math.ceil(14 * f.charge / 100), 1);
-    let px = x + 16;
-    const pip = col => { ctx.fillStyle = '#000'; ctx.fillRect(px, y - 1, 4, 4); ctx.fillStyle = col; ctx.fillRect(px + 1, y, 2, 2); px += 4; };
-    if (f.bleed > 0) pip('#ff3a2a');
-    if (f.hamstrung) pip('#ffd24a');
-    if (f.armWound) pip('#ff9a3a');
-    if (f.open > 0) pip('#e8d7a0');
-    if (f.buff) pip('#6aa8ff');
-    if (f.weakT > 0) pip('#8a7a66');
+    if (f.hudHp > f.hp) { ctx.fillStyle = '#fff0c8'; ctx.fillRect(x, y, Math.ceil(14 * clamp(f.hudHp / f.maxHp, 0, 1)), 2); }
+    ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, Math.ceil(14 * clamp(f.hp / f.maxHp, 0, 1)), 2);
+    ctx.fillStyle = f.charge >= 100 ? (Math.sin(T * 12) > 0 ? '#ffffff' : '#fff0b0') : '#e0aa3e'; ctx.fillRect(x, y + 2, Math.ceil(14 * f.charge / 100), 1);
+    hudMarks(f).slice(0, 5).forEach((k, i) => drawMark(ctx, k, x + 16.5 + i * 4, y - 0.5, 0.5));
     if (B.fighters.length > 2) continue;   // in team fights the corner panels carry the names
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(f.g.name, fx + 0.4, ny + 0.4);
     ctx.fillStyle = f.team ? '#bcd6ff' : '#ffd9d2'; ctx.fillText(f.g.name, fx, ny);
@@ -1885,13 +1913,38 @@ function drawBattle(ctx, B) {
   // crowd meter
   ctx.textAlign = 'center';
   ctx.font = 'bold 5px Consolas, monospace';
+  const live = B.intro <= 0 && !B.over;
   if (!B.wild) {                 // nobody is watching out here
-    ctx.fillStyle = '#000'; ctx.fillRect(109, 172, 102, 5);
-    ctx.fillStyle = '#3a2a22'; ctx.fillRect(110, 173, 100, 3);
-    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(110, 173, Math.round(100 * clamp(B.exc, 0, 1)), 3);
-    ctx.fillStyle = '#3a2a22'; ctx.fillText('CROWD', 160, 170);
+    const e = clamp(B.exc, 0, 1), word = e > 0.55 ? 'ROARING' : e > 0.3 ? 'STIRRING' : 'QUIET';
+    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(108, 163.5, 104, 14);
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(108, 163.5, 104, 0.5);
+    ctx.fillStyle = '#1c130c'; ctx.fillRect(110, 173, 100, 3);
+    ctx.fillStyle = e > 0.55 ? (Math.sin(T * 10) > 0 ? '#ffe27a' : '#ffd24a') : e > 0.3 ? '#e0aa3e' : '#b98a2e'; ctx.fillRect(110, 173, Math.round(100 * e), 3);
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(110, 173, Math.round(100 * e), 1);
+    for (const v of [0.3, 0.55]) { ctx.fillStyle = '#f2e6cc'; ctx.fillRect(110 + 100 * v, 172, 0.5, 5); }      // where it stirs, and where it roars
+    ctx.textAlign = 'left'; ctx.fillStyle = '#c9b9a0'; ctx.fillText('CROWD', 110, 170.5);
+    ctx.fillStyle = e > 0.55 ? '#ffd24a' : e > 0.3 ? '#f2e6cc' : '#8a7a66'; ctx.fillText(word, 131, 170.5);
   }
-  if (B.death && B.intro <= 0) { ctx.fillStyle = '#8e1b14'; ctx.fillText('SINE MISSIONE', 160, 72); }
+  if (live) {                    // the clock: how long it has run, and when the judges will end it
+    const left = 150 - B.time, s2 = Math.floor(left < 30 ? Math.max(0, left) : B.time), str = `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`;
+    if (B.wild) { ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(146, 169.5, 28, 8); }
+    ctx.textAlign = 'right';
+    if (left < 30) { ctx.fillStyle = Math.sin(T * 8) > 0 ? '#ff8a7a' : '#e2695c'; ctx.fillText(`ENDS IN ${str}`, B.wild ? 172 : 210, B.wild ? 175.5 : 170.5); }
+    else { ctx.fillStyle = '#f2e6cc'; ctx.fillText(str, B.wild ? 166 : 210, B.wild ? 175.5 : 170.5); }
+  }
+  if (live && B.fighters.length > 2) for (const t of [0, 1]) {      // how each side stands as a whole
+    const fs = B.fighters.filter(f => f.team === t), up = fs.filter(f => !out(f)), tot = fs.reduce((n, f) => n + f.maxHp, 0), has = up.reduce((n, f) => n + Math.max(0, f.hp), 0);
+    const x = t ? 218 : 38, w = 64, fr = clamp(has / Math.max(1, tot), 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x - 2, 166.5, w + 4, 11);
+    ctx.fillStyle = '#3a1512'; ctx.fillRect(x, 173, w, 3);
+    ctx.fillStyle = B.col[t]; ctx.fillRect(t ? x : x + w - Math.round(w * fr), 173, Math.round(w * fr), 3);
+    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(t ? x : x + w - Math.round(w * fr), 173, Math.round(w * fr), 1);
+    ctx.textAlign = t ? 'left' : 'right'; ctx.fillStyle = '#f2e6cc'; ctx.fillText(`${up.length} OF ${fs.length} STANDING`, t ? x : x + w, 171.5);
+  }
+  ctx.textAlign = 'center';
+  if (B.death && live && !B.pick) {             // no quarter in this one
+    ctx.fillStyle = 'rgba(40,6,4,.85)'; ctx.fillRect(134, 155, 52, 7.5); ctx.fillStyle = '#ff6a5a'; ctx.fillText('SINE MISSIONE', 160, 160.6);
+  }
   if (B.pick && !out(B.pick)) {                     // the man the fight has stopped for
     const f = B.pick;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(100, 160, 120, 9);
