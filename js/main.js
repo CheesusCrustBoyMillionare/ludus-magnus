@@ -314,24 +314,64 @@ function renderTutor() {
 function fieldDayDone() { render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); }
 
 // ---------- help: the keys and the rules of the trade, in one place ----------
+// The book of the trade: a page to each part of it, opened at the page for wherever you are standing.
+const HELP_TABS = [['basics', 'The day'], ['fighters', 'Fighters'], ['fights', 'The sand'], ['town', 'The town'], ['province', 'The province'], ['legend', 'Marks'], ['keys', 'Keys']];
 function helpModal() {
-  const keys = [['W A S D', 'walk: the lanista in town, the column in the province'], ['E', 'end the day; in the province, make camp'], ['G', 'run the days to the next games'],
-    ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'],
-    ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand, or dismiss a notice'], ['M', 'the whole map of the province'], ['R', 'in the province: set out for home'],
-    ['1 to 4', 'in a fight: choose the ability'], ['Space', 'in a fight: pause'], ['C', 'in a fight: throw in the cloth'], ['Esc', 'close'], ['H', 'this page']];
-  const sec = (h, body) => `<h3>${h}</h3><p>${body}</p>`;
-  return `<h2>How the trade is plied</h2>
-    <div class="helpcols"><div>
-      ${sec('The day', 'Nothing happens until you end the day. Each man trains one skill, spars or rests; you pay food and wages. Every fifth day there are games, and the market, the smith, the hiring hall and the contract board all change.')}
-      ${sec('A fighter', '<b>Strength beats Agility, Agility beats Skill, Skill beats Strength.</b> His highest skill is his style, and a style that beats the other man\'s hits a tenth harder. <b>Power</b> is his three skills added up; <b>potential</b> is how fast he learns; <b>might</b> is how dangerous he is today, with gear, health and spirits counted in.')}
-      ${sec('Abilities', 'A skill at 5, 10 and 16 teaches an ability, different for each kind of fighter. He carries four. In a fight his gold bar fills with time and with blows given and taken; when it is full the fight stops and you choose, or switch Abilities to auto and he chooses himself.')}
-      ${sec('Money', 'Purses, wagers and contracts bring it in; food, wages, men and steel take it out. Stay in debt past the days of grace and the creditors take the house, though an heir begins again with what the family kept.')}
-      ${sec('The province', 'Out through the east gate once you have fought your first games. A day passes for each day\'s march, and for going into a place or making camp; the map says how many days anywhere is before you set out. Farther from town is harder and richer. Games are held without you if you are away.')}
-    </div><div>
-      <h3>Keys</h3><table class="keys">${keys.map(([k, t]) => `<tr><td><b>${k}</b></td><td>${t}</td></tr>`).join('')}</table>
-      <p class="dim" style="font-size:12px">Hover over anything, anywhere, for what it means.</p>
-    </div></div>
-    <div class="row"><button class="primary" data-act="close">Close</button><button data-act="helptut"${tip('steward')}>Walk me through it again</button></div>`;
+  if (!HELP_TABS.some(t => t[0] === ui.helpTab)) ui.helpTab = 'basics';
+  const sec = (h, body) => `<div class="hsec"><h3>${h}</h3><p>${body}</p></div>`;
+  const keys = (title, rows) => `<div class="hsec"><h3>${title}</h3><table class="keys">${rows.map(([k, t]) => `<tr><td><b>${k}</b></td><td>${t}</td></tr>`).join('')}</table></div>`;
+  const pages = {
+    basics: () => sec('Time', 'Nothing happens until you <b>end the day</b>. Each man trains one skill, spars or rests; you pay food and wages. Every fifth day there are <b>games</b>, and on that day the market, the smith, the hiring hall and the contract board all change.')
+      + sec('The aim', `Win bouts for purses and <b>fame</b>. Fame opens greater arenas, and at ${FINAL_FAME} the Emperor sends for you. Lose every man, or stay in debt past the days of grace, and the house falls.`)
+      + sec('Money', 'Purses, wagers, contracts and the Guild\'s stipend bring it in; food, wages, men and steel take it out. The ledger under <b>Household</b> shows each day\'s balance.')
+      + sec('Debt and heirs', 'Below zero the creditors give you a few days of grace, then take the ludus. That is not the end: an heir begins again with whatever the family managed to keep, and legacy buys a better start.')
+      + sec('Where to look', 'Hover over anything, anywhere, for what it means. The steward can walk you through the first week again from the foot of this page.')
+      + sec('Saving', 'The game saves itself after everything you do, and keeps a copy from the morning of the last games day. <b>Saves</b>, at the foot of the side bar, holds five campaigns.'),
+    fighters: () => sec('Three skills', '<b>Strength</b> hits harder and carries more health; <b>Agility</b> strikes faster and dodges; <b>Skill</b> lands blows, finds telling ones and blocks. <b>Power</b> is the three added up.')
+      + sec('Style', 'A man\'s highest skill is his style. <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>: the style with the edge hits a tenth harder. Two skills level means no style, no edge and no weakness.')
+      + sec('Training', 'Train a skill and its bar fills; full, the skill goes up. <b>Potential</b> (the stars) is how fast he learns it. Training tires him; a tired man trains worse and fights worse, and an exhausted one must rest.')
+      + sec('Abilities', 'A skill at 5, 10 and 16 teaches an ability, different for each kind of fighter. He carries four; choose which on his Abilities page once he knows more.')
+      + sec('Rank and perks', 'Fights give experience; experience gives rank; each rank gives a perk to choose. Traits he came with, good and bad, are his for life.')
+      + sec('Morale, wounds, bonds', 'Low morale saps everything. Wounds keep a man out for days: an infirmary and a medicus shorten that. Men make friends and rivals; a friend\'s death is grieved, and may be avenged.')
+      + sec('Freedom', 'After eight victories a man may be given the wooden sword: he leaves, the city talks of it, and every man in the yard takes heart. A promise of freedom must be kept.'),
+    fights: () => sec('Before the bout', 'Pick your men, set a wager if you like, and go to the sand. <b>Might</b> is how dangerous a man is today, with gear, wounds and weariness counted; the odds are worked from it.')
+      + sec('The charge', 'Each fighter\'s gold bar fills with time and with blows given and taken. Full, the fight stops and you choose his ability, or set <b>Abilities: auto</b> and he chooses for himself.')
+      + sec('How it ends', 'A man goes down, or yields. The crowd then judges the fallen: a good show and a man who yielded are spared far more often. In a bout <b>to the death</b> there is no yielding and no mercy.')
+      + sec('The cloth', '<b>Throw in the cloth</b> to make your worst-hurt man yield at once. Once a bout, and it asks twice.')
+      + sec('The crowd', 'Telling blows, abilities and a close fight raise the crowd; a roused crowd pays more fame and spares more men. A dull fight gets cabbage stalks.')
+      + sec('Watching', 'Pause, step, or run at half speed to look closely; rest the mouse on any fighter for what he is and how he stands. <b>Log</b> keeps every line of the fight. Cut-ins and the following camera can be switched off.')
+      + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, or the eight-man Laurel Tournament.'),
+    town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every games day.')
+      + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
+      + sec('Household', 'Barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. Staff are hired by the day. Rations trade coin for morale.')
+      + sec('Patrons', 'The <b>Magistrate</b> fattens purses and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts and the right choices win favour.')
+      + sec('Rival houses', 'Killing their men, or losing yours to them, deepens a feud. At open feud a house calls you out: answer the grudge match and it cools; refuse and it costs you.')
+      + sec('Contracts', 'Work away from the ludus for pay and favour: guard duty, caravans, hunts. A man sent out is gone until he comes home, and some come home changed.')
+      + sec('Things that happen', 'Now and then something wants an answer. Each choice has its price; the dialog shows what actually changed once you have chosen.'),
+    province: () => sec('Getting out', 'Out through the east gate once you have fought your first games. Every fit man marches with you.')
+      + sec('Time on the road', 'A day passes for each day\'s march, for going into a place, and for making camp. The map says how many days anywhere is before you set out. At night the column halts.')
+      + sec('Places', 'Lairs, camps, shrines, ruins and villages. The skulls by a place say how hard it is; farther from town is harder and richer. Nothing out here can be done twice.')
+      + sec('Fights in the wild', 'No crowd and no mercy: a man who goes down lives or dies by luck and your medicus. Beasts give no quarter.')
+      + sec('Home', 'Games are still held in town every fifth day; away, you miss them. <b>Go home</b> sets the column on the shortest road to the gate.')
+      + sec('The eagle', 'There is an old story in the province about a lost legion\'s eagle. Men who have a journey to make will tell you where they need to go.'),
+    legend: () => `<div class="hsec wide"><h3>Styles</h3><div class="tri">${ic('str')} <b>Strength</b> <i>beats</i> ${ic('agi')} <b>Agility</b> <i>beats</i> ${ic('skl')} <b>Skill</b> <i>beats</i> ${ic('str')} <b>Strength</b></div></div>
+      <div class="hsec wide"><h3>Grades of steel</h3><div class="grades">${RARITY.map((r, i) => `<span><span class="rar r${i}">${r}</span> ${MATERIAL[i]}</span>`).join('')}</div></div>
+      <div class="hsec"><h3>Bars</h3><div class="legbars"><span>${bar('hp', 7, 10)} health</span><span>${bar('fat', 6, 10)} fatigue: lower is better</span><span>${bar('mor', 7, 10)} morale</span><span>${bar('prog', 5, 10)} progress, and in a fight the charge</span></div></div>
+      <div class="hsec"><h3>In a fight</h3><div class="marks">${[['bleed', 'Bleeding: loses health as he fights'], ['ham', 'Hamstrung: slowed, dodges half as well'], ['arm', 'Arm wounded: hits softer'], ['net', 'Netted: cannot dodge or block'], ['stun', 'Stunned: cannot act'], ['weak', 'Weakened: hits softer for a time'], ['open', 'Exposed: every blow on him lands harder'], ['buff', 'Roused: guarding, hasty or in a fury']].map(([k, t]) => `<span><canvas width="14" height="14" data-hmark="${k}"></canvas>${t}</span>`).join('')}</div></div>
+      <div class="hsec"><h3>On a fighter\'s card</h3><p><span class="chip red">Injured 2d</span> out until healed &nbsp; <span class="chip red">Exhausted</span> must rest &nbsp; <span class="chip gold">Perk to choose</span> a rank gained &nbsp; <span class="chip gold">Away</span> on a contract</p></div>
+      <div class="hsec"><h3>On the province map</h3><p>Skulls beside a place: how dangerous it is, one to five. A gold name: a place you have marked, or that someone has asked to be taken to.</p></div>`,
+    keys: () => keys('Everywhere', [['H', 'this book'], ['Esc', 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
+      + keys('At the ludus and in town', [['W A S D', 'walk the lanista about the town'], ['E', 'end the day'], ['G', 'run the days to the next games'], ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand']])
+      + keys('In a fight', [['1 to 4', 'choose the ability'], ['A', 'let him choose this once'], ['Space', 'pause'], ['.', 'step a tenth of a second'], ['[ and ]', 'slower and faster'], ['L', 'the log of the fight'], ['C, twice', 'throw in the cloth'], ['click the sand', 'cut short an entrance, an announcement, a death or the ending']])
+      + keys('In the province', [['W A S D', 'march the column'], ['click', 'march to that place'], ['E', 'make camp'], ['M', 'the whole map'], ['R', 'set out for home']]),
+  };
+  return `<div class="help"><h2>How the trade is plied</h2>
+    <div class="subtabs helptabs">${HELP_TABS.map(([k, n]) => `<button class="${ui.helpTab === k ? 'on' : ''}" data-act="helptab" data-v="${k}">${n}</button>`).join('')}</div>
+    <div class="hpage ${ui.helpTab}">${pages[ui.helpTab]()}</div>
+    <div class="row"><button class="primary" data-act="close">Close</button><button data-act="helptut"${tip('steward')}>Walk me through it again</button><span class="dim" style="font-size:12px;margin-left:auto">Left and Right turn the pages</span></div></div>`;
+}
+function paintHelpMarks() {
+  document.querySelectorAll('[data-hmark]').forEach(cv => { const c = cv.getContext('2d'); c.clearRect(0, 0, 14, 14); try { drawMark(c, cv.dataset.hmark, 2, 2, 2); } catch (e) { /* the fight's code is not loaded */ } });
 }
 
 // ---------- modal queue ----------
@@ -345,6 +385,9 @@ function paintModal() {
   $('#modalBox').classList.toggle('wide', modalQueue[0].startsWith('<div class="res">'));
   $('#modalBox').classList.toggle('evbox', modalQueue[0].startsWith('<div class="ev">'));
   if (typeof paintEventArt === 'function') paintEventArt();
+  $('#modalBox').classList.toggle('helpbox', modalQueue[0].startsWith('<div class="help">'));
+  $('#modalBox').classList.toggle('savebox', modalQueue[0].startsWith('<div class="saves">'));
+  paintHelpMarks();
   if (typeof paintResultFaces === 'function') paintResultFaces();
   m.hidden = false;
 }
@@ -1190,8 +1233,9 @@ function savesModal() {
     rows.push(`<div class="slot ${cur ? 'cur' : ''}">
       <div class="slothead"><span class="sn">${n}</span>
         <input type="text" maxlength="28" value="${esc(info.label)}" placeholder="${info.gen > 1 ? cap1(ordinal(info.gen)) + ' generation' : 'Name this campaign'}" data-chg="slotname" data-v="${n}"${tip('A name of your own for this save.')}>
-        ${cur ? '<span class="chip gold">Playing now</span>' : ''}${state}
+        ${cur ? '<span class="chip gold">Playing now</span>' : ''}${state}${info.gen > 1 ? `<span class="chip"${tip('An heir\'s campaign: the family has been ruined before and begun again.')}>${cap1(ordinal(info.gen))} generation</span>` : ''}
         <span class="when" title="${exact(info.savedAt)}">saved ${ago(info.savedAt)}</span></div>
+      <div class="slotway"${tip(info.won ? 'The Great Arena is won.' : `${info.fame} of the ${FINAL_FAME} fame that brings the final games.`)}><i style="width:${Math.round(clamp(info.fame / FINAL_FAME, 0, 1) * 100)}%"></i>${TIERS.slice(1).map(t => `<u style="left:${Math.round(t.fame / FINAL_FAME * 100)}%"></u>`).join('')}</div>
       <div class="slotfacts">
         <div><span>Day</span><b class="num">${info.day}</b></div>
         <div><span>Arena</span><b>${info.tier}</b></div>
@@ -1208,15 +1252,17 @@ function savesModal() {
         <button class="mini ${ui.confirmSlot === 'del' + n ? 'danger' : ''}" data-act="slotdel" data-v="${n}">${ui.confirmSlot === 'del' + n ? 'Really delete?' : 'Delete'}</button>
       </div></div>`);
   }
-  const free = empty.map(n => `<div class="slot empty"><div class="slothead"><span class="sn">${n}</span><span class="dim">Empty</span><span class="sp"></span>
+  const free = empty.length ? `<div class="slotfree"><div class="lbl">Empty slots</div>${empty.map(n => `<div class="slot empty"><span class="sn">${n}</span>
       <button class="mini" data-act="slotnew" data-v="${n}"${tip('Begin a new ludus here. The game you are playing stays in its own slot.')}>New game</button>
-      <button class="mini" data-act="slotcopy" data-v="${n}"${tip('Puts a copy of the game you are playing here: a save to come back to.')}>Copy current here</button>
-      <button class="mini" data-act="slotimport" data-v="${n}"${tip('Reads a file written by Export into this slot.')}>Import a file</button></div></div>`).join('');
-  return `<h2>Saves</h2>
+      <button class="mini" data-act="slotcopy" data-v="${n}"${tip('Puts a copy of the game you are playing here: a save to come back to.')}>Copy current</button>
+      <button class="mini" data-act="slotimport" data-v="${n}"${tip('Reads a file written by Export into this slot.')}>Import</button></div>`).join('')}</div>` : '';
+  const now = slotInfo(slot);
+  return `<div class="saves"><h2>Saves</h2>
+    <p class="savenow">${now ? `You are playing <b>${esc(now.label) || 'slot ' + slot}</b>: day ${now.day}, ${now.tier}, saved ${ago(now.savedAt)}. It saves itself after everything you do, and keeps a copy from the morning of the last games day.` : 'The game saves itself after everything you do.'}</p>
     ${ui.saveMsg ? `<p class="${ui.saveErr ? 'bad' : 'good'}" style="margin:0 0 6px">${ui.saveMsg}</p>` : ''}
     ${rows.join('')}${free}
-    <p class="dim" style="font-size:12px;margin:8px 0 0">The game saves itself to the slot you are playing after every action, and keeps a copy from the morning of the last games day to go back to. ${rows.length} of ${SLOT_COUNT} slots used${used ? `, about ${Math.max(1, Math.round(used / 1024))} KB in all` : ''}. Saves live in this ${typeof location !== 'undefined' && /^https?:$/.test(location.protocol) ? 'browser' : 'copy of the game'}: export the ones you care about.</p>
-    <div class="row"><button class="primary" data-act="close">Done</button></div>`;
+    <p class="dim" style="font-size:11px;margin:6px 0 0">${rows.length} of ${SLOT_COUNT} slots used${used ? `, about ${Math.max(1, Math.round(used / 1024))} KB` : ''}. Saves live in this ${typeof location !== 'undefined' && /^https?:$/.test(location.protocol) ? 'browser, on this computer: clearing the site\'s data removes them' : 'program\'s own folder on this computer'}. Export writes one to a file you can keep or carry elsewhere.</p>
+    <div class="row"><button class="primary" data-act="close">Done</button></div></div>`;
 }
 function refreshSaves(msg, err) {
   ui.saveMsg = msg || ''; ui.saveErr = !!err;
@@ -2066,7 +2112,13 @@ const ACTIONS = {
   tenter() { if (enterTourney(ui.tpick)) { ui.tpick = null; render(); } },
   tfight() { if (G.tourney && G.tourney.bout) startFight(null, G.tourney.bout); },
   saves() { ui.confirmSlot = null; ui.saveMsg = ''; showModal(savesModal()); },
-  help() { if (!modalQueue.length) showModal(helpModal()); },
+  help(v) {                                  // opened at the page for where you are, unless one is asked for
+    if (modalQueue.length) return;
+    ui.helpTab = v && HELP_TABS.some(t => t[0] === v) ? v : fight && !fight.finished ? 'fights' : G.field ? 'province' : ['market', 'smith', 'facilities', 'patrons', 'rivals', 'contracts'].includes(ui.tab) ? 'town' : ui.tab === 'arena' ? 'fights' : ui.helpTab || 'basics';
+    if (fight && !fight.finished && !fight.B.over && !fight.paused) { fight.paused = true; paintSpeed(); }
+    showModal(helpModal());
+  },
+  helptab(v) { ui.helpTab = v; if (modalQueue.length) { modalQueue[0] = helpModal(); paintModal(); } },
   helptut() { closeModal(); if (G.field) { tutorState().hints = true; tutorState().seen = {}; save(); render(); } else ACTIONS.tuton(); },
   slotload(v) { save(); if (loadSlot(+v)) afterLoad(); else refreshSaves('That slot could not be read.', true); },
   slotcopy(v) {
@@ -2352,16 +2404,21 @@ function renderDev() {
   if (!ui.dev) { el.hidden = true; return; }
   el.innerHTML = devPanel(); el.hidden = false;
 }
-// A matter waiting for an answer takes the number keys, and Enter goes on from its outcome.
+// The book of the trade turns its pages with Left and Right.
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.altKey || e.metaKey || $('#modal').hidden || !document.querySelector('#modalBox .ev')) return;
-  const opts = [...document.querySelectorAll('#modalBox .evopt')];
-  if (opts.length && /^[1-9]$/.test(e.key)) { const b = opts[+e.key - 1]; if (b && !b.disabled) { e.preventDefault(); b.click(); } }
-  else if (!opts.length && e.key === 'Enter') { const b = document.querySelector('#modalBox .ev [data-act="close"]'); if (b) { e.preventDefault(); b.click(); } }
-});
+  if (e.ctrlKey || e.altKey || e.metaKey || $('#modal').hidden || !document.querySelector('#modalBox .help')) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const i = HELP_TABS.findIndex(t => t[0] === ui.helpTab), n = HELP_TABS.length;
+  e.preventDefault(); e.stopPropagation(); ACTIONS.helptab(HELP_TABS[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n][0]);
+}, true);
 // 1, 2 and 3 shout the orders while a fight is on
 document.addEventListener('keydown', e => {
   if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
+  if (!$('#modal').hidden) {                  // the book is open over the fight: Esc or Enter shuts it, and nothing else reaches the sand
+    if ((e.key === 'Escape' || e.key === 'Enter') && $('#modalBox [data-act=close]')) { e.preventDefault(); $('#modalBox [data-act=close]').click(); }
+    return;
+  }
+  if (e.key === 'h' || e.key === 'H' || e.key === 'F1') { e.preventDefault(); ACTIONS.help(); return; }
   const B = fight.B;
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
   else if (B.pick && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); ACTIONS.abpickai(); }

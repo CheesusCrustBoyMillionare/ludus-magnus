@@ -1030,3 +1030,32 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 #modalBox .evfx .chip.red { color: #a3271b; border-color: #a3271b; background: rgba(160, 40, 30, .08); }
 #modalBox .evfx .chip.gold { color: #8a5a10; border-color: #b8862a; background: rgba(184, 134, 42, .12); }
 .ev .row button .k { margin-left: 8px; font: bold 10px Consolas, monospace; opacity: .6; border: 1px solid currentColor; border-radius: 2px; padding: 0 4px; }
+
+/* ---- the book of the trade ---- */
+#modalBox.helpbox { max-width: 860px; }
+.help .helptabs { margin: 4px 0 10px; border-bottom-color: rgba(110, 72, 26, .55); flex-wrap: wrap; }
+.help .hpage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 26px; min-height: 330px; align-content: start; }
+.help .hpage.keys { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.help .hsec.wide { grid-column: 1 / -1; }
+.help .hsec h3 { margin: 0 0 1px; font-size: 13px; letter-spacing: .08em; color: #7a1f16; }
+#modalBox .help .hsec p { margin: 0; font-size: 13.5px; line-height: 1.42; }
+.help .tri { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; }
+.help .tri .ic { width: 18px; height: 18px; } .help .tri i { color: #6b573c; font-size: 12px; }
+.help .grades { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.help .legbars { display: grid; gap: 3px; font-size: 13px; }
+.help .legbars span { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; } .help .legbars .bar { margin: 0; }
+.help .marks { display: grid; gap: 2px; font-size: 13px; }
+.help .marks span { display: flex; align-items: center; gap: 7px; }
+.help .marks canvas { width: 14px; height: 14px; image-rendering: pixelated; background: #1c140f; flex: none; }
+.help table.keys { font-size: 12.5px; }
+/* ---- saves ---- */
+#modalBox.savebox { max-width: 700px; }
+#modalBox .saves .savenow { margin: 0 0 6px; font-size: 13px; color: #54401f; }
+.saves .slot { margin: 5px 0; padding: 6px 10px; }
+.slotway { position: relative; height: 5px; margin: 6px 0 0; background: rgba(60, 36, 12, .25); border-radius: 1px; }
+.slotway i { display: block; height: 100%; background: linear-gradient(90deg, #8a5a10, #e0aa3e); border-radius: 1px; }
+.slotway u { position: absolute; top: -2px; width: 1px; height: 9px; background: rgba(60, 36, 12, .6); }
+.saves .slotfacts { margin: 4px 0; }
+.slotfree { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.slotfree .lbl { font: 700 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: #6b573c; width: 100%; }
+.slotfree .slot.empty { display: flex; align-items: center; gap: 5px; margin: 0; padding: 4px 8px; flex: 1 1 auto; }
