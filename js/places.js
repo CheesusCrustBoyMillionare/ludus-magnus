@@ -7,14 +7,14 @@
 let placeLayer = null, placeMask = null;
 const RAR_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545', '#f0705e'];
 const PLACE_TIPS = {
-  market: 'The slave market. The men on the block are the ones for sale today.',
-  smith: 'The forge. What hangs on the wall is what the smith has to sell; the colours are the grades.',
-  arena: 'The arena from the street. On games days the town queues at its gates.',
-  contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name.',
-  patrons: 'The temple. The three fires burn as high as each patron\'s favour.',
-  rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first.',
-  facilities: 'Your own house. The people in the court are the staff you have hired.',
-  chronicle: 'The record house. The shelves fill as your chronicle grows; the urns are your dead.',
+  market: 'The slave market. The men on the block are the ones for sale today; the pen holds any the dealer is keeping for you, and a gold dais is a prize lot up for auction.',
+  smith: 'The forge. What hangs on the wall is what the smith has to sell; the colours are the grades. Your armourer works at the bench, and a commission waits under its cloth.',
+  arena: 'The arena from the street. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
+  contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. Your stables stand at the corner, and the packs by the road belong to men who are away.',
+  patrons: 'The temple. The three fires burn as high as each patron\'s favour. Your own shrine stands to the right of the steps.',
+  rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner.',
+  facilities: 'Your own house. The people in the court are the staff you have hired; those waiting by the wall are looking for a place. The granary and its garden stand at the corner.',
+  chronicle: 'The record house. The shelves fill as your chronicle grows; the urns are your dead, the busts your line, and the wreaths the festival crowns the house has won.',
 };
 
 function drawPlace(cv, T, tab) {
@@ -68,6 +68,17 @@ function drawPlace(cv, T, tab) {
     paving: (y, c, d) => { R(0, y, 590, 190 - y, c); for (let i = 0; i < 110; i++) R((i * 97) % 588, y + 3 + (i * 53) % (186 - y), 3 + (i % 3) * 2, 1, d); R(0, y, 590, 2, 'rgba(40,24,8,.3)'); },
     // the shade a building throws on the ground before it: deeper and longer when the sun is low
     shade: (x, y, w) => R(x, y, w, 3 + Math.round(sky.shadow.len * 0.8), `rgba(40,24,8,${(0.13 + sky.shadow.len * 0.008).toFixed(3)})`),
+    pips: (l, n) => '●'.repeat(Math.max(0, Math.min(n, l))) + '○'.repeat(Math.max(0, n - l)),
+    // courses of brick or dressed stone across a wall
+    brick: (x, y, w, h, c) => { for (let r = 0; r * 6 < h; r++) { R(x, y + r * 6 + 5, w, 1, c); for (let q = (r % 2) * 9 + 4; q < w; q += 18) R(x + q, y + r * 6, 1, 5, c); } },
+    wreath: (x, y, c) => { R(x - 3, y - 4, 6, 1, c); R(x - 4, y - 3, 1, 5, c); R(x + 3, y - 3, 1, 5, c); R(x - 3, y + 2, 6, 1, c); R(x - 1, y + 3, 2, 2, '#a02d22'); },
+    barrel: (x, y) => { R(x - 5, y - 12, 10, 12, '#7a5a34'); R(x - 5, y - 12, 10, 1, '#94703f'); R(x - 5, y - 9, 10, 1, '#3a2a1c'); R(x - 5, y - 4, 10, 1, '#3a2a1c'); R(x + 3, y - 12, 2, 12, '#5e4426'); },
+    crate: (x, y, w, h) => { R(x, y - h, w, h, '#8a6a3a'); R(x, y - h, w, 1, '#a8834a'); R(x, y - 1, w, 1, '#5e4426'); R(x + Math.floor(w / 2), y - h, 1, h, '#5e4426'); },
+    sack: (x, y, c) => { R(x - 4, y - 7, 8, 7, c || '#c9b48a'); R(x - 3, y - 9, 6, 2, c || '#c9b48a'); R(x - 1, y - 10, 2, 1, '#8a6a3a'); R(x - 4, y - 1, 8, 1, '#a8956a'); },
+    cypress: (x, y, h) => { R(x, y - 3, 2, 3, '#3a2a1c'); for (let q = 0; q < h; q++) { const w = Math.round(Math.sin(q / h * Math.PI) * 4) + 1; R(x + 1 - w, y - 3 - q, w * 2, 1, q % 3 ? '#35543a' : '#416446'); } },
+    // a mule, feet at x, y; d is 1 facing right
+    mule: (x, y, d, c) => { const b = c || '#8a6a4a', k = shade(b, 0.7); R(x - 8, y - 13, 16, 7, b); R(x - 8, y - 13, 16, 1, shade(b, 1.2)); R(x - 7, y - 6, 2, 6, k); R(x - 3, y - 6, 2, 6, k); R(x + 3, y - 6, 2, 6, k); R(x + 6, y - 6, 2, 6, k);
+      R(x + d * 7 - (d < 0 ? 3 : 0), y - 18, 4, 7, b); R(x + d * 9 - (d < 0 ? 5 : 0), y - 20, 6, 4, b); R(x + d * 9 - (d < 0 ? 0 : 0), y - 23, 1, 3, k); R(x + d * 12 - (d < 0 ? 0 : 0), y - 23, 1, 3, k); R(x - d * 9, y - 12, 1, 5 + (Math.sin(T * 3 + x) > 0.6 ? 1 : 0), k); R(x + d * 13 - (d < 0 ? 1 : 0), y - 18, 2, 2, '#e8dcc0'); },
     amphora: (x, y, c) => { R(x - 2, y - 9, 5, 8, c || '#b8703c'); R(x - 1, y - 12, 3, 3, c || '#b8703c'); R(x - 3, y - 11, 1, 3, '#8a5028'); R(x + 3, y - 11, 1, 3, '#8a5028'); R(x - 1, y - 1, 3, 2, '#8a5028'); },
   };
   if (!scene.indoor) {                          // the country beyond the town: two ranges of hills, cypresses, a roof or two
@@ -114,6 +125,8 @@ const PLACE_SCENES = {
   market: { draw(E) {
     const { R, T } = E;
     R(0, 62, 590, 60, '#c9b48a'); R(0, 62, 590, 2, '#e0cfa6');
+    E.brick(0, 66, 590, 54, '#bfa87c'); R(0, 114, 590, 6, '#b39c70');
+    for (const x of [186, 300, 414]) { R(x, 94, 14, 26, '#3a2416'); R(x - 2, 91, 18, 3, '#8a6a3a'); R(x + 6, 94, 1, 26, '#5a3c20'); R(x + 10, 106, 1, 2, '#c9a21e'); }      // doors along the back of the square
     for (let x = 10; x < 590; x += 58) { E.tiles(x - 6, 54, 50, 8); R(x + 8, 78, 8, 12, '#3a2a1c'); R(x + 28, 78, 8, 12, '#3a2a1c'); R(x + 8, 78, 8, 1, '#8a6a3a'); R(x + 28, 78, 8, 1, '#8a6a3a'); }
     E.paving(120, '#cdae78', '#bf9f6a'); E.shade(0, 120, 590);
     for (let x = 34; x < 590; x += 116) { R(x, 70, 1, 8, '#6b573c'); R(x + 40, 70, 1, 8, '#6b573c'); R(x, 72, 41, 1, '#8a7a5a'); for (let q = 0; q < 5; q++) R(x + 4 + q * 8, 73, 5, 5 + (q % 2), ['#e8dcc0', '#b85a48', '#8fa8c8', '#e8dcc0', '#c9a21e'][q]); }      // washing, strung between the windows
@@ -144,6 +157,31 @@ const PLACE_SCENES = {
     E.P(420, 152, -1, { tunic: '#e8dcc0', hair: '#8a8a8a', item: 'scroll' });
     for (let i = 0, n = Math.min(5, (G.market || []).length + 1); i < n; i++) E.P(232 + i * 34, 166 + (i % 2) * 5, i % 2 ? -1 : 1, Object.assign(townsman(i + 6), { face: 'up' }));
     R(196, 124, 200, 1, '#c9b48a'); for (let x = 198; x < 396; x += 28) R(x, 118, 2, 10, '#5e4426');      // a rope along the front of the block
+    // the pen at the end of the square: men the dealer is keeping back for you
+    { const kept = (G.market || []).filter(m => m.held || m.kept).length;
+      R(532, 92, 56, 40, '#2a1c14'); R(528, 88, 62, 5, '#6b4f2c'); R(528, 88, 62, 1, '#8a6a3a'); R(530, 130, 60, 3, '#5e4426');
+      for (let i = 0; i < Math.min(3, kept); i++) E.P(544 + i * 14, 131, -1, { tunic: '#b8a888', skin: TOWN_SKINS[i % 4], hair: '#2a1c14' });
+      for (let x = 533; x < 588; x += 6) R(x, 93, 2, 37, '#7a5a34');
+      E.sign(559, 84, kept ? `HELD FOR YOU: ${kept}` : 'THE PEN', kept > 0); }
+    // a prize lot stands apart, on a dais hung with gold, with the rival who wants him looking on
+    if (G.auction && !G.auction.done && !G.auction.won) {
+      const lot = G.auction.g, hc = houseDef(G.auction.h).col;
+      R(398, 122, 22, 8, '#e8b545'); R(398, 122, 22, 2, '#fff0b0'); for (let q = 0; q < 4; q++) R(400 + q * 6, 130, 3, 3, '#b6832c');
+      E.P(409, 122, -1, { tunic: '#e8dcc0', skin: lot.look ? lot.look.skin : '#c9966c', hair: lot.look ? lot.look.hair : '#2a1c14' });
+      E.P(446, 168, -1, { tunic: hc, hair: '#2a1c14', item: 'bag' });
+      E.sign(409, 76, 'THE PRIZE LOT: ONE BID', true);
+    }
+    if (G.marketOrder && CLASSES[G.marketOrder]) E.sign(180, 106, `SENT FOR: A ${CLASSES[G.marketOrder].name.toUpperCase()}`, true);
+    if (typeof festToday === 'function' && festToday('triumph')) {      // the general's standard over the block, and his prisoners cheap under it
+      R(294, 30, 2, 40, '#8a6230'); R(286, 32, 18, 14, '#a8261c'); R(286, 32, 18, 2, '#e8b545'); R(292, 37, 6, 4, '#e8b545'); R(292, 26, 6, 5, '#e8b545');
+      E.sign(296, 62, 'SPOILS OF THE TRIUMPH', true);
+    }
+    if (G.staff.scout) { E.P(170, 172, 1, { tunic: '#3f7a5a', hair: '#6a4a2a', item: 'scroll' }); E.sign(170, 186, `YOUR SCOUT ${E.pips(G.staff.scout.skill, 3)}`); }
+    { const free = capacity() - G.roster.length; E.sign(60, 48, free > 0 ? `YOUR CELLS: ${free} FREE` : 'YOUR CELLS ARE FULL', free > 0); }
+    // a cart come in from the country, and the dealer's dog under it
+    R(8, 166, 34, 9, '#7a5a34'); R(8, 166, 34, 2, '#94703f'); R(4, 170, 6, 2, '#5e4426'); for (const wx of [14, 34]) { R(wx - 4, 173, 8, 8, '#3a2a1c'); R(wx - 2, 175, 4, 4, '#8a6a3a'); R(wx - 1, 176, 2, 2, '#3a2a1c'); }
+    for (let q = 0; q < 3; q++) E.sack(16 + q * 9, 166, q % 2 ? '#c9b48a' : '#b8a070');
+    { const wag = Math.sin(T * 6) > 0 ? 1 : 0; R(46, 178, 9, 4, '#8a6a4a'); R(54, 176, 4, 4, '#8a6a4a'); R(54, 175, 1, 1, '#5e4426'); R(47, 182, 1, 3, '#5e4426'); R(53, 182, 1, 3, '#5e4426'); R(44, 177 - wag, 2, 1, '#8a6a4a'); }
     E.lamp(150, 110); E.lamp(430, 110);
   } },
 
@@ -179,7 +217,6 @@ const PLACE_SCENES = {
       else { R(x - 5, y + 4, 4, 16, c); R(x + 1, y + 4, 4, 16, c); R(x - 5, y + 4, 4, 2, shade(c, 1.3)); R(x + 1, y + 4, 4, 2, shade(c, 1.3)); }
     });
     E.sign(420, 34, stock.length ? `${G.smith.stock.length} PIECE${G.smith.stock.length === 1 ? '' : 'S'} FOR SALE` : 'SOLD OUT');
-    for (let i = 0; i < lv; i++) { R(300 + i * 16, 150, 10, 14, '#55473b'); R(300 + i * 16, 150, 10, 2, '#7d8288'); }      // a better forge has more tools about it
     R(552, 60, 34, 80, '#e8dcc0'); R(552, 60, 34, 80, 'rgba(255,240,200,.25)'); R(550, 58, 38, 3, '#6b4f2c'); R(550, 58, 3, 82, '#6b4f2c');      // the door, and daylight
     // tools on the wall by the hearth, a boy at the bellows, coal, a bench, and your own spare pieces in a crate by the door
     R(136, 58, 34, 2, '#6b4f2c'); for (let i = 0; i < 5; i++) { const tx = 140 + i * 6; R(tx, 60, 1, 14 + (i % 2) * 4, '#7d8288'); R(tx - 1, 60 + 14 + (i % 2) * 4, 3, 3, i % 2 ? '#5a5e64' : '#8d9094'); }
@@ -193,6 +230,30 @@ const PLACE_SCENES = {
     for (let i = 0; i < spare; i++) { R(504 + i * 4, 118 - (i % 2) * 3, 2, 10, i % 3 ? '#c1c7cc' : '#b98a34'); R(503 + i * 4, 127 - (i % 2) * 3, 4, 1, '#6b4526'); }
     if (spare) E.sign(520, 112, `YOUR RACKS: ${G.armoury.length}`);
     E.ctx().globalCompositeOperation = 'lighter'; for (let i = 0; i < 4; i++) R(40 + i * 10, 141, 150 - i * 30, 8 - i, `rgba(255,150,60,${(0.035 * glow).toFixed(3)})`); E.ctx().globalCompositeOperation = 'source-over';      // firelight across the floor
+    // beams, posts and what hangs from them
+    R(0, 0, 590, 6, '#241a14'); R(0, 6, 590, 1, '#3a2a1c'); for (const x of [182, 288]) { R(x, 6, 5, 134, '#3a2a1c'); R(x, 6, 1, 134, '#55402a'); R(x - 4, 6, 13, 4, '#3a2a1c'); }
+    for (let i = 0; i < 3; i++) { const hx = 204 + i * 26, hy = 62 + (i % 2) * 6; R(hx, hy, 2, 9, '#7d8288'); R(hx + 8, hy, 2, 9, '#7d8288'); R(hx, hy, 10, 2, '#8d9094'); R(hx + 4, hy - 4, 2, 4, '#6b4f2c'); }      // horseshoes
+    R(236, 6, 1, 26, '#55504a'); R(232, 32, 9, 5, '#b98a34'); R(233, 31, 7, 1, '#dcae48'); E.lamp(236, 33);
+    E.sign(76, 22, `THE FORGE ${E.pips(lv, 4)}`, lv >= 4);
+    // the grindstone, turning: where fittings are put on
+    { const a = T * 5, gx = 440, gy = 138;
+      R(gx - 12, gy + 6, 24, 3, '#5e4426'); R(gx - 10, gy - 4, 3, 12, '#6b4f2c'); R(gx + 7, gy - 4, 3, 12, '#6b4f2c');
+      R(gx - 7, gy - 10, 14, 14, '#8d9094'); R(gx - 5, gy - 12, 10, 18, '#8d9094'); R(gx - 9, gy - 8, 18, 10, '#8d9094'); R(gx - 5, gy - 8, 10, 10, '#a3a6aa'); R(gx - 1, gy - 4, 2, 2, '#3a2a1c');
+      R(gx + Math.round(Math.cos(a) * 6), gy - 3 + Math.round(Math.sin(a) * 6), 2, 2, '#6f7478');
+      if (lv >= 1) for (let i = 0; i < 3; i++) R(gx + 8 + ((Math.floor(T * 20) + i * 3) % 9), gy - 12 - ((Math.floor(T * 20) + i * 5) % 7), 1, 1, '#ffe9a0'); }
+    // your own armourer, at the bench, if you keep one
+    if (G.staff.faber) {
+      const sw2 = (T * 1.1 + 0.4) % 1;
+      E.P(372, 152, 1, { tunic: '#6a5a4a', apron: '#3a2a1c', hair: '#8a8a8a', skin: '#c9966c', item: 'hammer', swing: sw2 });
+      E.sign(372, 174, `YOUR ARMOURER ${E.pips(G.staff.faber.skill, 3)}`, G.staff.faber.skill >= 3);
+    } else if ((G.hires || []).some(h => h.role === 'faber')) {
+      E.P(528, 156, -1, { tunic: '#6a5a4a', apron: '#3a2a1c', hair: '#2a1c14', item: 'bag' }); E.sign(520, 176, 'AN ARMOURER SEEKS A PLACE', true);
+    }
+    // a commission, under its cloth until the next games
+    if (G.smith.order) { R(268, 106, 16, 3, '#6b4f2c'); R(274, 109, 4, 15, '#5e4426'); R(266, 96, 20, 10, '#a8261c'); R(266, 96, 20, 2, '#d0463a'); R(268, 106, 3, 3, '#a8261c'); R(281, 106, 3, 4, '#a8261c'); E.sign(276, 92, 'YOUR COMMISSION', true); }
+    // ingots stacked by the wall, and a barrel of quenching oil
+    for (let i = 0; i < 3 + lv * 2; i++) R(300 + (i % 4) * 9 + (Math.floor(i / 4) % 2) * 4, 136 - Math.floor(i / 4) * 4, 8, 3, i % 3 ? '#8d9094' : '#b98a34');
+    E.barrel(468, 144); E.barrel(480, 146);
     E.lamp(280, 76); E.lamp(540, 44);
   } },
 
@@ -207,6 +268,9 @@ const PLACE_SCENES = {
       for (let x = 46 + inset; x < 546 - inset; x += 30) { R(x, y + 8, 16, 18, '#1c1410'); R(x + 2, y + 6, 12, 2, '#1c1410'); R(x + 4, y + 4, 8, 2, '#1c1410'); R(x - 3, y + 4, 2, 22, W.d); }
     }
     const top = 124 - rows * 26;
+    if (E.games) for (let r = 1; r < rows; r++) { const y = 124 - (r + 1) * 26, inset = r * 8; let n = 0;      // the town in the upper arches, on its feet
+      for (let x = 46 + inset; x < 546 - inset; x += 30, n++) { if ((n * 7 + r * 3) % 4 === 0) continue; const up = Math.sin(T * 3 + n * 1.3 + r) > 0.5 ? 1 : 0;
+        R(x + 3, y + 17 - up, 3, 3, TOWN_SKINS[(n + r) % 4]); R(x + 2, y + 20 - up, 5, 6 + up, TOWN_TUNICS[(n * 3 + r) % 9]); R(x + 9, y + 18, 3, 3, TOWN_SKINS[(n + r + 1) % 4]); R(x + 8, y + 21, 5, 5, TOWN_TUNICS[(n * 5 + r + 2) % 9]); } }
     for (let i = 0; i < 7; i++) { const x = 70 + i * 75; R(x, top - 14, 1, 14, '#5a4326'); R(x + 1, top - 14 + (Math.sin(T * 4 + i) > 0 ? 0 : 1), 7, 4, ['#8a2a20', '#c9a21e', '#2f6db8'][i % 3]); }
     R(270, 96, 50, 28, '#120c0a'); R(274, 92, 42, 4, '#120c0a'); R(280, 88, 30, 4, '#120c0a'); R(266, 88, 4, 36, W.l); R(320, 88, 4, 36, W.l);       // the great gate
     for (let i = 0; i < 6; i++) R(273 + i * 8, 96, 1, 28, '#3a2a1c');
@@ -225,6 +289,29 @@ const PLACE_SCENES = {
     R(266, 124, 58, 3, '#b8a888'); R(262, 127, 66, 3, '#a39a84');                               // steps up to the gate
     R(96, 108, 26, 16, '#6b4f2c'); R(98, 110, 22, 12, '#f1ead8'); for (let i = 0; i < 4; i++) R(100, 112 + i * 3, 12 + (i % 2) * 5, 1, '#6b573c'); R(94, 106, 30, 2, '#4a3520');      // the day's card, posted by the wall
     R(452, 104, 34, 20, '#7a5a34'); for (let i = 0; i < 6; i++) R(450 + i * 6, 98, 6, 6, i % 2 ? '#f1ead8' : '#b93a2e'); R(452, 116, 34, 2, '#94703f'); E.P(468, 124, -1, { tunic: '#a8763a', hair: '#2a1c14' }); R(452, 116, 34, 8, '#7a5a34'); R(452, 116, 34, 2, '#94703f');      // where the tokens are sold
+    E.sign(295, Math.max(11, top - 20), TIERS[Math.min(3, t)].name.toUpperCase(), t >= 3);
+    if (G.fame >= FINAL_FAME && !G.won) {      // the eagle over the gate: the Emperor has sent for you
+      R(294, 44, 2, 12, '#8a6230'); R(288, 38, 14, 6, '#e8b545'); R(284, 40, 4, 3, '#e8b545'); R(302, 40, 4, 3, '#e8b545'); R(293, 35, 4, 3, '#e8b545'); E.sign(295, Math.max(23, top - 32), 'THE EMPEROR SUMMONS YOU', true); }
+    // the champion, in stone on his plinth; gilded if he is yours
+    { const holder = typeof titleHolder === 'function' ? titleHolder() : null, yours = holder && G.title.house === null;
+      R(160, 132, 20, 16, '#b8ab94'); R(158, 130, 24, 3, '#d8cdb6'); R(158, 147, 24, 2, '#a39a84');
+      if (holder) { const c = yours ? '#e8b545' : '#d8d2c0'; E.P(170, 130, 1, { tunic: c, skin: c, hair: yours ? '#b6832c' : '#c9c2ae', item: 'sword' }); E.wreath(170, 96, yours ? '#fff0b0' : '#5d7f3f'); }
+      E.sign(170, 162, holder ? `CHAMPION: ${holder.name.toUpperCase()}` : t >= 1 ? 'THE TITLE STANDS EMPTY' : 'NO CHAMPION IN THE PITS', !!yours); }
+    // the bookmakers, their board and their strongbox
+    R(126, 106, 24, 20, '#2a2a2a'); R(124, 104, 28, 2, '#6b4f2c'); for (let i = 0; i < 4; i++) { R(129, 109 + i * 4, 8 + (i % 2) * 4, 1, '#e8e2d2'); R(143, 109 + i * 4, 4, 1, i % 2 ? '#e8b545' : '#e8e2d2'); }
+    R(118, 140, 34, 4, '#6b4f2c'); R(121, 144, 3, 12, '#5e4426'); R(146, 144, 3, 12, '#5e4426'); for (let i = 0; i < 5; i++) R(124 + (i % 3) * 3, 138 - Math.floor(i / 3) * 2, 2, 2, '#e8b545');
+    E.P(138, 158, 1, { tunic: '#4a6a8a', hair: '#2a1c14', item: 'scroll' });
+    E.sign(136, 100, (G.streak || 0) >= 2 ? `WAGERS - ${G.streak} WON RUNNING` : 'WAGERS', (G.streak || 0) >= 2);
+    // the festival crowns the house has won, hung on a rail by the wall
+    { const n = typeof trophies === 'function' ? trophies() : 0;
+      R(500, 132, 2, 26, '#5e4426'); R(572, 132, 2, 26, '#5e4426'); R(498, 130, 78, 3, '#6b4f2c');
+      for (let i = 0; i < Math.min(8, n); i++) E.wreath(508 + i * 9, 140 + (i % 2) * 2, i % 2 ? '#5d7f3f' : '#6f8f48');
+      E.sign(537, 126, n ? `FESTIVAL CROWNS: ${n}` : 'NO FESTIVAL CROWN YET', n > 0); }
+    // what the heralds are crying
+    if (G.festival && G.festival.day >= G.day && G.festival.day - G.day <= 5) { const left = G.festival.day - G.day, F = FESTIVALS[left === 0 && G.festival.shown ? G.festival.shown : G.festival.type];
+      E.sign(295, 66, `${F.name.toUpperCase()} ${left === 0 ? 'TODAY' : left === 1 ? 'TOMORROW' : 'IN ' + left + ' DAYS'}`, true);
+      if (left > 0) E.P(232, 158, 1, { tunic: '#a8261c', hair: '#2a1c14', item: 'scroll' }); }
+    for (const x of [22, 574]) E.cypress(x, 126, 40);
     E.lamp(258, 110); E.lamp(332, 110);
   } },
 
@@ -254,6 +341,25 @@ const PLACE_SCENES = {
       R(x, 62, 16, 1, '#5a4326'); R(x + 1, 63, 14, 24 + w, col); R(x + 1, 63, 14, 2, shade(col, 1.25)); R(x + 6, 72, 4, 4, '#e8b545'); R(x + 1, 86 + w, 5, 3, col); R(x + 10, 86 + w, 5, 3, col);
     });
     for (let i = 0; i < 5; i++) { const px = 120 + i * 78; R(px, 28, 3, 2, i % 2 ? '#8f97a0' : '#c9d1d9'); R(px + 2, 27, 1, 1, '#6f7780'); }      // pigeons along the roof
+    // a pediment over the middle of the colonnade
+    for (let i = 0; i < 6; i++) R(226 + i * 8, 28 - (i + 1) * 3, 92 - i * 16, 3, i % 2 ? '#e8e2d2' : '#ddd6c4'); R(266, 16, 12, 6, '#e8b545'); R(268, 18, 8, 2, '#b6832c');
+    // the fountain
+    R(136, 160, 44, 10, '#b8ab94'); R(134, 158, 48, 3, '#d8cdb6'); R(139, 161, 38, 5, '#4f8fb8'); R(156, 146, 4, 14, '#c9c2ae'); R(153, 144, 10, 3, '#d8d2c0');
+    for (let i = 0; i < 6; i++) { const q = (T * 1.4 + i / 6) % 1; R(157 + Math.round((i % 2 ? 1 : -1) * q * 9), 144 - Math.round(Math.sin(q * Math.PI) * 7), 1, 2, '#d6ecf8'); } for (let i = 0; i < 3; i++) R(142 + ((i * 13 + Math.floor(T * 6)) % 30), 163, 4, 1, '#d6ecf8');
+    // your stables, at the corner of the square: a rail, then a roof, then a cart, then a proper yard
+    { const sl = G.fac.stables || 0;
+      if (!sl) { R(14, 150, 2, 14, '#5e4426'); R(58, 150, 2, 14, '#5e4426'); R(12, 152, 50, 2, '#7a5a34'); }
+      else {
+        R(8, 132, 66, 30, '#5a4a3e'); R(8, 132, 66, 2, '#6b5a4c'); for (let x = 8; x < 74; x += 22) R(x, 132, 3, 32, '#6b4f2c'); R(72, 132, 3, 32, '#6b4f2c');
+        if (sl >= 3) E.tiles(2, 122, 78, 10); else { R(2, 124, 78, 8, '#b89a5a'); for (let x = 2; x < 80; x += 5) R(x, 124, 1, 8, '#9a7e44'); R(2, 124, 78, 1, '#d0b46e'); }
+        R(10, 156, 62, 2, '#7a5a34'); for (let q = 0; q < 4; q++) R(14 + q * 6, 158, 4, 3, '#c9a763');      // the manger
+      }
+      E.mule(30, 166, 1); if (sl >= 3) E.mule(58, 164, -1, '#6f5a48');
+      if (sl >= 2) { R(84, 164, 30, 8, '#7a5a34'); R(84, 164, 30, 2, '#94703f'); R(112, 167, 10, 2, '#5e4426'); for (const wx of [90, 108]) { R(wx - 4, 170, 8, 8, '#3a2a1c'); R(wx - 2, 172, 4, 4, '#8a6a3a'); R(wx - 1, 173, 2, 2, '#3a2a1c'); } for (let q = 0; q < 2; q++) E.sack(92 + q * 10, 164); }
+      E.sign(54, 186, `YOUR STABLES ${E.pips(sl, 3)}`, sl >= 3); }
+    { const rep = workRep(); E.sign(271, 136, `YOUR NAME FOR WORK: ${workWord(rep).toUpperCase()}`, rep >= 35); }
+    if ((G.jobs || []).length) E.sign(546, 150, `${G.jobs.length} OF YOUR OUTINGS AWAY`);
+    R(572, 150, 8, 18, '#c9c2ae'); R(570, 148, 12, 3, '#d8d2c0'); R(574, 154, 4, 1, '#8a8478'); R(574, 158, 4, 1, '#8a8478');      // the milestone on the east road
     E.lamp(186, 108); E.lamp(356, 108);
   } },
 
@@ -282,6 +388,24 @@ const PLACE_SCENES = {
     if (G.patrons.temple >= 35) for (let i = 0; i < 5; i++) for (let q = 2; q < 34; q += 2) R(208 + i * 36 + q, 60 + Math.round(Math.sin(q / 36 * Math.PI) * 4), 2, 2, q % 4 ? '#4f7a3a' : '#c23b2e');      // garlands between the columns, when she favours you
     const gifts = Math.min(6, (G.gifts ? G.gifts.magistrate + G.gifts.guild + G.gifts.temple : 0));
     for (let i = 0; i < gifts; i++) E.amphora(318 + i * 8, 124, i % 2 ? '#c98a4a' : '#b8703c');          // what you have brought them so far
+    // bronze doors, acroteria, and tripods smoking either side of the steps
+    R(282, 76, 12, 36, '#8a6230'); R(296, 76, 12, 36, '#8a6230'); R(282, 76, 26, 1, '#b98a34'); for (let q = 0; q < 4; q++) { R(286, 80 + q * 8, 2, 2, '#e8b545'); R(302, 80 + q * 8, 2, 2, '#e8b545'); }
+    R(292, 8, 6, 9, '#e8b545'); R(290, 12, 10, 2, '#e8b545'); R(190, 36, 6, 8, '#e8e2d2'); R(394, 36, 6, 8, '#e8e2d2');
+    for (const x of [176, 414]) { R(x - 1, 100, 1, 12, '#8a6230'); R(x + 5, 100, 1, 12, '#8a6230'); R(x + 2, 100, 1, 12, '#8a6230'); R(x - 3, 96, 11, 4, '#b98a34'); E.flame(x + 2, 96, 4, '#e2702a'); }
+    for (const [x, h] of [[142, 46], [448, 46], [128, 34], [462, 34]]) E.cypress(x, 124, h);
+    // your own shrine, to the right of the steps: a stone, an altar, the goddess, a roof over her
+    { const sh = G.fac.shrine || 0, x = 446;
+      R(x - 12, 140, 24, 4, '#b8ab94'); R(x - 12, 140, 24, 1, '#d8cdb6');
+      if (sh >= 1) { R(x - 7, 126, 14, 14, '#d8d2c0'); R(x - 9, 124, 18, 3, '#e8e2d2'); R(x - 9, 137, 18, 3, '#c9c2ae'); E.flame(x, 124, 3 + sh, '#f0e0a0'); }
+      if (sh >= 2) { R(x + 12, 116, 10, 24, '#c9c2ae'); R(x + 10, 114, 14, 3, '#d8d2c0'); E.P(x + 17, 114, -1, { tunic: '#e8e2d2', skin: '#e8e2d2', hair: '#c9c2ae' }); R(x + 9, 92, 4, 8, '#e8e2d2'); R(x + 22, 92, 4, 8, '#e8e2d2'); }      // Nemesis, winged
+      if (sh >= 3) { E.column(x - 16, 100, 40); E.column(x + 27, 100, 40); R(x - 20, 92, 58, 5, '#d8d2c0'); for (let q = 0; q < 4; q++) R(x - 16 + q * 7, 92 - (q + 1) * 3, 50 - q * 14, 3, q % 2 ? '#e8e2d2' : '#ddd6c4'); R(x - 20, 95, 58, 2, '#e8b545'); }
+      E.sign(x + 6, 176, `YOUR SHRINE ${E.pips(sh, 3)}`, sh >= 3); }
+    // what is being asked of you, and what has been granted
+    if (G.request && !G.request.done) { const k = G.request.patron, hx = k === 'magistrate' ? 124 : k === 'guild' ? 546 : 330, c = k === 'magistrate' ? '#7a2a8a' : k === 'guild' ? '#c9a21e' : '#f1ead8';
+      E.P(hx, 168, k === 'guild' ? -1 : 1, { tunic: c, hair: '#2a1c14', item: 'scroll' }); E.sign(hx, 184, 'A REQUEST FOR YOU', true); }
+    if (G.blessed && G.blessed >= G.day) { for (let i = 0; i < 14; i++) if (Math.sin(T * 4 + i * 2.3) > 0.2) R(206 + (i * 37) % 180, 20 + (i * 23) % 80, 1, 1, '#fff0b0'); E.sign(295, 30, 'THE SCHOOL IS BLESSED', true); }
+    // those who have come to pray
+    E.P(238, 122, 1, Object.assign(townsman(3), { face: 'up' })); E.P(352, 120, -1, Object.assign(townsman(6), { face: 'up' })); E.P(366, 124, -1, Object.assign(townsman(1), { face: 'up' }));
     E.lamp(190, 108); E.lamp(400, 108);
   } },
 
@@ -292,13 +416,18 @@ const PLACE_SCENES = {
     for (let x = 30; x < 590; x += 110) R(x, 0, 8, 96, '#5e4426'); R(0, 0, 590, 8, '#4a3520');
     R(0, 142, 590, 48, '#6b4f2c'); for (let i = 0; i < 12; i++) R(0, 146 + i * 4, 590, 1, '#5e4426');
     // the wall of shields: every school in the province, the most renowned first, yours among them
-    const rows = G.houses.map(H => ({ name: houseDef(H.id).name, col: houseDef(H.id).col, p: H.prestige, feud: H.grudge })).concat([{ name: 'YOU', col: '#c23b2e', p: G.fame, you: true }]).sort((a, b) => b.p - a.p);
+    const rows = G.houses.map(H => ({ id: H.id, called: H.called, name: houseDef(H.id).name, col: houseDef(H.id).col, p: H.prestige, feud: H.grudge })).concat([{ name: 'YOU', col: '#c23b2e', p: G.fame, you: true }]).sort((a, b) => b.p - a.p);
     rows.forEach((h, i) => {
       const x = 196 + i * 62, y = 30;
       R(x - 13, y, 26, 34, '#2a1c14'); R(x - 11, y + 2, 22, 30, h.col); R(x - 11, y + 2, 22, 3, shade(h.col, 1.35)); R(x - 11, y + 2, 3, 30, shade(h.col, 0.7)); R(x - 3, y + 13, 6, 6, h.you ? '#f5d584' : '#d8cdb6');
       if (h.you) { R(x - 15, y - 2, 30, 1, '#f5d584'); R(x - 15, y + 35, 30, 1, '#f5d584'); R(x - 15, y - 2, 1, 38, '#f5d584'); R(x + 14, y - 2, 1, 38, '#f5d584'); }
       if (h.feud >= 40) for (let k = -8; k <= 8; k++) { R(x + k, y + 17 + k, 2, 2, '#1c1310'); R(x + k, y + 17 - k, 2, 2, '#1c1310'); }      // an open feud: a blade scored across it
       E.sign(x, 80, `${i + 1}. ${h.p}`, h.you);
+      // a crown over the house that holds the championship, a laurel for the last tournament, a dagger where you have called them out
+      const T0 = G.title, lastL = G.laurels && G.laurels[G.laurels.length - 1];
+      if (T0 && (h.you ? T0.house === null : T0.house === h.id) && titleHolder()) { R(x - 7, y - 9, 14, 4, '#e8b545'); for (let q = 0; q < 4; q++) R(x - 7 + q * 4, y - 12, 2, 3, '#e8b545'); R(x - 1, y - 8, 2, 2, '#a02d22'); }
+      if (lastL && (h.you ? !lastL.hid : lastL.hid === h.id)) E.wreath(x + 13, y + 30, '#5d7f3f');
+      if (h.called) { R(x + 8, y - 2, 2, 12, '#c1c7cc'); R(x + 6, y - 4, 6, 2, '#6b4526'); R(x + 8, y - 8, 2, 4, '#3a2a1c'); }
     });
     // the bar, the man behind it, and what he pours
     R(14, 108, 150, 34, '#5e4426'); R(10, 104, 158, 5, '#8a6a3a'); R(18, 60, 140, 3, '#4a3520'); R(18, 84, 140, 3, '#4a3520');
@@ -317,6 +446,20 @@ const PLACE_SCENES = {
     const cy = 176 + Math.round(Math.sin(T * 0.6));                                                                // the tavern cat
     R(196, cy - 3, 9, 3, '#3a3a3a'); R(204, cy - 5, 4, 4, '#3a3a3a'); R(204, cy - 6, 1, 1, '#3a3a3a'); R(207, cy - 6, 1, 1, '#3a3a3a'); R(193, cy - 4 - (Math.sin(T * 2) > 0 ? 1 : 0), 3, 1, '#3a3a3a'); R(206, cy - 4, 1, 1, '#e8c84a');
     R(152, 150, 10, 2, '#6b4f2c'); R(155, 152, 2, 12, '#5e4426'); R(174, 150, 10, 2, '#6b4f2c'); R(177, 152, 2, 12, '#5e4426');      // stools at the bar
+    E.sign(88, 24, 'THE CROSSED SWORDS');
+    R(64, 28, 1, 12, '#c1c7cc'); R(112, 28, 1, 12, '#c1c7cc');
+    // crossed swords over the hearth, barrels by the bar, and the girl who carries the wine
+    for (let k = 0; k < 12; k++) { R(548 + k * 2, 62 + k * 2, 2, 2, '#c1c7cc'); R(572 - k * 2, 62 + k * 2, 2, 2, '#c1c7cc'); } R(546, 60, 4, 4, '#8a6230'); R(572, 60, 4, 4, '#8a6230');
+    E.barrel(24, 176); E.barrel(38, 178); E.barrel(31, 164);
+    E.walker(2, 182, 11, { tunic: '#b06a8a', hair: '#3a2a1c', skin: '#d9a57c', apron: '#e8dcc0', item: 'pot' });
+    // the talk of the town, pinned up by the door
+    { const news = Math.min(6, (G.rivalNews || []).length);
+      R(496, 100, 36, 30, '#5e4426'); R(498, 102, 32, 26, '#8a6a3a');
+      for (let i = 0; i < news; i++) { const nx = 500 + (i % 3) * 10, ny = 104 + Math.floor(i / 3) * 12; R(nx, ny, 8, 9, '#f1ead8'); R(nx + 1, ny + 2, 5, 1, '#6b573c'); R(nx + 1, ny + 5, 4, 1, '#6b573c'); R(nx + 3, ny - 1, 2, 2, '#a02d22'); }
+      E.sign(514, 96, news ? 'TOWN TALK' : 'NO NEWS'); }
+    // a game of dice in the corner
+    R(150, 172, 30, 3, '#8a6a3a'); R(153, 175, 3, 10, '#5e4426'); R(174, 175, 3, 10, '#5e4426'); { const roll = Math.floor(T * 1.5) % 3; R(160 + roll * 3, 169, 3, 3, '#f1ead8'); R(168 - roll, 169, 3, 3, '#f1ead8'); R(161 + roll * 3, 170, 1, 1, '#1c1310'); }
+    E.P(142, 186, 1, townsman(4)); E.P(190, 186, -1, townsman(7));
     E.lamp(176, 70); E.lamp(400, 100);
   } },
 
@@ -332,11 +475,13 @@ const PLACE_SCENES = {
     for (const x of [70, 150, 440, 520]) { R(x - 8, 132, 16, 8, '#7a5a34'); R(x - 7, 124, 14, 9, '#5d7f3f'); R(x - 4, 120, 8, 5, '#6f8f48'); R(x - 2, 122, 2, 2, '#e8a0a0'); }
     // the household: whoever you have taken on, each at his work
     let n = 0;
-    const post = (role, x, o, word) => { if (!st[role]) return; E.P(x, 150 + (n++ % 2) * 6, x < 295 ? 1 : -1, o); E.sign(x, 178, `${word} ${'●'.repeat(st[role].skill)}`); };
-    post('doctore', 110, { tunic: '#8a4a3a', hair: '#8a8a8a', item: 'staff' }, 'DOCTORE');
-    post('medicus', 200, { tunic: '#f1ead8', hair: '#3a2a1c', item: 'bag' }, 'MEDICUS');
-    post('cook', 390, { tunic: '#a8763a', apron: '#f1ead8', hair: '#2a1c14', item: Math.sin(T * 2) > 0 ? 'ladle' : 'pot' }, 'COOK');
-    post('scout', 480, { tunic: '#3f7a5a', hair: '#6a4a2a', item: 'scroll' }, 'SCOUT');
+    const post = (role, x, o, word) => { if (!st[role]) return; const k = n++; E.P(x, 150 + (k % 2) * 6, x < 295 ? 1 : -1, o); E.sign(x, k % 2 ? 185 : 174, `${word} ${E.pips(st[role].skill, 3)}`, st[role].skill >= 3); };
+    post('doctore', 84, { tunic: '#8a4a3a', hair: '#8a8a8a', item: 'staff' }, 'DOCTORE');
+    post('medicus', 150, { tunic: '#f1ead8', hair: '#3a2a1c', item: 'bag' }, 'MEDICUS');
+    post('unctor', 214, { tunic: '#5a8a9a', hair: '#2a1c14', item: 'bucket' }, 'UNCTOR');
+    post('cook', 376, { tunic: '#a8763a', apron: '#f1ead8', hair: '#2a1c14', item: Math.sin(T * 2) > 0 ? 'ladle' : 'pot' }, 'COOK');
+    post('dispensator', 440, { tunic: '#8a8a8a', hair: '#c9c2b2', item: 'scroll' }, 'DISPENSATOR');
+    post('scout', 504, { tunic: '#3f7a5a', hair: '#6a4a2a', item: 'scroll' }, 'SCOUT');
     if (!n) E.sign(295, 178, 'NO HOUSEHOLD HIRED YET');
     // the strongbox by the door: fuller the richer you are, and men waiting for it when you owe
     R(336, 112, 22, 12, '#5e4426'); R(336, 112, 22, 2, '#8a6a3a'); R(346, 116, 2, 3, '#e0aa3e');
@@ -344,10 +489,32 @@ const PLACE_SCENES = {
     if (G.denarii < 0) { E.P(366, 126, -1, { tunic: '#3a3a44', hair: '#2a1c14', item: 'scroll' }); E.P(380, 128, -1, { tunic: '#4a3a3a', hair: '#8a8a8a' }); E.sign(372, 100, 'THE CREDITORS', true); }
     E.shade(50, 124, 490);
     // what you have built: a plaque on the wall for each, with its pips
-    [['stores', 96]].forEach(([k, x]) => E.sign(x, 106, `${FACILITIES[k].name.split(' ')[0].toUpperCase()} ${'●'.repeat(G.fac[k])}${'○'.repeat(3 - G.fac[k])}`, G.fac[k] >= 3));
     for (let gy = 132; gy < 148; gy += 4) for (let gx = 258 + (gy % 8 ? 0 : 3); gx < 336; gx += 6) R(gx, gy, 3, 2, (gx + gy) % 3 ? '#c9b890' : '#a8452e');      // a mosaic walk up to the door
     R(52, 60, 6, 64, '#d8cdb6'); R(532, 60, 6, 64, '#d8cdb6'); R(52, 60, 1, 64, '#f0e8d6'); R(537, 60, 1, 64, '#b5aa94');
     for (let i = 0; i < 3; i++) { const q = (T * 0.25 + i / 3) % 1; E.ctx().globalAlpha = 0.4 * (1 - q); R(470 + Math.sin(q * 5 + i) * 3 + q * 8, 44 - q * 30, 3 + Math.round(q * 4), 3, '#d8d4cc'); } E.ctx().globalAlpha = 1; R(468, 40, 6, 8, '#8f8a84');      // the kitchen chimney
+    // antefixes along the eaves, a vine up the corner, a balcony over the door
+    for (let x = 46; x < 546; x += 18) R(x, 57, 3, 3, '#d06a3e');
+    for (let q = 0; q < 26; q++) { const vx = 60 + Math.round(Math.sin(q * 0.9) * 3); R(vx, 122 - q * 2, 2, 2, q % 3 ? '#4f7a3a' : '#6f8f48'); if (q % 5 === 2) R(vx + 2, 121 - q * 2, 2, 2, '#7a2a8a'); }
+    R(262, 64, 66, 3, '#8a6a3a'); for (let x = 264; x < 328; x += 6) R(x, 60, 1, 4, '#6b4f2c'); R(262, 59, 66, 1, '#a8834a');
+    // those looking for a place wait along the wall
+    { const seek = (G.hires || []).filter(h => h.role !== 'faber').length;
+      R(108, 122, 60, 3, '#7a5a34'); R(112, 125, 2, 5, '#5e4426'); R(162, 125, 2, 5, '#5e4426');
+      for (let i = 0; i < Math.min(4, seek); i++) E.P(118 + i * 14, 128, 1, townsman(i + 3));
+      E.sign(138, 104, seek ? `${seek} SEEKING A PLACE` : 'THE HALL IS EMPTY', seek > 0); }
+    // the granary at the corner: sacks, then a store on its staddles, then a garden, then a pig
+    { const gl = G.fac.stores || 0, x = 546;
+      if (!gl) { for (let q = 0; q < 2; q++) E.sack(x + 8 + q * 10, 150); }
+      else {
+        for (const px of [x + 2, x + 16, x + 30]) { R(px, 146, 3, 6, '#8f8a84'); R(px - 1, 144, 5, 2, '#b5aa94'); }
+        R(x - 2, 124, 40, 21, '#c9a66a'); R(x - 2, 124, 40, 2, '#dcc08a'); for (let q = 0; q < 6; q++) R(x + 2 + q * 6, 126, 1, 19, '#a8864e'); R(x + 13, 130, 10, 15, '#5e4426');
+        if (gl >= 3) E.tiles(x - 6, 114, 48, 10); else { R(x - 6, 116, 48, 8, '#b89a5a'); R(x - 6, 116, 48, 1, '#d0b46e'); for (let q = 0; q < 48; q += 5) R(x - 6 + q, 116, 1, 8, '#9a7e44'); }
+        for (let q = 0; q < gl; q++) E.sack(x - 8 - q * 8, 152);
+      }
+      if (gl >= 2) for (let r = 0; r < 3; r++) for (let q = 0; q < 6; q++) { R(x - 4 + q * 7, 160 + r * 6, 5, 2, '#6b4f2c'); R(x - 3 + q * 7, 158 + r * 6, 3, 2, (q + r) % 3 ? '#5d7f3f' : '#8ab04a'); }      // the kitchen garden
+      if (gl >= 3) { const sn = Math.sin(T * 2) > 0.7 ? 1 : 0; R(x - 28, 170, 12, 6, '#e0a8a0'); R(x - 18 , 171 + sn, 5, 4, '#e0a8a0'); R(x - 14, 173 + sn, 2, 2, '#c98880'); R(x - 27, 176, 2, 3, '#c98880'); R(x - 20, 176, 2, 3, '#c98880'); R(x - 29, 169, 1, 2, '#c98880'); }
+      E.sign(x + 14, 110, `GRANARY ${E.pips(gl, 3)}`, gl >= 3); }
+    E.sign(470, 28, `THE TABLE: ${RATIONS[G.ration].name.toUpperCase()}`);
+    if (G.denarii >= 0) { const net = stipend() - upkeep(); E.sign(392, 108, `${net >= 0 ? '+' : ''}${net} A DAY`, net >= 0); }
     E.lamp(228, 110); E.lamp(360, 96);
   } },
 
@@ -376,6 +543,21 @@ const PLACE_SCENES = {
     for (let i = 0; i < 60; i++) { const mx = 529 + (i * 7) % 46, my = 93 + (i * 11) % 32; if (i / 60 < seen) R(mx, my, 4, 3, i % 3 ? '#7e9a4b' : '#5d7f3f'); }
     R(540, 108, 3, 3, '#a02d22'); E.sign(552, 84, `THE PROVINCE: ${Math.round(seen * 100)}%`);
     R(420, 148, 12, 5, '#c98a4a'); R(430, 145, 5, 5, '#c98a4a'); R(430, 144, 1, 1, '#c98a4a'); R(434, 144, 1, 1, '#c98a4a'); R(417, 150 - (Math.sin(T * 1.5) > 0.6 ? 1 : 0), 4, 1, '#c98a4a');      // the keeper's cat, asleep in the warm
+    // a rug under the keeper's table, and a column where the shelves end
+    R(412, 160, 112, 12, '#7a2a2a'); R(412, 160, 112, 1, '#e8b545'); R(412, 171, 112, 1, '#e8b545'); for (let x = 418; x < 520; x += 12) R(x, 165, 6, 2, '#c9a21e');
+    R(400, 8, 8, 134, '#b5a894'); R(400, 8, 2, 134, '#d0c4b0'); R(397, 6, 14, 4, '#c9bca8'); R(397, 138, 14, 4, '#9a8e7c');
+    // the line of the house: a bust for each generation, on top of the shelves
+    { const gen = Math.min(5, G.dynasty ? G.dynasty.gen : 1);
+      for (let i = 0; i < gen; i++) { const bx = 34 + i * 22, last = i === gen - 1; R(bx, 14, 10, 8, last ? '#e8e2d2' : '#b5aa94'); R(bx + 2, 8, 6, 7, last ? '#e8e2d2' : '#b5aa94'); R(bx + 2, 8, 6, 2, last ? '#c9c2ae' : '#8f8a84'); R(bx + 3, 11, 1, 1, '#5a4a3a'); R(bx + 6, 11, 1, 1, '#5a4a3a'); } }
+    // the festival crowns of the house, hung over the map
+    { const n = typeof trophies === 'function' ? trophies() : 0;
+      R(524, 78, 56, 2, '#6b4f2c'); if (n) R(524, 58, 56, 20, '#5e4c3a');
+      for (let i = 0; i < Math.min(10, n); i++) E.wreath(530 + (i % 5) * 11, 64 + Math.floor(i / 5) * 9, i % 2 ? '#5d7f3f' : '#6f8f48');
+      if (n) E.sign(552, 58, `FESTIVAL CROWNS: ${n}`, true); }
+    // the champion's cup, while a man of yours holds the title; and the laurels your men have taken
+    if (typeof titleYours === 'function' && titleYours()) { R(540, 150, 12, 14, '#8a7a66'); R(538, 148, 16, 3, '#a39a84'); R(542, 138, 8, 7, '#e8b545'); R(542, 138, 8, 2, '#fff0b0'); R(545, 145, 2, 3, '#b6832c'); R(540, 139, 2, 4, '#e8b545'); R(550, 139, 2, 4, '#e8b545'); E.sign(546, 176, `THE TITLE: ${G.title.name.toUpperCase()}`, true); }
+    { const mine = (G.laurels || []).filter(x => !x.hid).length; for (let i = 0; i < Math.min(4, mine); i++) E.wreath(424 + i * 10, 96, '#6f8f48'); if (mine) E.sign(440, 110, `${mine} LAUREL${mine === 1 ? '' : 'S'}`, true); }
+    if ((G.bestStreak || 0) >= 3) E.sign(210, 136, `LONGEST RUN OF VICTORIES: ${G.bestStreak}`);
     E.lamp(486, 126); E.lamp(404, 60);
   } },
 };
