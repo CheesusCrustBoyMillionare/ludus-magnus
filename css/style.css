@@ -1258,3 +1258,28 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .foelist.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
 .foelist.grid2 .l2 .notes { display: none; }
 .standings .kvs small { white-space: nowrap; }
+
+/* ---- the tournament: prizes, bracket, bets ---- */
+.panel.bout.lists { border-color: var(--gold); }
+.tprizes { display: inline-flex; gap: 12px; font: normal 12.5px Georgia, serif; letter-spacing: 0; text-transform: none; margin-left: 10px; }
+.tpast.inrow { margin: 0 0 0 auto; flex-wrap: nowrap; min-width: 0; overflow: hidden; white-space: nowrap; }
+.tprizes small { color: var(--dim); }
+.bracket { display: grid; grid-template-columns: 1.25fr 1.1fr 1fr 1fr; gap: 8px; margin: 6px 0 4px; }
+.bcol { display: flex; flex-direction: column; min-width: 0; }
+.bhead { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 2px; }
+.bents { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1px; }
+.bent { display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 14px; padding: 0 5px; border: 1px solid rgba(110, 72, 26, .55); background: rgba(0, 0, 0, .18); min-width: 0; }
+.bent span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bent b { color: var(--dim); font-weight: normal; }
+.bent i { font-style: normal; color: var(--gold); font-size: 10px; }
+.bent.you { border-color: var(--gold); color: var(--gold); }
+.bent.out { opacity: .45; }
+.bent.out span { text-decoration: line-through; }
+.bent[data-act] { cursor: pointer; }
+.bent[data-act]:hover, .bent.sel { background: rgba(214, 170, 80, .16); border-color: var(--gold); }
+.bents .bent:nth-child(even) { margin-bottom: 3px; }
+.tbet, .tpast { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; margin-top: 4px; }
+.tbet .lbl, .tpast .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.tbet button.mini { padding: 1px 8px; font-size: 10.5px; }
+.tpast small { color: var(--dim); }
+.tlog { font-size: 12px; margin-top: 2px; }

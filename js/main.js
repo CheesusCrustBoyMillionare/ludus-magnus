@@ -420,7 +420,7 @@ function helpModal() {
       + sec('The cloth', '<b>Throw in the cloth</b> to make your worst-hurt man yield at once. Once a bout, and it asks twice.')
       + sec('The crowd', 'Telling blows, abilities and a close fight raise the crowd; a roused crowd pays more fame and spares more men. A dull fight gets cabbage stalks.')
       + sec('Watching', 'Pause, step, or run at half speed to look closely; rest the mouse on any fighter for what he is and how he stands. <b>Log</b> keeps every line of the fight. Cut-ins and the following camera can be switched off.')
-      + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, a triumph with armed captives and a cheap market, Saturnalia with no deaths and generous bookmakers, the Games of Mars with a duel for each fighting style, or the eight-man Laurel Tournament. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days for more fame from its bouts; win enough of them and the house keeps its <b>crown</b>, which adds fame to every bout after.'),
+      + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, a triumph with armed captives and a cheap market, Saturnalia with no deaths and generous bookmakers, the Games of Mars with a duel for each fighting style, or the eight-man Laurel Tournament, where you may back any man for the laurel before the first round, tend your own between rounds, or enter nobody and watch. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days for more fame from its bouts; win enough of them and the house keeps its <b>crown</b>, which adds fame to every bout after.'),
     town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every games day.')
       + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
       + sec('Household', 'Barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. Staff are hired by the day. Rations trade coin for morale.')
@@ -1350,38 +1350,66 @@ function festivalNote(brief) {
 function tourneyPanel() {
   const T = G.tourney;
   if (!T) return '';
-  const prizes = [0, 1, 2].map(r => { const p = tourneyPrize(T, r); return `${ROUND_NAMES[r]} <b class="gold num">${p.purse}</b> <span class="num">+${p.fame} fame</span>`; }).join(' &middot; ');
-  const entry = e => {
-    if (e.you) { const g = byId(T.entrant); return `<b>${g ? g.name : 'Your man'}</b> <span class="dim">(yours)</span>`; }
-    const g = tRival(e);
-    return `${swatch(e.hid)}${e.name}` + (g ? ` <span class="dim num">${CLASSES[g.cls].name}, might ${Math.round(power(g))}</span>` : ' <span class="dim">(dead)</span>');
+  const me = T.entrant ? byId(T.entrant) : null, odds = T.state === 'done' ? {} : tourneyOdds(T), open = T.state === 'open';
+  const prizes = [0, 1, 2].map(r => { const pz = tourneyPrize(T, r); return `<span>${ROUND_NAMES[r]} <b class="gold num">${pz.purse}</b> <small class="num">+${pz.fame}</small></span>`; }).join('');
+  const canBet = !T.bet && T.round === 0 && T.state !== 'done';
+  const cols = T.rounds && T.rounds.length ? T.rounds : [tourneyDraw(T).map(tSnap)];
+  if (canBet && ui.tbet && !odds[ui.tbet]) ui.tbet = null;
+  // one man on the bracket: struck through once he is out, gold if he is yours, and what the bookmakers pay on him
+  const ent = (e, r) => {
+    const key = tKey(e), g = e.you ? me : tRival(e), next = cols[r + 1], outNow = next && !next.some(x => tKey(x) === key), o = odds[key];
+    const name = e.you ? (me ? me.name : open ? 'your man?' : 'your man') : e.name;
+    const what = e.you ? (me ? `${me.name}, yours: ${CLASSES[me.cls].name}, might ${might(me)}.` : 'The place kept for your man, if you enter one.')
+      : g ? `${e.name} of ${houseDef(e.hid).name}: ${CLASSES[g.cls].name}, might ${might(g)}, ${g.wins}W ${g.losses}L.` : `${e.name} of ${houseDef(e.hid).name}.`;
+    const held = !e.you && G.laurels && G.laurels.length && G.laurels[G.laurels.length - 1].gid === e.gid && G.laurels[G.laurels.length - 1].day !== G.day;
+    return `<div class="bent ${e.you ? 'you' : ''} ${outNow ? 'out' : ''} ${canBet && ui.tbet === key ? 'sel' : ''}" ${canBet && o ? `data-act="tbetpick" data-v="${key}"` : ''}${tip(what + (held ? '\nHe took the laurel last time.' : '') + (o && r === 0 && T.state !== 'done' ? `\nThe bookmakers give him ${asPct(o.p)} for the laurel, and pay x${o.pay}.${canBet ? ' Click to back him.' : ''}` : ''))}>${e.you ? '' : swatch(e.hid)}<span>${name}</span>${held ? '<i>&#9733;</i>' : ''}${g && r === 0 ? `<b class="num">${might(g)}</b>` : ''}</div>`;
   };
+  const heads = ['Quarter-finals', 'Semi-finals', 'Final', 'Laurel'];
+  const bracket = `<div class="bracket">${[0, 1, 2, 3].map(r => `<div class="bcol"><div class="bhead">${cols[0].length < 8 && r === 0 ? 'The field' : heads[r]}</div><div class="bents">${(cols[r] || []).map(e => ent(e, r)).join('')}</div></div>`).join('')}</div>`;
+  // the bet on the laurel
+  let bet = '';
+  if (T.bet) bet = `<div class="tbet"><span class="lbl">Your bet</span><span><b class="num">${T.bet.stake}</b> on <b>${T.bet.name}</b> at x${T.bet.pay}${T.bet.settled ? (T.bet.won ? `: <b class="gold">it pays ${T.bet.gain}</b>` : ': <span class="bad">lost</span>') : `, to pay <b class="gold num">${Math.round(T.bet.stake * T.bet.pay)}</b>`}</span></div>`;
+  else if (canBet) {
+    const o = ui.tbet && odds[ui.tbet];
+    bet = `<div class="tbet"${tip('One bet on who takes the laurel, yours or anybody\'s, laid before the first round. Click a man on the bracket, then a stake.')}><span class="lbl">Back a man</span>${o
+      ? `<span><b>${o.name}</b> at x${o.pay}</span><div class="acts mini">${[25, 50, 100, 250].map(w => `<button class="mini" data-act="tbet" data-v="${w}" ${G.denarii < w ? 'disabled' : ''}>${w}</button>`).join('')}</div>`
+      : '<small class="dim">click a man on the bracket to see what the bookmakers pay on him</small>'}</div>`;
+  }
+  const past = (G.laurels || []).filter(x => x.day !== G.day).slice(-3).reverse();
+  const pastRow = past.length ? `<div class="tpast"><span class="lbl">Past laureates</span>${past.map(x => `<span>${x.hid ? swatch(x.hid) : ''}<b class="${x.hid ? '' : 'gold'}">${x.name}</b> <small>day ${x.day}</small></span>`).join('')}</div>` : '';
   let body;
-  if (T.state === 'open') {
+  if (open) {
     const avail = G.roster.filter(canFight);
     if (!avail.some(g => g.id === ui.tpick)) ui.tpick = null;
-    const chips = avail.map(g => `<span class="chip pick ${ui.tpick === g.id ? 'on' : ''}" data-act="tpick" data-v="${g.id}">${g.name} <span class="num">${Math.round(power(g))}</span></span>`).join('')
+    const chips = avail.map(g => `<span class="chip pick ${ui.tpick === g.id ? 'on' : ''}" data-act="tpick" data-v="${g.id}">${g.name} <span class="num">${might(g)}</span></span>`).join('')
       || '<span class="dim">No one is fit to enter.</span>';
-    body = `<div class="foes">${T.field.map(e => `<div>${entry(e)}</div>`).join('')}</div>
-      <div>Choose a champion. He fights up to three bouts today with little rest between them, and sits out the ordinary games.</div>
-      <div style="margin:6px 0">${chips}</div>
-      <div class="row"><span class="dim">Entry fee <b class="num">${T.fee}</b> denarii</span>
-      <button class="primary" data-act="tenter" ${ui.tpick && G.denarii >= T.fee ? '' : 'disabled'} style="margin-left:auto">Enter the lists</button></div>`;
-  } else if (T.state === 'running' && T.bout) {
-    const g = byId(T.entrant), pairs = [];
-    for (let i = 0; i + 1 < T.alive.length; i += 2) pairs.push(`<div>${entry(T.alive[i])} <span class="dim">against</span> ${entry(T.alive[i + 1])}</div>`);
-    const odds = winOdds([g], boutEnemies(T.bout));
-    body = `<div class="foes"><b>${ROUND_NAMES[T.round]}</b>${pairs.join('')}</div>
-      <div class="row"><span>${g.name}: health <b class="num">${Math.round(g.hp)}/${maxHp(g)}</b></span>
-      <span class="dim">Bookmakers give him ${Math.round(odds.p * 100)} in 100</span>
-      <button class="primary" data-act="tfight" style="margin-left:auto">To the sand</button></div>`;
+    body = `<div class="sendhead"><span>Choose a champion: up to three bouts today, and he sits out the ordinary games</span></div>
+      <div style="margin:5px 0">${chips}</div>
+      <div class="row"><button class="primary" data-act="tenter" ${ui.tpick && G.denarii >= T.fee ? '' : 'disabled'}${tip(G.denarii < T.fee ? `The entry fee is ${T.fee} denarii, and you have not got it.` : 'He is entered, and the draw is fixed.')}>Enter the lists &mdash; ${T.fee}</button>
+        <button class="mini ${ui.watchArm ? 'primary' : ''}" data-act="twatch"${tip('Enter nobody and watch it fought out now. A bet you have laid still stands.')}>${ui.watchArm ? 'Sure? Watch' : 'Watch from the stands'}</button>${pastRow.replace('class="tpast"', 'class="tpast inrow"')}</div>`;
+  } else if (T.state === 'running' && T.bout && me) {
+    const o = winOdds([me], boutEnemies(T.bout)), foe = boutEnemies(T.bout)[0], tb = tendBlock();
+    const wager = Math.min(ui.wagers[T.bout.id] || 0, Math.max(0, G.denarii));
+    const tend = T.round === 0 ? '' : `<div class="tbet"><span class="lbl"${tip('Between rounds he is given a little wine and a bandage as it is. There is time for one thing more.')}>Between rounds</span>${T.tended
+      ? `<span class="gold">${TENDS[T.tended].name}</span>`
+      : Object.keys(TENDS).map(k => `<button class="mini" data-act="ttend" data-v="${k}" ${tb ? 'disabled' : ''}${tip(TENDS[k].what)}>${TENDS[k].name}</button>`).join('')}</div>`;
+    body = `<div class="kvs three">
+        <div><span>${ROUND_NAMES[T.round]}</span><b style="font-size:15px">${foe ? foe.name : '&mdash;'}</b><small>${foe ? `${CLASSES[foe.cls].name} &middot; might ${might(foe)}` : ''}</small></div>
+        <div><span>${me.name}</span><b class="num ${me.hp < maxHp(me) * 0.5 ? 'bad' : ''}">${Math.round(me.hp)}/${maxHp(me)}</b><small>health &middot; might ${might(me)}${me.whet ? ' &middot; blade whetted' : ''}</small></div>
+        <div><span>Chance</span><b class="num ${o.p >= 0.5 ? 'good' : 'bad'}">${asPct(o.p)}</b><small>the bookmakers pay x${o.pay}</small></div></div>
+      ${tend}
+      <div class="wagerrow"><span class="lbl"${tip('wager')}>Wager</span><div class="acts mini">${[0, 25, 50, 100, 250, 500].filter(w => w <= Math.max(0, G.denarii)).map(w => `<button class="mini ${w === wager ? 'on' : ''}" data-act="wagerset" data-v="${T.bout.id}" data-w="${w}">${w || 'None'}</button>`).join('')}</div>
+        <small class="dim" style="margin-left:8px;flex:1">${wager ? `pays ${Math.round(wager * o.pay)} if he wins` : ''}</small>
+        <button class="primary" data-act="tfight"${tip('Key: Enter')}>To the sand</button></div>`;
   } else {
-    body = T.champion === 'you' ? '<b class="gold">Your man wears the laurel.</b>' : `<span>${T.champion || 'A rival'} takes the laurel.</span>`;
+    body = T.champion === 'you' ? '<b class="gold">Your man wears the laurel.</b>' : `<span>${T.champion || 'A rival'}${T.championHouse ? ' of ' + houseDef(T.championHouse).name : ''} takes the laurel.</span>`;
   }
-  return `<div class="panel bout" style="border-color:var(--gold);margin-bottom:14px"><h3>The lists</h3>
-    <div style="font-size:13px">${prizes}</div>
-    ${T.log.length ? `<div class="dim" style="font-size:13px;margin-top:6px">${T.log.join('<br>')}</div>` : ''}
-    <hr class="sep">${body}</div>`;
+  return `<div class="panel bout lists"><h3>The lists <span class="tprizes">${prizes}</span></h3>
+    ${bracket}
+    ${T.state === 'done' && T.log.length ? `<div class="dim tlog">${T.log.slice(-2).join('<br>')}</div>` : ''}
+    ${bet}
+    <hr class="sep">${body}
+    ${open ? '' : pastRow}</div>`;
 }
 
 // ---------- save menu ----------
@@ -2381,6 +2409,10 @@ const ACTIONS = {
   },
   tpick(v) { ui.tpick = +v; render(); },
   tenter() { if (enterTourney(ui.tpick)) { ui.tpick = null; render(); } },
+  tbetpick(v) { ui.tbet = ui.tbet === v ? null : v; render(); },
+  tbet(v) { if (ui.tbet && tourneyBet(ui.tbet, +v)) { ui.tbet = null; SFX.ui('coin'); save(); } render(); },
+  ttend(v) { if (tendChampion(v)) { SFX.ui('gear'); save(); } render(); },
+  twatch() { if (!ui.watchArm) { ui.watchArm = true; render(); return; } ui.watchArm = false; if (watchTourney()) { SFX.ui('gate'); save(); } render(); },
   tfight() { if (G.tourney && G.tourney.bout) startFight(null, G.tourney.bout); },
   saves() { ui.confirmSlot = null; ui.saveMsg = ''; showModal(savesModal()); },
   help(v) {                                  // opened at the page for where you are, unless one is asked for

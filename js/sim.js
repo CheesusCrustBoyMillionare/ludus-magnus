@@ -1230,9 +1230,74 @@ function genTourney(t, booked) {
   while (picks.length < 7) { const H = pick(G.houses), g = makeRival(H, ENEMY_BUDGET[t], t); H.roster.push(g); picks.push({ hid: H.id, g }); }
   picks.forEach(e => booked.add(e.g.id));
   G.tourney = {
-    day: G.day, t, fee: round5(PURSE[t] * 0.5), state: 'open', round: 0, entrant: null, bout: null, log: [],
+    day: G.day, t, fee: round5(PURSE[t] * 0.5), state: 'open', round: 0, entrant: null, bout: null, log: [], rounds: [], bet: null,
     field: picks.map(e => ({ hid: e.hid, gid: e.g.id, name: e.g.name })), alive: null,
   };
+}
+
+// The draw as it would stand: strongest first in the field, the favourite in the far half from your man.
+function tourneyDraw(T) { const f = T.field; return [{ you: true }, f[6], f[3], f[4], f[1], f[5], f[2], f[0]]; }
+const tSnap = e => e.you ? { you: true } : { hid: e.hid, gid: e.gid, name: e.name };
+const tKey = e => e.you ? 'you' : String(e.gid);
+// What the bookmakers think of each man's chance of the laurel, and what they pay on him.
+function tourneyOdds(T) {
+  const me = T.entrant ? byId(T.entrant) : null, list = T.field.map(e => ({ key: tKey(e), name: e.name, g: tRival(e) })).filter(x => x.g);
+  if (me) list.push({ key: 'you', name: me.name, g: me });
+  const sum = list.reduce((n, x) => n + Math.pow(power(x.g), 4), 0) || 1, out = {};
+  for (const x of list) { const pr = Math.pow(power(x.g), 4) / sum; out[x.key] = { name: x.name, p: pr, pay: Math.round(clamp(0.8 / pr, 1.3, 20) * 10) / 10 }; }
+  return out;
+}
+// One bet on who takes the laurel, laid before the first round is fought.
+function tourneyBetBlock(key, stake) {
+  const T = G.tourney;
+  if (!T || T.state === 'done') return 'The lists are closed.';
+  if (T.bet) return 'You have laid your bet.';
+  if (T.round > 0) return 'The bookmakers took their last bets before the first round.';
+  if (!tourneyOdds(T)[key]) return key === 'you' ? 'Enter a man first.' : 'He is not in the lists.';
+  if (!(stake > 0) || G.denarii < stake) return 'You have not the coin.';
+  return '';
+}
+function tourneyBet(key, stake) {
+  key = String(key); stake = +stake;
+  if (tourneyBetBlock(key, stake)) return false;
+  const o = tourneyOdds(G.tourney)[key];
+  G.denarii -= stake; G.tourney.bet = { key, name: o.name, stake, pay: o.pay };
+  return true;
+}
+function settleTourneyBet(winnerKey) {
+  const T = G.tourney, b = T && T.bet;
+  if (!b || b.settled) return;
+  b.settled = true; b.won = b.key === String(winnerKey);
+  if (b.won) { b.gain = Math.round(b.stake * b.pay); G.denarii += b.gain; }
+  const line = b.won ? `Your bet on ${b.name} comes home: ${b.gain} denarii.` : `Your ${b.stake} denarii on ${b.name} are lost.`;
+  T.log.push(line); log(line, b.won ? 'gold' : 'bad');
+}
+function laurelWon(name, hid, gid) { (G.laurels = G.laurels || []).push({ day: G.day, name, hid: hid || null, gid: gid || null }); if (G.laurels.length > 12) G.laurels.shift(); }
+// Between rounds there is time for one thing.
+const TENDS = {
+  surgeon: { name: 'The surgeon', what: 'He is stitched and bound: a further 30% of the health he has lost comes back.' },
+  whet:    { name: 'The armourer', what: 'His blade is ground and his straps reset: 10% more damage in the next round.' },
+  wine:    { name: 'Wine and a word', what: 'You sit with him. His spirits rise by 30 and he sheds 30 fatigue.' },
+};
+function tendBlock() {
+  const T = G.tourney;
+  return !T || T.state !== 'running' || !T.bout || T.round === 0 ? 'There is nothing to tend.' : T.tended ? 'There was time for one thing, and it is done.' : '';
+}
+function tendChampion(kind) {
+  const T = G.tourney, g = T && byId(T.entrant);
+  if (tendBlock() || !g || !TENDS[kind]) return false;
+  if (kind === 'surgeon') g.hp = Math.min(maxHp(g), g.hp + (maxHp(g) - g.hp) * 0.3);
+  if (kind === 'whet') g.whet = true;
+  if (kind === 'wine') { g.morale = clamp(g.morale + 30, 0, 100); g.fatigue = clamp(g.fatigue - 30, 0, 100); }
+  T.tended = kind;
+  return true;
+}
+// Watch from the stands: the tournament is fought out without a man of yours in it.
+function watchTourney() {
+  const T = G.tourney;
+  if (!T || T.state !== 'open') return false;
+  finishTourneyOffscreen();
+  return true;
 }
 
 function enterTourney(gid) {
@@ -1241,7 +1306,7 @@ function enterTourney(gid) {
   G.denarii -= T.fee; T.entrant = g.id; T.state = 'running';
   g.foughtDay = G.day;                     // he is kept out of the ordinary bouts
   const f = T.field;                       // strongest first; the favourite sits in the far half of the draw
-  T.alive = [{ you: true }, f[6], f[3], f[4], f[1], f[5], f[2], f[0]];
+  T.alive = tourneyDraw(T); T.rounds = [T.alive.map(tSnap)];
   log(`${g.name} is entered in the Laurel Tournament.`, 'gold');
   nextTourneyBout();
   save();
@@ -1272,7 +1337,9 @@ function advanceTourney(win, lines) {
   for (let i = 2; i + 1 < T.alive.length; i += 2) next.push(simMatch(T.alive[i], T.alive[i + 1]));
   const others = next.slice(1).map(e => e.name).join(', ');
   T.log.push(`${rn}: ${!win ? 'your man is out' : next.length === 1 ? 'your man wins it' : 'your man goes through'}${others ? '. Also through: ' + others : ''}.`);
-  T.alive = next; T.round++; T.bout = null;
+  T.alive = next; T.round++; T.bout = null; T.tended = false;
+  (T.rounds = T.rounds || []).push(next.map(tSnap));
+  if (me) delete me.whet;
   if (!win) { finishTourneyOffscreen(); return; }
   if (next.length === 1) {
     T.state = 'done'; T.champion = 'you';
@@ -1282,6 +1349,7 @@ function advanceTourney(win, lines) {
     lines.push(`<span class="gold"><b>${me ? me.name : 'Your man'}</b> wins the Laurel Tournament and is crowned before the whole town.</span>`);
     if (G.festival && G.festival.day === G.day) crownFestival(lines);
     log(`${me ? me.name : 'Your man'} wins the Laurel Tournament.`, 'gold');
+    laurelWon(me ? me.name : 'Your man', null, me ? me.id : null); settleTourneyBet('you');
     return;
   }
   if (me) { me.hp = Math.min(maxHp(me), me.hp + (maxHp(me) - me.hp) * 0.35); me.injury = 0; }   // a little wine and a bandage between rounds
@@ -1292,14 +1360,17 @@ function advanceTourney(win, lines) {
 function finishTourneyOffscreen() {
   const T = G.tourney;
   let alive = (T.alive || T.field).filter(e => !e.you);
+  T.rounds = T.rounds || [];
+  if (!T.rounds.length) T.rounds.push(alive.map(tSnap));
   while (alive.length > 1) {
     const nx = [];
     for (let i = 0; i + 1 < alive.length; i += 2) nx.push(simMatch(alive[i], alive[i + 1]));
     if (alive.length % 2) nx.push(alive[alive.length - 1]);
-    alive = nx;
+    alive = nx; T.rounds.push(alive.map(tSnap));
   }
   const c = alive[0];
-  T.state = 'done'; T.bout = null; T.champion = c.name; T.championHouse = c.hid;
+  T.state = 'done'; T.bout = null; T.champion = c.name; T.championHouse = c.hid; T.championGid = c.gid;
+  laurelWon(c.name, c.hid, c.gid); settleTourneyBet(c.gid);
   houseOf(c.hid).prestige += 25;
   T.log.push(`${c.name} of ${houseDef(c.hid).name} takes the laurel.`);
   log(`${c.name} of ${houseDef(c.hid).name} wins the Laurel Tournament.`, 'gold');

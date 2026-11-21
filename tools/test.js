@@ -661,6 +661,48 @@ test('festivals: triumph, Saturnalia, the Games of Mars, sponsors, crowns and th
   assert(!badNumber(G), 'festivals left a bad number');
 }));
 
+test('tournament: the bracket, bets on the laurel, tending between rounds, watching, and the roll of honour', () => game()(function () {
+  const won = (mine, foes) => { const B = fight(mine, foes); B.winner = 0; B.fighters.forEach(f => { if (f.team === 0) { f.fate = null; f.hp = f.maxHp * 0.5; } }); return B; };
+  const fresh = () => { newGame(); G.fame = 120; G.day = 30; G.denarii = 2000; G.festival = { day: 30, type: 'tourney' }; genBouts(); return G.tourney; };
+  // the odds: every man priced, and the prices make sense
+  let T = fresh(), o = tourneyOdds(T);
+  assert(Object.keys(o).length === 7 && !o.you && Object.values(o).every(x => x.pay >= 1.3 && x.pay <= 20 && x.p > 0), 'seven rivals priced before you enter');
+  assert(Math.abs(Object.values(o).reduce((n, x) => n + x.p, 0) - 1) < 1e-9, 'the chances add up');
+  assert(tourneyBetBlock('you', 50) && !tourneyBet('you', 50), 'you cannot back your man before he is entered');
+  // watching: a bet on a rival, settled when the lists are fought out
+  const fav = Object.keys(o).sort((a, b) => o[b].p - o[a].p)[0], d0 = G.denarii;
+  assert(tourneyBet(fav, 100) && G.denarii === d0 - 100 && T.bet.key === fav && !tourneyBet(fav, 50), 'one bet, paid for now');
+  assert(watchTourney() && T.state === 'done' && T.champion && T.bet.settled && !watchTourney(), 'watched to the end');
+  assert(G.denarii === d0 - 100 + (T.bet.won ? Math.round(100 * T.bet.pay) : 0) && (T.bet.won === (String(T.championGid) === fav)), 'the bet is settled on the winner');
+  assert(T.rounds.length >= 3 && T.rounds[T.rounds.length - 1].length === 1 && T.rounds[0].length === 7, 'the bracket is kept');
+  assert(G.laurels.length === 1 && G.laurels[0].name === T.champion && G.laurels[0].hid, 'the winner goes on the roll');
+  // entering: the draw, your own price, tending between rounds
+  T = fresh(); const g = G.roster[0]; STATS.forEach(k => { g.stats[k] += 14; }); g.hp = maxHp(g);
+  assert(enterTourney(g.id) && T.rounds.length === 1 && T.rounds[0].length === 8 && T.rounds[0][0].you, 'your man is on the bracket');
+  o = tourneyOdds(T); assert(o.you && o.you.name === g.name && Object.keys(o).length === 8, 'and has a price');
+  const d1 = G.denarii; assert(tourneyBet('you', 100) && G.denarii === d1 - 100, 'you may back him');
+  assert(tendBlock() && !tendChampion('surgeon'), 'nothing to tend before the first round');
+  applyBoutResult(T.bout, won([g], boutEnemies(T.bout)), 0, 1);
+  assert(T.state === 'running' && T.round === 1 && T.rounds.length === 2 && T.rounds[1].length === 4 && !!tourneyBetBlock(String(T.field[0].gid), 1), 'through to the semi-final, and the book is shut');
+  g.hp = maxHp(g) * 0.5; const hp0 = g.hp;
+  assert(tendChampion('surgeon') && g.hp > hp0 && T.tended === 'surgeon' && !tendChampion('whet'), 'one thing between rounds');
+  applyBoutResult(T.bout, won([g], boutEnemies(T.bout)), 0, 1);
+  assert(T.round === 2 && !T.tended && tendChampion('whet') && g.whet, 'and one more before the final');
+  const d2 = G.denarii, r = applyBoutResult(T.bout, won([g], boutEnemies(T.bout)), 0, 1);
+  assert(T.state === 'done' && T.champion === 'you' && !g.whet && T.rounds.length === 4 && T.rounds[3][0].you, 'he takes the laurel, and the whetting is spent');
+  assert(T.bet.settled && T.bet.won && G.denarii === d2 + r.purse + T.bet.gain + round5(PURSE[tier()] * 0.8), 'the bet on him pays, with the purse and the crown');
+  assert(G.laurels[G.laurels.length - 1].gid === g.id && !G.laurels[G.laurels.length - 1].hid, 'and he is on the roll');
+  // wine
+  T = fresh(); const h = G.roster[0]; STATS.forEach(k => { h.stats[k] += 14; }); h.hp = maxHp(h); enterTourney(h.id);
+  applyBoutResult(T.bout, won([h], boutEnemies(T.bout)), 0, 1); h.morale = 40; h.fatigue = 60;
+  assert(tendChampion('wine') && h.morale === 70 && h.fatigue === 30, 'wine and a word');
+  // a lost bet when your man goes out
+  T = fresh(); const w = G.roster[0]; enterTourney(w.id); tourneyBet('you', 50);
+  const B = fight([w], boutEnemies(T.bout)); B.winner = 1; applyBoutResult(T.bout, B, 0, 1);
+  assert(T.state === 'done' && T.champion !== 'you' && T.bet.settled && !T.bet.won, 'out in the first round, and the stake with him');
+  assert(!badNumber(G), 'the tournament left a bad number');
+}));
+
 test('tournament: enter, fight through, and resolve without the player', () => game()(function () {
   let champs = 0;
   for (let i = 0; i < 15; i++) {

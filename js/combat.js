@@ -54,6 +54,7 @@ function makeFighter(g, team, i, n, fld) {
   if (has('reaver') && fld.wild) dmg *= 1.1;
   if (has('eaglesworn')) dmg *= 1.05;
   dmg *= 0.94 + g.morale / 1000;
+  if (g.whet) dmg *= 1.1;                      // ground and reset between the rounds of a tournament
   return {
     g, c, team, tactic: T,
     // a line down the field; in a crowd they stand three deep, so that nine a side have room
