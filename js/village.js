@@ -21,7 +21,7 @@ PLACES.forEach(p => { p.dx = Math.round(p.x + p.w / 2); p.dy = p.y + p.h + 6; })
 const placeOf = key => PLACES.find(p => p.key === key) || PLACES[1];
 // Things in the way that are not buildings: the fountain, trees, the well.
 const VIL_TREES = [[224, 26], [370, 30], [470, 34], [572, 40], [6, 84], [140, 120], [248, 108], [342, 108], [482, 124], [584, 98], [20, 168], [300, 182], [440, 180], [150, 182], [560, 178]];
-const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 148, y: 158, w: 8, h: 6 }].concat(VIL_TREES.map(([x, y]) => ({ x: x - 4, y: y - 3, w: 8, h: 5 })));
+const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 148, y: 158, w: 8, h: 6 }].concat(VIL_TREES.map(([x, y]) => ({ x: x - 1, y: y - 2, w: 3, h: 3 })));      // a tree stops you at its trunk, not its shade
 
 const vil = {
   x: 0, y: 0, face: 'down', walk: 0, moving: false, at: null,      // the lanista, and whose doorstep he stands on
@@ -34,7 +34,16 @@ function vilGrid() {
   if (vil.grid) return vil.grid;
   const C = VILLAGE.CELL, w = Math.ceil(VILLAGE.W / C), h = Math.ceil(VILLAGE.H / C), g = new Uint8Array(w * h);
   const block = r => { for (let cy = Math.floor(r.y / C); cy <= Math.floor((r.y + r.h - 1) / C); cy++) for (let cx = Math.floor(r.x / C); cx <= Math.floor((r.x + r.w - 1) / C); cx++) if (cx >= 0 && cy >= 0 && cx < w && cy < h) g[cy * w + cx] = 1; };
-  PLACES.forEach(block); VIL_BLOCKS.forEach(block);
+  PLACES.forEach(p => {
+    if (p.kind !== 'arena') return block(p);
+    // the arena is an oval: only the ground it really stands on is in the way, not the corners of the box round it
+    const cx = p.x + p.w / 2, cy = p.y + 30;
+    for (let y = Math.floor(p.y / C); y <= Math.floor((p.y + p.h - 1) / C); y++) for (let x = Math.floor(p.x / C); x <= Math.floor((p.x + p.w - 1) / C); x++) {
+      const dx = (x * C + C / 2 - cx) / 64, dy = (y * C + C / 2 - cy) / 29;
+      if (dx * dx + dy * dy <= 1 && x >= 0 && y >= 0 && x < w && y < h) g[y * w + x] = 1;
+    }
+  });
+  VIL_BLOCKS.forEach(block);
   for (let cx = 0; cx < w; cx++) { g[cx] = 1; g[(h - 1) * w + cx] = 1; }               // the map's edge
   for (let cy = 0; cy < h; cy++) { g[cy * w] = 1; g[cy * w + w - 1] = 1; }
   return (vil.grid = { g, w, h });

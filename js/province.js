@@ -7,7 +7,7 @@ const PROV = { VW: 480, VH: 360, S: 2, SPEED: 88 };
 const prov = { land: null, raf: 0, last: 0, prev: 0, path: null, trail: [], face: 'down', walk: 0, moving: false, mini: 0, saved: 0, camX: 0, camY: 0, hint: 0 };
 
 // ---------- the country, painted once ----------
-const TILE_COL = ['#7e9a4b', '#5d7f3f', '#93985c', '#5f7a4c', '#d8c48a', '#cdae78', '#8a6a3a', '#4f8fb8', '#8a8478', '#86a250'];
+const TILE_COL = ['#7e9a4b', '#5d7f3f', '#93985c', '#5f7a4c', '#d8c48a', '#cdae78', '#8a6a3a', '#86a250', '#4f8fb8', '#8a8478'];      // in the order of the T_ kinds in wilds.js
 function provLand() {
   if (prov.land) return prov.land;
   const L = wildLand(), TW = WILD.TW, TH = WILD.TH, cv = document.createElement('canvas');

@@ -530,6 +530,12 @@ test('the province: land, fog, days in the field, fights, spoils and the eagle',
   assert(sites.every(s => L.reach[Math.floor(s.y / 10) * WILD.TW + Math.floor(s.x / 10)]), 'every place can be reached on foot from the town');
   assert(wildWalk(WILD.TOWN.x, WILD.TOWN.y) && !wildWalk(5, 900) && wildTier(WILD.TOWN.x + 50, WILD.TOWN.y) === 1 && wildTier(2300, 120) === 5, 'town on dry land, sea to the west, danger grows with distance');
   for (let t = 1; t <= 5; t++) assert(sites.some(s => s.tier === t), 'there are places of ' + t + ' skulls');
+  // only water and bare rock stop you: every other kind of ground, meadow included, can be walked
+  let blocked = 0, wet = 0, rock = 0, meadow = null;
+  for (let i = 0; i < L.t.length; i++) { const k = L.t[i], x = (i % WILD.TW) * 10 + 5, y = Math.floor(i / WILD.TW) * 10 + 5; if (!wildWalk(x, y)) blocked++; if (k === T_WATER) wet++; if (k === T_PEAK) rock++; if (k === T_MEADOW && !meadow) meadow = [x, y]; }
+  assert(blocked === wet + rock && meadow && wildWalk(meadow[0], meadow[1]) && [T_GRASS, T_FOREST, T_HILL, T_MARSH, T_SAND, T_ROAD, T_BRIDGE, T_MEADOW].every(k => k < T_WATER), 'nothing blocks the way but water and rock (' + blocked + ' tiles of ' + (wet + rock) + ')');
+  let reach = 0, open = 0; for (let i = 0; i < L.t.length; i++) { if (L.reach[i]) reach++; if (L.t[i] < T_WATER) open++; }
+  assert(reach > open * 0.97, 'nearly all open ground can be reached from the town: ' + reach + ' of ' + open);
   const fixedXY = sites.filter(s => s.fixed).map(s => s.x + ',' + s.y).join(';'), kinds1 = sites.map(s => s.kind).join();
   newGame();
   assert(wildSites().filter(s => s.fixed).map(s => s.x + ',' + s.y).join(';') === fixedXY && wildSites().map(s => s.kind).join() !== kinds1, 'another house finds the same country with its places shuffled');

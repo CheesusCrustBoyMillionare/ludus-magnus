@@ -14,7 +14,8 @@ const WILD = {
   TOWN: { x: 765, y: 1015 }, LAND_SEED: 17,
   PARTY: 9,
 };
-const T_GRASS = 0, T_FOREST = 1, T_HILL = 2, T_MARSH = 3, T_SAND = 4, T_ROAD = 5, T_BRIDGE = 6, T_WATER = 7, T_PEAK = 8, T_MEADOW = 9;
+// Kinds of ground. Everything below T_WATER can be walked on; water and bare rock cannot.
+const T_GRASS = 0, T_FOREST = 1, T_HILL = 2, T_MARSH = 3, T_SAND = 4, T_ROAD = 5, T_BRIDGE = 6, T_MEADOW = 7, T_WATER = 8, T_PEAK = 9;
 
 // ---------- numbers that always come out the same ----------
 function wildRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -74,6 +75,14 @@ function wildLand() {
     else if (e > 0.95) t[i] = T_HILL;
     else if (m > 0.6) t[i] = T_FOREST;
     else t[i] = wildNoise(tx / 6, ty / 6, S + 7) > 0.68 ? T_MEADOW : T_GRASS;
+  }
+  // no single rock or puddle standing alone in open ground: anything that blocks the way should be plain to see
+  for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) {
+    const i = ty * TW + tx, k = t[i];
+    if (k !== T_WATER && k !== T_PEAK) continue;
+    let same = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && t[i + dy * TW + dx] === k) same++;
+    if (same <= 2) t[i] = k === T_WATER ? T_MARSH : T_HILL;
   }
   const line = (pts, fn) => { for (let k = 0; k + 1 < pts.length; k++) { const [x0, y0] = pts[k], [x1, y1] = pts[k + 1], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2; for (let j = 0; j <= n; j++) fn(Math.round(x0 + (x1 - x0) * j / n), Math.round(y0 + (y1 - y0) * j / n), j / n + k); } };
   const put = (x, y, v) => { if (x > 0 && y > 0 && x < TW - 1 && y < TH - 1) t[y * TW + x] = v; };
