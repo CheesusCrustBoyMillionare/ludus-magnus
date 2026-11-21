@@ -1,7 +1,8 @@
 'use strict';
 // Interface: screens, modals, and the arena overlay.
 
-const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {} };
+const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {}, dtab: 'stats', noyard: false };
+try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; } catch (e) { /* storage unavailable */ }
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
 const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
@@ -60,6 +61,7 @@ const TIPS = {
   away: 'Away from the ludus. He does not train or eat at your table, and cannot fight until he is back.',
   flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
   quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
+  yardbtn: 'Hide the picture of your ludus to give the lists more room, or bring it back.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
@@ -76,12 +78,23 @@ const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
 
 let tipTarget = null;
 function placeTip(e) {
-  const el = $('#tip'), pad = 14;
+  // the tooltip is scaled with the rest of the interface, so its position is set in scaled units
+  const el = $('#tip'), pad = 14, r = el.getBoundingClientRect(), z = ui.z || 1;
   let x = e.clientX + pad, y = e.clientY + pad;
-  if (x + el.offsetWidth > innerWidth - 6) x = e.clientX - el.offsetWidth - pad;
-  if (y + el.offsetHeight > innerHeight - 6) y = e.clientY - el.offsetHeight - pad;
-  el.style.left = Math.max(6, x) + 'px'; el.style.top = Math.max(6, y) + 'px';
+  if (x + r.width > innerWidth - 6) x = e.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 6) y = e.clientY - r.height - pad;
+  el.style.left = Math.max(6, x) / z + 'px'; el.style.top = Math.max(6, y) / z + 'px';
 }
+
+// The interface is drawn for a window of about 1366 by 768 and enlarged as a whole to fill anything bigger,
+// so a 1440p or 4K screen shows the same layout at a readable size, not a small one in a sea of empty space.
+function fitScreen() {
+  const z = Math.round(Math.max(1, Math.min(innerWidth / 1366, innerHeight / 768)) * 100) / 100, st = document.documentElement.style;
+  ui.z = z;
+  st.setProperty('--z', z); st.setProperty('--vw', innerWidth / z + 'px'); st.setProperty('--vh', innerHeight / z + 'px');
+}
+addEventListener('resize', fitScreen);
+fitScreen();
 function hideTip() { tipTarget = null; const el = $('#tip'); if (el) el.hidden = true; }
 document.addEventListener('mouseover', e => {
   const el = e.target.closest ? e.target.closest('[data-tip]') : null;
@@ -99,7 +112,7 @@ document.addEventListener('mousemove', e => { if (tipTarget) placeTip(e); });
 const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', market: 'Market', facilities: 'Household' };
 const TUTORIAL = [
   { tab: 'ludus', target: '.acts', until: () => G.roster.some(g => g.activity !== 'rest'),
-    text: 'These are your fighters. Each trains one stat a day, or rests. <b>Set one of them to train</b> using the buttons on his card.' },
+    text: 'These are your fighters. Each trains one stat a day, or rests. <b>Set one of them to train</b> using the buttons on his row.' },
   { tab: 'ludus', target: '.statrow',
     text: 'Click a fighter to open his dossier. Four stats decide how he fights, and the stars show his talent for each: more stars, faster gains. Hover over anything on the screen for an explanation.' },
   { target: '[data-act=endday]', until: () => G.day >= 2,
@@ -113,13 +126,13 @@ const TUTORIAL = [
   { target: '[data-act=tab][data-v=facilities]', until: () => ui.tab === 'facilities',
     text: 'Open <b>Household</b>.' },
   { tab: 'facilities',
-    text: 'Here you hire staff, improve the ludus and set rations. Everything on this page costs money, either up front or every day. The ledger at the bottom shows your daily spending.' },
+    text: 'Here you hire staff, improve the ludus and set rations. Everything on this page costs money, either up front or every day. The ledger shows your daily spending.' },
   { target: '[data-act=skipdays]', until: () => isGamesDay(),
     text: 'Games are held every fifth day. <b>To the games</b> skips ahead until then, stopping if something needs your decision.' },
   { target: '[data-act=tab][data-v=arena]', until: () => ui.tab === 'arena' || !isGamesDay(),
     text: 'It is a games day. Open the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each card is a bout. Compare your fighter\'s strength with his opponent\'s, choose who to send, and wager if you trust him. Winning pays a purse and fame, and fame opens greater arenas. <b>Pick a fighter and send him to the sand.</b>' },
+    text: 'Each line is a bout; click one to see it. Compare your fighter\'s strength with his opponent\'s, choose who to send, and wager if you trust him. Winning pays a purse and fame, and fame opens greater arenas. <b>Pick a fighter and send him to the sand.</b>' },
   { text: 'A beaten fighter may be spared or killed by the crowd, and wounds keep men out for days. Fighters also earn rank from their bouts, and each new rank lets you choose a perk in his dossier.' },
   { text: 'Three more things, when you are ready. <b>Patrons</b> reward your favour. <b>Rivals</b> shows the other houses and your feuds with them. And a festival comes every fifteen days: watch the Arena tab for it. The <b>Blacksmith</b> sells weapons and armour, graded F to S. Your campaigns are kept under <b>Saves</b>, top right. I will leave you to it.' },
 ];
@@ -177,19 +190,37 @@ function renderTop() {
     <div class="stat games"${tip('games')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>Next games</span></div>
     ${dg > 1 ? `<button data-act="skipdays"${tip('skip')}>To the games &raquo;&raquo;</button>` : ''}
     <button class="primary" data-act="endday">End day &raquo;</button>
-    <button data-act="saves"${tip('saves')}>Saves</button>`;
+    <button data-act="saves"${tip('saves')}>Saves</button>
+    <button class="yardbtn" data-act="yardtoggle"${tip('yardbtn')}>${ui.noyard ? 'Show yard' : 'Hide yard'}</button>`;
 }
 
 function renderTabs() {
   const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0, asked = G.contracts.filter(c => c.asked).length;
   const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['contracts', 'Contracts'], ['rivals', 'Rivals'], ['market', 'Market'], ['smith', 'Blacksmith'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
+  $('#app').classList.toggle('noyard', ui.noyard);
   $('#tabs').innerHTML = tabs.map(([id, name]) =>
     `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}${id === 'contracts' && asked ? `<span class="badge">${asked}</span>` : ''}</button>`).join('');
 }
 
+// The view is rebuilt after every action, so each scrolling pane is put back where the player left it.
 function renderView() {
   const v = { ludus: viewLudus, arena: viewArena, contracts: viewContracts, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
-  $('#view').innerHTML = v();
+  const el = $('#view'), keep = {};
+  if (ui.shown === ui.tab) el.querySelectorAll('[data-pane]').forEach(p => { keep[p.dataset.pane] = p.scrollTop; });
+  el.innerHTML = v();
+  el.querySelectorAll('[data-pane]').forEach(p => { if (keep[p.dataset.pane]) p.scrollTop = keep[p.dataset.pane]; });
+  ui.shown = ui.tab;
+}
+
+// ---------- lists and what is chosen in them ----------
+
+// One line of a list. Clicking it makes it the chosen one for that list (ui[key]).
+const lrow = (key, id, inner, cls) => `<div class="lrow ${ui[key] === id ? 'sel' : ''} ${cls || ''}" data-act="rowsel" data-v="${key}" data-w="${id}">${inner}</div>`;
+const prow = inner => `<div class="lrow" style="cursor:default">${inner}</div>`;
+// The chosen item of a list: what the player picked if it is still there, otherwise the first.
+function keepSel(key, items) {
+  if (!items.some(x => x.id === ui[key])) ui[key] = items.length ? items[0].id : null;
+  return items.find(x => x.id === ui[key]) || null;
 }
 
 function statusChips(g) {
@@ -205,30 +236,20 @@ function statusChips(g) {
   return s;
 }
 
+// One fighter on one line: face, name, the three gauges, and today's work as six small buttons.
 function gladCard(g) {
-  // one button per activity; a button that cannot be used stays hoverable so its tooltip can say why
+  // a button that cannot be used stays hoverable so its tooltip can say why
   const actBtn = ([k, label, what]) => {
     const why = g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one under Household.' : '';
-    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || what)}>${label}</button>`;
+    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || what)}>${STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : 'All'}</button>`;
   };
-  // a plain sentence saying what he is doing today, then Rest on its own and the training choices under a label
-  const doing = g.injury > 0 ? 'recovering from injury' : g.activity === 'rest' ? 'resting' : g.activity === 'spar' ? 'sparring (all four stats)' : 'training ' + STAT_NAMES[g.activity].toLowerCase();
-  const acts = `<div class="today">Today he is <b>${doing}</b></div>
-      <div class="acts"><span class="lbl">Rest</span><div>${actBtn(ACT_BUTTONS[0])}</div>
-      <span class="lbl">Train</span><div>${ACT_BUTTONS.slice(1).map(actBtn).join('')}</div></div>`;
   const J = jobOf(g);
-  const gone = J ? `<div class="today">Away: <b>${jobTitle(J)}</b></div><div class="dim" style="font-size:13px">Back ${backWhen(J)}.</div>` : '';
-  return `<div class="panel gcard ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
-    <canvas width="96" height="112" data-portrait="${g.id}"></canvas>
-    <div>
-      <div class="name">${g.name}</div>
-      <div class="sub">${RANKS[g.rank].name} &middot; ${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</div>
-      <div>${statusChips(g)}</div>
-      <div class="barrow icrow"${tip('health')}>${ic('health')} ${bar('hp', g.hp, maxHp(g))}</div>
-      <div class="barrow icrow"${tip('fatigue')}>${ic('fatigue')} ${bar('fat', g.fatigue, 100)}</div>
-      <div class="barrow icrow"${tip('morale')}>${ic('morale')} ${bar('mor', g.morale, 100)}</div>
-      ${J ? gone : acts}
-    </div>
+  const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}</div>`;
+  return `<div class="lrow grow-row ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
+    <canvas width="48" height="56" style="width:36px;height:42px" data-portrait="${g.id}"></canvas>
+    <div class="grow"><span class="t">${g.name} <small style="display:inline">${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</small></span><div>${statusChips(g)}</div></div>
+    <div class="gauges"><div${tip('health')}>${bar('hp', g.hp, maxHp(g))}</div><div${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</div><div${tip('morale')}>${bar('mor', g.morale, 100)}</div></div>
+    ${work}
   </div>`;
 }
 
@@ -255,50 +276,52 @@ function faceTip(g) {
   return mood + (n ? ` He carries ${n} scar${n === 1 ? '' : 's'} from the arena.` : ' No blade has marked him yet.');
 }
 
+const DTABS = [['stats', 'Stats'], ['gear', 'Gear'], ['story', 'Story'], ['orders', 'Orders']];
 function gladDetail(g) {
   const c = CLASSES[g.cls];
+  if (!DTABS.some(t => t[0] === ui.dtab)) ui.dtab = 'stats';
   const tac = Object.entries(TACTICS).map(([k, t]) => `<option value="${k}" ${g.tactic === k ? 'selected' : ''}>${t.name}</option>`).join('');
-  return `<div class="panel">
-    <div class="row" style="align-items:flex-start">
+  const pages = {
+    stats: () => `${statRows(g)}<hr class="sep">${traitList(g)}<hr class="sep">
+      <div class="dim" style="font-size:13px">${c.desc}</div>
+      <div style="font-size:13px"><b class="gold">${SPECIALS[g.cls].name}.</b> <span class="dim">${SPECIALS[g.cls].desc}</span></div>`,
+    gear: () => gearBlock(g),
+    story: () => (questBlock(g) + storyBlock(g)).replace(/^<hr class="sep">/, '') || '<div class="dim">Nothing worth telling of him yet.</div>',
+    orders: () => `<div class="kv">
+        <span${tip('orders')}>Orders in the arena<br><small>${TACTICS[g.tactic].desc}</small></span>
+        <select data-chg="tactic" data-v="${g.id}">${tac}</select>
+      </div>
+      <hr class="sep">
+      <div class="row">${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
+        <button${tip('sell')} data-act="sell" data-v="${g.id}">Sell for ${Math.round(value(g) / 2)}</button>
+        ${g.wins >= 8 ? `<button${tip('free')} data-act="free" data-v="${g.id}">Grant the wooden sword</button>` : `<small>Freedom may be granted after 8 victories.</small>`}`}
+      </div>`,
+  };
+  const mark = { story: g.quest && !g.away ? '!' : '' };
+  return `<div class="panel dossier">
+    <div class="dhead">
       <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
       <div style="flex:1;min-width:180px">
-        <h2 style="margin-bottom:2px">${g.name}</h2>
+        <h2>${g.name}</h2>
         <div>${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin}</div>
-        <div class="dim" style="font-size:13px">${c.desc}</div>
-        <div style="font-size:13px"><b class="gold">${SPECIALS[g.cls].name}.</b> <span class="dim">${SPECIALS[g.cls].desc}</span></div>
-        <div style="margin-top:6px">${statusChips(g)}</div>
+        <div style="margin-top:4px">${statusChips(g)}</div>
         <div class="num dim" style="font-size:13px">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills &middot; health ${Math.round(g.hp)}/${maxHp(g)}</div>
         ${g.rank < RANKS.length - 1 ? `<div class="barrow"${tip('rank')} style="grid-template-columns:auto 1fr;margin-top:4px">To ${RANKS[g.rank + 1].name} ${bar('prog', g.xp - RANKS[g.rank].xp, RANKS[g.rank + 1].xp - RANKS[g.rank].xp)}</div>` : ''}
-        ${g.perkPending > 0 ? `<button class="primary" data-act="perk" data-v="${g.id}" style="margin-top:6px">Choose a perk</button>` : ''}
+        ${g.perkPending > 0 ? `<button class="primary" data-act="perk" data-v="${g.id}" style="margin-top:4px">Choose a perk</button>` : ''}
       </div>
     </div>
-    <hr class="sep">
-    ${statRows(g)}
-    <hr class="sep">
-    ${traitList(g)}
-    ${storyBlock(g)}
-    ${questBlock(g)}
-    <hr class="sep">
-    ${gearBlock(g)}
-    <hr class="sep">
-    <div class="kv">
-      <span${tip('orders')}>Orders in the arena<br><small>${TACTICS[g.tactic].desc}</small></span>
-      <select data-chg="tactic" data-v="${g.id}">${tac}</select>
-    </div>
-    <hr class="sep">
-    <div class="row">${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
-      <button${tip('sell')} data-act="sell" data-v="${g.id}">Sell for ${Math.round(value(g) / 2)}</button>
-      ${g.wins >= 8 ? `<button${tip('free')} data-act="free" data-v="${g.id}">Grant the wooden sword</button>` : `<small>Freedom may be granted after 8 victories.</small>`}`}
-    </div>
+    <div class="subtabs">${DTABS.map(([k, n]) => `<button class="${ui.dtab === k ? 'on' : ''}" data-act="dtab" data-v="${k}">${n}${mark[k] ? `<span class="badge">${mark[k]}</span>` : ''}</button>`).join('')}</div>
+    <div class="dbody" data-pane="dossier-${g.id}-${ui.dtab}">${pages[ui.dtab]()}</div>
   </div>`;
 }
 
 function viewLudus() {
   if (!G.roster.length) return `<div class="panel">Your cells are empty. Visit the market.</div>`;
   if (!byId(ui.sel)) ui.sel = G.roster[0].id;
-  return `<div class="cols">
+  return `<div class="fill">
     <div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small></h2>
-      <label class="row"${tip('autorest')} style="margin-bottom:10px;font-size:14px;gap:6px"><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> Exhausted fighters rest on their own</label><div class="grid">${G.roster.map(gladCard).join('')}</div></div>
+      <div class="pane" data-pane="roster"><div class="panel list">${G.roster.map(gladCard).join('')}</div>
+      <label class="row"${tip('autorest')} style="margin-top:8px;font-size:13px;gap:6px"><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> Exhausted fighters rest on their own</label></div></div>
     <div><h2>Dossier</h2>${gladDetail(byId(ui.sel))}</div>
   </div>`;
 }
@@ -343,17 +366,24 @@ function contractCard(c) {
 }
 
 function viewContracts() {
-  const board = G.contracts.map(contractCard).join('') || '<div class="panel dim">Nobody in town has work for your men today. New offers come with each games day.</div>';
-  const away = G.jobs.map(J => `<div style="margin-bottom:8px"><b>${jobTitle(J)}</b> <small>${J.kind === 'quest' ? 'a journey of his own' : PATRONS[J.patron].name}</small><br>
-      ${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')} <span class="dim">back ${backWhen(J)}</span></div>`).join('')
-    || '<div class="dim">Every man is in the yard.</div>';
-  const waiting = G.roster.filter(g => g.quest && !g.away).map(g => `<div style="margin-bottom:6px"><span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span> <b>${QUESTS[g.quest.id].name}</b> <span class="dim">&middot; next: ${questStep(g).name.toLowerCase()} (${questStep(g).days} days)</span></div>`).join('');
-  return `<div class="cols">
-    <div><h2>Work on offer <small>until the next games</small></h2><div class="grid">${board}</div></div>
-    <div><h2>Away from the ludus</h2><div class="panel">${away}</div>
-      ${waiting ? `<h2 style="margin-top:16px">Journeys promised</h2><div class="panel">${waiting}<small>Send a man on his journey from his dossier.</small></div>` : ''}
-      <div class="panel dim" style="margin-top:16px;font-size:13px">Contracts pay about half what the same men would win at the games, and earn favour with the patron who offered them. Men who are away do not train and miss any games held while they are gone. From time to time a fighter of some standing will ask leave for a journey of his own.</div>
-    </div>
+  const c = keepSel('csel', G.contracts);
+  const rows = G.contracts.map(x => { const D = CONTRACTS[x.type]; return lrow('csel', x.id,
+    `<div class="grow"><span class="t">${D.name}${x.asked ? ` <span class="chip gold"${tip('asked')}>Asked by name</span>` : ''}</span>
+      <small>${PATRONS[x.patron].name} &middot; ${x.size === 1 ? 'one man' : x.size + ' men'} &middot; ${x.days} day${x.days === 1 ? '' : 's'} &middot; ${DANGER_WORD(D.danger).toLowerCase()}</small></div>
+     <span class="end"><b class="gold num">${x.pay}</b></span>`); }).join('')
+    || '<div class="listnote">Nobody in town has work for your men today. New offers come with each games day.</div>';
+  const away = G.jobs.map(J => prow(`<div class="grow"><span class="t">${jobTitle(J)}</span><small>${J.kind === 'quest' ? 'a journey of his own' : PATRONS[J.patron].name} &middot; back ${backWhen(J)}</small></div>
+      <span class="end">${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')}</span>`)).join('')
+    || '<div class="listnote">Every man is in the yard.</div>';
+  const waiting = G.roster.filter(g => g.quest && !g.away).map(g => prow(`<div class="grow"><span class="t">${QUESTS[g.quest.id].name}</span><small>next: ${questStep(g).name.toLowerCase()} (${questStep(g).days} days) &middot; send him from his dossier</small></div>
+      <span class="end"><span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span></span>`)).join('');
+  return `<div class="fill even">
+    <div><h2>Work on offer <small>until the next games</small></h2>
+      <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
+        <h2>Away from the ludus</h2><div class="panel list">${away}</div>
+        ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}</div></div>
+    <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}
+      <div class="dim" style="font-size:12px;margin-top:8px">Contracts pay about half what the same men would win at the games, and earn favour with the patron who offered them. Men who are away do not train and miss any games held while they are gone. From time to time a fighter of some standing will ask leave for a journey of his own.</div></div></div>
   </div>`;
 }
 
@@ -417,51 +447,83 @@ function boutCard(b) {
   </div>`;
 }
 
+const boutTitle = b => b.final ? "The Emperor's Games" : b.grudge ? 'Grudge match' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + DIFF[b.diff].name : b.melee ? 'The great melee'
+  : ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1] + ' &middot; ' + DIFF[b.diff].name;
+
 function viewArena() {
   const t = tier();
-  const ladder = TIERS.map((x, i) => `<div class="${i === t ? 'cur' : i < t ? 'past' : ''}">${x.name} <small class="num">${x.fame} fame</small></div>`).join('')
-    + `<div class="${G.fame >= FINAL_FAME ? 'cur' : ''}">The Emperor's Games <small class="num">${FINAL_FAME} fame</small></div>`;
-  const left = G.bouts
-    ? `${festivalNote()}${tourneyPanel()}<h2>Today's games</h2>${G.fix ? '<p class="bad">You have agreed to lose your next bout.</p>' : ''}<div class="grid">${G.bouts.map(boutCard).join('')}</div>`
-    : `${festivalNote()}<h2>The arena is quiet</h2><div class="panel">The next games are in <b>${daysToGames()}</b> ${daysToGames() === 1 ? 'day' : 'days'}. Train, rest and arm your fighters until then.</div>`;
-  return `<div class="cols"><div>${left}</div>
-    <div><h2>The road to Rome</h2><div class="panel ladder">${ladder}
-      <p class="dim" style="font-size:13px">Fame opens greater arenas with richer purses and deadlier opponents. Reach ${FINAL_FAME} fame to be summoned before the Emperor.</p></div></div></div>`;
+  const road = `<div class="strip"${tip('fame')}>${TIERS.map((x, i) => `<span class="${i === t ? 'cur' : i < t ? 'past' : ''}">${x.name} <b class="num">${x.fame}</b></span>`).join('&rsaquo;')}&rsaquo;<span class="${G.fame >= FINAL_FAME ? 'cur' : ''}">The Emperor's Games <b class="num">${FINAL_FAME}</b></span></div>`;
+  if (!G.bouts) return `<div class="fill even">
+    <div><h2>The arena is quiet</h2><div class="pane">${road}<div class="panel">The next games are in <b>${daysToGames()}</b> ${daysToGames() === 1 ? 'day' : 'days'}. Train, rest and arm your fighters until then.</div></div></div>
+    <div><h2>The road to Rome</h2><div class="pane">${festivalNote()}<div class="panel dim" style="font-size:13px">Fame opens greater arenas with richer purses and deadlier opponents. Reach ${FINAL_FAME} fame to be summoned before the Emperor.</div></div></div>
+  </div>`;
+  const items = (G.tourney ? [{ id: 'lists' }] : []).concat(G.bouts);
+  let cur = keepSel('bsel', items);
+  if (cur && cur.done && G.bouts.some(b => !b.done)) { cur = G.bouts.find(b => !b.done); ui.bsel = cur.id; }   // move on to the next bout still to fight
+  const rows = items.map(b => b.id === 'lists'
+    ? lrow('bsel', 'lists', `<div class="grow"><span class="t gold">The lists</span><small>${FESTIVALS.tourney.name} &middot; eight fighters, three rounds</small></div>`)
+    : lrow('bsel', b.id, `<div class="grow"><span class="t">${boutTitle(b)}${b.death || b.hunt ? ' <span class="chip red">To the death</span>' : ''}</span>
+        <small>vs ${swatch(b.houseId)}${b.house} &middot; ${boutEnemies(b).map(e => Math.round(power(e))).join(' + ')} strength</small></div>
+        <span class="end">${b.done ? '<span class="dim">fought</span>' : `<b class="gold num">${b.purse}</b> <span class="num dim">+${b.fame}</span>`}</span>`, b.done ? 'done' : '')).join('');
+  return `<div class="fill even">
+    <div><h2>Today's games</h2><div class="pane" data-pane="bouts">${road}${G.fix ? '<p class="bad" style="margin:0 0 6px">You have agreed to lose your next bout.</p>' : ''}<div class="panel list">${rows}</div></div></div>
+    <div><h2>${cur && cur.id === 'lists' ? 'The tournament' : 'The bout'}</h2><div class="pane" data-pane="bout">${festivalNote()}${cur ? (cur.id === 'lists' ? tourneyPanel() : boutCard(cur)) : ''}</div></div>
+  </div>`;
 }
 
 function viewMarket() {
-  const full = G.roster.length >= capacity();
-  const cards = G.market.map(g => `<div class="panel">
+  const full = G.roster.length >= capacity(), g = keepSel('msel', G.market), scout = staffLvl('scout');
+  const rows = G.market.map(m => lrow('msel', m.id, `<canvas width="48" height="56" style="width:36px;height:42px" data-mportrait="${m.id}"></canvas>
+      <div class="grow"><span class="t">${m.name}</span><small>${CLASSES[m.cls].name} of ${m.origin} &middot; ${STATS.map(s => m.stats[s]).join(' / ')}</small></div>
+      <span class="end"><b class="num ${G.denarii < m.price ? 'bad' : 'gold'}">${m.price}</b></span>`)).join('')
+    || '<div class="listnote">The dealer has nothing left until the next games.</div>';
+  const card = g ? `<div class="panel">
       <div class="row" style="align-items:flex-start">
         <canvas class="portrait" width="96" height="112" data-mportrait="${g.id}"></canvas>
-        <div style="flex:1"><div style="font-size:16px">${g.name}</div>
+        <div style="flex:1"><h3>${g.name}</h3>
           <div class="dim" style="font-size:13px">${CLASSES[g.cls].name} of ${g.origin}</div>
+          <div class="dim" style="font-size:13px">${CLASSES[g.cls].desc}</div>
           <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div></div>
       </div>
-      <div style="margin-top:8px">${statRows(g, !staffLvl('scout'))}</div>
+      <div style="margin-top:8px">${statRows(g, !scout)}</div>
       <div style="margin:8px 0">${traitList(g)}</div>
       <button class="primary" data-act="buy" data-v="${g.id}" ${full || G.denarii < g.price ? 'disabled' : ''}>Buy &mdash; ${g.price} denarii</button>
-    </div>`).join('');
-  return `<h2>The slave market <small>${G.roster.length} / ${capacity()} cells filled &middot; new stock every games day</small></h2>
-    ${full ? '<p class="bad">Your barracks are full. Build more cells or sell a fighter.</p>' : ''}
-    <div class="cards">${cards || '<div class="panel dim">The dealer has nothing left until the next games.</div>'}</div>`;
+    </div>` : '';
+  return `<div class="fill even">
+    <div><h2>The slave market <small>${G.roster.length} / ${capacity()} cells filled</small></h2>
+      <div class="pane" data-pane="market">${full ? '<p class="bad" style="margin:0 0 6px">Your barracks are full. Build more cells or sell a fighter.</p>' : ''}<div class="panel list">${rows}</div>
+      <div class="listnote">New stock every games day. The four numbers are strength, agility, endurance and skill.</div></div></div>
+    <div><h2>The man</h2><div class="pane" data-pane="recruit">${card}</div></div>
+  </div>`;
 }
 
 function viewFacilities() {
-  const cards = Object.entries(FACILITIES).map(([k, f]) => {
+  const wrap = 'style="white-space:normal"';
+  const staff = Object.entries(STAFF_ROLES).map(([k, r]) => {
+    const s = G.staff[k];
+    return prow(s
+      ? `<div class="grow"><span class="t"><b>${r.name}</b> ${s.name} <span class="dim">&middot; ${STAFF_GRADES[s.skill]}</span></span><small ${wrap}>${r.desc(s.skill)}</small></div>
+         <span class="end num dim">${s.wage}/day</span><button class="mini" data-act="fire" data-v="${k}">Dismiss</button>`
+      : `<div class="grow"><span class="t"><b>${r.name}</b> <span class="dim">post vacant</span></span><small ${wrap}>${r.desc(1)}</small></div>`);
+  }).join('');
+  const hall = G.hires.map(h => prow(`<div class="grow"><span class="t">${h.name} <span class="dim">&middot; ${STAFF_GRADES[h.skill]} ${STAFF_ROLES[h.role].name.toLowerCase()}</span></span><small ${wrap}>${STAFF_ROLES[h.role].desc(h.skill)}</small></div>
+      <span class="end num dim">${h.wage}/day</span>
+      <button class="mini primary" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}>${G.staff[h.role] ? 'Replace' : 'Hire'} &mdash; ${h.fee}</button>`)).join('')
+    || '<div class="listnote">No one is looking for work.</div>';
+  const fac = Object.entries(FACILITIES).map(([k, f]) => {
     const l = G.fac[k];
-    return `<div class="panel"><h3>${f.name} <span class="pips">${'●'.repeat(l)}${'○'.repeat(3 - l)}</span></h3>
-      <div class="dim" style="font-size:13px">${f.desc}</div>
-      <p>${f.effect(l)}</p>
-      ${l < 3 ? `<p class="dim" style="font-size:13px">Next: ${f.effect(l + 1)}</p>
-        <button data-act="build" data-v="${k}" ${G.denarii < FAC_COST[l] ? 'disabled' : ''}>Improve &mdash; ${FAC_COST[l]} denarii</button>` : '<span class="dim">Fully built.</span>'}
-    </div>`;
+    return prow(`<div class="grow"><span class="t"><b>${f.name}</b> <span class="pips">${'●'.repeat(l)}${'○'.repeat(3 - l)}</span></span>
+      <small ${wrap}>${f.effect(l)}${l < 3 ? `. <span class="gold">Next: ${f.effect(l + 1)}</span>` : ''}</small></div>
+      ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < FAC_COST[l] ? 'disabled' : ''}${tip(f.desc)}>Improve &mdash; ${FAC_COST[l]}</button>` : '<span class="end dim">Fully built</span>'}`);
   }).join('');
   const rations = RATIONS.map((r, i) => `<button class="${G.ration === i ? 'primary' : ''}" data-act="ration" data-v="${i}">${r.name} &middot; ${r.cost}/man/day</button>`).join('');
-  return `${staffSection()}<h2 style="margin-top:20px">Facilities</h2><div class="cards">${cards}</div>
-    <h2 style="margin-top:20px"${tip('rations')}>Rations</h2>
-    <div class="panel"><div class="row">${rations}</div>
-    <p class="dim" style="font-size:13px">Better food keeps morale high. Men in good spirits train faster and hit harder.</p></div>${ledger()}`;
+  return `<div class="fill even">
+    <div><h2>Staff</h2><div class="pane" data-pane="staff"><div class="panel list">${staff}</div>
+      <h2>Hiring hall <small>new faces every games day</small></h2><div class="panel list">${hall}</div></div></div>
+    <div><h2>Facilities</h2><div class="pane" data-pane="fac"><div class="panel list">${fac}</div>
+      <h2${tip('rations')}>Rations</h2><div class="panel"><div class="row">${rations}</div></div>
+      ${ledger()}</div></div>
+  </div>`;
 }
 
 function staffSection() {
@@ -482,12 +544,10 @@ function staffSection() {
 }
 
 function ledger() {
-  const rows = [['Food', -foodCost()], ['Wages', -wages()], ['Guild stipend', stipend()]];
-  const net = stipend() - upkeep();
+  const rows = [['Food', -foodCost()], ['Wages', -wages()], ['Guild stipend', stipend()], ['Net', stipend() - upkeep()]];
   const cell = v => `<b class="num ${v < 0 ? 'bad' : v > 0 ? 'good' : 'dim'}">${v > 0 ? '+' : ''}${v}</b>`;
-  return `<h2 style="margin-top:20px">Daily ledger</h2><div class="panel"><div class="kv">
-    ${rows.map(([n, v]) => `<span>${n}</span>${cell(v)}`).join('')}<span>Net per day</span>${cell(net)}</div>
-    <p class="dim" style="font-size:13px">Purses, wagers and gifts come on top of this.</p></div>`;
+  return `<h2>Daily ledger <small>purses, wagers and gifts come on top</small></h2>
+    <div class="panel row" style="gap:6px 18px">${rows.map(([n, v]) => `<span>${n} ${cell(v)}</span>`).join('')}</div>`;
 }
 
 function viewPatrons() {
@@ -498,9 +558,9 @@ function viewPatrons() {
       <p>${p.perk(f)}</p>
       <button data-act="gift" data-v="${k}" ${G.denarii < cost || f >= 100 ? 'disabled' : ''}>Send a gift &mdash; ${cost} denarii</button></div>`;
   }).join('');
-  return `<h2>Patrons</h2>${G.fix ? `<p class="bad">You have agreed to lose your next bout for ${G.fix.pay} denarii.</p>` : ''}
-    <div class="cards">${cards}</div>
-    <p class="dim" style="font-size:13px;margin-top:12px">Favour fades a little every games day. Victories please the Magistrate, and a roaring crowd pleases the Guild. Each gift costs more than the last.</p>`;
+  return `<div class="fill one"><div><h2>Patrons</h2><div class="pane" data-pane="patrons">${G.fix ? `<p class="bad">You have agreed to lose your next bout for ${G.fix.pay} denarii.</p>` : ''}
+    <div class="threecol">${cards}</div>
+    <p class="dim" style="font-size:13px;margin-top:12px">Favour fades a little every games day. Victories please the Magistrate, and a roaring crowd pleases the Guild. Each gift costs more than the last. Patrons also offer paid work: see Contracts.</p></div></div></div>`;
 }
 
 function swatch(id) {
@@ -516,26 +576,26 @@ function rivalNote(e) {
 }
 
 function viewRivals() {
-  const rows = G.houses.map(H => ({ id: H.id, name: houseDef(H.id).name, p: H.prestige }))
+  const H = keepSel('hsel', G.houses), d = H && houseDef(H.id);
+  const rows = G.houses.map(X => ({ id: X.id, name: houseDef(X.id).name, p: X.prestige, H: X }))
     .concat([{ name: 'Your ludus', p: G.fame, you: true }]).sort((a, b) => b.p - a.p);
-  const table = rows.map((r, i) => `<div class="${r.you ? 'cur' : ''}">${i + 1}. ${swatch(r.id)}${r.name} <small class="num">${r.p}</small></div>`).join('');
-  const cards = G.houses.map(H => {
-    const d = houseDef(H.id);
-    const men = H.roster.slice().sort((a, b) => statSum(b) - statSum(a)).map(e => `<div class="rival">
-        <canvas width="48" height="56" data-rportrait="${H.id}:${e.id}"></canvas>
-        <div>${e.name} <span class="dim">${RANKS[e.rank].name} ${CLASSES[e.cls].name}</span><br>
-        <span class="dim num">strength ${Math.round(power(e))}</span>${rivalNote(e)}</div></div>`).join('');
-    return `<div class="panel" style="border-left:6px solid ${d.col}"><h3>${d.name}</h3>
+  const table = rows.map((r, i) => r.you
+    ? prow(`<div class="grow"><span class="t gold">${i + 1}. Your ludus</span></div><span class="end num gold">${r.p}</span>`)
+    : lrow('hsel', r.id, `<div class="grow"><span class="t">${i + 1}. ${swatch(r.id)}${r.name}</span>
+        <small>${r.H.won} won, ${r.H.lost} lost against you${r.H.grudge >= 40 ? ' &middot; <span class="bad">their champion will call you out</span>' : ''}</small></div>
+        <div style="flex:none;width:90px"${tip('feud')}>${bar('hp', r.H.grudge, 100)}</div><span class="end num">${r.p}</span>`)).join('');
+  const men = H ? H.roster.slice().sort((a, b) => statSum(b) - statSum(a)).map(e => `<div class="rival">
+      <canvas width="48" height="56" data-rportrait="${H.id}:${e.id}"></canvas>
+      <div>${e.name} <span class="dim">${RANKS[e.rank].name} ${CLASSES[e.cls].name}</span><br>
+      <span class="dim num">strength ${Math.round(power(e))}</span>${rivalNote(e)}</div></div>`).join('') : '';
+  return `<div class="fill even">
+    <div><h2>Standing <small>renown, and the feud with each house</small></h2><div class="pane" data-pane="houses"><div class="panel list">${table}</div>
+      <div class="listnote">Renown of every school in the province; yours is your fame. Beating a house that stands above you earns extra fame.
+      Killing a house's fighters, or losing your own to them, deepens the feud. At 40 their champion challenges you to a grudge match, and leaving it unanswered costs you with the Magistrate and your own men.</div></div></div>
+    <div><h2>${d ? d.name : 'Rival houses'}</h2><div class="pane" data-pane="house-${H ? H.id : ''}">${H ? `<div class="panel" style="border-left:6px solid ${d.col}">
       <div class="dim" style="font-size:13px">${d.lanista}. ${d.blurb}</div>
-      <div class="num" style="margin:6px 0">Against you: ${H.won} won, ${H.lost} lost</div>
-      <div class="barrow"${tip('feud')}>Feud ${bar('hp', H.grudge, 100)}</div>
-      ${H.grudge >= 40 ? '<div class="death">Their champion will call you out at the next games</div>' : ''}
-      <hr class="sep">${men}</div>`;
-  }).join('');
-  return `<div class="cols"><div><h2>Rival houses</h2><div class="grid">${cards}</div></div>
-    <div><h2>Standing</h2><div class="panel ladder">${table}
-      <p class="dim" style="font-size:13px">Renown of every school in the province; yours is your fame. Beating a house that stands above you earns extra fame.
-      Killing a house's fighters, or losing your own to them, deepens the feud. At 40 their champion challenges you to a grudge match, and leaving it unanswered costs you with the Magistrate and your own men.</p></div></div></div>`;
+      <div class="rivalgrid">${men}</div></div>` : ''}</div></div>
+  </div>`;
 }
 
 function festivalNote() {
@@ -675,26 +735,31 @@ function viewSmith() {
   const S = G.smith, lv = S.level, odds = SMITH_ODDS[lv];
   const range = RARITY.filter((_, i) => odds[i] > 0);
   const best = it => G.roster.filter(g => fits(it, g) && (!g.gear[it.slot] || g.gear[it.slot].r < it.r)).map(g => g.name);
-  const card = (it, own) => {
-    const who = best(it);
-    return `<div class="panel item"><div class="itemhead">${itemArt(it, 60)}<div><h3>${itemTag(it)}</h3>
+  const mine = G.armoury.slice().sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || b.r - a.r);
+  const it = keepSel('isel', S.stock.concat(mine)), own = !!it && G.armoury.includes(it);
+  const row = (x, mineToo) => lrow('isel', x.id, `${itemArt(x, 28)}<div class="grow"><span class="t">${itemTag(x)}</span>
+      <small>${SLOT_INFO[x.slot].name}${x.slot === 'weapon' ? ' &middot; ' + CLASSES[x.cls].name : ''}${best(x).length ? ' &middot; <span class="good">better for ' + best(x).join(', ') + '</span>' : ''}</small></div>
+      <span class="end">${mineToo ? '<span class="dim">yours</span>' : `<b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`}</span>`);
+  const stock = S.stock.map(x => row(x, false)).join('') || '<div class="listnote">He has sold everything he had. Come back after the next games.</div>';
+  const racks = mine.map(x => row(x, true)).join('') || '<div class="listnote">The racks are empty. Pieces you buy wait here until a fighter wears them; open a fighter\'s dossier to equip him.</div>';
+  const who = it ? best(it) : [];
+  const card = it ? `<div class="panel item"><div class="itemhead">${itemArt(it, 60)}<div><h3>${itemTag(it)}</h3>
       <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div></div></div>
       <p style="font-size:14px">${itemEffect(it)}</p>
-      <div class="dim" style="font-size:13px;margin-bottom:8px">${who.length ? 'An improvement for ' + who.join(', ') : it.slot === 'weapon' && !G.roster.some(g => g.cls === it.cls) ? 'Nobody in your ludus fights this way' : 'No better than what your men wear'}</div>
+      <div class="dim" style="font-size:13px;margin-bottom:8px">${who.length ? 'An improvement for ' + who.join(', ') : it.slot === 'weapon' && !G.roster.some(g => g.cls === it.cls) ? 'Nobody in your ludus fights this way' : 'No better than what your men wear'}.${own ? ' To put it on a man, open his dossier.' : ''}</div>
       ${own ? `<button data-act="smithsell" data-v="${it.id}">Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button>`
             : `<button class="primary" data-act="smithbuy" data-v="${it.id}" ${G.denarii < buyPrice(it) ? 'disabled' : ''}>Buy &mdash; ${buyPrice(it)} denarii</button>`}
-    </div>`;
-  };
-  const stock = S.stock.map(it => card(it, false)).join('') || '<div class="panel dim">He has sold everything he had. Come back after the next games.</div>';
-  const mine = G.armoury.slice().sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || b.r - a.r).map(it => card(it, true)).join('')
-    || '<div class="panel dim">The racks are empty. Pieces you buy wait here until a fighter wears them; open a fighter\'s dossier to equip him.</div>';
-  return `<div class="panel" style="margin-bottom:16px"><div class="row">
-      <div style="flex:1;min-width:220px"><h3${tip('smithlevel')}>${SMITH_NAMES[lv]} <span class="pips">${'●'.repeat(lv)}${'○'.repeat(4 - lv)}</span></h3>
+    </div>` : '';
+  const forge = `<div class="panel" style="margin-top:10px"><div class="row">
+      <div style="flex:1;min-width:200px"><h3${tip('smithlevel')}>${SMITH_NAMES[lv]} <span class="pips">${'●'.repeat(lv)}${'○'.repeat(4 - lv)}</span></h3>
       <div class="dim" style="font-size:13px">Offers ${4 + lv} pieces each games day, graded ${range[0]} to ${range[range.length - 1]}.${lv < 4 ? ` Improved, he would offer ${5 + lv}, graded ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0)[0]} to ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0).slice(-1)[0]}.` : ' There is no finer forge in the empire.'}</div></div>
-      ${lv < 4 ? `<button data-act="smithup" ${G.denarii < SMITH_COST[lv] ? 'disabled' : ''}>Improve the forge &mdash; ${SMITH_COST[lv]} denarii</button>` : ''}
-    </div></div>
-    <h2>For sale <small>new stock every games day</small></h2><div class="cards">${stock}</div>
-    <h2 style="margin-top:20px"${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="cards">${mine}</div>`;
+      ${lv < 4 ? `<button data-act="smithup" ${G.denarii < SMITH_COST[lv] ? 'disabled' : ''}>Improve the forge &mdash; ${SMITH_COST[lv]}</button>` : ''}
+    </div></div>`;
+  return `<div class="fill even">
+    <div><h2>For sale <small>new stock every games day</small></h2><div class="pane" data-pane="smith"><div class="panel list">${stock}</div>
+      <h2${tip('armoury')}>Your armoury <small>${G.armoury.length} spare ${G.armoury.length === 1 ? 'piece' : 'pieces'}</small></h2><div class="panel list">${racks}</div></div></div>
+    <div><h2>The piece</h2><div class="pane" data-pane="piece">${card}${forge}</div></div>
+  </div>`;
 }
 
 // ---------- the dynasty ----------
@@ -708,7 +773,7 @@ function dynastyPanel() {
   const boons = D.boons.map(b => `<div><b class="gold">${BOONS[b].name}.</b> <span class="dim">${BOONS[b].desc}</span></div>`).join('') || '<div class="dim">No boons yet.</div>';
   const tree = Object.keys(D.tree).filter(k => D.tree[k]).map(k => `<div><b>${LEGACY_TREE[k].name}</b> <span class="pips">${'●'.repeat(D.tree[k])}</span> <span class="dim">${LEGACY_TREE[k].desc(D.tree[k])}</span></div>`).join('');
   const past = D.history.map(h => `<div><span class="d">${cap1(ordinal(h.gen))}</span>Lasted ${h.days} days, reached the ${h.tier} with ${h.fame} fame and ${h.wins} victories. Left ${h.earned} legacy.</div>`).join('');
-  return `<h2 style="margin-top:20px">The house <small>${ordinal(D.gen)} generation &middot; ${D.points} legacy unspent</small></h2>
+  return `<h2>The dynasty <small>${ordinal(D.gen)} generation &middot; ${D.points} legacy unspent</small></h2>
     <div class="panel">${boons}${tree ? '<hr class="sep">' + tree : ''}${past ? '<hr class="sep"><div class="log" style="max-height:none">' + past + '</div>' : ''}</div>`;
 }
 
@@ -768,9 +833,12 @@ function heirIntro() {
 
 function viewChronicle() {
   const rows = G.log.slice().reverse().map(e => `<div class="${e.k}"><span class="d">Day ${e.d}</span>${e.t}</div>`).join('');
-  const fallen = G.fallen.length ? `<h2 style="margin-top:20px">The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
-  return `<h2>Chronicle</h2><div class="panel log">${rows}</div>${fallen}${dynastyPanel()}
-    <p style="margin-top:20px" class="row"><button data-act="tuton">Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p>`;
+  const fallen = G.fallen.length ? `<h2>The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
+  return `<div class="fill">
+    <div><h2>Chronicle</h2><div class="pane" data-pane="log"><div class="panel log">${rows}</div></div></div>
+    <div><h2>The house</h2><div class="pane" data-pane="house">${fallen || '<div class="panel dim">No fighter of this house has died yet.</div>'}${dynastyPanel()}
+      <p style="margin-top:14px" class="row"><button data-act="tuton">Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p></div></div>
+  </div>`;
 }
 
 function paintPortraits() {
@@ -931,6 +999,13 @@ const ACTIONS = {
     if (G.pendingEvent) showEvent();          // another matter is waiting behind this one
   },
   dossier(v) { ui.sel = +v; ui.tab = 'ludus'; render(); },
+  rowsel(v, w) { ui[v] = /^\d+$/.test(w) ? +w : w; render(); },
+  dtab(v) { ui.dtab = v; render(); },
+  yardtoggle() {
+    ui.noyard = !ui.noyard;
+    try { localStorage.setItem('ludus-magnus-yard', ui.noyard ? 'off' : 'on'); } catch (e) { /* storage unavailable */ }
+    render();
+  },
   cpick(v, w) {
     const c = G.contracts.find(x => x.id === +v); if (!c) return;
     const id = +w;

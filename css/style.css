@@ -307,3 +307,94 @@ select { background: #241a14; border: 1px solid var(--edge); box-shadow: inset 0
 .gcard.away canvas { opacity: .4; filter: grayscale(.6); }
 .gcard.away .barrow { opacity: .5; }
 .chip.pick.red { border-color: var(--red); }
+
+/* =====================================================================================
+   One screen: the page itself never scrolls. The masthead (yard, figures, tabs) keeps its
+   height, the view fills what is left, and only a long list scrolls, inside its own pane.
+   ===================================================================================== */
+html, body { overflow: hidden; }
+#app { height: 100vh; max-width: 1440px; padding: 0 14px 10px; display: flex; flex-direction: column; }
+#head { flex: none; display: flex; gap: 14px; align-items: stretch; padding-top: 8px; }
+#headmain { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
+#yard { flex: none; width: auto; height: 132px; margin: 3px 0 5px 3px; }
+#app.noyard #yard { display: none; }
+@media (max-width: 1000px) { #yard { display: none; } }
+#topbar { padding: 2px 0 16px; gap: 4px 18px; }
+#topbar .title { font-size: 22px; }
+#topbar button { padding: 4px 10px; }
+#tabs { margin: 6px 0 8px; gap: 4px; align-items: center; }
+#tabs { flex-wrap: nowrap; }
+#tabs button { padding: 5px 7px; font-size: 11px; letter-spacing: .05em; white-space: nowrap; }
+@media (max-width: 1000px) { #tabs { flex-wrap: wrap; } }
+#topbar button.yardbtn { opacity: .7; font-size: 12px; }
+@media (max-width: 1000px) { #topbar button.yardbtn { display: none; } }
+#view { flex: 1; min-height: 0; overflow: auto; }
+h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
+.panel { padding: 12px 14px; }
+
+/* a view that fills the screen: columns of fixed height, each a heading over a pane that scrolls only if it must */
+.fill { height: 100%; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; }
+.fill.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.fill.one { grid-template-columns: minmax(0, 1fr); }
+.fill > div { min-height: 0; display: flex; flex-direction: column; }
+.fill > div > * { flex: none; }
+.fill > div > .pane { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1px 4px 4px 1px; }
+.pane > h2:not(:first-child) { margin-top: 12px; }
+@media (max-width: 860px) { .fill, .fill.even { grid-template-columns: 1fr; height: auto; } .fill > div > .pane { overflow: visible; } }
+
+/* lists: one line each, the chosen one lit */
+.list { padding: 3px; }
+.lrow { display: flex; align-items: center; gap: 10px; padding: 5px 9px; cursor: pointer; border-bottom: 1px solid rgba(18, 11, 8, .8); min-height: 34px; }
+.lrow:last-child { border-bottom: 0; }
+.lrow:hover { background: rgba(232, 194, 122, .06); }
+.lrow.sel { background: linear-gradient(90deg, rgba(227, 176, 74, .2), rgba(227, 176, 74, .04)); box-shadow: inset 3px 0 0 var(--gold); }
+.lrow.done { opacity: .5; }
+.lrow .grow { flex: 1; min-width: 0; }
+.lrow .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.lrow .end { flex: none; text-align: right; font-size: 13px; }
+.lrow canvas { flex: none; image-rendering: pixelated; border: 1px solid var(--edge); box-shadow: 0 0 0 1px var(--bronze-d); background: #d9b877; display: block; }
+.lrow .chip { margin-bottom: 0; }
+.lrow button { flex: none; }
+.listnote { padding: 8px 10px; font-size: 13px; color: var(--dim); }
+
+/* the roster: portrait, name, three gauges and today's work, on one line */
+.grow-row .gauges { flex: none; width: 96px; }
+.grow-row .gauges .bar { height: 6px; margin: 2px 0; }
+.grow-row.away canvas { opacity: .4; filter: grayscale(.6); }
+.grow-row.away .gauges { opacity: .45; }
+.acts.mini { display: flex; flex: none; gap: 2px; margin: 0; }
+.acts.mini button { padding: 2px 5px; min-width: 28px; height: 26px; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+.acts.mini .ic { width: 16px; height: 16px; }
+.awaynote { flex: none; width: 190px; font-size: 12px; color: var(--dim); text-align: right; line-height: 1.25; }
+.awaynote b { color: var(--gold); font-weight: normal; }
+
+/* the dossier: who he is on top, then one page at a time */
+.dossier { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto !important; }
+.dossier > * { flex: none; }
+.dossier .dhead { display: flex; gap: 12px; align-items: flex-start; }
+.dossier .dhead .portrait { width: 96px; height: 112px; }
+.dossier .dhead h2 { border: 0; box-shadow: none; padding: 0; margin: 0; }
+.subtabs { display: flex; gap: 3px; margin: 8px 0 0; border-bottom: 1px solid var(--bronze-d); }
+.subtabs button { padding: 3px 11px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 0; border-radius: 2px 2px 0 0; box-shadow: inset 0 1px 0 rgba(240, 205, 140, .3); }
+.subtabs button.on { background: linear-gradient(180deg, #f5d584, #b6832c); color: #2a1a0c; text-shadow: none; }
+.subtabs .badge { background: var(--red); color: #fff; border-radius: 8px; padding: 0 5px; margin-left: 5px; font: bold 10px Consolas, monospace; }
+.dossier .dbody { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 4px 0 0; }
+.statrow { margin: 2px 0; }
+.sep { margin: 8px 0; }
+.strip { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; margin-bottom: 8px; color: var(--dim); }
+.strip span { padding: 1px 8px; border: 1px solid var(--bronze-d); background: #1c140f; }
+.strip .cur { color: var(--gold); border-color: var(--gold); }
+.strip .past { opacity: .55; }
+.threecol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.log { max-height: none; }
+
+.rivalgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 12px; margin-top: 8px; }
+
+/* Everything is enlarged together to fill a big window (--z, --vw and --vh are set by fitScreen in main.js;
+   --vw and --vh are the window's size measured in enlarged pixels). */
+#app, #arena, #modalBox, #tutor, #tip, #dev, #updatebar { zoom: var(--z, 1); }
+#app { height: var(--vh, 100vh); }
+#arenaCanvas { width: min(100%, calc((var(--vh, 100vh) - 130px) * 16 / 9)); max-width: none; }
+#modalBox { max-height: calc(var(--vh, 100vh) * .9); }
+#tutor { width: min(340px, calc(var(--vw, 100vw) - 32px)); }
