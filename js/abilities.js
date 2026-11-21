@@ -210,6 +210,7 @@ function castAbility(B, f, ab) {
   let t = f.target && !out(f.target) ? f.target : null;
   if (!t) for (const o of B.fighters) if (o.team !== f.team && !out(o) && (!t || Math.hypot(o.x - f.x, o.y - f.y) < Math.hypot(t.x - f.x, t.y - f.y))) t = o;
   f.charge = 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id; f.combo = null;
+  if (f.used) f.used[ab.name] = (f.used[ab.name] || 0) + 1;
   // he calls on it: a ring of light at his feet, its name on a ribbon over his head, and the fight holds its breath
   vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 15, col: '#ffd24a', dur: 0.45, fill: true });
   vfx(B, { k: 'banner', f, text: ab.name.toUpperCase(), dur: 1.25 });

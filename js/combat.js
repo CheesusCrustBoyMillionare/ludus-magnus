@@ -73,7 +73,7 @@ function makeFighter(g, team, i, n, fld) {
     facing: team === 0 ? 1 : -1, snare: 0, stun: 0, kx: 0, flash: 0, atkAnim: 0, slash: 0,
     walk: Math.random() * 10, moving: false,
     bleed: 0, bleedT: 0, bleedBy: null, drip: 0, hamstrung: false, armWound: false,
-    fallT: 0, guard: 0, hate: null, down: false, yielded: false, fate: null, dmgDealt: 0, downedBy: null,
+    fallT: 0, guard: 0, hate: null, down: false, yielded: false, fate: null, dmgDealt: 0, dmgTaken: 0, best: 0, used: {}, downedBy: null,
     // reading the other man: feints, ripostes, and what the fight has done to his kit
     feintP: g.beast ? 0 : clamp(0.05 + s.skl * 0.009, 0, 0.3) * (T === 'showman' ? 1.3 : 1), feinted: false, open: 0, riposte: false,
     backT: 0, flankT: 0, flourish: 0, shieldHits: 0, noHelm: false,
@@ -219,7 +219,7 @@ function resolveAttack(B, a, d, o) {
   const armor = o.pierce ? 0 : d.armor * (blocked ? 0.5 : 1);
   dmg = Math.max(1, Math.round(dmg - armor));
   d.hp -= dmg;
-  a.dmgDealt += dmg;
+  a.dmgDealt += dmg; d.dmgTaken += dmg; if (dmg > a.best) a.best = dmg;
   d.flash = 0.12;
   // blows fill the charge: more for landing one than for taking one, and nothing from an ability's own strokes
   if (!o.ability) chargeUp(a, blocked ? 4 : 9);
@@ -865,32 +865,57 @@ function drawSpritePortrait(canvas, g, team, col, colD) {
   });
 }
 
+// A small picture from the interface's icon maps (art.js), drawn on the fight's own canvas.
+function drawIcon(ctx, name, x, y, s) {
+  const map = typeof ICONS !== 'undefined' && ICONS[name];
+  if (!map) return;
+  map.forEach((row, j) => { for (let i = 0; i < row.length; i++) { const c = ART_PAL[row[i]]; if (c) { ctx.fillStyle = c; ctx.fillRect(x + i * s, y + j * s, s, s); } } });
+}
+const STYLE_COL = { str: '#e2695c', agi: '#ffd24a', skl: '#8fc0ff' };
+
+// The corner panels: one line a fighter. His style, his name, his health over his charge, and whatever ails or aids him.
 function drawHud(ctx, B) {
-  const rows = [0, 0], many = B.fighters.length > 10, rh = many ? 6 : 10, ty = many ? 4.5 : 6.5;      // a crowd gets thinner lines
+  const rows = [0, 0], many = B.fighters.length > 10, rh = many ? 6 : 12, T = B.clock;
   ctx.font = 'bold 5px Consolas, monospace';
   ctx.textAlign = 'left';
   for (const f of B.fighters) {
-    const x = f.team ? 226 : 2, y = 2 + rows[f.team]++ * rh, gone = out(f);
-    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x, y, 92, rh - 1);
+    const x = f.team ? 222 : 2, y = 2 + rows[f.team]++ * rh, gone = out(f), ready = !gone && f.charge >= 100;
+    ctx.fillStyle = 'rgba(0,0,0,.74)'; ctx.fillRect(x, y, 96, rh - 1);
     ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, 2, rh - 1);
-    ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, 10), x + 4, y + ty);
-    const bx = x + 36, bw = 44;
+    if (ready) { ctx.fillStyle = `rgba(255,210,74,${(0.18 + 0.14 * Math.sin(T * 9)).toFixed(3)})`; ctx.fillRect(x + 2, y, 94, rh - 1); }
+    const nx = many ? x + 4 : x + 10;
+    if (!many) { if (f.style) drawIcon(ctx, f.style, x + 3.5, y + 2.5, 0.5); else { ctx.fillStyle = '#6b5f50'; ctx.fillRect(x + 4.5, y + 5, 4, 1); } }
+    ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
+    const bx = x + 44, bw = 48;
     if (gone) {
       const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);
       ctx.fillStyle = slain ? '#e2695c' : '#c9b9a0';
-      ctx.fillText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN', bx, y + ty);
+      ctx.fillText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN', bx, y + (many ? 4.5 : 6.5));
       continue;
     }
-    const by = many ? y + 1 : y + 2, sy = many ? y + 4 : y + 6, bh = many ? 2 : 3;
+    const by = many ? y + 1 : y + 2, bh = many ? 2 : 3, sy = many ? y + 4 : y + 7, sh = many ? 1 : 2;
     ctx.fillStyle = '#3a1512'; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = B.col[f.team]; ctx.fillRect(bx, by, Math.ceil(bw * f.hp / f.maxHp), bh);
-    ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, sy, bw, 1);
-    ctx.fillStyle = f.charge >= 100 ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(bx, sy, Math.ceil(bw * f.charge / 100), 1);
-    let px = bx + bw + 2;
-    const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, many ? y + 1 : y + 3, 2, 3); px += 3; };
-    if (f.bleed > 0) pip('#ff3a2a');
-    if (f.hamstrung) pip('#ffd24a');
-    if (f.armWound) pip('#ff9a3a');
+    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(bx, by, Math.ceil(bw * f.hp / f.maxHp), 1);
+    ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, sy, bw, sh);
+    ctx.fillStyle = ready ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(bx, sy, Math.ceil(bw * f.charge / 100), sh);
+    if (!many) {
+      for (let i = 1; i < 4; i++) { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(bx + bw * i / 4, sy, 0.5, sh); }
+      let px = nx;                              // what ails or aids him, under his name
+      const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, y + 8, 3, 2); px += 4; };
+      if (f.bleed > 0) pip('#ff3a2a');
+      if (f.hamstrung) pip('#ffd24a');
+      if (f.armWound) pip('#ff9a3a');
+      if (f.snare > 0) pip('#d8c79a');
+      if (f.stun > 0.3) pip('#ffffff');
+      if (f.weakT > 0) pip('#a39a88');
+      if (f.buff) pip('#6aa8ff');
+    } else {
+      let px = bx + bw + 1;
+      const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, y + 1, 1.5, 3); px += 2; };
+      if (f.bleed > 0) pip('#ff3a2a');
+      if (f.buff) pip('#6aa8ff');
+    }
   }
 }
 
@@ -1060,8 +1085,10 @@ function drawBattle(ctx, B) {
   const cam = B.cam || (B.cam = { z: 1, x: 214, y: 120, t: performance.now() });
   const now = performance.now(), cdt = Math.min(0.1, (now - cam.t) / 1000), ck = 1 - Math.pow(0.004, cdt);
   cam.t = now;
-  const want = B.over && B.finish && B.outro < 0.55 ? 1.5 : 1;
-  if (want > 1) { cam.tx = B.finish.x * 2; cam.ty = B.finish.y * 2 - 16; if (cam.z === 1) { cam.x = cam.tx; cam.y = cam.ty; } }
+  const picking = B.pick && !out(B.pick) ? B.pick : null;
+  const want = B.over && B.finish && B.outro < 0.55 ? 1.5 : picking ? 1.18 : 1;
+  const focus = want >= 1.5 ? B.finish : picking;
+  if (focus) { cam.tx = focus.x * 2; cam.ty = focus.y * 2 - 16; if (cam.z === 1) { cam.x = cam.tx; cam.y = cam.ty; } }
   cam.z += (want - cam.z) * ck; if (Math.abs(cam.z - want) < 0.004) cam.z = want;
   if (cam.tx != null) { cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; }
   const cz = cam.z, CW = ctx.canvas.width, CH = ctx.canvas.height;
@@ -1079,8 +1106,7 @@ function drawBattle(ctx, B) {
   const flat = f => f.down && f.fallT <= 0;
   drawVfx(ctx, B, true);
   const sorted = B.fighters.slice().sort((a, b) => (flat(a) === flat(b) ? a.y - b.y : flat(a) ? -1 : 1));
-  for (const f of sorted) {
-    drawSprite(ctx, {
+  const spr = f => ({
       x: f.x * 2, y: f.y * 2, facing: f.facing, g: f.g, team: f.team, col: B.col[f.team], colD: B.colD[f.team],
       moving: f.moving, walk: f.walk, clock: T + f.walk, atkAnim: f.atkAnim,
       windup: f.state === 'windup', windP: f.t0 ? clamp(1 - f.t / f.t0, 0, 1) : 1,
@@ -1090,10 +1116,18 @@ function drawBattle(ctx, B) {
       cheer: (B.over && !out(f) && f.team === B.winner && B.slowmo <= 0) || f.flourish > 0 ? T + f.walk : 0,
       noHelm: f.noHelm, hurt: f.g.beast ? 0 : f.hp < f.maxHp * 0.3 ? 3 : f.hp < f.maxHp * 0.55 ? 2 : f.hp < f.maxHp * 0.8 ? 1 : 0,
       hamstrung: f.hamstrung, armWound: f.armWound, shieldDmg: f.shieldHits >= 9 ? 2 : f.shieldHits >= 4 ? 1 : 0,
-    });
-  }
+  });
+  for (const f of sorted) drawSprite(ctx, spr(f));
   drawVfx(ctx, B, false);
   drawAuras(ctx, B, T);
+  if (picking) {                              // the fight has stopped for him: the sand dims, and he and his man stand out
+    ctx.fillStyle = 'rgba(8,5,2,.45)'; ctx.fillRect(0, 0, 428, 240);
+    const tg = picking.target && !out(picking.target) ? picking.target : null;
+    if (tg) { drawSprite(ctx, { ...spr(tg), flash: 0 }); const tx = tg.x * 2, ty = tg.y * 2 - tg.tall - 12 + Math.round(Math.sin(T * 7) * 2); ctx.fillStyle = '#ff5a4a'; for (let i = 0; i < 4; i++) ctx.fillRect(tx - 3 + i, ty + i, 7 - i * 2, 1); }
+    ctx.strokeStyle = `rgba(255,210,74,${(0.6 + 0.3 * Math.sin(T * 6)).toFixed(2)})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(picking.x * 2, picking.y * 2 + 1, 15, 5, 0, 0, 7); ctx.stroke();
+    drawSprite(ctx, { ...spr(picking), flash: 0 });
+  }
   for (const p of B.parts) { ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 2, 2); }
   showFront(ctx, B, T);       // dust, things thrown from the stands
 
@@ -1185,21 +1219,31 @@ function drawBattle(ctx, B) {
   }
   ctx.globalAlpha = 1;
 
-  // entrance banner
+  // entrance: who is fighting whom, what each is, and whose style has the edge
   if (B.intro > 0) {
+    const side = t => B.fighters.filter(f => f.team === t), one = t => side(t).length === 1 ? side(t)[0] : null;
     const label = t => {
-      const fs = B.fighters.filter(f => f.team === t);
+      const fs = side(t);
       if (fs.length === 1 && fs[0].g.beast) return 'A ' + fs[0].c.name.toLowerCase();
       return fs.length === 1 ? `${fs[0].g.name} the ${fs[0].c.name}` : (B.names ? B.names[t] : fs.map(f => f.g.name).join(', '));
     };
+    const sub = t => { const f = one(t), sum = side(t).reduce((n, q) => n + q.g.stats.str + q.g.stats.agi + q.g.stats.skl, 0); return f ? (f.g.beast ? 'A BEAST' : `POWER ${sum}  ${f.style ? STAT_NAMES[f.style].toUpperCase() : 'NO STYLE'}`) : `${side(t).length} FIGHTERS  POWER ${sum}`; };
     ctx.globalAlpha = Math.min(1, B.intro / 0.4);
-    ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 66, 320, 22);
-    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(0, 66, 320, 1); ctx.fillRect(0, 87, 320, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 62, 320, 34);
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(0, 62, 320, 1); ctx.fillRect(0, 95, 320, 1);
     ctx.font = 'bold 8px Cinzel, Georgia, serif';
-    ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a8a'; ctx.fillText(label(0), 148, 80);
-    ctx.textAlign = 'left'; ctx.fillStyle = '#9cc4ff'; ctx.fillText(label(1), 172, 80);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ff9a8a'; ctx.fillText(label(0), 148, 75);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#9cc4ff'; ctx.fillText(label(1), 172, 75);
+    ctx.font = 'bold 5px Consolas, monospace';
+    ctx.textAlign = 'right'; ctx.fillStyle = '#e8d7b0'; ctx.fillText(sub(0), 148, 83);
+    ctx.textAlign = 'left'; ctx.fillText(sub(1), 172, 83);
     ctx.textAlign = 'center'; ctx.font = 'bold 6px Cinzel, Georgia, serif';
-    ctx.fillStyle = '#e0aa3e'; ctx.fillText('VS', 160, 80);
+    ctx.fillStyle = '#e0aa3e'; ctx.fillText('VS', 160, 76);
+    const a = one(0), b = one(1);
+    if (a && b && a.style && b.style && a.style !== b.style) {
+      const mine = STYLE_BEATS[a.style] === b.style, theirs = STYLE_BEATS[b.style] === a.style;
+      if (mine || theirs) { const w = mine ? a.style : b.style, l = mine ? b.style : a.style; ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = mine ? '#ff9a8a' : '#9cc4ff'; ctx.fillText(`${STAT_NAMES[w].toUpperCase()} BEATS ${STAT_NAMES[l].toUpperCase()}`, 160, 92); }
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -1214,13 +1258,33 @@ function drawBattle(ctx, B) {
   }
   if (B.death && B.intro <= 0) { ctx.fillStyle = '#8e1b14'; ctx.fillText('SINE MISSIONE', 160, 72); }
   if (B.pick && !out(B.pick)) {                     // the man the fight has stopped for
-    const f = B.pick, px = Math.round(f.x * Z), py = Math.round(f.y * Z);
-    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1; ctx.strokeRect(px - 9.5, py - Math.round(f.tall * FINE / SCALE) - 1.5, 19, Math.round(f.tall * FINE / SCALE) + 4);
+    const f = B.pick;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(100, 160, 120, 9);
     ctx.fillStyle = '#ffd24a'; ctx.fillText(`${f.g.name.toUpperCase()} IS READY: CHOOSE`, 160, 166.5);
   }
 
+  // the man the mouse is on: what he is, how he stands, and what he carries
+  const who = B.inspect && B.fighters.includes(B.inspect) ? B.inspect : null;
+  if (who && !B.pick && !B.over && B.intro <= 0) {
+    const g = who.g, lines = [], w = 104;
+    lines.push([`${g.name.toUpperCase()}${g.beast ? '' : '  ' + who.c.name.toUpperCase()}`, who.team ? '#9cc4ff' : '#ff9a8a']);
+    lines.push([`HEALTH ${Math.max(0, Math.round(who.hp))}/${who.maxHp}   CHARGE ${Math.round(who.charge)}%`, '#f2e6cc']);
+    if (!g.beast) lines.push([who.style ? `${STAT_NAMES[who.style].toUpperCase()} STYLE: BEATS ${STAT_NAMES[STYLE_BEATS[who.style]].toUpperCase()}` : 'NO STYLE: NO EDGE, NO WEAKNESS', who.style ? STYLE_COL[who.style] : '#a8947a']);
+    const st = [who.bleed > 0 && 'BLEEDING', who.hamstrung && 'HAMSTRUNG', who.armWound && 'ARM WOUND', who.snare > 0 && 'NETTED', who.stun > 0.3 && 'STUNNED', who.weakT > 0 && 'WEAKENED', who.buff && 'BUFFED'].filter(Boolean).join(', ');
+    if (st) lines.push([st, '#ffd24a']);
+    const abl = who.abl.map(a => a.name.toUpperCase());
+    for (let i = 0; i < abl.length; i += 2) lines.push([abl.slice(i, i + 2).join(', '), '#c9b9a0']);
+    const h = lines.length * 6 + 4, cx = clamp(who.x * Z - w / 2, 2, 318 - w), cy = who.y * Z > 92 ? who.y * Z - Math.round(who.tall * FINE / SCALE) - h - 12 : who.y * Z + 8;
+    ctx.fillStyle = 'rgba(10,6,3,.9)'; ctx.fillRect(cx, cy, w, h);
+    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(cx, cy, w, 0.5); ctx.fillRect(cx, cy + h - 0.5, w, 0.5);
+    ctx.font = 'bold 4.5px Consolas, monospace'; ctx.textAlign = 'left';
+    lines.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillText(t, cx + 3, cy + 6 + i * 6); });
+    ctx.textAlign = 'center';
+  }
+  if (B.paused && !B.over) { ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(110, 78, 100, 18); ctx.fillStyle = '#e0aa3e'; ctx.fillText('PAUSED', 160, 91); }
+
   if (B.over) {
+    ctx.textAlign = 'center';
     ctx.font = 'bold 16px Cinzel, Georgia, serif';
     const msg = B.winner === 0 ? 'VICTORY' : 'DEFEAT';
     ctx.fillStyle = '#000'; ctx.fillText(msg, 161, 83);

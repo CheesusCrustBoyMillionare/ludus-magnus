@@ -529,7 +529,7 @@ function boutCard(b) {
   const D = DIFF[b.diff];
   const kind = ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1];
   const them = boutEnemies(b), one = them.length === 1 && !them[0].beast ? them[0] : null;
-  const foes = them.map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name + ' ' + styleMark(e)} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}${vowNote(e)}</div>`).join('');
+  const foes = them.map(e => `<div>${e.beast ? e.name : e.name + ', ' + CLASSES[e.cls].name + ' ' + styleMark(e)} <span class="dim num"${tip('power')}>(strength ${Math.round(power(e))})</span>${rivalNote(e)}${vowNote(e)}${e.beast ? '' : `<div class="dim" style="font-size:12px;margin:-1px 0 3px 0">carries ${abilitiesOf(e).map(a => a.name).join(', ')}</div>`}</div>`).join('');
   let body;
   if (b.done) body = '<div class="dim">This bout has been fought.</div>';
   else {
@@ -1086,13 +1086,16 @@ function paintOrders() {
   const el = $('#arenaPick');
   el.hidden = !pick;
   if (pick) {
-    el.innerHTML = `<div class="who">${pick.g.name} is charged ${styleMark(pick.g)}</div><div class="abrow">${pick.abl.map((a, i) =>
+    const tg = pick.target && !out(pick.target) ? pick.target : null, edge = tg ? styleEdge(pick.style, tg.style) : 1;
+    el.innerHTML = `<div class="who">${pick.g.name} is charged ${styleMark(pick.g)}${tg ? ` <span class="vs">against ${tg.g.name}, ${Math.max(0, Math.round(tg.hp))} of ${tg.maxHp} health${edge > 1 ? ' <b class="good">&#9650; his style gives way to yours</b>' : edge < 1 ? ' <b class="bad">&#9660; his style beats yours</b>' : ''}</span>` : ''}</div><div class="abrow">${pick.abl.map((a, i) =>
       `<button data-act="abpick" data-v="${a.id}"><span class="key">${i + 1}</span><b>${a.name}</b><small>${a.desc}</small></button>`).join('')}</div>`;
     SFX.ui('chime');
   }
 }
 function paintSpeed() {
   $('#muteBtn').textContent = SFX.muted ? 'Sound off' : 'Sound on';
+  $('#pauseBtn').textContent = fight && fight.paused ? 'Resume' : 'Pause';
+  $('#pauseBtn').classList.toggle('on', !!(fight && fight.paused));
   document.querySelectorAll('#arenaCtl [data-act="speed"]').forEach(b => b.classList.toggle('on', fight && +b.dataset.v === fight.speed));
 }
 function fightLoop(ts) {
@@ -1100,7 +1103,10 @@ function fightLoop(ts) {
   if (!f || f.finished) return;
   const dt = f.last ? Math.min(0.05, (ts - f.last) / 1000) : 0.016;
   f.last = ts;
-  for (let i = 0; i < f.speed; i++) stepBattle(f.B, dt);
+  f.B.paused = !!f.paused;
+  if (!f.paused) for (let i = 0; i < f.speed; i++) stepBattle(f.B, dt);
+  // whoever the mouse is resting on gets a card saying what he is
+  f.B.inspect = f.hover ? f.B.fighters.filter(q => Math.abs(q.x - f.hover.x) < 9 && f.hover.y > q.y - 24 && f.hover.y < q.y + 4).sort((a, b) => Math.abs(a.x - f.hover.x) - Math.abs(b.x - f.hover.x))[0] || null : null;
   for (const s of f.B.snd) SFX.play(s[0], s[1], s[2], s[3]);
   f.B.snd.length = 0;
   SFX.crowd(f.B.exc + (f.B.over ? 0.3 : 0));
@@ -1109,6 +1115,14 @@ function fightLoop(ts) {
   if (f.B.over && f.B.outro > f.B.outroEnd) { finishFight(); return; }
   f.raf = requestAnimationFrame(fightLoop);
 }
+// After a fight: what each man gave, took and used.
+function fightReport(B) {
+  const row = f => `<tr class="${f.team ? 'foe' : ''}"><td>${f.g.name}${out(f) ? ` <small>${f.fate === 'dead' ? 'dead' : f.yielded ? 'yielded' : 'down'}</small>` : ''}</td><td class="num">${Math.round(f.dmgDealt)}</td><td class="num">${Math.round(f.dmgTaken)}</td><td class="num">${f.best || '&ndash;'}</td><td>${Object.entries(f.used).map(([n, c]) => n + (c > 1 ? ' &times;' + c : '')).join(', ') || '<span class="dim">none</span>'}</td></tr>`;
+  const mine = B.fighters.filter(f => f.team === 0), foes = B.fighters.filter(f => f.team === 1).sort((a, b) => b.dmgDealt - a.dmgDealt);
+  return `<table class="report"><tr><th></th><th>Dealt</th><th>Taken</th><th>Best blow</th><th>Abilities used</th></tr>${mine.map(row).join('')}${foes.slice(0, 4).map(row).join('')}${foes.length > 4 ? `<tr class="foe"><td colspan="5" class="dim">and ${foes.length - 4} more</td></tr>` : ''}</table>
+    <p class="dim" style="font-size:12px">It lasted ${Math.round(B.time)} seconds.</p>`;
+}
+
 function finishFight() {
   const f = fight;
   if (!f || f.finished) return;
@@ -1125,6 +1139,7 @@ function finishFight() {
     SFX.play(w.win ? 'victory' : 'defeat'); SFX.music(null);
     showModal(`<h2 class="${w.win ? '' : 'bad'}">${w.win ? 'The field is yours' : 'Driven off'}</h2>
       <ul>${w.lines.map(l => `<li>${l}</li>`).join('')}</ul>
+      ${fightReport(f.B)}
       <div class="row"><button class="primary" data-act="leavearena">Back to the column</button></div>`);
     return;
   }
@@ -1139,6 +1154,7 @@ function finishFight() {
     <p class="dim">${f.B.decision ? 'The fight drags on; the judges decide it. ' : ''}${mood}</p>
     ${r.lines.length ? `<ul>${r.lines.map(l => `<li>${l}</li>`).join('')}</ul>` : ''}
     <p>${money.join(' &middot; ') || 'You leave with nothing.'}</p>
+    ${fightReport(f.B)}
     <div class="row"><button class="primary" data-act="leavearena">Return to the ludus</button></div>`);
 }
 
@@ -1384,6 +1400,7 @@ const ACTIONS = {
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
   abil(v, w) { const g = byId(v); if (g && toggleAbility(g, w)) { save(); render(); } },
   skip() { finishFight(); },
+  pause() { if (fight && !fight.finished && !fight.B.over) { fight.paused = !fight.paused; paintSpeed(); } },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
@@ -1413,7 +1430,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1423,6 +1440,12 @@ document.addEventListener('click', e => {
   if (!ui.musicBegun) { ui.musicBegun = true; if (!fight) SFX.music(G && G.field ? 'wild' : 'ludus'); }
   if (fn && !el.classList.contains('off')) { const s = act in CLICK_SOUND ? CLICK_SOUND[act] : 'click'; if (s) SFX.ui(s); }
   if (fn) fn(el.dataset.v, el.dataset.w, el, e);
+});
+// Where the mouse is over the sand, in the fight's own units, so that a man can be looked at.
+document.addEventListener('mousemove', e => {
+  if (!fight) return;
+  const cv = $('#arenaCanvas'), r = cv.getBoundingClientRect();
+  fight.hover = e.target === cv ? { x: (e.clientX - r.left) / r.width * cv.width / WORLD, y: (e.clientY - r.top) / r.height * cv.height / WORLD } : null;
 });
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-chg]');
@@ -1547,6 +1570,7 @@ document.addEventListener('keydown', e => {
   const B = fight.B;
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
   else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); ACTIONS.order('yield'); }
+  else if (e.key === ' ' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) { e.preventDefault(); ACTIONS.pause(); }
 });
 // Keys for everything done often, so the hand can stay off the mouse:
 //   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,

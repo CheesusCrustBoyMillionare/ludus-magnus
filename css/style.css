@@ -539,3 +539,14 @@ h2 .h2opt { float: right; font: 12px Georgia, serif; letter-spacing: 0; text-tra
 .abcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .abcols .ab small { float: none; display: block; }
 .abcols .ab { padding: 4px 6px; }
+
+/* the arena: who the choice is against, and the report afterwards */
+#arenaPick .who .vs { font: 12px Georgia, serif; letter-spacing: 0; text-transform: none; color: #2c1c10; }
+#arenaPick .who .good { color: #3a7226; } #arenaPick .who .bad { color: #a3261b; }
+#modalBox { max-width: 620px; }
+table.report { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0 2px; }
+table.report th { text-align: left; font: 700 10px var(--display); letter-spacing: .08em; text-transform: uppercase; color: #6b573c; padding: 2px 6px 3px 0; border-bottom: 1px solid rgba(110, 72, 26, .5); }
+table.report td { padding: 2px 6px 2px 0; border-bottom: 1px solid rgba(110, 72, 26, .2); vertical-align: top; }
+table.report td.num, table.report th:nth-child(2), table.report th:nth-child(3), table.report th:nth-child(4) { text-align: right; padding-right: 10px; }
+table.report tr.foe td { color: #6b573c; }
+table.report small { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
