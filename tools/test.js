@@ -621,6 +621,31 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
   assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || EVENTS[id].field || EVENTS[id].wild || id === 'eagleHome' || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
 }));
 
+test('contracts: terms, a name for good work, and asking around', () => game()(function () {
+  newGame(); G.denarii = 500;
+  assert(Object.keys(CONTRACTS).length >= 18, 'eighteen kinds of work');
+  const mk = () => { const c = makeContract('caravan', 0); c.size = 1; c.days = 3; c.need = 1; G.contracts.push(c); return c; };
+  // an advance: a third now, a third later
+  let c = mk(), g = G.roster[0], d0 = G.denarii, T = contractTerms(c, 'advance');
+  assert(T.now > 0 && T.now + T.pay < c.pay, 'an advance gives up part of the pay');
+  assert(sendContract(c.id, [g.id], 'advance') && G.denarii === d0 + T.now && G.jobs[0].pay === T.pay && G.jobs[0].terms === 'advance', 'the advance is paid on the day');
+  G.jobs[0].edge = 9; G.jobs[0].eventDay = 0; const r0 = workRep();
+  for (let i = 0; i < 4 && G.jobs.length; i++) { endDay(); G.pendingEvent = null; G.eventQueue = []; }
+  assert(!G.jobs.length && workRep() > r0, 'good service makes a name: ' + workRep());
+  // provisions cost now and better the odds; hazard pay is only for dangerous work
+  G.day = 2; g.away = null; g.injury = 0; G.denarii = 500; c = mk(); T = contractTerms(c, 'provision'); d0 = G.denarii;
+  assert(T.cost > 0 && sendContract(c.id, [g.id], 'provision') && G.denarii === d0 - T.cost && G.jobs[0].edge === 0.08, 'provisions are bought and help');
+  assert(contractTerms({ type: 'tutor', pay: 100, favor: 4 }, 'hazard').pay === 100 && contractTerms({ type: 'pitfight', pay: 100, favor: 4 }, 'hazard').pay === 130, 'hazard pay only where there is hazard');
+  // a house with a name is paid more and offered more
+  G.workRep = 0; const p0 = makeContract('tutor', 0).pay / 1; G.workRep = 100;
+  let more = 0; for (let i = 0; i < 30; i++) { G.workRep = 0; const a = makeContract('granary', 0); G.workRep = 100; const b = makeContract('granary', 0); if (b.pay / b.days / (0.6 + 0.5 * b.diff) > a.pay / a.days / (0.6 + 0.5 * a.diff)) more++; }
+  assert(more >= 27 && workOffers(0, 0) === 3 && workOffers(0, 40) === 4 && workOffers(2, 90) === 6, 'a name for good work pays');
+  // asking around turns up one more offer, once
+  G.workRep = 0; G.jobs = []; G.roster.forEach(x => { x.away = null; }); genContracts(); const n = G.contracts.length; G.denarii = 500;
+  assert(askAround() && G.contracts.length === n + 1 && askAroundBlock() && !askAround(), 'one more offer, once between games');
+  assert(!badNumber(G), 'contracts left a bad number');
+}));
+
 test('contracts: the board, who suits the work, going away and coming home', () => game()(function () {
   newGame();
   assert(G.contracts.length === 3 && G.contracts.every(c => CONTRACTS[c.type].tier === 0 && c.pay > 0 && c.pay % 5 === 0), 'three offers a village lanista can take');

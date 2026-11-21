@@ -1,7 +1,7 @@
 'use strict';
 // Interface: screens, modals, and the arena overlay.
 
-const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {}, dtab: 'stats', noyard: false };
+const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, cterms: {}, qwith: {}, dtab: 'stats', noyard: false };
 try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.fspeed = +localStorage.getItem('ludus-magnus-fspeed') || 1; ui.fixedCam = localStorage.getItem('ludus-magnus-fixedcam') === '1'; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
@@ -773,7 +773,11 @@ function contractCard(c) {
   const picks = ui.cpicks[c.id] = (ui.cpicks[c.id] || []).filter(id => canSend(byId(id)));
   const avail = G.roster.filter(canSend).sort((a, b) => aptitude(b, D, c.land).score - aptitude(a, D, c.land).score), men = picks.map(byId), ready = men.length === c.size;
   const chips = avail.length ? avail.map(g => pickChip('cpick', c.id, g, picks.includes(g.id), D, c.need, c.land)).join('') : '<span class="dim">Nobody is free to send.</span>';
-  const best = bestTeam(c), p = ready ? contractOdds(c, men) : 0, isBest = ready && best && Math.abs(best.p - p) < 0.001;
+  if (!TERMS[ui.cterms[c.id]] || (ui.cterms[c.id] === 'hazard' && D.danger < 0.5)) ui.cterms[c.id] = 'standard';
+  const terms = ui.cterms[c.id], T = contractTerms(c, terms);
+  const best = bestTeam(c), p0 = ready ? contractOdds(c, men) : 0, p = ready ? Math.min(0.99, p0 + T.edge) : 0, isBest = ready && best && Math.abs(best.p - p0) < 0.001;
+  const termChips = Object.keys(TERMS).filter(k => k !== 'hazard' || D.danger >= 0.5).map(k => `<span class="chip pick ${terms === k ? 'on' : ''}" data-act="cterms" data-v="${c.id}" data-w="${k}"${tip(TERMS[k].what)}>${TERMS[k].name}</span>`).join('');
+  const termLine = terms === 'advance' ? `<b class="gold num">${T.now}</b> now and <b class="gold num">${T.pay}</b> on success, of ${c.pay}.` : terms === 'provision' ? `Costs <b class="num ${T.cost > G.denarii ? 'bad' : ''}">${T.cost}</b> now; the chance is 8 points better.` : terms === 'hazard' ? `<b class="gold num">${T.pay}</b> on success, favour +${T.favor} only, and one point lost for asking.` : `<b class="gold num">${c.pay}</b> on success.`;
   const suits = D.cls.map(k => CLASSES[k].name).concat(D.likes.slice(0, 3).map(t => TRAITS[t].name.toLowerCase())).join(', ');
   const stat = STATS.filter(k => D.w[k] >= 0.3).sort((a, b) => D.w[b] - D.w[a]).map(k => `${ic(k)} ${STAT_NAMES[k]}`).join(' &nbsp; ');
   const runners = men.filter(flightRisk), lose = c.asked ? 6 : 4;
@@ -781,8 +785,7 @@ function contractCard(c) {
   const gamesDay = (() => { for (let d = G.day; d < G.day + c.days; d++) if (d % GAMES_EVERY === 0) return d; return 0; })();
   const pct1 = x => x < 0.005 ? 'none' : x < 0.01 ? 'under 1%' : asPct(x);
   return `<div class="panel offer">
-    <h3>${D.name} <small>${PATRONS[c.patron].name}</small></h3>
-    ${c.asked ? `<div><span class="chip gold"${tip('asked')}>Asked of you by name</span></div>` : ''}
+    <h3>${D.name} <small>${PATRONS[c.patron].name}</small>${c.asked ? ` <span class="chip gold"${tip('asked')} style="vertical-align:2px;margin:0 0 0 6px">Asked of you by name</span>` : ''}</h3>
     <p style="margin:2px 0">${D.text(c)}</p>
     <div class="kvs">
       <div${tip('contract')}><span>Pay</span><b class="num gold">${c.pay}</b><small>${Math.round(c.pay / c.size / c.days)} a man a day</small></div>
@@ -795,12 +798,13 @@ function contractCard(c) {
       <div><b class="bad">If it goes badly</b> No pay, and favour -${lose}.${D.danger >= 0.5 ? ' On work this dangerous a man may not come home.' : ''}</div>
       <div class="dim">Either way they learn on the road as if they had trained, and come home tired.</div>
     </div>
+    <div class="termrow"><span class="lbl"${tip('The terms your men go on. Choose before you send them.')}>Terms</span>${termChips}<small>${termLine}</small></div>
     <div class="sendhead"><span>Send ${c.size === 1 ? 'one man' : c.size + ' men'}, best suited first</span>
       ${best ? `<button class="mini" data-act="cbest" data-v="${c.id}" ${isBest ? 'disabled' : ''}${tip('Choose whoever gives the best chance together, of the men free to go. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
     <div>${chips}</div>
     <div class="sendrow">
-      <button class="primary" data-act="csend" data-v="${c.id}" ${ready ? '' : 'disabled'}>Send ${ready ? namesOf(men) : ''}</button>
-      ${ready ? `<div class="oddsbox"${tip('odds')}><div>Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b> <span class="dim">${oddsWord(p).toLowerCase()} &middot; worth about ${Math.round(c.pay * p)} on average</span></div>${oddsBar(p)}</div>`
+      <button class="primary" data-act="csend" data-v="${c.id}" ${ready && T.cost <= G.denarii ? '' : 'disabled'}>Send ${ready ? namesOf(men) : ''}</button>
+      ${ready ? `<div class="oddsbox"${tip('odds')}><div>Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b> <span class="dim">${oddsWord(p).toLowerCase()} &middot; worth about ${Math.round(T.now - T.cost + T.pay * p)} on average</span></div>${oddsBar(p)}</div>`
         : `<span class="dim">${avail.length < c.size ? `It needs ${c.size}, and only ${avail.length} ${avail.length === 1 ? 'is' : 'are'} free.` : `Choose ${c.size - men.length} more.`}</span>`}
     </div>
     ${runners.length ? `<div class="bad" style="font-size:13px;margin-top:4px"${tip('flight')}>${namesOf(runners)} may not come back.</div>` : ''}
@@ -829,11 +833,13 @@ function viewContracts() {
         <span class="${free ? '' : 'bad'}"><b class="num">${free}</b> free to send</span>
         ${gone ? `<span class="gold"><b class="num">${gone}</b> away</span>` : ''}
         <span${tip('The board is cleared and filled again every games day.')}>new offers ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
-        ${asked ? `<span class="gold"${tip('asked')}>${PATRONS[asked.patron].name} asks for you by name</span>` : ''}</div></div>
+        ${asked ? `<span class="gold"${tip('asked')}>${PATRONS[asked.patron].name} asks for you by name</span>` : ''}
+        <span${tip(`What the town thinks of your house's work away from the sand: ${Math.round(workRep())} of 100. Good service raises it; failures and men called home lower it. It adds ${Math.round((workPay(workRep()) - 1) * 100)}% to what every contract pays. At Reliable (35) the board carries one more offer, and at First choice (85) another.`)}>name for work <b class="${workRep() >= 35 ? 'gold' : ''}">${workWord(workRep())}</b>${workRep() >= 1 ? ` <small class="num">+${Math.round((workPay(workRep()) - 1) * 100)}% pay</small>` : ''}</span></div>
+        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`A few coins in the right taverns turn up one more piece of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}</div>
       <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
-        <div class="listnote">Contracts pay about half what the same men would win at the games. Men who are away do not fight in games held while they are gone.</div></div></div>
+        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about half what the same men would win at the games. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
     <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}</div></div>
   </div>`;
 }
@@ -2162,7 +2168,9 @@ const ACTIONS = {
     for (const k in ui.cpicks) ui.cpicks[k] = ui.cpicks[k].filter(x => !ids.includes(x));
     ui.cpicks[c.id] = ids; render();
   },
-  csend(v) { if (sendContract(v, ui.cpicks[v] || [])) { delete ui.cpicks[v]; render(); } },
+  csend(v) { if (sendContract(v, ui.cpicks[v] || [], ui.cterms[v])) { delete ui.cpicks[v]; delete ui.cterms[v]; render(); } },
+  cterms(v, w) { ui.cterms[v] = w; render(); },
+  caround() { const c = askAround(); if (c) { ui.csel = c.id; SFX.ui('coin'); save(); render(); } },
   smithbuy(v) { if (buyItem(v)) { save(); render(); } },
   smithgive(v, w) { const g = byId(w); if (g && buyItem(v)) { equip(g, v); save(); render(); } },      // bought and straight onto a man
   smithsell(v) { if (sellItem(v)) { save(); render(); } },

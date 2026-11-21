@@ -1151,3 +1151,16 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 
 .preqs.two { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px; }
 .patron .dealmsg { font-size: 12px; padding: 3px 8px; }
+
+/* ---- contracts: the terms men are sent on ---- */
+.termrow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 6px 0 2px; }
+.termrow .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-right: 3px; }
+.termrow .chip.pick { font-size: 12px; padding: 1px 8px; margin: 0; }
+.termrow small { font-size: 12px; color: var(--dim); margin-left: 6px; }
+[data-pane="offer"] .outcomes { font-size: 12.5px; line-height: 1.33; }
+[data-pane="offer"] .termrow { margin: 4px 0 0; }
+[data-pane="offer"] .offer > p { font-size: 13.5px; line-height: 1.38; }
+[data-pane="offers"] .lrow { min-height: 38px; padding-top: 3px; padding-bottom: 3px; }
+[data-pane="offers"] > h2 { margin-top: 8px; }
+[data-pane="offer"] .offer .kvs { gap: 6px; }
+[data-pane="offer"] .offer .sendrow { margin-top: 4px; }
