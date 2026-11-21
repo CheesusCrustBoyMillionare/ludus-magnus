@@ -681,3 +681,19 @@ table.report small { font-size: 10px; text-transform: uppercase; letter-spacing:
 .kitrow.head .ic { width: 14px; height: 14px; opacity: .7; }
 .kitrow small { text-align: right; font-size: 11px; color: var(--dim); }
 .rar.none { background: #241913; color: #6b573c; }
+
+/* the chronicle: the days under their own headings, and where the house stands */
+.logtabs { margin: 0 0 6px; }
+.logtabs .num { opacity: .7; font-size: 10px; }
+.log .dayhead { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0 2px; border-bottom: 1px solid var(--bronze-d); }
+.log .dayhead:first-child { padding-top: 0; }
+.log .dayhead b { font: 700 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.log .dayhead span { font-size: 11px; color: var(--dim); }
+.log .entry { padding: 3px 0 3px 10px; border-left: 3px solid transparent; font-size: 13px; line-height: 1.35; }
+.log .entry.good { border-left-color: #5f9a48; } .log .entry.bad { border-left-color: #b93a2e; } .log .entry.gold { border-left-color: var(--gold); }
+.housestand { display: grid; gap: 7px; }
+.famerow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.famerow span { font: 10px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.famerow .bar { margin: 0; }
+.kvs.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kvs.three b { font-size: 14px; }

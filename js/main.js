@@ -1229,12 +1229,43 @@ function provincePanel() {
     ${lead ? `<div style="margin-top:4px"><b class="gold">The eagle of the Seventeenth.</b> ${lead}</div>` : ''}</div>`;
 }
 
+const LOG_FILTERS = [['all', 'Everything'], ['gold', 'Great days'], ['good', 'Good news'], ['bad', 'Bad news']];
 function viewChronicle() {
-  const rows = G.log.slice().reverse().map(e => `<div class="${e.k}"><span class="d">Day ${e.d}</span>${e.t}</div>`).join('');
-  const fallen = G.fallen.length ? `<h2>The fallen</h2><div class="panel">${G.fallen.map(f => `<div>${f.name}, ${CLASSES[f.cls].name} &mdash; ${f.wins} victories, died day ${f.day}${f.by ? ', slain by ' + f.by : ''}</div>`).join('')}</div>` : '';
+  const f = LOG_FILTERS.some(x => x[0] === ui.lfilter) ? ui.lfilter : 'all';
+  const shown = G.log.filter(e => f === 'all' || e.k === f);
+  // the days, newest first, each under its own heading
+  let rows = '', day = null;
+  for (const e of shown.slice().reverse()) {
+    if (e.d !== day) { day = e.d; const ago = G.day - e.d; rows += `<div class="dayhead"><b>Day ${e.d}</b><span>${ago === 0 ? 'today' : ago === 1 ? 'yesterday' : ago + ' days ago'}${e.d > 0 && e.d % GAMES_EVERY === 0 ? ' &middot; a games day' : ''}</span></div>`; }
+    rows += `<div class="entry ${e.k}">${e.t}</div>`;
+  }
+  const count = k => G.log.filter(e => e.k === k).length;
+  const filters = LOG_FILTERS.map(([k, n]) => `<button class="${f === k ? 'on' : ''}" data-act="lfilter" data-v="${k}">${n}${k === 'all' ? '' : ` <span class="num">${count(k)}</span>`}</button>`).join('');
+  // where the house stands
+  const t = tier(), nextFame = t < TIERS.length - 1 ? TIERS[t + 1].fame : FINAL_FAME, base = TIERS[t].fame, T = G.tally, fought = T.wins + T.losses;
+  const place = G.houses.filter(H => H.prestige > G.fame).length + 1;
+  const standing = `<div class="panel housestand">
+      <div class="kvs">
+        <div><span>Day</span><b class="num">${G.day}</b><small>${G.dynasty.gen > 1 ? ordinal(G.dynasty.gen) + ' generation' : 'of this ludus'}</small></div>
+        <div><span>Bouts</span><b class="num">${T.wins}&ndash;${T.losses}</b><small>${fought ? Math.round(T.wins / fought * 100) + '% won' : 'none fought yet'}</small></div>
+        <div><span>Standing</span><b class="num">${cap1(ordinal(place))}</b><small>of ${G.houses.length + 1} schools</small></div>
+        <div><span>Fallen</span><b class="num ${G.fallen.length ? 'bad' : ''}">${G.fallen.length}</b><small>${G.roster.length} in the cells now</small></div>
+      </div>
+      <div class="famerow"${tip('fame')}><span>${TIERS[t].name}</span>${bar('prog', G.fame - base, nextFame - base)}<b class="num">${G.fame}</b></div>
+      <div class="dim" style="font-size:12px">${G.won ? 'The Great Arena is won. Everything after this is glory.' : t < TIERS.length - 1 ? `${nextFame - G.fame} more fame opens the ${TIERS[t + 1].name}: richer purses, harder men.` : `${Math.max(0, nextFame - G.fame)} more fame brings the final games.`}</div>
+    </div>`;
+  // the men who have done most for it
+  const lead = (label, key, unit) => { const g = G.roster.slice().sort((a, b) => b[key] - a[key])[0]; return g && g[key] > 0 ? `<div><span>${label}</span><b>${g.name}</b><small>${g[key]} ${unit}${g[key] === 1 ? '' : 's'}</small></div>` : ''; };
+  const honours = lead('Most victories', 'wins', 'win') + lead('Most kills', 'kills', 'kill') + lead('Most famous', 'fame', 'fame');
+  const fallen = G.fallen.length ? `<h2>The fallen <small>${G.fallen.length}</small></h2><div class="panel list tight">${G.fallen.slice().reverse().map(x => prow(`<div class="grow"><span class="t">${x.name} <small class="inl">${CLASSES[x.cls] ? CLASSES[x.cls].name : ''} &middot; ${x.wins} ${x.wins === 1 ? 'victory' : 'victories'}</small></span></div>
+      <span class="end dim">day ${x.day}${x.by ? ' &middot; ' + x.by : ''}</span>`)).join('')}</div>` : '';
   return `<div class="fill">
-    <div><h2>Chronicle</h2><div class="pane" data-pane="log"><div class="panel log">${rows}</div></div></div>
-    <div><h2>The house</h2><div class="pane" data-pane="house">${fallen || '<div class="panel dim">No fighter of this house has died yet.</div>'}${provincePanel()}${dynastyPanel()}
+    <div><h2>Chronicle <small>${shown.length} of the last ${G.log.length} entries</small></h2>
+      <div class="subtabs logtabs">${filters}</div>
+      <div class="pane" data-pane="log-${f}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div></div></div>
+    <div><h2>The house</h2><div class="pane" data-pane="house">${standing}
+      ${honours ? `<h2>Honours</h2><div class="panel"><div class="kvs three">${honours}</div></div>` : ''}
+      ${fallen || '<div class="listnote">No fighter of this house has died yet.</div>'}${provincePanel()}${dynastyPanel()}
       <p style="margin-top:14px" class="row"><button data-act="tuton"${tip('steward')}>Summon the steward (tutorial)</button><button data-act="askreset">Abandon this ludus and start anew</button></p></div></div>
   </div>`;
 }
@@ -1488,6 +1519,7 @@ const ACTIONS = {
   dossier(v) { ui.sel = +v; villageWalkTo('ludus'); render(); },
   rowsel(v, w) { ui[v] = /^\d+$/.test(w) ? +w : w; render(); },
   dtab(v) { ui.dtab = v; render(); },
+  lfilter(v) { ui.lfilter = v; render(); },
   yardtoggle() {
     ui.noyard = !ui.noyard;
     try { localStorage.setItem('ludus-magnus-yard', ui.noyard ? 'off' : 'on'); } catch (e) { /* storage unavailable */ }
@@ -1724,7 +1756,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'tick', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
