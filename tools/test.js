@@ -608,6 +608,59 @@ test('festivals: hunt, great melee, funeral games', () => game()(function () {
   assert(G.bouts.some(b => b.hunt) && !G.bouts.some(b => b.funeral), 'village pits get a hunt instead');
 }));
 
+test('festivals: triumph, Saturnalia, the Games of Mars, sponsors, crowns and the calendar', () => game()(function () {
+  const won = (mine, foes) => { const B = fight(mine, foes); B.winner = 0; B.fighters.forEach(f => { if (f.team === 0) { f.fate = null; f.hp = f.maxHp; } }); return B; };
+  newGame(); while (G.roster.length < 6) G.roster.push(makeGladiator(30));
+  // the calendar: the next festival and the two after it, never the same twice running
+  G.festival = null; G.festQueue = null; scheduleFestival();
+  assert(G.festival.day === FESTIVAL_EVERY && G.festival.type === 'hunt' && G.festQueue.length === 2 && G.festQueue[0].day === FESTIVAL_EVERY * 2 && G.festQueue[0].type === 'tourney', 'the first is a hunt, the second the tournament');
+  for (let n = 0; n < 40; n++) {
+    const next = G.festQueue[0]; G.day = G.festival.day + 1; scheduleFestival();
+    assert(G.festival.day === next.day && G.festival.type === next.type && FESTIVALS[G.festival.type] && G.festQueue.length === 2, 'what was promised is what comes');
+    const q = [G.festival].concat(G.festQueue).filter(x => x.type !== 'tourney');
+    assert(q.every((x, i) => !i || x.type !== q[i - 1].type), 'no festival twice running');
+  }
+  // a triumph: armed captives, to the death, and a cheap market after
+  G.fame = 350; G.day = 30; G.denarii = 5000; G.festival = { day: 30, type: 'triumph' }; genBouts();
+  const caps = G.bouts.filter(b => b.captive);
+  assert(caps.length === 3 && caps.every(b => b.death && b.fest && b.enemies.length === b.size && !b.houseId) && crownNeed() === 2, 'three bouts against captives');
+  genMarket(); assert(G.market.length && G.market.every(m => m.spoils || m.kept), 'the spoils go cheap');
+  // sponsoring: paid once, in the last five days
+  const d0 = G.denarii, f0 = G.patrons.magistrate;
+  assert(sponsorFestival() && G.denarii === d0 - sponsorCost() && G.patrons.magistrate > f0 && G.festival.sponsor && !sponsorFestival(), 'a sponsor pays once');
+  // the crown: two of the three won
+  let r = applyBoutResult(caps[0], won([G.roster[0]], caps[0].enemies), 0, 1);
+  assert(G.festival.won === 1 && !G.festival.crowned && !trophies(), 'one is not enough');
+  const d1 = G.denarii; r = applyBoutResult(caps[1], won([G.roster[1]], caps[1].enemies), 0, 1);
+  assert(G.festival.crowned && trophies() === 1 && G.trophies.triumph === 1 && G.denarii === d1 + r.purse + round5(PURSE[tier()] * 0.8 * 1.5) && trophyBonus() === 0.02, 'the crown, and a sponsor is paid half as much again');
+  r = applyBoutResult(caps[2], won([G.roster[2], G.roster[3]], caps[2].enemies), 0, 1);
+  assert(trophies() === 1, 'one crown a festival');
+  // Saturnalia: nobody dies, more fame, better odds, and no raising the stakes
+  G.day = 45; G.roster.forEach(g => { g.foughtDay = 0; g.morale = 50; }); G.festival = { day: 45, type: 'hunt' }; genBouts();
+  const plainPay = winOdds([G.roster[0]], boutEnemies(G.bouts.find(b => b.houseId && b.size === 1))).pay;
+  G.festival = { day: 45, type: 'saturnalia' }; G.roster.forEach(g => { g.morale = 50; }); genBouts();
+  assert(G.bouts.filter(b => !b.grudge).every(b => !b.death && b.saturn) && G.roster.every(g => g.morale >= 60), 'no blood, and the men are merry');
+  const sb = G.bouts.find(b => b.saturn && b.houseId);
+  assert(stakesBlock(sb) && !raiseStakes(sb.id), 'the stakes cannot be raised');
+  assert(festToday('saturnalia') && plainPay > 0, 'the festival is today');
+  { const b1 = G.bouts.find(b => b.houseId && b.size === 1), o = winOdds([G.roster[0]], boutEnemies(b1)); G.festival.shown = 'hunt'; const o2 = winOdds([G.roster[0]], boutEnemies(b1)); G.festival.shown = 'saturnalia';
+    assert(o.pay > o2.pay, 'the bookmakers pay more'); }
+  // the Games of Mars: one duel for each style, and only that style may enter
+  G.day = 75; G.festival = { day: 75, type: 'mars' }; genBouts(); G.roster.forEach(g => { g.foughtDay = 0; g.injury = 0; });
+  const mb = G.bouts.filter(b => b.style);
+  assert(mb.length === 3 && STATS.every(st => mb.some(b => b.style === st)) && mb.every(b => b.fest && b.size === 1 && stakesBlock(b)) && crownNeed() === 2, 'a duel for each style');
+  for (const b of mb) assert(G.roster.every(g => boutFit(b, g) === (canFight(g) && styleOf(g) === b.style)), 'only that style may enter');
+  // the village pits get a hunt instead of a triumph, and the Games of Mars are held anywhere
+  G.fame = 0; G.day = 105; G.festival = { day: 105, type: 'triumph' }; genBouts();
+  assert(G.bouts.some(b => b.hunt) && !G.bouts.some(b => b.captive), 'no triumphs in the pits');
+  G.festival = { day: 105, type: 'mars' }; genBouts(); assert(G.bouts.filter(b => b.style).length === 3, 'the Games of Mars in the pits');
+  // a hunt crown at three hunts won
+  G.festival = { day: 105, type: 'hunt' }; genBouts(); G.roster.forEach(g => { g.foughtDay = 0; });
+  G.bouts.filter(b => b.hunt).slice(0, 3).forEach((b, i) => applyBoutResult(b, won([G.roster[i]], b.enemies), 0, 1));
+  assert(G.festival.crowned && G.trophies.hunt === 1 && trophies() === 2, 'three hunts won is a crown');
+  assert(!badNumber(G), 'festivals left a bad number');
+}));
+
 test('tournament: enter, fight through, and resolve without the player', () => game()(function () {
   let champs = 0;
   for (let i = 0; i < 15; i++) {

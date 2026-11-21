@@ -516,6 +516,7 @@ function genMarket() {
     G.market.push(g);
   }
   G.marketOrder = null;
+  if (festToday('triumph')) G.market.forEach(m => { m.price = Math.max(5, round5(m.price * 0.8)); m.spoils = true; });      // the general's prisoners flood the block
   G.market = kept.concat(G.market);
   // now and then the dealer has one man too good for the block, and sells him to whoever bids highest
   G.auction = null;
@@ -1079,10 +1080,64 @@ function storyAfterBout(g, f, foes, win, bout, lines) {
 
 const round5 = v => Math.round(v / 5) * 5;
 
+// The festival to come, and the two after it: the town knows its calendar.
+function festType(day, prev) {
+  if (day % (FESTIVAL_EVERY * 2) === 0) return 'tourney';
+  if (day === FESTIVAL_EVERY) return 'hunt';
+  return pick(['hunt', 'melee', 'funeral', 'triumph', 'saturnalia', 'mars'].filter(k => k !== prev));
+}
 function scheduleFestival() {
   const day = Math.floor(G.day / FESTIVAL_EVERY) * FESTIVAL_EVERY + FESTIVAL_EVERY;
-  const type = day % (FESTIVAL_EVERY * 2) === 0 ? 'tourney' : day === FESTIVAL_EVERY ? 'hunt' : pick(['hunt', 'melee', 'funeral']);
-  G.festival = { day, type };
+  let q = (G.festQueue || []).filter(x => x.day >= day);
+  if (q.length && q[0].day !== day) q = [];
+  for (let n = q.length; n < 3; n++) {
+    const d = day + n * FESTIVAL_EVERY, before = q.filter(x => x.type !== 'tourney').slice(-1)[0];
+    q.push({ day: d, type: festType(d, before ? before.type : G.festival && G.festival.type) });
+  }
+  G.festival = { day, type: q[0].type };
+  G.festQueue = q.slice(1);
+}
+// Is this festival being held today?
+const festToday = type => !!G.festival && G.festival.day === G.day && (G.festival.shown || G.festival.type) === type;
+// Festival crowns won, of every kind.
+const trophies = () => Object.values(G.trophies || {}).reduce((a, b) => a + b, 0);
+const trophyBonus = () => Math.min(10, trophies()) * 0.02;
+// Put your name on the festival: it costs, the Magistrate notices, and your men's festival bouts earn more fame.
+function sponsorCost() { return round5(PURSE[tier()] * 1.5); }
+function sponsorBlock() {
+  const F = G.festival;
+  if (!F || F.day < G.day) return 'There is no festival to sponsor.';
+  if (F.sponsor) return 'Your name is on it already.';
+  if (F.day - G.day > 5) return 'The editor is not taking sponsors yet: come back when the heralds have cried it.';
+  if (F.day === G.day && (G.bouts || []).some(b => b.done)) return 'The games have begun.';
+  if (G.denarii < sponsorCost()) return `You are ${sponsorCost() - G.denarii} denarii short.`;
+  return '';
+}
+function sponsorFestival() {
+  if (sponsorBlock()) return false;
+  G.denarii -= sponsorCost(); G.festival.sponsor = true; favor('magistrate', 5);
+  log(`Your name is painted on the walls as a sponsor of ${FESTIVALS[G.festival.type].name}.`, 'gold');
+  return true;
+}
+// How many of the festival's bouts must be won for its crown, as the card stands.
+function crownNeed() {
+  const F = G.festival; if (!F) return 0;
+  const type = F.shown || F.type;
+  if (type === 'tourney') return 0;
+  const n = (G.bouts || []).filter(b => b.fest).length;
+  return Math.min(FEST_CROWN[type] || 1, n || FEST_CROWN[type] || 1);
+}
+// Victor of the festival: a purse, a trophy for the house, and a little more fame from every bout after.
+function crownFestival(lines) {
+  const F = G.festival, type = F.shown || F.type;
+  if (F.crowned) return 0;
+  F.crowned = true;
+  G.trophies = G.trophies || {}; G.trophies[type] = (G.trophies[type] || 0) + 1;
+  const bonus = round5(PURSE[tier()] * 0.8 * (F.sponsor ? 1.5 : 1));
+  G.denarii += bonus; favor('magistrate', 4);
+  lines.push(`<span class="gold">Your school is named victor of ${FESTIVALS[type].name}: a crown for the house, and ${bonus} denarii with it.</span>`);
+  log(`Your school is crowned victor of ${FESTIVALS[type].name}.`, 'gold');
+  return bonus;
 }
 
 function makeBeast(kind, budget) {
@@ -1101,7 +1156,7 @@ function makeBeast(kind, budget) {
 
 function addFestival(t, bouts, booked) {
   let type = G.festival.type;
-  if ((type === 'melee' || type === 'funeral') && t < 1) type = 'hunt';   // the village pits can only afford animals
+  if ((type === 'melee' || type === 'funeral' || type === 'triumph') && t < 1) type = 'hunt';   // the village pits can only afford animals
   G.festival.shown = type;
   const B0 = ENEMY_BUDGET[t], fav = 1 + G.patrons.magistrate * 0.003;
   if (type === 'hunt') {
@@ -1111,7 +1166,7 @@ function addFestival(t, bouts, booked) {
     for (const [diff, kinds] of hunts) {
       const size = kinds.length > 1 ? 2 : 1, D = DIFF[diff];
       bouts.push({
-        id: ++G.nextId, size, diff, death: false, done: false, hunt: true, house: 'the beast-masters',
+        id: ++G.nextId, size, diff, death: false, done: false, hunt: true, fest: true, house: 'the beast-masters',
         enemies: kinds.map(k => makeBeast(k, B0)),
         purse: round5(PURSE[t] * D.purse * Math.pow(size, 0.7) * fav),
         fame: Math.round(FAME[t] * D.fame * Math.pow(size, 0.5) * 1.4),
@@ -1121,13 +1176,38 @@ function addFestival(t, bouts, booked) {
     const size = t >= 2 ? 5 : 4, H = pick(G.houses);
     const foes = pickRivals(H, size, B0 * 0.95, t, booked);
     bouts.push({
-      id: ++G.nextId, size, diff: 'even', death: false, done: false, melee: true, houseId: H.id, house: houseDef(H.id).name,
+      id: ++G.nextId, size, diff: 'even', death: false, done: false, melee: true, fest: true, houseId: H.id, house: houseDef(H.id).name,
       enemyIds: foes.map(g => g.id), purse: round5(PURSE[t] * Math.pow(size, 0.7) * 1.3 * fav), fame: Math.round(FAME[t] * Math.pow(size, 0.5) * 1.5),
     });
   } else if (type === 'funeral') {
     for (const b of bouts) {
       if (b.grudge) continue;
-      b.death = true; b.funeral = true; b.purse = round5(b.purse * 1.6); b.fame = Math.round(b.fame * 1.3);
+      b.death = true; b.funeral = true; b.fest = true; b.purse = round5(b.purse * 1.6); b.fame = Math.round(b.fame * 1.3);
+    }
+  } else if (type === 'triumph') {
+    // prisoners of war, armed and told that the last of them standing may live
+    for (const [diff, n] of [['easy', 1], ['even', 1], ['hard', 2]]) {
+      const D = DIFF[diff];
+      bouts.push({
+        id: ++G.nextId, size: n, diff, death: true, done: false, captive: true, fest: true, house: 'the captives of the legion',
+        enemies: Array.from({ length: n }, () => makeEnemy(B0 * D.stat, t)),
+        purse: round5(PURSE[t] * D.purse * Math.pow(n, 0.7) * 1.5 * fav), fame: Math.round(FAME[t] * D.fame * Math.pow(n, 0.5) * 1.4),
+      });
+    }
+  } else if (type === 'saturnalia') {
+    for (const b of bouts) {
+      if (b.grudge || b.final) continue;
+      b.death = false; b.fest = true; b.saturn = true; b.fame = Math.round(b.fame * 1.4);
+    }
+    G.roster.forEach(g => { g.morale = clamp(g.morale + 10, 0, 100); });
+  } else if (type === 'mars') {
+    // one duel for each way of fighting, and only men who fight that way may enter it
+    for (const st of STATS) {
+      const H = pick(G.houses), foes = pickRivals(H, 1, B0, t, booked);
+      bouts.push({
+        id: ++G.nextId, size: 1, diff: 'even', death: false, done: false, style: st, fest: true, houseId: H.id, house: houseDef(H.id).name, enemyIds: foes.map(g => g.id),
+        purse: round5(PURSE[t] * 1.5 * fav), fame: Math.round(FAME[t] * 1.6),
+      });
     }
   } else if (type === 'tourney') genTourney(t, booked);
 }
@@ -1200,6 +1280,7 @@ function advanceTourney(win, lines) {
     if (me) addStory(me, 'Won the Laurel Tournament.');
     favor('magistrate', 10);
     lines.push(`<span class="gold"><b>${me ? me.name : 'Your man'}</b> wins the Laurel Tournament and is crowned before the whole town.</span>`);
+    if (G.festival && G.festival.day === G.day) crownFestival(lines);
     log(`${me ? me.name : 'Your man'} wins the Laurel Tournament.`, 'gold');
     return;
   }
@@ -1226,7 +1307,7 @@ function finishTourneyOffscreen() {
 
 // ---------- the arena: the championship, wagers, stakes, the day's laurels ----------
 // Who may be sent to this bout: some are for novices only, and a title is defended by the man who holds it.
-function boutFit(b, g) { return canFight(g) && (!b.novice || g.rank <= 1) && (!b.only || g.id === b.only); }
+function boutFit(b, g) { return canFight(g) && (!b.novice || g.rank <= 1) && (!b.only || g.id === b.only) && (!b.style || styleOf(g) === b.style); }
 // Three ways to bet on your own side. The harder the thing, the more the bookmakers pay.
 const WAGER_KINDS = {
   win:   { name: 'To win', mult: 1, what: 'Your side wins, however it comes.' },
@@ -1277,7 +1358,8 @@ function titleBout(t, bouts, booked) {
 function stakesBlock(b) {
   if (b.done) return 'It has been fought.';
   if (b.death) return 'It is to the death already.';
-  if (b.hunt || b.final || b.tourney || b.melee || b.novice || !b.houseId) return 'The editor will not hear of it for this bout.';
+  if (b.saturn) return 'Nobody dies on Saturnalia.';
+  if (b.hunt || b.final || b.tourney || b.melee || b.novice || b.style || !b.houseId) return 'The editor will not hear of it for this bout.';
   if (tier() < 1) return 'The village pits do not fight to the death.';
   return '';
 }
@@ -1392,7 +1474,7 @@ function winOdds(mine, foes) {
   for (const g of mine) for (const f of foes) { edge += Math.log(styleEdge(styleOf(g), styleOf(f)) / styleEdge(styleOf(f), styleOf(g))); n++; }
   if (n) a *= Math.exp(edge / n * 0.5);
   const p = Math.pow(a, 4) / (Math.pow(a, 4) + Math.pow(b, 4));
-  return { p, pay: Math.round(clamp(0.9 / p, 1.1, 6) * 10) / 10 };
+  return { p, pay: Math.round(clamp(0.9 / p, 1.1, 6) * (festToday('saturnalia') ? 1.25 : 1) * 10) / 10 };
 }
 
 // ---------- day cycle ----------
@@ -1567,7 +1649,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
   if (win) G.tally.wins++; else G.tally.losses++;
   if (win) {
     purse = boon('laurel') ? Math.round(bout.purse * 1.1 / 5) * 5 : bout.purse;
-    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1) * (1 + streakBonus()) * (titleYours() ? 1.1 : 1));
+    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1) * (1 + streakBonus()) * (titleYours() ? 1.1 : 1) * (1 + trophyBonus()) * ((bout.fest || bout.tourney) && G.festival && G.festival.sponsor && G.festival.day === G.day ? 1.25 : 1));
     mine.forEach(f => { f.g.fame += Math.round(fameGain / mine.length); });
     if (wager && wagerWon(kind, B, win)) wagerGain = Math.round(wager * pay * (WAGER_KINDS[kind] || WAGER_KINDS.win).mult * (G.patrons.guild >= 80 ? 1.2 : 1));
     log(`Victory over ${bout.house}: ${purse} denarii, +${fameGain} fame.`, 'good');
@@ -1624,6 +1706,11 @@ function applyBoutResult(bout, B, wager, pay, kind) {
       G.title = H && H.roster.includes(foe) ? { house: H.id, gid: foe.id, name: foe.name, defences: 0 } : null;
       lines.push(`<span class="bad">The championship goes to ${foe.name} of ${bout.house}.</span>`);
     } else if (G.title) G.title.defences++;
+  }
+  // the festival's own bouts count towards its crown
+  if (win && bout.fest && G.festival && G.festival.day === G.day && !G.festival.crowned) {
+    G.festival.won = (G.festival.won || 0) + 1;
+    if (G.festival.won >= crownNeed()) crownFestival(lines);
   }
   // every bout on the card fought and won: the day is yours
   let sweep = 0;

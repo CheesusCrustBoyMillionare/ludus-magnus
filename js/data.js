@@ -230,7 +230,12 @@ const FESTIVALS = {
   melee:   { name: 'The Great Melee', blurb: 'A battle restaged with live steel: four or five a side against a single rival house.' },
   funeral: { name: 'Funeral Games', blurb: 'A great man is dead and his heirs honour him in blood. Every bout is to the death, and every purse is far richer.' },
   tourney: { name: 'The Laurel Tournament', blurb: 'Eight fighters, three rounds, one day. The last man standing takes the laurel.' },
+  triumph: { name: 'A Triumph', blurb: 'A general is home from the frontier, and his prisoners are given swords. The captives fight to the death for rich purses, and the dealer sells what is left of them a fifth cheaper that day.' },
+  saturnalia: { name: 'Saturnalia', blurb: 'The world is turned upside down. No bout is to the death, every bout earns far more fame, the bookmakers pay a quarter more, and the men are given the run of the wine.' },
+  mars: { name: 'The Games of Mars', blurb: 'Three rich duels, each open to one way of fighting only: one for strength, one for agility, one for skill. A school with only one kind of man will sit most of it out.' },
 };
+// What must be won on the day to be crowned victor of each festival.
+const FEST_CROWN = { hunt: 3, melee: 1, funeral: 3, tourney: 0, triumph: 2, saturnalia: 3, mars: 2 };
 const ROUND_NAMES = ['Quarter-final', 'Semi-final', 'Final'];
 
 // ---------- the dynasty ----------

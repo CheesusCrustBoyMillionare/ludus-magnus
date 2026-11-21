@@ -1240,3 +1240,21 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .foelist.tight3 .lrow { padding-top: 2px; padding-bottom: 2px; min-height: 0; }
 .panel.bout.many .kvs small { display: none; }
 .panel.list.longcard .lrow { padding-top: 3px; padding-bottom: 3px; min-height: 0; }
+
+/* ---- festivals: the card, the crown, the calendar ---- */
+.festline { display: flex; align-items: center; gap: 4px; }
+.festline button.mini, .festline .chip { margin-left: auto; padding-top: 0; padding-bottom: 0; }
+.festcard { border-color: var(--gold); margin-bottom: 10px; }
+.festcard h3 { display: flex; align-items: baseline; gap: 8px; }
+.festcard h3 button.mini, .festcard h3 .chip { margin-left: auto; }
+.festmeta { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-top: 5px; font-size: 12.5px; }
+.festmeta .lbl { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-left: auto; }
+.festmeta small { color: var(--dim); }
+.panel.list.oneline .lrow .grow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.panel.list.oneline .lrow .grow .t { white-space: nowrap; }
+.panel.list.oneline .lrow .grow > small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.panel.list.oneline .lrow { padding-top: 2px; padding-bottom: 2px; }
+.panel.list.oneline .bestodds small { display: none; }
+.foelist.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+.foelist.grid2 .l2 .notes { display: none; }
+.standings .kvs small { white-space: nowrap; }
