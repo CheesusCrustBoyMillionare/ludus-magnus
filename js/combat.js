@@ -304,6 +304,7 @@ function performMove(B, f, t, dx, dy, dist) {
 }
 
 function updateFighter(B, f, dt) {
+  if (f.pose && ((f.pose.t -= dt) <= 0 || out(f))) f.pose = null;
   f.flash = Math.max(0, f.flash - dt);
   f.atkAnim = Math.max(0, f.atkAnim - dt * 4);
   f.slash = Math.max(0, f.slash - dt);
@@ -523,6 +524,64 @@ function shade(hex, f) {
   let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
   if (f <= 1) { r *= f; g *= f; b *= f; } else { const t = f - 1; r += (255 - r) * t; g += (255 - g) * t; b += (255 - b) * t; }
   return (_shades[k] = 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')');
+}
+
+// How a man's whole body moves when he uses an ability. castAbility (abilities.js) sets f.pose = { k, t, dur, fx, fy }:
+// k is the kind of movement, t counts down from dur, and fx, fy are where he started from (so that a rush is seen
+// crossing the sand, though the rules moved him at once). Returns where to draw him, how stretched, and what trails.
+function poseOf(f) {
+  const p = f.pose;
+  if (!p || f.down || f.yielded) return null;
+  const u = clamp(1 - p.t / p.dur, 0, 1), d = f.facing, S = Math.sin, PI = Math.PI;
+  const P = { ox: 0, oy: 0, sx: 1, sy: 1, flip: 1, lift: 0, ghosts: 0, gx: -d, gy: 0 };
+  const far = Math.hypot(p.fx || 0, p.fy || 0);
+  if (far > 1) {                                   // the run-in, over the first part of the move
+    const part = p.k === 'hop' ? 0.85 : 0.32, k = 1 - Math.min(1, u / part), e = k * k;
+    P.ox += p.fx * 2 * e; P.oy += p.fy * 2 * e;
+    if (k > 0.05) { P.ghosts = 3; P.gx = p.fx / far; P.gy = p.fy / far; }
+  }
+  if (p.k === 'leap') {                            // up, and down on him with his whole weight
+    const a = S(Math.min(1, u / 0.62) * PI);
+    P.lift = a * 15; P.sy = 1 + a * 0.1; P.sx = 1 - a * 0.05;
+    if (u > 0.62) { const q = 1 - (u - 0.62) / 0.38; P.sy = 1 - 0.16 * q; P.sx = 1 + 0.12 * q; }
+  } else if (p.k === 'thrust') {                   // drawn back, then driven forward and held
+    const a = u < 0.22 ? -4 * (u / 0.22) : u < 0.42 ? -4 + 13 * ((u - 0.22) / 0.2) : 9 * (1 - (u - 0.42) / 0.58);
+    P.ox += d * a; if (u > 0.22 && u < 0.6) { P.sx = 1.1; P.sy = 0.96; P.ghosts = Math.max(P.ghosts, 2); }
+  } else if (p.k === 'spin') {                     // round on his heel, twice
+    if (u < 0.86) P.flip = Math.floor(u * 9) % 2 ? -1 : 1;
+    P.sx = 1 + 0.1 * S(u * PI); P.lift = 2 * S(u * PI);
+  } else if (p.k === 'flurry') {                   // in and out with every cut
+    P.ox += d * (3.5 * S(u * PI * 2 * (p.n || 2)) + 4 * S(u * PI)); P.ghosts = Math.max(P.ghosts, 2);
+  } else if (p.k === 'brace') {                    // sets his feet and sinks behind his guard
+    const a = S(Math.min(1, u * 1.6) * PI);
+    P.sy = 1 - 0.15 * a; P.sx = 1 + 0.1 * a;
+  } else if (p.k === 'surge') {                    // draws himself up
+    const a = S(u * PI);
+    P.sy = 1 + 0.13 * a; P.sx = 1 - 0.05 * a; P.lift = 3 * a;
+  } else if (p.k === 'throw') {                    // back on his heel, then the whole arm forward
+    P.ox += d * (u < 0.35 ? -5 * (u / 0.35) : -5 + 11 * S((u - 0.35) / 0.65 * PI * 0.5) - 6 * Math.max(0, (u - 0.7) / 0.3));
+  } else if (p.k === 'hop') {                      // a skip out of reach
+    P.lift = S(u * PI) * 9;
+  }
+  return P;
+}
+function drawFighter(ctx, f, o) {
+  const P = poseOf(f);
+  if (!P) return drawSprite(ctx, o);
+  const x = o.x + P.ox, y = o.y + P.oy, none = { len: 0, a: 0 };
+  for (let i = P.ghosts; i >= 1; i--) {            // where he was a moment ago
+    ctx.globalAlpha = 0.2 - i * 0.045;
+    drawSprite(ctx, Object.assign({}, o, { x: x + P.gx * i * 7, y: y + P.gy * i * 7 - P.lift, shadow: none, flash: 0 }));
+  }
+  ctx.globalAlpha = 1;
+  if (P.lift > 1) {                                // his shadow stays on the sand, and shrinks as he rises
+    const w = Math.round(9 - P.lift * 0.25);
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(Math.round(x) - w, Math.round(y) - 1, w * 2, 2);
+  }
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y - P.lift)); ctx.scale(P.sx, P.sy);
+  drawSprite(ctx, Object.assign({}, o, { x: 0, y: 0, facing: o.facing * P.flip, shadow: P.lift > 1 ? none : o.shadow }));
+  ctx.restore();
 }
 
 function drawSprite(ctx, o) {
@@ -1117,7 +1176,7 @@ function drawBattle(ctx, B) {
       noHelm: f.noHelm, hurt: f.g.beast ? 0 : f.hp < f.maxHp * 0.3 ? 3 : f.hp < f.maxHp * 0.55 ? 2 : f.hp < f.maxHp * 0.8 ? 1 : 0,
       hamstrung: f.hamstrung, armWound: f.armWound, shieldDmg: f.shieldHits >= 9 ? 2 : f.shieldHits >= 4 ? 1 : 0,
   });
-  for (const f of sorted) drawSprite(ctx, spr(f));
+  for (const f of sorted) drawFighter(ctx, f, spr(f));
   drawVfx(ctx, B, false);
   drawAuras(ctx, B, T);
   if (picking) {                              // the fight has stopped for him: the sand dims, and he and his man stand out

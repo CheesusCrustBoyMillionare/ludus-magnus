@@ -219,6 +219,9 @@ function castAbility(B, f, ab) {
   feed(B, `${f.g.name}: ${ab.name}`, f.team);
   B.exc += 0.045 * f.show;
   f.state = 'ready'; f.move = null;
+  const pose = (k, dur, o) => { f.pose = Object.assign({ k, t: dur, dur, fx: 0, fy: 0 }, o); };
+  if (x.heal) pose('surge', 0.7);
+  else if (x.buff && !x.mult) pose(x.buff.block || x.buff.dr > 0 ? 'brace' : 'surge', 0.65);
   if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); vfx(B, { k: 'motes', f, col: '#9fd070', dur: 1.1 }); }
   if (x.cleanse) { f.bleed = 0; f.snare = 0; f.weakT = 0; }
   if (x.buff) {
@@ -229,13 +232,13 @@ function castAbility(B, f, ab) {
   if (!t) return;
   const dx = t.x - f.x, dy = t.y - f.y, dist = Math.hypot(dx, dy) || 0.01, x0 = f.x, y0 = f.y;
   f.facing = dx >= 0 ? 1 : -1;
-  if (x.back) { fxDust(B, f.x, f.y, 5); f.x -= dx / dist * 22; f.y -= dy / dist * 10; vfx(B, { k: 'trail', under: true, x: x0, y: y0, x2: f.x, y2: f.y, col: B.col[f.team], dur: 0.35 }); }
+  if (x.back) { fxDust(B, f.x, f.y, 5); f.x -= dx / dist * 22; f.y -= dy / dist * 10; vfx(B, { k: 'trail', under: true, x: x0, y: y0, x2: f.x, y2: f.y, col: B.col[f.team], dur: 0.35 }); pose('hop', 0.42, { fx: x0 - f.x, fy: y0 - f.y }); }
   if (!(x.mult || x.net || x.weak)) return;
   // a net with no blow behind it is thrown: it flies, and may miss
   if (x.net && !x.mult) {
     const hit = Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - t.g.stats.agi * 0.012, 0.25, 0.9);
     B.projs.push({ from: f, to: t, x: f.x, y: f.y, t: 0, dur: 0.35, hit, snare: x.net, weak: x.weak });
-    snd(B, 'net', 1, f); f.atkAnim = 1;
+    snd(B, 'net', 1, f); f.atkAnim = 1; pose('throw', 0.42);
     return;
   }
   // close with him: a blow needs reach
@@ -244,6 +247,13 @@ function castAbility(B, f, ab) {
     fxDust(B, f.x, f.y, x.lunge ? 6 : 3); f.x += dx / dist * go; f.y += dy / dist * go;
     if (go > 5) vfx(B, { k: 'trail', under: true, x: x0, y: y0, x2: f.x, y2: f.y, col: x.lunge ? '#fff0c0' : B.col[f.team], dur: x.lunge ? 0.4 : 0.25 });
     if (x.lunge) fxDust(B, f.x, f.y, 4);
+  }
+  // how his body goes into it: a spin for a sweep, in and out for a flurry, a leap for a rush or a killing stroke, a thrust for the rest
+  {
+    const n = x.n || 1, k = x.aoe ? 'spin' : n > 1 ? 'flurry' : x.lunge || (x.mult || 0) >= 1.7 ? 'leap' : 'thrust';
+    pose(k, k === 'spin' ? 0.5 + (n - 1) * 0.13 : k === 'flurry' ? 0.22 + n * 0.13 : k === 'leap' ? 0.44 : 0.36, { fx: x0 - f.x, fy: y0 - f.y, n });
+    if (k === 'spin') { vfx(B, { k: 'arc', x: f.x, y: f.y, dir: f.facing, size: 1.6, col: '#fff0c0', col2: '#e0aa3e', dur: 0.3 }); vfx(B, { k: 'arc', x: f.x, y: f.y, dir: -f.facing, size: 1.6, col: '#fff0c0', col2: '#e0aa3e', dur: 0.42 }); }
+    if (k === 'leap') vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 12, r0: 3, col: '#e8d8b0', dur: 0.35, a: 0.7 });
   }
   const foes = x.aoe ? B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe) : [t];
   if (x.aoe) vfx(B, { k: 'ring', under: true, x: t.x, y: t.y, r: x.aoe, r0: 5, col: '#f2e2b8', dur: 0.4, fill: true, w: 3 });
