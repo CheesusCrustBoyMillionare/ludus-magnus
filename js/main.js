@@ -68,7 +68,8 @@ const TIPS = {
   flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
   quest: 'Something that matters to him, which you gave your word on. It ends at a place out in the province: take the whole school there. See it through and he comes back changed, and will never desert you.',
   awaygames: 'Games are held in town every fifth day whether you are there or not. Out here you miss them: no purse, no fame, and a challenge left unanswered still costs you.',
-  minimap: 'The whole province. Coloured where you have walked, parchment where you have not. White is the town, purple is you, gold is a place a clue has marked, red is a place you have seen and not dealt with.',
+  bigmap: 'Lays the whole province out at once: everything you have walked and everything marked. Click anywhere on it to set out for that spot. Key: M',
+  minimap: 'Click for the whole map. The whole province. Coloured where you have walked, parchment where you have not. White is the town, purple is you, gold is a place a clue has marked, red is a place you have seen and not dealt with.',
   makecamp: 'Ends the day where you stand. The men rest: fatigue falls and wounds mend, though slower than at home. Key: E',
   fieldrules: 'Walking costs no time. Going into a place takes the day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. Every fit man fights when it comes to it. Walk back into the town to go home.',
   eagle: 'The hunt for the lost eagle of the Seventeenth Legion. Each clue marks the next place on the map.',
@@ -1385,7 +1386,8 @@ const ACTIONS = {
   skip() { finishFight(); },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
-  makecamp() { if (!G.field) return; fieldDay('camp'); SFX.ui('day'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
+  bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
+  makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); fieldDay('camp'); SFX.ui('day'); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
   campback() { ui.campSel = null; render(); },
   askreset() {
@@ -1411,7 +1413,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', abpick: '', abauto: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -1562,7 +1564,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
-  if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); return; }           // out in the country, E makes camp
+  if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
   if (k === 'ArrowUp' || k === 'ArrowDown') {
