@@ -14,7 +14,8 @@ const TIPS = {
   denarii: 'Your money, and what an ordinary day costs or earns you after food, wages and the Guild stipend.\nStay in debt past the days of grace and the creditors take the ludus; an heir then begins again.',
   fame: 'Fame comes from winning bouts, and more from exciting ones. It opens greater arenas with richer purses and stronger opponents.',
   games: 'Games are held every fifth day. Bouts can only be fought on a games day.',
-  skip: 'Advance day by day until the games, stopping early if an event needs your decision or men come home from the road.',
+  skip: 'Advance day by day until the games, stopping early if an event needs your decision or men come home from the road. Key: G',
+  endday: 'Every fighter trains or rests, you pay for food and wages, and tomorrow comes. Key: E',
   saves: 'Save slots, backups, export and import.',
   health: 'Carried into the arena as it stands. Resting restores far more than training does.',
   fatigue: 'Rises with training and with every bout. A tired man enters the arena short of stamina; above three quarters he is exhausted and risks injury if he trains.',
@@ -63,7 +64,7 @@ const TIPS = {
   quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
   sound: 'Turns every sound in the game on or off, music included.',
   music: 'Turns the music on or off and leaves the other sounds alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
-  yardbtn: 'Hide the picture of your ludus to give the lists more room, or bring it back.',
+  yardbtn: 'Shows or hides the picture of your ludus. Hidden, the list beneath it has the whole height.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
@@ -180,6 +181,8 @@ function render() {
   if (ui.dev) renderDev();
 }
 
+// The bar down the right-hand side: the day's figures and the two buttons that move time on,
+// then (from renderTabs) the screens, and at the foot the saves and the small switches.
 function renderTop() {
   const t = tier();
   const next = TIERS[t + 1] ? TIERS[t + 1].fame : FINAL_FAME;
@@ -187,23 +190,23 @@ function renderTop() {
   $('#topbar').innerHTML = `
     <div class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</div>
     <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day</span></div>
-    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>Denarii (${net >= 0 ? '+' : ''}${net}/day)</span></div>
-    <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small> / ${next}</small></b><span>Fame &middot; ${TIERS[t].name}</span></div>
+    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>${net >= 0 ? '+' : ''}${net} a day</span></div>
+    <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small>/${next}</small></b><span>${TIERS[t].name}</span></div>
     <div class="stat games"${tip('games')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>Next games</span></div>
-    ${dg > 1 ? `<button data-act="skipdays"${tip('skip')}>To the games &raquo;&raquo;</button>` : ''}
-    <button class="primary" data-act="endday">End day &raquo;</button>
-    <button data-act="saves"${tip('saves')}>Saves</button>
-    <button class="yardbtn" data-act="yardtoggle"${tip('yardbtn')}>${ui.noyard ? 'Show yard' : 'Hide yard'}</button>
-    <button class="yardbtn" data-act="mute"${tip('sound')}>${SFX.muted ? 'Sound off' : 'Sound on'}</button>
-    <button class="yardbtn" data-act="musictoggle"${tip('music')}>${SFX.musicOn ? 'Music on' : 'Music off'}</button>`;
+    <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
+    <button data-act="skipdays"${tip('skip')} ${dg > 1 ? '' : 'disabled'}>To the games<span class="key">G</span></button>`;
+  const sw = (act, label, on, key) => `<button class="${on ? '' : 'off'}" data-act="${act}"${tip(key)}>${label}</button>`;
+  $('#sidefoot').innerHTML = `<button class="wide" data-act="saves"${tip('saves')}>Saves</button>
+    ${sw('yardtoggle', 'Yard', !ui.noyard, 'yardbtn')}${sw('mute', 'Sound', !SFX.muted, 'sound')}${sw('musictoggle', 'Music', SFX.musicOn, 'music')}`;
 }
 
+const TAB_KEYS = ['ludus', 'arena', 'contracts', 'rivals', 'market', 'smith', 'facilities', 'patrons', 'chronicle'];
 function renderTabs() {
   const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0, asked = G.contracts.filter(c => c.asked).length;
   const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['contracts', 'Contracts'], ['rivals', 'Rivals'], ['market', 'Market'], ['smith', 'Blacksmith'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
   $('#app').classList.toggle('noyard', ui.noyard);
   $('#tabs').innerHTML = tabs.map(([id, name]) =>
-    `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}${id === 'contracts' && asked ? `<span class="badge">${asked}</span>` : ''}</button>`).join('');
+    `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}${id === 'contracts' && asked ? `<span class="badge">${asked}</span>` : ''}<span class="key">${TAB_KEYS.indexOf(id) + 1}</span></button>`).join('');
 }
 
 // The view is rebuilt after every action, so each scrolling pane is put back where the player left it.
@@ -250,8 +253,9 @@ function gladCard(g) {
   const J = jobOf(g);
   const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}</div>`;
   return `<div class="lrow grow-row ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
-    <canvas width="48" height="56" style="width:36px;height:42px" data-portrait="${g.id}"></canvas>
-    <div class="grow"><span class="t">${g.name} <small style="display:inline">${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</small></span><div>${statusChips(g)}</div></div>
+    <canvas width="48" height="56" style="width:34px;height:40px" data-portrait="${g.id}"></canvas>
+    <div class="grow"><span class="t">${g.name}</span><small>${CLASSES[g.cls].name} &middot; ${g.wins}W ${g.losses}L</small></div>
+    <div class="chips">${statusChips(g)}</div>
     <div class="gauges"><div${tip('health')}>${bar('hp', g.hp, maxHp(g))}</div><div${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</div><div${tip('morale')}>${bar('mor', g.morale, 100)}</div></div>
     ${work}
   </div>`;
@@ -320,12 +324,12 @@ function gladDetail(g) {
 }
 
 function viewLudus() {
-  if (!G.roster.length) return `<div class="panel">Your cells are empty. Visit the market.</div>`;
+  if (!G.roster.length) return `<div class="fill"><div><h2>Gladiators</h2><div class="pane"><div class="panel">Your cells are empty. Visit the market.</div></div></div><div></div></div>`;
   if (!byId(ui.sel)) ui.sel = G.roster[0].id;
   return `<div class="fill">
-    <div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small></h2>
-      <div class="pane" data-pane="roster"><div class="panel list">${G.roster.map(gladCard).join('')}</div>
-      <label class="row"${tip('autorest')} style="margin-top:8px;font-size:13px;gap:6px"><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> Exhausted fighters rest on their own</label></div></div>
+    <div><h2>Gladiators <small>${G.roster.length} / ${capacity()}</small>
+        <label class="h2opt"${tip('autorest')}><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> the exhausted rest on their own</label></h2>
+      <div class="pane" data-pane="roster"><div class="panel list">${G.roster.map(gladCard).join('')}</div></div></div>
     <div><h2>Dossier</h2>${gladDetail(byId(ui.sel))}</div>
   </div>`;
 }
@@ -1194,7 +1198,7 @@ const ACTIONS = {
   reload() { save(); location.reload(); },
   updatelater() { const el = document.getElementById('updatebar'); if (el) el.remove(); },
   musictoggle() { SFX.toggleMusic(); renderTop(); },
-  mute() { SFX.toggle(); paintSpeed(); if (!fight) renderTop(); SFX.ui('click'); },
+  mute() { SFX.toggle(); paintSpeed(); renderTop(); SFX.ui('click'); },
   speed(v) { if (fight) { fight.speed = +v; paintSpeed(); } },
   order(v) { if (fight && !fight.finished && giveOrder(fight.B, v)) paintOrders(); },
   skip() { finishFight(); },
@@ -1353,6 +1357,37 @@ document.addEventListener('keydown', e => {
   if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
   const kind = { 1: 'press', 2: 'hold', 3: 'yield' }[e.key];
   if (kind) { e.preventDefault(); ACTIONS.order(kind); }
+});
+// Keys for everything done often, so the hand can stay off the mouse:
+//   1-9 the screens, E end the day, G to the games, up and down through the list on screen,
+//   left and right through a fighter's dossier pages, Enter to dismiss a notice, 1-4 to answer an event.
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
+  const at = document.activeElement || document.body;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName) && at.type !== 'checkbox') return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const press = el => { if (el && !el.disabled) { e.preventDefault(); el.click(); } };
+  if (!$('#modal').hidden) {
+    const btns = [...document.querySelectorAll('#modalBox button:not(:disabled)')], opts = [...document.querySelectorAll('#modalBox [data-act=evopt]')];
+    if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON') press(btns[0]);
+    else if (/^[1-9]$/.test(k) && opts[+k - 1]) press(opts[+k - 1]);
+    return;
+  }
+  if (/^[1-9]$/.test(k) && TAB_KEYS[+k - 1]) { e.preventDefault(); SFX.ui('tick'); ACTIONS.tab(TAB_KEYS[+k - 1]); return; }
+  if (k === 'e') return press($('[data-act=endday]'));
+  if (k === 'g') return press($('[data-act=skipdays]'));
+  if (k === 'ArrowUp' || k === 'ArrowDown') {
+    const cur = $('#view .lrow.sel[data-act]');
+    if (!cur) return;
+    const rows = [...cur.parentElement.querySelectorAll('.lrow[data-act=sel], .lrow[data-act=rowsel]')];
+    const to = rows[rows.indexOf(cur) + (k === 'ArrowDown' ? 1 : -1)];
+    if (to) { press(to); const now = $('#view .lrow.sel[data-act]'); if (now) now.scrollIntoView({ block: 'nearest' }); } else e.preventDefault();
+    return;
+  }
+  if ((k === 'ArrowLeft' || k === 'ArrowRight') && ui.tab === 'ludus') {
+    const i = DTABS.findIndex(t => t[0] === ui.dtab) + (k === 'ArrowRight' ? 1 : -1);
+    if (DTABS[i]) { e.preventDefault(); SFX.ui('tick'); ACTIONS.dtab(DTABS[i][0]); }
+  }
 });
 document.addEventListener('keydown', e => {
   if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || (e.key !== 'Y' && e.key !== 'y')) return;

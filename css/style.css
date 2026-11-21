@@ -398,3 +398,59 @@ h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
 #arenaCanvas { width: min(100%, calc((var(--vh, 100vh) - 130px) * 16 / 9)); max-width: none; }
 #modalBox { max-height: calc(var(--vh, 100vh) * .9); }
 #tutor { width: min(340px, calc(var(--vw, 100vw) - 32px)); }
+
+/* =====================================================================================
+   Everything you press lives in one bar down the right-hand side: the day's figures, End day,
+   the screens, and the small switches. The yard sits above the list on the left, and the
+   detail of whatever is chosen runs the full height beside the bar.
+   ===================================================================================== */
+#app { flex-direction: row; gap: 14px; padding: 8px 12px 8px 14px; }
+#main { flex: 1; min-width: 0; min-height: 0; position: relative; container-type: inline-size; display: flex; flex-direction: column; }
+#side { flex: none; width: 152px; display: flex; flex-direction: column; min-height: 0; }
+#yard { position: absolute; z-index: 2; left: 3px; top: 3px; width: calc((100% - 14px) * 0.63 - 6px); height: auto; aspect-ratio: 59 / 19; margin: 0; }
+.fill, .fill.even { grid-template-columns: minmax(0, 63fr) minmax(0, 37fr); }
+#app:not(.noyard) .fill > div:first-child { padding-top: calc(((100cqw - 14px) * 0.63 - 6px) * 19 / 59 + 14px); }
+
+#topbar { display: flex; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 5px; padding: 0 0 18px; }
+#topbar .title { font-size: 14px; letter-spacing: .12em; margin: 0 0 2px; text-align: center; white-space: nowrap; }
+#topbar .title small { display: block; font-size: 9px; }
+#topbar .stat { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 6px; background: #1c140f; border: 1px solid var(--bronze-d); }
+#topbar .stat b { font-size: 15px; white-space: nowrap; }
+#topbar .stat b small { font-size: 11px; }
+#topbar .stat span { font-size: 9px; letter-spacing: .06em; margin: 0; text-align: right; line-height: 1.15; }
+#topbar button { padding: 5px 6px; width: 100%; }
+#topbar button.primary { padding: 9px 6px; font-size: 15px; font-weight: 700; letter-spacing: .08em; margin-top: 3px; }
+#tabs { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 3px; margin: 0; }
+#tabs button { display: flex; align-items: center; gap: 6px; text-align: left; padding: 6px 8px; font-size: 11px; letter-spacing: .08em; }
+#tabs button .key, #topbar button .key { margin-left: auto; font: 10px Consolas, monospace; opacity: .5; letter-spacing: 0; text-shadow: none; }
+#topbar button { display: flex; align-items: center; justify-content: center; gap: 6px; }
+#tabs .badge { margin-left: 0; }
+#sidefoot { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding-top: 8px; }
+#sidefoot button { padding: 3px 0; font-size: 10px; letter-spacing: .04em; }
+#sidefoot button.wide { grid-column: 1 / -1; padding: 5px 0; font-size: 11px; }
+#sidefoot button.off { opacity: .45; text-decoration: line-through; }
+
+/* dialogs open beside the bar, a short reach from End day, and the steward keeps clear of it */
+#modal { justify-content: flex-end; padding-right: calc(184px * var(--z, 1)); }
+#tutor { right: 176px; }
+#modalBox > .row { justify-content: flex-end; }      /* the buttons sit on the side nearest the bar */
+
+/* the roster: one height of line whatever a man's state */
+.grow-row { padding-top: 3px; padding-bottom: 3px; }
+.grow-row .chips { flex: none; max-width: 46%; text-align: right; }
+.grow-row .chips .chip { margin: 1px 0 1px 3px; }
+h2 .h2opt { float: right; font: 12px Georgia, serif; letter-spacing: 0; text-transform: none; color: var(--dim); display: flex; align-items: center; gap: 5px; text-shadow: none; }
+
+@media (max-width: 1000px) {
+  #app { flex-direction: column-reverse; }
+  #side { width: auto; flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+  #topbar { flex-direction: row; flex-wrap: wrap; padding-bottom: 14px; flex: 1 1 100%; }
+  #topbar button, #topbar button.primary { width: auto; margin: 0; }
+  #tabs { flex-direction: row; flex-wrap: wrap; flex: 1; }
+  #sidefoot { margin: 0; padding: 0; display: flex; }
+  #sidefoot button, #sidefoot button.wide { padding: 4px 8px; }
+  #app:not(.noyard) .fill > div:first-child { padding-top: 0; }
+  #modal { justify-content: center; padding-right: 16px; }
+  #modalBox > .row { justify-content: flex-start; }
+  #tutor { right: 16px; }
+}
