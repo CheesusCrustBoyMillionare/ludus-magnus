@@ -159,13 +159,13 @@ const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', contracts: 'Contracts', mark
 // happens for the first time, and then says what it means, once.
 
 const TUTORIAL = [
-  { target: '#side',
+  { ch: 'Welcome', target: '#side',
     text: 'Welcome, dominus. This bar holds the day\'s figures and <b>End day</b>. The picture on the left is your school; the one on the right is the town, and you will do your business in it on foot. Hover over anything, anywhere, and I will explain it.' },
-  { tab: 'ludus', target: '.lrow .acts', until: () => G.roster.some(g => g.activity !== 'rest'),
+  { ch: 'The school', tab: 'ludus', target: '.lrow .acts', until: () => G.roster.some(g => g.activity !== 'rest'),
     text: 'These are your fighters. Each drills one skill a day, or rests. <b>Set one of them to train</b> with the small buttons on his line: strength, agility or skill. Keys <b>1 to 5</b> do the same for whoever is chosen, and <b>Everyone</b>, above the list, gives one order to the whole school.' },
   { tab: 'ludus', target: '.schoolbar',
     text: 'This strip is the school at a glance: who is fit to fight, who is hurt, exhausted, away or idle, and what a day costs you. The button beside it puts the list in another order.' },
-  { tab: 'ludus', target: '.statrow',
+  { ch: 'A fighter', tab: 'ludus', target: '.statrow',
     text: 'Click a fighter and his dossier opens here. Three skills decide how he fights, and each beats one of the others: <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>. His highest is his style. The stars are his talent for each: more stars, faster gains. The <b>Today</b> line above says what his work will do, and when it will pay.' },
   { tab: 'ludus', target: '[data-act=dtab][data-v=abil]', until: () => ui.tab === 'ludus' && ui.dtab === 'abil',
     text: 'A dossier has five pages. <b>Open Abilities</b>, or step through the pages with the left and right arrow keys.' },
@@ -174,12 +174,12 @@ const TUTORIAL = [
   { tab: 'ludus', target: '[data-act=dtab][data-v=gear]', until: () => ui.tab === 'ludus' && ui.dtab === 'gear',
     text: 'Now <b>open Gear</b>.' },
   { tab: 'ludus', target: '.gearlist',
-    text: 'What he wears. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and will fit a piece straight onto a man. Spare pieces wait on your racks, and <b>Wear the best</b> on this page puts them on. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
-  { target: '[data-act=endday]', until: () => G.day >= 2,
+    text: 'What he wears, slot by slot. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and will fit a piece straight onto a man. Spare pieces wait on your racks: each slot here offers the best of them, <b>+ more</b> shows the rest, and <b>Wear the best</b> puts on every gain at once. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
+  { ch: 'The day', target: '[data-act=endday]', until: () => G.day >= 2,
     text: 'Nothing happens until the day ends. Press <b>End day</b>, or the E key.' },
   { tab: 'ludus', target: '.lrow .gauges',
     text: 'Three gauges on each line: health, fatigue, spirits. Training builds fatigue, and a tired man fights badly and can tear a muscle, so rest him before the games. With the box above the list ticked, the exhausted rest on their own.' },
-  { target: '#village', go: 'contracts', until: () => ui.tab === 'contracts',
+  { ch: 'The town', target: '#village', go: 'contracts', until: () => ui.tab === 'contracts',
     text: 'There is paid work in town. That is you with the gold mark over your head, at the door of the Ludus. <b>Walk to Contracts</b>: steer with <b>W A S D</b>, or click the building and you will walk there yourself. Step onto its doorstep and it opens.' },
   { tab: 'contracts', target: '#view .panel.list',
     text: 'Patrons hire fighters by the day. The bar on each offer is the best chance your free men could manage; the offer itself says what it pays, what it risks, and <b>Pick the best</b> chooses who should go. But a man sent is <b>gone</b> for those days: no training, and no games if they fall while he is away. With two fighters, I would keep them home this week.' },
@@ -191,14 +191,14 @@ const TUTORIAL = [
     text: 'Walk to your own house, <b>Household</b>, at the top left.' },
   { tab: 'facilities', target: '#view .schoolbar',
     text: 'Staff, buildings and rations, and each says exactly what it gives. Everything here costs money, up front or every day: this strip shows what a day costs and how long the purse will last. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
-  { target: '[data-act=skipdays]', until: () => isGamesDay(),
+  { ch: 'The games', target: '[data-act=skipdays]', until: () => isGamesDay(),
     text: 'Games are held every fifth day. <b>To the games</b> (the G key) runs the days until then, stopping if anything needs you. Set your men to train first.' },
   { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
     text: 'It is a games day: the number by the Arena\'s name is the bouts waiting. Walk to the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each line on the left is a bout; the one you choose opens here. Compare <b>might</b>, the number by each name that says how dangerous a man is today, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>. Click a fighter\'s name to enter him, or <b>Pick the best</b> (B) and I will choose; the bar shows your chance. Wager only if you trust him. <b>Send a man to the sand</b> (Enter).' },
-  { text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. After every fight you are shown what each man dealt, took and used. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
-  { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. Press <b>H</b> at any time for the keys and the rules of the trade in one place. I will hold my tongue now, and speak up when something new happens.' },
+    text: 'Each line on the left is a bout; the one you choose opens here. Compare <b>might</b>, the number by each name that says how dangerous a man is today, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>. Click a fighter\'s name to enter him, or <b>Pick the best</b> (B) and I will choose; the bar shows your chance. Wager only if you trust him. <b>Send a man to the sand</b> (Enter). I will be at your shoulder once it starts.' },
+  { ch: 'Afterwards', text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. The result shows what the bout paid, how each of your men came out of it, and the whole fight line by line if you want it. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
+  { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. Press <b>H</b> at any time, even in the middle of a fight, for the book of the trade: seven short pages, the keys among them, opened at the one for wherever you are. I will hold my tongue now, and speak up when something new happens.' },
 ];
 
 // Things he explains the first time they happen. `when` returns whatever the text needs, or nothing.
@@ -257,6 +257,35 @@ const HINTS = [
     text: g => `<b>${g.name}</b> has eight victories. You may grant him the wooden sword, on the <b>Orders</b> page of his dossier: he leaves for good, the city talks of it, and every man in the yard trains harder.` },
 ];
 
+// What he says the first time each thing happens in a fight: shown over the arena, one at a time. `when` says it is the
+// moment for it, `gone` that the moment has passed and it should be taken down unanswered (to be said another time).
+const FIGHT_HINTS = [
+  { id: 'f_card', when: B => B.intro > 0.6 && B.introDur - B.intro > 0.9, gone: B => B.intro <= 0.3,
+    text: () => 'The card is the two sides: who they are, their power and their style. Beneath it, how they weigh against each other and whose style has the edge. A click on the sand sends it away.' },
+  { id: 'f_hud', when: B => B.intro <= 0 && !B.over && !B.pick && B.time > 1.2, gone: B => B.over || B.time > 16,
+    text: () => 'Red is yours, blue is theirs. The corners carry each man\'s health in figures and, in gold, his <b>charge</b>. Rest the mouse on any fighter for all there is to know of him. <b>Space</b> pauses; the bar below has half speed, a step at a time, and the <b>Log</b> of everything that has happened.' },
+  { id: 'f_pick', when: B => B.pick && !out(B.pick), gone: B => !B.pick,
+    text: B => `<b>${B.pick.g.name}</b> is charged, and the fight has stopped for you. Each card says what the ability does, what speaks for and against it at this moment, and about what it would do to the man in front of him. The one ringed in gold is what I would choose. Press its number, or <b>A</b> to let him decide.` },
+  { id: 'f_low', when: B => !B.over && B.intro <= 0 && canOrder(B, 'yield') && B.fighters.some(f => f.team === 0 && !out(f) && f.hp < f.maxHp * 0.3), gone: B => B.over || B.towel,
+    text: () => 'One of yours is failing: his line is flashing red. <b>Throw in the cloth</b> (C, twice) makes your worst-hurt man yield at once, and a man who yields is spared far more often than one who is struck down. Once a bout.' },
+  { id: 'f_end', when: B => B.over && B.outro > 0.9 && !B.wild && !B.hunt, gone: () => false,
+    text: () => 'It is settled. Now the crowd judges each fallen man: watch the stands, and the editor\'s thumb over his box. A good show spares more of them. Then the reckoning comes up, and a click goes on to the result.' },
+];
+function paintFightTip() {
+  const el = $('#arenaTip'); if (!el) return;
+  const t = G && tutorState(), B = fight && !fight.finished ? fight.B : null;
+  if (!B || !t || (!t.on && !t.hints)) { el.hidden = true; return; }
+  let h = FIGHT_HINTS.find(x => x.id === fight.tipId);
+  if (h && (t.seen[h.id] || h.gone(B))) { h = null; fight.tipId = null; }
+  if (!h) { h = FIGHT_HINTS.find(x => !t.seen[x.id] && x.when(B)) || null; fight.tipId = h ? h.id : null; if (h) SFX.ui('hint'); }
+  const sig = h ? h.id : '';
+  if (sig === fight.tipSig) return;
+  fight.tipSig = sig;
+  if (!h) { el.hidden = true; return; }
+  el.className = h.id === 'f_pick' ? 'top' : ''; el.hidden = false;
+  el.innerHTML = `<div class="who">Your steward</div><p>${h.text(B)}</p><div class="row"><button class="primary" data-act="fhintok" data-v="${h.id}">Understood</button><button data-act="tutoff" style="margin-left:auto">No more advice</button></div>`;
+}
+
 // The steward's notes on this save. Older saves have none: they get advice only if they ask for it.
 function tutorState() {
   const t = G.tut || (G.tut = { step: 0, on: false });
@@ -264,7 +293,7 @@ function tutorState() {
   if (!t.seen) t.seen = {};
   return t;
 }
-const stewardSays = (head, text, buttons, done) => `<div class="who">${head}</div>${done === undefined ? '' : `<div class="bar prog"><i style="width:${Math.round(done * 100)}%"></i></div>`}<p>${text}</p><div class="row">${buttons}</div>`;
+const stewardSays = (head, text, buttons, done, extra) => `<div class="who">${head}</div>${done === undefined ? '' : `<div class="bar prog"><i style="width:${Math.round(done * 100)}%"></i></div>`}${extra || ''}<p>${text}</p><div class="row">${buttons}</div>`;
 
 function renderTutor() {
   const el = $('#tutor');
@@ -284,7 +313,8 @@ function renderTutor() {
       s.text + (away ? `<br><span class="dim">Walk to ${TAB_NAMES[s.tab]}.</span>` : ''),
       `${s.until ? '<span class="dim" style="font-size:12px">Do it, and I will go on.</span>' : `<button class="primary" data-act="tutnext">${last ? 'Thank you' : 'Next'}</button>`}
        ${TUTORIAL.slice(0, t.step).some(x => !x.until) ? '<button data-act="tutback">Back</button>' : ''}
-       <button data-act="tutoff" style="margin-left:auto">Dismiss him</button>`, t.step / TUTORIAL.length);
+       <button data-act="tutoff" style="margin-left:auto">Dismiss him</button>`, t.step / TUTORIAL.length,
+      `<div class="chs"${tip('The parts of the tour. Click one to go straight to it.')}>${TUTORIAL.map((x, i) => x.ch ? `<button class="${TUTORIAL.slice(0, t.step + 1).map(y => y.ch).filter(Boolean).pop() === x.ch ? 'on' : ''}" data-act="tutjump" data-v="${i}">${x.ch}</button>` : '').join('')}</div>`);
     el.hidden = false;
     const target = s.target && !away ? document.querySelector(s.target) : away ? $('#village') : null;
     if (target) target.classList.add('tut-glow');
@@ -1626,7 +1656,9 @@ function showEvent() {
   if (!pe || !EVENTS[pe.id]) { G.pendingEvent = null; return; }
   const E = EVENTS[pe.id];
   const btns = E.opts.map((o, i) => { const ok = !o.ok || o.ok(pe.c); return `<button class="evopt" data-act="evopt" data-v="${i}" ${ok ? '' : 'disabled'}><span class="k">${i + 1}</span><span>${o.label(pe.c)}</span>${ok ? '' : '<small>not possible now</small>'}</button>`; }).join('');
-  showModal(`<div class="ev">${eventArt(pe.id)}<h2>${E.title}</h2>${eventPeople(pe.c)}<p class="evtext">${E.text(pe.c)}</p>
+  const tt = tutorState(), first = (tt.on || tt.hints) && !tt.seen.event;
+  if (first) { tt.seen.event = true; save(); }
+  showModal(`<div class="ev">${eventArt(pe.id)}<h2>${E.title}</h2>${eventPeople(pe.c)}<p class="evtext">${E.text(pe.c)}</p>${first ? '<p class="evnote"><b>Your steward:</b> matters like this come up every few days, dominus. Each answer has its price; once you have chosen I will set out what it changed. A greyed answer is one the purse or the house cannot manage today.</p>' : ''}
     <div class="evopts">${btns}</div>
     <div class="evfoot"><span>Your purse: <b class="num ${G.denarii < 0 ? 'bad' : ''}">${G.denarii}</b> denarii</span><span>Keys 1&ndash;${E.opts.length} answer</span></div></div>`);
   SFX.ui('scroll');
@@ -1827,7 +1859,7 @@ function fightLoop(ts) {
   f.askedOf = f.B.pick || null;
   f.B.snd.length = 0;
   SFX.crowd(f.B.exc + (f.B.over ? 0.3 : 0));
-  paintOrders(); paintFightLog();
+  paintOrders(); paintFightLog(); paintFightTip();
   drawBattle($('#arenaCanvas').getContext('2d'), f.B);
   if (f.B.over && f.B.outro > f.B.outroEnd) { finishFight(); return; }
   f.raf = requestAnimationFrame(fightLoop);
@@ -1885,7 +1917,7 @@ function finishFight() {
   f.finished = true;
   cancelAnimationFrame(f.raf);
   f.B.ask = false; f.B.pick = null; f.B.cutins = false;             // nobody is asked, and nothing announced, while the rest is played out unseen
-  $('#arenaPick').hidden = true; $('#arenaLog').hidden = true;
+  $('#arenaPick').hidden = true; $('#arenaLog').hidden = true; if ($('#arenaTip')) $('#arenaTip').hidden = true;
   let guard = 0;
   while ((!f.B.over || f.B.outro <= f.B.outroEnd) && guard++ < 20000) stepBattle(f.B, 1 / 30);
   f.B.snd.length = 0; SFX.quiet();
@@ -2166,8 +2198,10 @@ const ACTIONS = {
   tutstart() { G.tut = { step: 0, on: true, hints: true, seen: {} }; ui.tab = 'ludus'; villagePlace('ludus'); ui.dtab = 'stats'; save(); closeModal(); render(); },
   tuton() { G.tut = { step: 0, on: true, hints: true, seen: {} }; ui.tab = 'ludus'; villagePlace('ludus'); ui.dtab = 'stats'; save(); render(); },
   tutnext() { G.tut.step++; save(); render(); },
+  tutjump(v) { G.tut.step = clamp(+v, 0, TUTORIAL.length - 1); if (TUTORIAL[G.tut.step].tab === 'ludus') ui.dtab = 'stats'; save(); render(); },
+  fhintok(v) { tutorState().seen[v] = true; save(); if (fight) fight.tipSig = ''; paintFightTip(); },
   tutback() { let i = G.tut.step - 1; while (i > 0 && TUTORIAL[i].until) i--; G.tut.step = Math.max(0, i); save(); render(); },
-  tutoff() { G.tut.on = false; G.tut.hints = false; save(); renderTutor(); },
+  tutoff() { G.tut.on = false; G.tut.hints = false; save(); renderTutor(); if (fight) { fight.tipSig = null; paintFightTip(); } },
   hintok(v) { tutorState().seen[v] = true; save(); renderTutor(); },
   fightgo() { closeModal(); const f = ui.heldFight; ui.heldFight = null; if (f) startFight(f[0], f[1]); },
   ruinstep(v) { G.ruin.step = +v; save(); refreshRuin(); },

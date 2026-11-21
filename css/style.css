@@ -1059,3 +1059,16 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .slotfree { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .slotfree .lbl { font: 700 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: #6b573c; width: 100%; }
 .slotfree .slot.empty { display: flex; align-items: center; gap: 5px; margin: 0; padding: 4px 8px; flex: 1 1 auto; }
+
+/* ---- the steward: chapters of the tour, and his place at your shoulder in a fight ---- */
+#tutor .chs { display: flex; flex-wrap: wrap; gap: 3px; margin: 6px 0 0; }
+#tutor .chs button { padding: 0 6px; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+#tutor .chs button.on { background: linear-gradient(180deg, #f5d584, #b6832c); color: #2a1a0c; text-shadow: none; opacity: 1; }
+#arenaTip { position: absolute; left: 16px; bottom: 132px; width: min(330px, 40%); z-index: 5; padding: 9px 12px 10px; border: 1px solid var(--edge); background: #33261d var(--grain); box-shadow: 0 0 0 2px var(--gold), 0 0 0 3px var(--edge), 0 6px 0 #000a; font-size: 13.5px; line-height: 1.4; }
+#arenaTip[hidden] { display: none; }
+#arenaTip.top { bottom: auto; top: 16px; left: 50%; transform: translateX(-50%); width: min(560px, 60%); }
+#arenaTip .who { font: 11px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--gold); }
+#arenaTip p { margin: 4px 0 8px; }
+#arenaTip .row { display: flex; gap: 6px; }
+#arenaTip .row button { padding: 3px 10px; font-size: 12px; white-space: nowrap; }
+#modalBox .ev .evnote { margin: 0 24px 10px; padding: 6px 10px; font-size: 13px; line-height: 1.4; background: rgba(120, 80, 30, .14); border-left: 3px solid #b8862a; color: #3a2814; }
