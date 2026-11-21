@@ -302,3 +302,8 @@ select { background: #241a14; border: 1px solid var(--edge); box-shadow: inset 0
 #arenaOrders button:disabled { opacity: .45; cursor: default; }
 #ordPress.on { background: linear-gradient(180deg, #ff9a6a, #c2452a); color: #2a1208; text-shadow: none; }
 #ordHold.on { background: linear-gradient(180deg, #b6d4ff, #4a7ac0); color: #0e1c30; text-shadow: none; }
+
+/* a fighter who is away on contract or on the road */
+.gcard.away canvas { opacity: .4; filter: grayscale(.6); }
+.gcard.away .barrow { opacity: .5; }
+.chip.pick.red { border-color: var(--red); }

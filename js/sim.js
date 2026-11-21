@@ -144,7 +144,7 @@ function value(g) {
 }
 function stars(p) { return clamp(Math.round((p - 0.7) / 0.7 * 4) + 1, 1, 5); }
 function byId(id) { return G.roster.find(g => g.id === +id); }
-function canFight(g) { return g.injury <= 0 && g.foughtDay !== G.day; }
+function canFight(g) { return g.injury <= 0 && !g.away && g.foughtDay !== G.day; }
 
 // ---------- staff, patrons, ranks ----------
 
@@ -217,6 +217,10 @@ function migrate() {
   if (!G.festival) scheduleFestival();
   if (G.pendingEvent && G.pendingEvent.c && typeof G.pendingEvent.c.g === 'object') fixG(G.pendingEvent.c.g);
   if (!G.hires.length && !Object.keys(G.staff).length) genHires();
+  if (!G.jobs) G.jobs = [];
+  if (!G.reports) G.reports = [];
+  if (!G.eventQueue) G.eventQueue = [];
+  if (!G.contracts) { G.contracts = []; genContracts(); }
 }
 
 const needProg = s => 1.2 + s * 0.35;
@@ -242,7 +246,7 @@ function tier() {
 function capacity() { return 3 + 2 * G.fac.barracks; }
 function isGamesDay() { return G.day % GAMES_EVERY === 0; }
 function daysToGames() { return isGamesDay() ? 0 : GAMES_EVERY - (G.day % GAMES_EVERY); }
-function foodCost() { return G.roster.length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)); }
+function foodCost() { return G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)); }
 function upkeep() { return foodCost() + wages(); }
 
 // ---------- the dynasty: ruin, heirs and what the family keeps ----------
@@ -269,7 +273,7 @@ function newGame(dynasty, carried) {
     fac: { barracks: lv('cells'), ground: lv('yard'), infirmary: 0, baths: 0 },
     ration: 1, pendingEvent: null, won: false, over: false, fallen: [],
     staff: {}, hires: [], autoRest: true, fix: null, tourney: null, festival: null, tut: { step: 0, on: false }, bonds: [],
-    armoury: [], smith: { level: lv('forge'), stock: [] },
+    armoury: [], smith: { level: lv('forge'), stock: [] }, contracts: [], jobs: [], reports: [], eventQueue: [],
     patrons: { magistrate: 20 + (has('magistrate') ? 20 : 0), guild: 10 + (has('guild') ? 20 : 0), temple: 10 + (has('temple') ? 20 : 0) },
     gifts: { magistrate: 0, guild: 0, temple: 0 },
     dynasty: D, tally: { wins: 0, losses: 0 }, ruin: null,
@@ -292,13 +296,13 @@ function newGame(dynasty, carried) {
     g.id = ++G.nextId;
     STATS.forEach(k => { g.stats[k] = Math.max(2, Math.round(g.stats[k] * 0.8)); g.prog[k] = 0; });
     Object.assign(g, { gear: emptyGear(), weapon: 0, armor: 0, fatigue: 0, injury: 0, morale: 55, activity: 'rest', foughtDay: -1,
-      wish: null, lostTo: null, promise: null, askedFree: false, perkOffer: null });
+      wish: null, lostTo: null, promise: null, askedFree: false, perkOffer: null, away: null, quest: null });
     g.traits = g.traits.filter(t => t !== 'embittered');
     welcome(g); g.hp = maxHp(g);
     addStory(g, 'Smuggled out of the fallen ludus the night before the creditors came.');
     G.roster.push(g);
   }
-  initHouses(); genMarket(); genHires(); genSmith(); scheduleFestival();
+  initHouses(); genMarket(); genHires(); genSmith(); genContracts(); scheduleFestival();
   log(D.gen > 1
     ? `The old ludus is gone. You are its heir, the ${ordinal(D.gen)} of your house to keep a school, and you begin again with ${G.denarii} denarii.`
     : 'You inherit a crumbling ludus, two fighters and a purse of 250 denarii.', 'gold');
@@ -327,7 +331,7 @@ function beginRuin() {
   D.points += earned;
   D.history.push({ gen: D.gen, days: G.day, fame: G.fame, wins: G.tally.wins, tier: TIERS[tier()].name, earned });
   G.ruin = { step: 0, earned, offers: rollBoons(earned), fighter: null, boon: null };
-  G.pendingEvent = null;
+  G.pendingEvent = null; G.eventQueue = [];
   log('The creditors come with soldiers and take the ludus, the men and the keys.', 'bad');
 }
 function ruinFighter(id) { if (G.ruin) G.ruin.fighter = id && byId(id) ? +id : null; }
@@ -609,7 +613,7 @@ function unbondedPair() {
   return null;
 }
 
-// A fighter leaves the ludus. why: 'dead', 'sold' or 'freed'. Those bound to him feel it.
+// A fighter leaves the ludus. why: 'dead', 'sold', 'freed' or 'deserted'. Those bound to him feel it.
 function departed(g, why, killer) {
   stripGear(g);                       // whatever he wore goes back to the armoury
   for (const b of bondsOf(g)) {
@@ -621,6 +625,10 @@ function departed(g, why, killer) {
         o.wish = { type: 'avenge', hid: killer.house, gid: killer.id, name: killer.name, for: g.name };
         addStory(o, `Swore to kill ${killer.name} of ${houseDef(killer.house).name}.`);
       }
+    } else if (b.type === 'friend' && why === 'deserted') {
+      o.morale = clamp(o.morale - 8, 0, 100); addStory(o, `Woke to find his friend ${g.name} gone.`);
+    } else if (why === 'deserted') {
+      /* nobody else misses him */
     } else if (b.type === 'friend' && why === 'sold') {
       o.morale = clamp(o.morale - 12, 0, 100); addStory(o, `Watched his friend ${g.name} sold away.`);
     } else if (b.type === 'friend') {
@@ -861,7 +869,7 @@ function genBouts() {
   // a man with a vow gets his chance: the rival he wants is put on the card
   for (const g of G.roster) {
     const r = wishTarget(g);
-    if (!r || booked.has(r.id) || g.injury > 0 || !chance(0.6)) continue;
+    if (!r || booked.has(r.id) || g.injury > 0 || g.away || !chance(0.6)) continue;
     booked.add(r.id);
     bouts.push({
       id: ++G.nextId, size: 1, diff: 'even', death: g.wish.type === 'avenge' && t >= 1, vow: g.id, done: false,
@@ -910,7 +918,9 @@ function winOdds(mine, foes) {
 
 function endDay() {
   const F = G.fac;
+  const masters = G.roster.filter(g => !g.away && g.traits.includes('drillmaster')).length;
   for (const g of G.roster) {
+    if (g.away) continue;             // men out on contract or on the road are not in the yard
     const mh = maxHp(g);
     if (g.activity === 'spar' && !staffLvl('doctore')) g.activity = 'rest';
     const tiredOut = G.autoRest && g.fatigue > 75;
@@ -930,6 +940,7 @@ function endDay() {
       if (g.traits.includes('disciplined')) m *= 1.2;
       if (g.traits.includes('lazy')) m *= 0.8;
       if (g.traits.includes('embittered')) m *= 0.7;
+      m *= 1 + 0.05 * (masters - (g.traits.includes('drillmaster') ? 1 : 0));
       if (bondsOf(g).some(b => b.type === 'rival')) m *= 1.1;      // nothing drives a man like someone to outdo
       m *= (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
       for (const st of (spar ? STATS : [g.activity])) {
@@ -945,7 +956,7 @@ function endDay() {
     const target = Math.min(100, RATIONS[G.ration].morale + 5 * staffLvl('cook') + G.patrons.temple / 10);
     g.morale += clamp(target - g.morale, -3, 3);
     g.fatigue = clamp(g.fatigue, 0, 100);
-    g.morale = clamp(g.morale, g.traits.includes('steady') ? 50 : 0, 100);
+    g.morale = clamp(g.morale, g.traits.includes('atpeace') ? 60 : g.traits.includes('steady') ? 50 : 0, 100);
     g.hp = clamp(g.hp, 1, maxHp(g));
   }
 
@@ -969,11 +980,12 @@ function endDay() {
   if (G.festival.day - G.day === 5) log(`Heralds cry it through the town: ${FESTIVALS[G.festival.type].name}, in five days.`, 'gold');
   if (isGamesDay()) {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
-    genBouts(); checkWishes(); genMarket(); genHires(); genSmith();
+    genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts();
     log(`Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, 'gold');
   } else { G.bouts = null; G.tourney = null; }
 
   if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
+  if (!G.over && !G.ruin) jobsTick();
   if (!G.over && !isGamesDay() && chance(0.22)) rollEvent();
   if (isGamesDay()) backupSlot();
   save();
@@ -1093,7 +1105,7 @@ function applyBoutResult(bout, B, wager, pay) {
 
 // ---------- random events ----------
 
-const fit = () => G.roster.filter(g => g.injury <= 0);
+const fit = () => G.roster.filter(g => g.injury <= 0 && !g.away);
 const gn = id => { const g = byId(id); return g ? g.name : 'someone'; };
 
 const EVENTS = {
@@ -1125,7 +1137,7 @@ const EVENTS = {
     opts: [
       { label: c => `Fetch the physician (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'Bitter draughts and a day of sweating. The fever breaks.'; } },
       { label: () => 'Let it run its course', run: () => {
-        const sick = G.roster.filter(g => g.injury <= 0 && chance(0.4));
+        const sick = fit().filter(() => chance(0.4));
         sick.forEach(g => { g.injury = rint(2, 4); });
         return sick.length ? `${sick.map(g => g.name).join(', ')} ${sick.length > 1 ? 'are' : 'is'} laid low for days.` : 'By luck alone, it passes.';
       } },
@@ -1221,8 +1233,8 @@ const EVENTS = {
   },
   poach: {
     title: 'An offer from a rival',
-    can: () => G.roster.length > 2 && G.roster.some(g => g.wins >= 2 && g.injury <= 0),
-    make: () => { const g = pick(G.roster.filter(x => x.wins >= 2 && x.injury <= 0)); return { g: g.id, h: pick(G.houses).id, pay: Math.round(value(g) * 1.3 / 5) * 5 }; },
+    can: () => G.roster.length > 2 && fit().some(g => g.wins >= 2),
+    make: () => { const g = pick(fit().filter(x => x.wins >= 2)); return { g: g.id, h: pick(G.houses).id, pay: Math.round(value(g) * 1.3 / 5) * 5 }; },
     text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} has watched <b>${gn(c.g)}</b> fight and wants him. The offer is ${c.pay} denarii, well over the market price. You would likely meet him again across the sand.`,
     opts: [
       { label: c => `Sell him (+${c.pay})`, run: c => {
@@ -1290,8 +1302,8 @@ const EVENTS = {
   },
   rematch: {
     title: 'A matter of pride',
-    can: () => G.roster.some(g => g.lostTo && !g.wish && g.injury <= 0),
-    make: () => ({ g: pick(G.roster.filter(x => x.lostTo && !x.wish && x.injury <= 0)).id }),
+    can: () => fit().some(g => g.lostTo && !g.wish),
+    make: () => ({ g: pick(fit().filter(x => x.lostTo && !x.wish)).id }),
     text: c => { const g = byId(c.g), L = g && g.lostTo; return L ? `<b>${g.name}</b> has not slept properly since ${L.name} of ${houseDef(L.hid).name} put him on the sand. He asks you to get him that fight again.` : 'A fighter broods over an old defeat.'; },
     opts: [
       { label: () => 'Promise him the rematch', run: c => {
@@ -1305,8 +1317,8 @@ const EVENTS = {
   },
   freedom: {
     title: 'The wooden sword',
-    can: () => G.roster.length > 2 && G.roster.some(g => g.wins >= 6 && g.rank >= 2 && !g.promise && !g.askedFree),
-    make: () => ({ g: pick(G.roster.filter(x => x.wins >= 6 && x.rank >= 2 && !x.promise && !x.askedFree)).id, more: 3 }),
+    can: () => G.roster.length > 2 && home().some(g => g.wins >= 6 && g.rank >= 2 && !g.promise && !g.askedFree),
+    make: () => ({ g: pick(home().filter(x => x.wins >= 6 && x.rank >= 2 && !x.promise && !x.askedFree)).id, more: 3 }),
     text: c => { const g = byId(c.g); return `<b>${gn(c.g)}</b> asks to speak with you alone. He has won ${g ? g.wins : 'many'} times for this house, and he wants to know what it would take to walk out of the gate a free man.`; },
     opts: [
       { label: c => `Promise it after ${c.more} more victories`, run: c => {
@@ -1361,6 +1373,7 @@ const EVENTS = {
 };
 
 function rollEvent() {
+  if (G.pendingEvent) return;       // something from the road already wants an answer today
   const ids = Object.keys(EVENTS).filter(id => !EVENTS[id].auto && EVENTS[id].can());
   if (!ids.length) return;
   const id = pick(ids);

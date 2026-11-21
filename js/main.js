@@ -1,7 +1,7 @@
 'use strict';
 // Interface: screens, modals, and the arena overlay.
 
-const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {} };
+const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, qwith: {} };
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
 const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
@@ -13,7 +13,7 @@ const TIPS = {
   denarii: 'Your money, and what an ordinary day costs or earns you after food, wages and the Guild stipend.\nStay in debt past the days of grace and the creditors take the ludus; an heir then begins again.',
   fame: 'Fame comes from winning bouts, and more from exciting ones. It opens greater arenas with richer purses and stronger opponents.',
   games: 'Games are held every fifth day. Bouts can only be fought on a games day.',
-  skip: 'Advance day by day until the games, stopping early if an event needs your decision.',
+  skip: 'Advance day by day until the games, stopping early if an event needs your decision or men come home from the road.',
   saves: 'Save slots, backups, export and import.',
   health: 'Carried into the arena as it stands. Resting restores far more than training does.',
   fatigue: 'Rises with training and with every bout. A tired man enters the arena short of stamina; above three quarters he is exhausted and risks injury if he trains.',
@@ -53,6 +53,13 @@ const TIPS = {
   friend: 'Friends hit harder when they fight on the same side. If one dies, the other grieves, and may swear to kill the man who did it.',
   rivalbond: 'Rivals inside your own ludus train harder to outdo each other, but fight worse on the same side.',
   vow: 'He has sworn to face this rival. When that man appears on a card he fights him with extra fury; winning lifts him greatly.',
+  contract: 'Paid work for a patron. The men you send are gone for the days stated: they do not train, and cannot fight in any games held while they are away. Success pays silver and favour; failure costs favour.',
+  asked: 'This patron has asked for your house by name. It is worth more favour if you do it, and costs you favour if the offer is still on the board at the next games.',
+  odds: 'The chance the men you have chosen bring the work off. It depends on the stats the work calls for, their fighting style, traits, homeland, spirits, tiredness, and whether they are friends or rivals.',
+  danger: 'How likely a man is to come home wounded. On deadly work that goes badly, he may not come home at all.',
+  away: 'Away from the ludus. He does not train or eat at your table, and cannot fight until he is back.',
+  flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
+  quest: 'A journey of his own that you gave him leave for. Each step takes him away for some days. See it through and he comes back changed, and will never desert you.',
   promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
 };
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
@@ -174,19 +181,21 @@ function renderTop() {
 }
 
 function renderTabs() {
-  const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0;
-  const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['rivals', 'Rivals'], ['market', 'Market'], ['smith', 'Blacksmith'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
+  const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0, asked = G.contracts.filter(c => c.asked).length;
+  const tabs = [['ludus', 'Ludus'], ['arena', 'Arena'], ['contracts', 'Contracts'], ['rivals', 'Rivals'], ['market', 'Market'], ['smith', 'Blacksmith'], ['facilities', 'Household'], ['patrons', 'Patrons'], ['chronicle', 'Chronicle']];
   $('#tabs').innerHTML = tabs.map(([id, name]) =>
-    `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}</button>`).join('');
+    `<button class="${ui.tab === id ? 'on' : ''}" data-act="tab" data-v="${id}">${name}${id === 'arena' && open ? `<span class="badge">${open}</span>` : ''}${id === 'contracts' && asked ? `<span class="badge">${asked}</span>` : ''}</button>`).join('');
 }
 
 function renderView() {
-  const v = { ludus: viewLudus, arena: viewArena, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
+  const v = { ludus: viewLudus, arena: viewArena, contracts: viewContracts, market: viewMarket, smith: viewSmith, rivals: viewRivals, facilities: viewFacilities, patrons: viewPatrons, chronicle: viewChronicle }[ui.tab];
   $('#view').innerHTML = v();
 }
 
 function statusChips(g) {
   let s = '';
+  if (g.away) s += `<span class="chip gold"${tip('away')}>Away ${daysLeft(jobOf(g))}d</span>`;
+  if (g.quest && !g.away) s += `<span class="chip gold"${tip('quest')}>Journey waiting</span>`;
   if (g.wish) s += `<span class="chip red"${tip('vow')}>Vow</span>`;
   if (g.perkPending > 0) s += `<span class="chip gold"${tip('perk')}>Perk to choose</span>`;
   if (g.injury > 0) s += `<span class="chip red"${tip('injured')}>Injured ${g.injury}d</span>`;
@@ -207,7 +216,9 @@ function gladCard(g) {
   const acts = `<div class="today">Today he is <b>${doing}</b></div>
       <div class="acts"><span class="lbl">Rest</span><div>${actBtn(ACT_BUTTONS[0])}</div>
       <span class="lbl">Train</span><div>${ACT_BUTTONS.slice(1).map(actBtn).join('')}</div></div>`;
-  return `<div class="panel gcard ${ui.sel === g.id ? 'sel' : ''}" data-act="sel" data-v="${g.id}">
+  const J = jobOf(g);
+  const gone = J ? `<div class="today">Away: <b>${jobTitle(J)}</b></div><div class="dim" style="font-size:13px">Back ${backWhen(J)}.</div>` : '';
+  return `<div class="panel gcard ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
     <canvas width="96" height="112" data-portrait="${g.id}"></canvas>
     <div>
       <div class="name">${g.name}</div>
@@ -216,13 +227,13 @@ function gladCard(g) {
       <div class="barrow icrow"${tip('health')}>${ic('health')} ${bar('hp', g.hp, maxHp(g))}</div>
       <div class="barrow icrow"${tip('fatigue')}>${ic('fatigue')} ${bar('fat', g.fatigue, 100)}</div>
       <div class="barrow icrow"${tip('morale')}>${ic('morale')} ${bar('mor', g.morale, 100)}</div>
-      ${acts}
+      ${J ? gone : acts}
     </div>
   </div>`;
 }
 
 // Is this one of your fighters, currently set to train this stat?
-function trains(g, s) { return G.roster.includes(g) && g.injury <= 0 && (g.activity === s || g.activity === 'spar'); }
+function trains(g, s) { return G.roster.includes(g) && g.injury <= 0 && !g.away && (g.activity === s || g.activity === 'spar'); }
 
 function statRows(g, hide) {
   return STATS.map(s => `<div class="statrow"${tip(s)}>
@@ -266,6 +277,7 @@ function gladDetail(g) {
     <hr class="sep">
     ${traitList(g)}
     ${storyBlock(g)}
+    ${questBlock(g)}
     <hr class="sep">
     ${gearBlock(g)}
     <hr class="sep">
@@ -274,9 +286,9 @@ function gladDetail(g) {
       <select data-chg="tactic" data-v="${g.id}">${tac}</select>
     </div>
     <hr class="sep">
-    <div class="row">
+    <div class="row">${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
       <button${tip('sell')} data-act="sell" data-v="${g.id}">Sell for ${Math.round(value(g) / 2)}</button>
-      ${g.wins >= 8 ? `<button${tip('free')} data-act="free" data-v="${g.id}">Grant the wooden sword</button>` : `<small>Freedom may be granted after 8 victories.</small>`}
+      ${g.wins >= 8 ? `<button${tip('free')} data-act="free" data-v="${g.id}">Grant the wooden sword</button>` : `<small>Freedom may be granted after 8 victories.</small>`}`}
     </div>
   </div>`;
 }
@@ -289,6 +301,84 @@ function viewLudus() {
       <label class="row"${tip('autorest')} style="margin-bottom:10px;font-size:14px;gap:6px"><input type="checkbox" data-chg="autorest" ${G.autoRest ? 'checked' : ''}> Exhausted fighters rest on their own</label><div class="grid">${G.roster.map(gladCard).join('')}</div></div>
     <div><h2>Dossier</h2>${gladDetail(byId(ui.sel))}</div>
   </div>`;
+}
+
+// ---------- contracts and journeys ----------
+
+const daysLeft = J => J ? Math.max(1, J.end - G.day) : 0;
+const backWhen = J => { const n = daysLeft(J); return n === 1 ? 'tomorrow' : `in ${n} days (day ${J.end})`; };
+const asPct = p => Math.round(p * 100) + '%';
+function suitTip(g, D, need, land) {
+  const a = aptitude(g, D, land), p = jobOdds(D, need, [g], 0, land);
+  return `${g.name}: ${oddsWord(p).toLowerCase()} (${asPct(p)} alone).${a.why.length ? '\n' + cap1(a.why.join(', ')) + '.' : ''}${flightRisk(g) ? '\nHe may not come back.' : ''}`;
+}
+const pickChip = (act, v, g, on, D, need, land) =>
+  `<span class="chip pick ${on ? 'on' : ''} ${flightRisk(g) ? 'red' : ''}" data-act="${act}" data-v="${v}" data-w="${g.id}"${tip(suitTip(g, D, need, land))}>${g.name} <span class="num">${asPct(jobOdds(D, need, [g], 0, land))}</span></span>`;
+
+function contractCard(c) {
+  const D = CONTRACTS[c.type];
+  const picks = ui.cpicks[c.id] = (ui.cpicks[c.id] || []).filter(id => canSend(byId(id)));
+  const avail = G.roster.filter(canSend), men = picks.map(byId), ready = men.length === c.size;
+  const chips = avail.length ? avail.map(g => pickChip('cpick', c.id, g, picks.includes(g.id), D, c.need, c.land)).join('') : '<span class="dim">Nobody is free to send.</span>';
+  const p = ready ? contractOdds(c, men) : 0;
+  const suits = D.cls.map(k => CLASSES[k].name).concat(D.likes.slice(0, 3).map(t => TRAITS[t].name.toLowerCase())).join(', ');
+  const stat = STATS.filter(s => D.w[s] >= 0.3).sort((a, b) => D.w[b] - D.w[a]).map(s => STAT_NAMES[s].toLowerCase()).join(' and ');
+  const runners = men.filter(flightRisk);
+  return `<div class="panel">
+    <h3>${D.name} <small>${PATRONS[c.patron].name}</small></h3>
+    ${c.asked ? `<div><span class="chip gold"${tip('asked')}>Asked of you by name</span></div>` : ''}
+    <p style="margin:6px 0">${D.text(c)}</p>
+    <div class="kv"><span${tip('contract')}>Pay</span><b><span class="gold num">${c.pay}</span> denarii &middot; favour <span class="num">+${c.favor}</span>${D.fame ? ` &middot; fame <span class="num">+${D.fame * (1 + tier())}</span>` : ''}</b>
+      <span>Away</span><b><span class="num">${c.days}</span> day${c.days === 1 ? '' : 's'} &middot; ${missesGames(c.days) ? '<span class="bad">misses the games</span>' : '<span class="good">back before the games</span>'}</b>
+      <span${tip('danger')}>Risk</span><b class="${D.danger >= 0.65 ? 'bad' : ''}">${DANGER_WORD(D.danger)}</b>
+      <span>Calls for</span><b style="font-weight:normal;text-align:right">${stat}<br><small>${suits}</small></b></div>
+    <div style="margin:8px 0 4px">Send ${c.size === 1 ? 'one man' : c.size + ' men'}:</div>
+    <div>${chips}</div>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" data-act="csend" data-v="${c.id}" ${ready ? '' : 'disabled'}>Send ${ready ? namesOf(men) : ''}</button>
+      ${ready ? `<span${tip('odds')}>Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b> <span class="dim">${oddsWord(p).toLowerCase()}</span></span>` : `<span class="dim">Choose ${c.size - men.length} more.</span>`}
+    </div>
+    ${runners.length ? `<div class="bad" style="font-size:13px;margin-top:4px"${tip('flight')}>${namesOf(runners)} may not come back.</div>` : ''}
+  </div>`;
+}
+
+function viewContracts() {
+  const board = G.contracts.map(contractCard).join('') || '<div class="panel dim">Nobody in town has work for your men today. New offers come with each games day.</div>';
+  const away = G.jobs.map(J => `<div style="margin-bottom:8px"><b>${jobTitle(J)}</b> <small>${J.kind === 'quest' ? 'a journey of his own' : PATRONS[J.patron].name}</small><br>
+      ${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')} <span class="dim">back ${backWhen(J)}</span></div>`).join('')
+    || '<div class="dim">Every man is in the yard.</div>';
+  const waiting = G.roster.filter(g => g.quest && !g.away).map(g => `<div style="margin-bottom:6px"><span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span> <b>${QUESTS[g.quest.id].name}</b> <span class="dim">&middot; next: ${questStep(g).name.toLowerCase()} (${questStep(g).days} days)</span></div>`).join('');
+  return `<div class="cols">
+    <div><h2>Work on offer <small>until the next games</small></h2><div class="grid">${board}</div></div>
+    <div><h2>Away from the ludus</h2><div class="panel">${away}</div>
+      ${waiting ? `<h2 style="margin-top:16px">Journeys promised</h2><div class="panel">${waiting}<small>Send a man on his journey from his dossier.</small></div>` : ''}
+      <div class="panel dim" style="margin-top:16px;font-size:13px">Contracts pay about half what the same men would win at the games, and earn favour with the patron who offered them. Men who are away do not train and miss any games held while they are gone. From time to time a fighter of some standing will ask leave for a journey of his own.</div>
+    </div>
+  </div>`;
+}
+
+// A fighter's own journey, in his dossier: where it stands, and the button that sends him on.
+function questBlock(g) {
+  if (!g.quest) return '';
+  const Q = QUESTS[g.quest.id], S = questStep(g), J = jobOf(g);
+  const head = `<hr class="sep"><div${tip('quest')}><b class="gold">${Q.name}</b> <small>part ${g.quest.step + 1} of ${Q.steps.length}: ${S.name.toLowerCase()}</small></div>`;
+  if (J && J.kind === 'quest' && J.who === g.id) return `${head}<div class="dim" style="font-size:13px">${S.text} He will be back ${backWhen(J)}.</div>`;
+  if (g.away) return `${head}<div class="dim" style="font-size:13px">It waits until he is home.</div>`;
+  const others = S.with ? G.roster.filter(o => o !== g && canSend(o)) : [];
+  const wid = ui.qwith[g.id] = others.some(o => o.id === ui.qwith[g.id]) ? ui.qwith[g.id] : null;
+  const need = jobNeed(tier(), S.diff), p = questOdds(g, wid), waited = G.day - g.quest.since;
+  const why = g.injury > 0 ? 'He must heal first.' : inTourney(g) ? 'He is entered in the tournament.' : '';
+  return `${head}<div style="font-size:13px">${S.text} <span class="num">${S.days}</span> days away${missesGames(S.days) ? ', <span class="bad">missing the games</span>' : ''}. ${DANGER_WORD(S.danger)}.${g.quest.tries ? ' <span class="bad">He has failed at this once; a second failure ends it.</span>' : ''}${waited >= 6 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>
+    ${S.with ? `<div style="margin-top:6px;font-size:13px">A companion, if you can spare one: ${others.map(o => pickChip('qwith', g.id, o, wid === o.id, S, need, null)).join('') || '<span class="dim">nobody is free.</span>'}</div>` : ''}
+    <div class="row" style="margin-top:6px"><button class="primary" data-act="qsend" data-v="${g.id}" ${why ? 'disabled' : ''}>Send him</button>
+      <span${tip('odds')}>${why || `Chance of success <b class="num ${p >= 0.5 ? 'good' : 'bad'}">${asPct(p)}</b>`}</span></div>`;
+}
+
+// What came of the outings that ended this morning.
+function showReports() {
+  if (!G.reports || !G.reports.length) return;
+  G.reports.splice(0).forEach(r => showModal(`<h2>${r.title}</h2>${r.html}${okBtn()}`));
+  save();
 }
 
 function boutCard(b) {
@@ -534,6 +624,7 @@ function afterLoad() {
   modalQueue.length = 0; paintModal();
   ui.sel = null; ui.picks = {}; ui.wagers = {}; ui.tpick = null; ui.overShown = false; ui.ruinShown = false; ui.confirmSlot = null; ui.saveMsg = ''; ui.tab = 'ludus';
   render();
+  showReports();
   if (G.pendingEvent) showEvent();
   checkEnd();
 }
@@ -824,6 +915,7 @@ const ACTIONS = {
     }
     ui.confirmSkip = false;
     endDay(); render();
+    showReports();
     if (G.pendingEvent) showEvent();
     checkEnd();
   },
@@ -833,10 +925,27 @@ const ACTIONS = {
     const E = EVENTS[pe.id];
     const res = E.opts[+v].run(pe.c);
     log(`${E.title}: ${res}`);
-    G.pendingEvent = null; save();
+    G.pendingEvent = null; nextEvent(); save();
     modalQueue[0] = `<h2>${E.title}</h2><p>${res}</p>${okBtn()}`;
     paintModal(); render();
+    if (G.pendingEvent) showEvent();          // another matter is waiting behind this one
   },
+  dossier(v) { ui.sel = +v; ui.tab = 'ludus'; render(); },
+  cpick(v, w) {
+    const c = G.contracts.find(x => x.id === +v); if (!c) return;
+    const id = +w;
+    let p = ui.cpicks[c.id] || [];
+    if (p.includes(id)) p = p.filter(x => x !== id);
+    else {
+      for (const k in ui.cpicks) ui.cpicks[k] = ui.cpicks[k].filter(x => x !== id);
+      p = (ui.cpicks[c.id] || []).concat(id);
+      while (p.length > c.size) p.shift();
+    }
+    ui.cpicks[c.id] = p; render();
+  },
+  csend(v) { if (sendContract(v, ui.cpicks[v] || [])) { delete ui.cpicks[v]; render(); } },
+  qwith(v, w) { ui.qwith[v] = ui.qwith[v] === +w ? null : +w; render(); },
+  qsend(v) { if (sendQuest(v, ui.qwith[v])) { delete ui.qwith[v]; render(); } },
   smithbuy(v) { if (buyItem(v)) { save(); render(); } },
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
   smithup() { if (upgradeSmith()) { save(); render(); } },
@@ -921,8 +1030,9 @@ const ACTIONS = {
   skipdays() {
     if (G.over) { checkEnd(); return; }
     let n = 0;
-    do { endDay(); n++; } while (n < GAMES_EVERY && !isGamesDay() && !G.over && !G.pendingEvent);
+    do { endDay(); n++; } while (n < GAMES_EVERY && !isGamesDay() && !G.over && !G.pendingEvent && !G.reports.length);
     render();
+    showReports();
     if (G.pendingEvent) showEvent();
     checkEnd();
   },
@@ -1185,6 +1295,7 @@ setInterval(checkForUpdate, 10 * 60 * 1000);
 
 if (load()) {
   render();
+  showReports();
   if (G.pendingEvent) showEvent();
   checkEnd();
 } else {

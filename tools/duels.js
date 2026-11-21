@@ -4,7 +4,7 @@ const fs = require('fs'), vm = require('vm'), path = require('path');
 const root = process.argv[2];
 const ctx = { console, Math, localStorage: { getItem: () => null, setItem() {} } };
 vm.createContext(ctx);
-const src = ['data', 'sim', 'combat'].map(f => fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8')).join('\n');
+const src = ['data', 'sim', 'jobs', 'combat'].map(f => fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8')).join('\n');
 vm.runInContext(src + `
 newGame();
 function run(a, b) { const B = createBattle(a, b, {}); let n = 0; while (!B.over && n++ < 20000) stepBattle(B, 1/30); return B; }

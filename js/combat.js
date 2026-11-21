@@ -52,6 +52,10 @@ function makeFighter(g, team, i, n) {
   if (has('laureate')) show *= 1.5;
   if (has('embittered')) dmg *= 0.92;
   if (has('guarded')) { dodge += 0.05; if (c.shield) block += 0.05; }
+  if (has('watchful')) { dodge += 0.03; if (c.shield) block += 0.03; }
+  if (has('oldschool')) acc += 0.05;
+  if (has('bloodoath')) dmg *= 1.08;
+  if (has('pitfighter') && n === 1) dmg *= 1.08;
   const lungs = has('ironlungs') ? 1.3 : 1;
   dmg *= 0.94 + g.morale / 1000;
   const maxStam = (60 + s.end * 4) * lungs;
@@ -219,6 +223,7 @@ function resolveAttack(B, a, d, o) {
   if (a.hate === d) dmg *= 1.15;        // a man facing the rival he has sworn to beat
   if (a.g.traits.includes('bloodthirsty') && d.hp < d.maxHp * 0.5) dmg *= 1.15;
   if (a.g.traits.includes('lionheart') && a.hp < a.maxHp * 0.35) dmg *= 1.2;
+  if (d.g.beast && a.g.traits.includes('beastslayer')) dmg *= 1.2;
   const crit = !o.nocrit && Math.random() < Math.max(0.01, a.crit - d.critRes);
   if (crit) dmg *= a.critMult;
   let blocked = false;
@@ -486,7 +491,7 @@ function decideVerdicts(B) {
     if (f.g.beast || (f.down && B.death)) { f.fate = 'dead'; continue; }
     // in a hunt there is no appeal to the crowd: the handlers reach a fallen man in time, or they do not
     const p = B.hunt ? clamp(0.5 + B.mercy[f.team], 0, 0.9)
-      : clamp((f.yielded ? 0.88 : 0.72) + 0.25 * avg + B.mercy[f.team] + Math.min(0.1, f.dmgDealt / 300), 0, 0.98);
+      : clamp((f.yielded ? 0.88 : 0.72) + 0.25 * avg + B.mercy[f.team] + Math.min(0.1, f.dmgDealt / 300) + (f.g.traits.includes('blessed') ? 0.1 : 0), 0, 0.98);
     f.fate = Math.random() < p ? 'spared' : 'dead';
     f.revealAt = 1.2 + i * 0.9; i++;
   }

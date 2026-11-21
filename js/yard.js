@@ -374,7 +374,7 @@ function drawYard(cv, T) {
   };
   const strike = (off, every) => { if ((T + off * 3) % 9 > 7.5) return {};      // a breather
     const p = ((T + off) / every) % 1; return { windup: p < 0.22, windP: Math.min(1, p / 0.22), atkAnim: p >= 0.22 && p < 0.6 ? 1 - (p - 0.22) / 0.38 : 0 }; };
-  const by = k => G.roster.filter(g => (g.injury > 0 ? 'hurt' : g.activity) === k);
+  const by = k => G.roster.filter(g => !g.away && (g.injury > 0 ? 'hurt' : g.activity) === k);
   by('hurt').forEach((g, i) => place(g, 186 + i * 20, 141 + (i % 2) * 5, { falling: true, down: true }));
   by('str').concat(by('skl')).forEach((g, i) => {
     const p = posts[i % posts.length], right = Math.floor(i / posts.length) % 2;

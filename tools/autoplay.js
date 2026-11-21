@@ -4,7 +4,7 @@ const fs = require('fs'), vm = require('vm'), path = require('path');
 const root = process.argv[2], RUNS = +(process.argv[3] || 30), SKILL = process.argv[4] || 'good';
 const ctx = { console, Math, RUNS, SKILL, localStorage: { getItem: () => null, setItem() {} } };
 vm.createContext(ctx);
-const src = ['data', 'sim', 'combat'].map(f => fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8')).join('\n');
+const src = ['data', 'sim', 'jobs', 'combat'].map(f => fs.readFileSync(path.join(root, 'js', f + '.js'), 'utf8')).join('\n');
 vm.runInContext(src + `
 const good = SKILL === 'good';
 const WAGERS = [500, 250, 100, 50, 25];
@@ -140,7 +140,20 @@ function botEvent() {
   if (pe.id === 'trainer' && !good) i = 1;
   const o = E.opts[i];
   if (!o.ok || o.ok(pe.c)) o.run(pe.c); else E.opts[E.opts.length - 1].run(pe.c);
-  G.pendingEvent = null;
+  G.pendingEvent = null; nextEvent();
+}
+
+// Contracts and journeys: the bot sends men it can spare on work they suit, if they will be back for the games.
+function botJobs(R) {
+  for (const r of G.reports.splice(0)) { R.jobs = (R.jobs || 0) + 1; }
+  if (!good) return;
+  for (const g of G.roster) if (g.quest && canSend(g) && !missesGames(questStep(g).days)) sendQuest(g.id);
+  if (isGamesDay()) return;
+  for (const c of G.contracts.slice()) {
+    if (missesGames(c.days)) continue;
+    const men = G.roster.filter(g => canSend(g) && !flightRisk(g)).sort((a, b) => aptitude(b, CONTRACTS[c.type], c.land).score - aptitude(a, CONTRACTS[c.type], c.land).score).slice(0, c.size);
+    if (men.length === c.size && G.roster.length - men.length >= 1 && contractOdds(c, men) >= 0.6) { sendContract(c.id, men.map(g => g.id)); R.sent = (R.sent || 0) + 1; R.jobPay = (R.jobPay || 0) + c.pay; }
+  }
 }
 
 // The bot's succession: take the best man, the first boon, and whatever the points will buy.
@@ -158,7 +171,8 @@ function playRun() {
   let total = 0;
   while (total < 700) {
     if (G.ruin) { botHeir(); R.heirs++; continue; }
-    if (G.pendingEvent) botEvent();
+    while (G.pendingEvent) botEvent();
+    botJobs(R);
     G.roster.forEach(g => { while (g.perkPending > 0) choosePerk(g, perkOffer(g)[0]); });
     botSpend();
     if (G.bouts) botFight(R);
@@ -184,6 +198,7 @@ const out2 = {
   skill: SKILL, runs: RUNS, dynasty: { runsThatFell: runs.filter(r => r.heirs > 0).length, mostHeirs: Math.max(...runs.map(r => r.heirs)), wonAfterFalling: runs.filter(r => r.heirs > 0 && r.result === 'won').length, wonFirstGeneration: runs.filter(r => r.heirs === 0 && r.result === 'won').length }, gear: { medianSmithLevel: med(runs.map(r => r.smith)), medianBestKit: med(runs.map(r => +r.kit.toFixed(2))), spendPerRun: Math.round(gearSpend / RUNS) },
   tourneys: { entered: med(runs.map(r => r.tEntered || 0)), won: med(runs.map(r => r.tWon || 0)), totalWon: runs.reduce((a, r) => a + (r.tWon || 0), 0), totalEntered: runs.reduce((a, r) => a + (r.tEntered || 0), 0) },
   hunts: { fought: huntStats[0], winRate: +(huntStats[1] / Math.max(1, huntStats[0])).toFixed(2), deathsPerHunt: +(huntStats[2] / Math.max(1, huntStats[0])).toFixed(3), avgOdds: +(huntStats[3] / Math.max(1, huntStats[0])).toFixed(2), perRun: med(runs.map(r => r.hunts || 0)) }, meleesPerRun: med(runs.map(r => r.melees || 0)), medianGrudgeBouts: med(runs.map(r => r.grudges || 0)), debtDaysTotal: R_debt.n,
+  contracts: { sentPerRun: med(runs.map(r => r.sent || 0)), payOfferedPerRun: med(runs.map(r => r.jobPay || 0)), outingsEnded: med(runs.map(r => r.jobs || 0)) },
   lossDays: runs.filter(r => r.result !== 'won').map(r => r.result[0] + r.day),
   results: { won: count('won'), debt: count('debt'), empty: count('empty'), timeout: count('timeout') },
   medianWinDay: med(runs.filter(r => r.result === 'won').map(r => r.day)),

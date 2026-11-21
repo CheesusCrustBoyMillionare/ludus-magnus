@@ -33,7 +33,7 @@ function game() {
     localStorage: { getItem: k => (k in mem ? mem[k] : null), setItem(k, v) { mem[k] = String(v); }, removeItem(k) { delete mem[k]; } },
   };
   vm.createContext(ctx);
-  vm.runInContext(['data', 'sim', 'combat'].map(f => read('js/' + f + '.js')).join('\n') + HELPERS, ctx);
+  vm.runInContext(['data', 'sim', 'jobs', 'combat'].map(f => read('js/' + f + '.js')).join('\n') + HELPERS, ctx);
   return fn => vm.runInContext('(' + fn.toString() + ')()', ctx);
 }
 // Helpers available inside the game context.
@@ -58,7 +58,7 @@ function answerEvent(i) {             // resolves the pending event with option 
   let o = E.opts[i % E.opts.length];
   if (o.ok && !o.ok(pe.c)) o = E.opts[E.opts.length - 1];
   const out = o.run(pe.c);
-  G.pendingEvent = null;
+  G.pendingEvent = null; nextEvent();
   return out;
 }
 `;
@@ -72,12 +72,22 @@ test('scripts parse', () => {
   }
 });
 
+test('no two scripts declare the same global name', () => {
+  const seen = {};
+  for (const f of fs.readdirSync(path.join(root, 'js'))) {
+    for (const m of read('js/' + f).matchAll(/^(?:const|let|class|function) +([A-Za-z_$][\w$]*)/gm)) {
+      assert(!seen[m[1]] || seen[m[1]] === f, `"${m[1]}" is declared in both ${seen[m[1]]} and ${f}; the page would fail to load`);
+      seen[m[1]] = f;
+    }
+  }
+});
+
 test('page is stamped: every script and stylesheet address carries its current fingerprint', () => {
   const r = spawnSync(process.execPath, [path.join(__dirname, 'stamp.js'), '--check'], { encoding: 'utf8' });
   assert(r.status === 0, (r.stderr || r.stdout).trim());
   const html = read('index.html');
   assert(/<meta name="build" content="[0-9a-f]{8}">/.test(html), 'index.html has no build mark');
-  assert((html.match(/\?v=[0-9a-f]{8}"/g) || []).length >= 9, 'expected a fingerprint on the stylesheet and all eight scripts');
+  assert((html.match(/\?v=[0-9a-f]{8}"/g) || []).length >= 10, 'expected a fingerprint on the stylesheet and all nine scripts');
   return (r.stdout.match(/build \w+/) || [''])[0];
 });
 
@@ -108,22 +118,31 @@ test('new game starts in a sane state', () => game()(function () {
 
 test('200 days of play keep the books straight', () => game()(function () {
   newGame();
-  let events = 0, games = 0;
+  let events = 0, games = 0, sent = 0, quests = 0;
   for (let d = 0; d < 200; d++) {
     G.denarii = Math.max(G.denarii, 2000);
     G.roster.forEach(g => { g.activity = pick(['str', 'agi', 'end', 'skl', 'rest', 'spar']); });
-    while (G.roster.length < 3 && G.market.length) { const m = G.market.pop(); delete m.price; G.roster.push(m); }
+    while (G.roster.length < 4 && G.market.length) { const m = G.market.pop(); delete m.price; G.roster.push(m); }
     const day = G.day;
     endDay();
     assert(G.day === day + 1, 'day advanced');
     assert(!G.over, 'game ended unexpectedly on day ' + G.day);
-    if (G.pendingEvent) { events++; answerEvent(d); }
+    while (G.pendingEvent) { events++; answerEvent(d + events); }
+    G.reports.length = 0;
+    // keep men moving in and out: contracts when there is somebody to send, and every journey that is waiting
+    const free = G.roster.filter(canSend);
+    const c = G.contracts.find(x => x.size <= free.length - 1);
+    if (c && d % 3 === 0) { assert(sendContract(c.id, free.slice(0, c.size).map(g => g.id)), 'contract should start'); sent++; }
+    for (const g of G.roster) if (g.quest && canSend(g)) { assert(sendQuest(g.id), 'journey should start'); quests++; }
+    for (const g of G.roster) assert(!g.away || jobById(g.away), g.name + ' is away on a job that does not exist');
+    for (const J of G.jobs) assert(J.end > G.day && jobMen(J).length, 'a job outlived its men or its days');
     assert(!!G.bouts === isGamesDay(), 'bouts exist exactly on games days (day ' + G.day + ')');
     if (G.bouts) { games++; assert(G.bouts.every(b => boutEnemies(b).length === b.size || b.hunt), 'every bout has its opponents'); }
     for (const g of G.roster) assert(g.hp >= 1 && g.hp <= maxHp(g) && g.fatigue >= 0 && g.fatigue <= 100 && g.morale >= 0 && g.morale <= 100, g.name + ' out of range');
     const bad = badNumber(G); assert(!bad, 'bad number at ' + bad + ' on day ' + G.day);
   }
   assert(games === 40 && events > 10, 'expected 40 games days and some events, got ' + games + ' and ' + events);
+  assert(sent > 15 && quests > 0, 'expected contracts and journeys to run, got ' + sent + ' and ' + quests);
   assert(G.houses.every(h => h.roster.length >= 3 && h.roster.length <= 9), 'rival rosters stay stocked');
 }));
 
@@ -138,6 +157,10 @@ test('every event and every choice runs', () => game()(function () {
       const rival = G.houses[0].roster[0];
       G.roster[0].lostTo = { hid: G.houses[0].id, gid: rival.id, name: rival.name };
       if (id === 'promiseDue') G.roster[1].promise = { at: 1 };
+      // something from the road: a contract under way, and a journey at its end
+      G.contracts[0].type = 'caravan'; G.contracts[0].size = 1; G.contracts[0].patron = 'guild'; G.contracts[0].land = 'Gaul';
+      if (EVENTS[id].field) assert(sendContract(G.contracts[0].id, [G.roster[2].id]), 'contract for ' + id);
+      for (const q in QUESTS) if (QUESTS[q].finale === id) G.roster[1].quest = { id: q, step: 1, since: 1, tries: 0 };
       G.houses.forEach(h => { h.grudge = 50; });
       assert(EVENTS[id].can(), id + ' should be possible in the test setup');
       G.pendingEvent = { id, c: EVENTS[id].make() };
@@ -147,7 +170,7 @@ test('every event and every choice runs', () => game()(function () {
       n++;
     }
   }
-  assert(n >= 41, 'expected at least 41 event choices, ran ' + n);
+  assert(n >= 75, 'expected at least 75 event choices, ran ' + n);
 }));
 
 test('every style can fight every other, and every fallen fighter gets a verdict', () => game()(function () {
@@ -390,7 +413,109 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
   const fame = G.fame, n = G.roster.length;
   EVENTS.promiseDue.opts[0].run(G.pendingEvent.c);
   assert(G.roster.length === n - 1 && G.fame > fame && !G.roster.includes(c), 'keeping your word frees him and earns fame');
-  assert(!Object.keys(EVENTS).some(id => EVENTS[id].auto && id !== 'promiseDue') && !badNumber(G), 'only the promise is raised automatically');
+  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || EVENTS[id].field || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
+}));
+
+test('contracts: the board, who suits the work, going away and coming home', () => game()(function () {
+  newGame();
+  assert(G.contracts.length === 3 && G.contracts.every(c => CONTRACTS[c.type].tier === 0 && c.pay > 0 && c.pay % 5 === 0), 'three offers a village lanista can take');
+  for (const k in CONTRACTS) {
+    const D = CONTRACTS[k];
+    assert(Math.abs(STATS.reduce((s, x) => s + (D.w[x] || 0), 0) - 1) < 1e-9, k + ' stat weights add to one');
+    assert(PATRONS[D.patron] && D.events.every(e => FIELD_EVENTS[e]) && D.likes.concat(D.hates, D.trait || []).every(t => TRAITS[t]), k + ' names real patrons, events and traits');
+    assert(typeof D.text({ land: 'Gaul' }) === 'string' && D.win('X').length > 10 && D.fail('X').length > 10, k + ' has its words');
+  }
+  // suitability: the right style, trait and homeland all help; misery hurts
+  const a = makeGladiator(24, { cls: 'murmillo' }), b = makeGladiator(24, { cls: 'retiarius' });
+  STATS.forEach(s => { a.stats[s] = b.stats[s] = 6; }); a.traits = []; b.traits = []; a.origin = 'Gaul'; b.origin = 'Syria';
+  const D = CONTRACTS.bodyguard, base = aptitude(b, D, null).score;
+  assert(aptitude(a, D, null).score > base, 'a murmillo makes the better bodyguard');
+  b.traits = ['watchful']; assert(aptitude(b, D, null).score > base, 'a liked trait helps');
+  b.traits = ['nervous']; assert(aptitude(b, D, null).score < base, 'a hated trait hurts');
+  b.traits = []; assert(aptitude(b, D, 'Syria').score > base, 'so does knowing the country');
+  b.morale = 10; assert(aptitude(b, D, null).score < base && flightRisk(b), 'a broken man is worse at it, and may run');
+  b.traits = ['atpeace']; assert(!flightRisk(b), 'a man at peace never runs');
+  // going away
+  const g = G.roster[0], c = G.contracts[0], food = foodCost();
+  c.size = 1; c.days = 3; c.type = 'tutor'; c.patron = 'magistrate'; c.need = 1; c.asked = false;
+  assert(!sendContract(c.id, []) && !sendContract(c.id, [g.id, G.roster[1].id]), 'needs exactly the men it asks for');
+  g.injury = 2; assert(!sendContract(c.id, [g.id]), 'an injured man cannot go'); g.injury = 0;
+  assert(sendContract(c.id, [g.id]) && g.away && G.jobs.length === 1 && G.contracts.length === 2, 'he leaves and the offer comes off the board');
+  assert(!canFight(g) && !canSend(g) && foodCost() < food && !fit().includes(g), 'while away he cannot fight, be sent again, or eat');
+  const before = JSON.stringify(g.stats) + g.fatigue;
+  g.activity = 'str'; endDay(); G.pendingEvent = null; G.eventQueue = [];
+  assert(g.away && JSON.stringify(g.stats) + g.fatigue === before, 'he does not train while away');
+  const coin = G.denarii, fav = G.patrons.magistrate, pay = G.jobs[0].pay, fv = G.jobs[0].favor;
+  G.jobs[0].edge = 9; G.jobs[0].eventDay = 0;                 // cannot fail
+  endDay(); G.pendingEvent = null; G.eventQueue = []; endDay();
+  assert(!g.away && !G.jobs.length && G.reports.length === 1 && /denarii/.test(G.reports[0].html), 'he comes home on the day, with a report');
+  assert(G.patrons.magistrate >= fav + fv - 1 && G.denarii > coin - 100 + pay - 1 && g.xp >= 2, 'paid in silver, favour and experience');
+  // failure, wounds, death and desertion
+  let hurt = 0, dead = 0, ran = 0;
+  for (let i = 0; i < 300; i++) {
+    newGame(); G.fame = 150; genContracts();
+    const m = G.roster[0], o = G.roster[1], x = G.contracts[0];
+    Object.assign(x, { type: 'beasthunt', size: 2, patron: 'magistrate', need: 99, land: 'Gaul', asked: i % 2 === 0 });
+    if (i % 3 === 0) m.morale = 5;
+    const f0 = G.patrons.magistrate, d0 = G.denarii, n0 = G.armoury.length;
+    assert(sendContract(x.id, [m.id, o.id]), 'the hunt sets out');
+    G.jobs[0].edge = -9; finishJob(G.jobs[0]);
+    assert(G.patrons.magistrate < f0 && G.denarii === d0, 'a failed contract pays nothing and costs favour');
+    if (!G.roster.includes(m) && G.fallen.length && G.fallen.some(z => z.name === m.name)) dead++;
+    else if (!G.roster.includes(m)) { ran++; assert(G.armoury.length === n0, 'a deserter takes his kit'); }
+    else if (m.injury > 0) { hurt++; assert(m.scars.length > 0, 'a wound leaves a scar'); }
+    assert(G.roster.every(z => !z.away) && !badNumber(G), 'everyone left is home');
+  }
+  assert(hurt > 20 && dead > 0 && ran > 5, 'deadly work that fails wounds, kills and loses men: ' + [hurt, dead, ran]);
+  // an offer made by name costs favour if ignored
+  newGame(); G.contracts[0].asked = true; const f1 = G.patrons[G.contracts[0].patron], who = G.contracts[0].patron;
+  genContracts();
+  assert(G.patrons[who] === f1 - 3, 'ignoring a patron who asked by name costs favour');
+  return [hurt, dead, ran].join('/') + ' hurt/dead/fled of 300 failed hunts';
+}));
+
+test('journeys: asked for, sent in steps, and ended by your choice', () => game()(function () {
+  for (const q in QUESTS) {
+    const Q = QUESTS[q];
+    assert(EVENTS[Q.finale] && Q.steps.length >= 2, q + ' has steps and an ending');
+    for (const S of Q.steps) assert(Math.abs(STATS.reduce((s, x) => s + (S.w[x] || 0), 0) - 1) < 1e-9 && S.events.every(e => FIELD_EVENTS[e]) && (S.likes || []).every(t => TRAITS[t]), q + ': ' + S.name);
+  }
+  newGame();
+  assert(!EVENTS.quest.can(), 'raw recruits have no standing to ask');
+  const g = G.roster[0]; g.wins = 4; g.rank = 1;
+  assert(EVENTS.quest.can(), 'a proven man may ask');
+  G.pendingEvent = { id: 'quest', c: { g: g.id, q: 'village' } };
+  answerEvent(1);
+  assert(g.quest && g.quest.id === 'village' && !g.away, 'promised leave: the journey waits in his dossier');
+  assert(!questsFree().includes('village') && !questReady(g), 'one journey at a time, and nobody else is given the same one');
+  assert(sendQuest(g.id) && g.away && G.jobs[0].kind === 'quest', 'he sets out on the first step');
+  G.jobs[0].edge = 9; finishJob(G.jobs[0]);
+  assert(g.quest.step === 1 && !g.away && G.reports.length === 1, 'first step done; the second waits');
+  const o = G.roster[1]; g.injury = 0;
+  assert(sendQuest(g.id, o.id) && o.away === g.away, 'the second step may take a companion');
+  G.jobs[0].edge = 9; G.pendingEvent = null; finishJob(G.jobs[0]);
+  assert(byId(g.id) ? G.pendingEvent && G.pendingEvent.id === 'questVillage' : true, 'the last step ends in a choice');
+  if (byId(g.id)) {
+    answerEvent(0);
+    assert(g.traits.includes('bloodoath') && !g.quest && g.questDone === 'village' && g.grateful && !flightRisk(g), 'he is changed by it, and bound to the house');
+  }
+  // two failures end it
+  newGame(); const h = G.roster[0];
+  h.quest = { id: 'shrine', step: 0, since: G.day, tries: 0 };
+  sendQuest(h.id); G.jobs[0].edge = -9; finishJob(G.jobs[0]);
+  assert(h.quest && h.quest.tries === 1, 'one failure: he asks to try again');
+  h.injury = 0; sendQuest(h.id); G.jobs[0].edge = -9; finishJob(G.jobs[0]);
+  assert(!h.quest && h.questDone === 'failed', 'a second failure ends it');
+  // a brother joins the house
+  newGame(); G.denarii = 5000; G.fac.barracks = 1; const k = G.roster[0], n = G.roster.length;
+  k.quest = { id: 'brother', step: 1, since: 1, tries: 0 };
+  G.pendingEvent = { id: 'questBrother', c: EVENTS.questBrother.make() }; answerEvent(0);
+  const bro = G.roster[G.roster.length - 1];
+  assert(G.roster.length === n + 1 && bro.origin === k.origin && bondBetween(k, bro).type === 'friend' && k.traits.includes('atpeace'), 'his brother swears the oath beside him');
+  // more than one matter can wait for an answer
+  newGame(); raiseEvent('feast', EVENTS.feast.make()); raiseEvent('vigil', EVENTS.vigil.make());
+  assert(G.pendingEvent.id === 'feast' && G.eventQueue.length === 1, 'the second waits behind the first');
+  answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
 }));
 
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {

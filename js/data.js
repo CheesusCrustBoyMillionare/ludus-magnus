@@ -74,6 +74,17 @@ const TRAITS = {
   laureate:    { name: 'Laureate',    good: true,  special: true, desc: 'A tournament champion. The crowd roars at everything he does.' },
   heirblood:   { name: 'Blood of the house', good: true, special: true, desc: '+8% health. The family has always fed its fighters well.' },
   embittered:  { name: 'Embittered',  good: false, special: true, desc: 'Was promised his freedom and denied it. Trains 30% slower and hits without heart.' },
+  // earned away from the ludus, on contracts
+  beastslayer: { name: 'Beast-slayer', good: true, special: true, desc: 'Has hunted in the wild. +20% damage against beasts.' },
+  travelled:   { name: 'Well-travelled', good: true, special: true, desc: 'Knows the roads and the people on them. Better suited to any work away from the ludus.' },
+  watchful:    { name: 'Bodyguard\'s eye', good: true, special: true, desc: 'Sees the blow before it starts. +3% to dodge and block.' },
+  pitfighter:  { name: 'Pit-fighter',  good: true, special: true, desc: 'Learned in tavern pits where nobody stops the fight. +8% damage in a duel.' },
+  drillmaster: { name: 'Drillmaster',  good: true, special: true, desc: 'Teaching it taught him. Every other fighter at home trains 5% faster.' },
+  blessed:     { name: 'Favoured of Nemesis', good: true, special: true, desc: 'The crowd has heard the goddess watches him. Spared more often when he falls.' },
+  // earned by finishing a journey of his own
+  atpeace:     { name: 'At peace',     good: true, special: true, desc: 'The thing that ate at him is settled. Morale never falls below 60, and he will never desert.' },
+  bloodoath:   { name: 'Blood-debt paid', good: true, special: true, desc: 'He has killed the men he lived to kill. +8% damage.' },
+  oldschool:   { name: 'Old school',   good: true, special: true, desc: 'Taught by a master of the old style. +5% accuracy.' },
 };
 
 // ---------- equipment ----------
