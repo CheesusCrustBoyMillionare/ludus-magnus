@@ -3,7 +3,7 @@
 // You walk the lanista about it with W A S D, or click a building and he walks there himself. Stepping onto a
 // building's doorstep opens its screen. Drawn on the same 590x190 grid as the yard, at 2 canvas pixels per unit.
 
-const VILLAGE = { W: 590, H: 190, S: 2, CELL: 5, SPEED: 95 };
+const VILLAGE = { W: 590, H: 190, S: 2, CELL: 5, SPEED: 190 };
 // Each place: its screen, its name on the map, and the ground it stands on (x, y, w, h). The door is in the
 // middle of the bottom edge, and the doorstep a little below it.
 const PLACES = [
@@ -140,8 +140,8 @@ function villageStep(dt, frozen) {
     if (followPath(vil, dt, VILLAGE.SPEED)) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); }
   }
   vil.moving = Math.hypot(vil.x - x0, vil.y - y0) > 0.01;
-  if (vil.moving) { vil.stepT = (vil.stepT || 0) - dt; if (vil.stepT <= 0) { vil.stepT = 0.27; if (typeof SFX !== 'undefined') SFX.ui('step'); } }
-  if (vil.moving) { vil.walk += dt * 11; vil.puffT -= dt; if (vil.puffT <= 0) { vil.puffT = 0.16; vil.puffs.push({ x: vil.x + (Math.random() * 4 - 2), y: vil.y, t: 0 }); } }
+  if (vil.moving) { vil.stepT = (vil.stepT || 0) - dt; if (vil.stepT <= 0) { vil.stepT = 0.18; if (typeof SFX !== 'undefined') SFX.ui('step'); } }
+  if (vil.moving) { vil.walk += dt * 17; vil.puffT -= dt; if (vil.puffT <= 0) { vil.puffT = 0.16; vil.puffs.push({ x: vil.x + (Math.random() * 4 - 2), y: vil.y, t: 0 }); } }
   for (const q of vil.puffs) q.t += dt;
   if (vil.puffs.length && vil.puffs[0].t > 0.5) vil.puffs.shift();
   const here = PLACES.find(p => Math.abs(vil.x - p.dx) < 7 && Math.abs(vil.y - p.dy) < 5);
