@@ -148,6 +148,12 @@ const SFX = (() => {
       noise({ dur: 0.34, type: 'bandpass', f0: 260, f1: 1500, vol: 0.2, q: 1.6, attack: 0.08, pan, wet: 0.2 });
       tone({ type: 'triangle', f0: 320, f1: 110, dur: 0.14, vol: 0.12, delay: 0.3, pan, wet: 0.2 });
     },
+    // a man steels himself: struck bronze and a breath
+    buff(v, pan) { clang(540 * rnd(0.96, 1.04), 0.09, 0.55, pan, 0.5); noise({ dur: 0.35, type: 'bandpass', f0: 500, f1: 1400, vol: 0.14, q: 1.5, attack: 0.12, pan, wet: 0.4 }); },
+    // a second wind: three rising notes
+    heal(v, pan) { [392, 494, 587].forEach((f, i) => tone({ f0: f, dur: 0.5, vol: 0.07, attack: 0.02, delay: i * 0.08, pan, wet: 0.5 })); },
+    // a weapon swung through a crowd
+    sweep(v, pan) { noise({ dur: 0.32, type: 'bandpass', f0: 300, f1: 2600, vol: 0.4, q: 1.3, attack: 0.07, pan, wet: 0.35 }); tone({ f0: 160, f1: 70, dur: 0.22, vol: 0.25, attack: 0.02, delay: 0.1, pan, wet: 0.3 }); },
     special(v, pan, kind) {
       if (kind === 'beast') {                      // a roar, not a flourish
         tone({ type: 'sawtooth', f0: 105, f1: 58, dur: 0.55, vol: 0.3, attack: 0.05, lp: 420, lp1: 900, vib: 0.05, pan, wet: 0.6 });

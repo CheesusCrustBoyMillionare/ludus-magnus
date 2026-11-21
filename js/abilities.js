@@ -174,45 +174,90 @@ function styleEdge(a, d) {
 
 function chargeUp(f, n) { if (!out(f)) f.charge = Math.min(100, f.charge + n * f.chargeRate); }
 
+// The look of one blow of an ability landing.
+function abilityHit(B, f, o, x, res) {
+  const size = clamp((x.mult || 0.6) * (x.n ? 0.8 : 1), 0.5, 2.2), col = x.bleed ? '#ff9a8a' : x.pierce ? '#cfe6ff' : '#fff0c0';
+  vfx(B, { k: 'arc', x: o.x, y: o.y, dir: f.facing, size, col, col2: x.bleed ? '#c22a1e' : '#e0aa3e', dur: 0.22 + size * 0.06 });
+  if (res === 'hit' && (x.mult || 0) >= 1.5) { vfx(B, { k: 'flash', under: true, x: o.x, y: o.y, col: '#fff6d8', dur: 0.25 }); B.shake = Math.max(B.shake, 2.4); }
+  if (x.stun && res !== 'miss' && res !== 'dodge') vfx(B, { k: 'ring', under: true, x: o.x, y: o.y, r: 10, col: '#ffe27a', dur: 0.3 });
+}
+function abilityStrike(B, f, foes, x) {
+  const hit = [];
+  for (const o of foes) {
+    if (out(o)) continue;
+    const res = resolveAttack(B, f, o, { mult: x.mult * (x.exec && o.hp < o.maxHp * 0.4 ? x.exec : 1), unblockable: x.unblockable, pierce: x.pierce, bleed: x.bleed, stun: x.stun, kb: x.kb, nodge: x.nodge, crit: x.crit, ham: x.ham, ability: true });
+    abilityHit(B, f, o, x, res);
+    if (!out(o) && res !== 'miss' && res !== 'dodge') hit.push(o);
+  }
+  f.atkAnim = 1; f.slash = 0.16;
+  return hit;
+}
+// An ability of several blows lands them one after another, a beat apart; a stun breaks it off.
+function comboStep(B, f, dt) {
+  const c = f.combo;
+  c.t -= dt;
+  if (c.t > 0) return;
+  c.foes = c.foes.filter(o => !out(o));
+  if (!c.foes.length) { f.combo = null; return; }
+  f.facing = c.foes[0].x >= f.x ? 1 : -1;
+  abilityStrike(B, f, c.foes, c.x);
+  if (c.x.aoe) vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: c.x.aoe, r0: 6, col: '#ead2a0', dur: 0.3, a: 0.6 });
+  if (--c.left <= 0) { f.combo = null; f.cd = f.atkTime * 0.6; } else c.t = 0.13;
+}
+
 function castAbility(B, f, ab) {
   const x = ab.fx;
   let t = f.target && !out(f.target) ? f.target : null;
   if (!t) for (const o of B.fighters) if (o.team !== f.team && !out(o) && (!t || Math.hypot(o.x - f.x, o.y - f.y) < Math.hypot(t.x - f.x, t.y - f.y))) t = o;
-  f.charge = 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id;
-  fxText(B, f, ab.name, '#ffd24a', true);
-  snd(B, 'special', 1, f, f.g.beast ? 'beast' : '');
+  f.charge = 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id; f.combo = null;
+  // he calls on it: a ring of light at his feet, its name on a ribbon over his head, and the fight holds its breath
+  vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 15, col: '#ffd24a', dur: 0.45, fill: true });
+  vfx(B, { k: 'banner', f, text: ab.name.toUpperCase(), dur: 1.25 });
+  B.hitstop = Math.max(B.hitstop, 0.07);
+  snd(B, x.heal ? 'heal' : x.buff && !x.mult ? 'buff' : x.aoe ? 'sweep' : 'special', 1, f, f.g.beast ? 'beast' : '');
   feed(B, `${f.g.name}: ${ab.name}`, f.team);
   B.exc += 0.045 * f.show;
   f.state = 'ready'; f.move = null;
-  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); }
+  if (x.heal) { const h = Math.round(f.maxHp * x.heal); f.hp = Math.min(f.maxHp, f.hp + h); fxText(B, f, '+' + h, '#9fd070'); vfx(B, { k: 'motes', f, col: '#9fd070', dur: 1.1 }); }
   if (x.cleanse) { f.bleed = 0; f.snare = 0; f.weakT = 0; }
-  if (x.buff) f.buff = Object.assign({}, x.buff);
+  if (x.buff) {
+    f.buff = Object.assign({}, x.buff);
+    vfx(B, { k: 'motes', f, col: x.buff.dmg > 0 && !(x.buff.dr > 0) && !x.buff.block ? '#ff8a5a' : x.buff.dr > 0 || x.buff.block ? '#8fc0ff' : '#ffe27a', dur: 0.9 });
+    f.guard = Math.max(f.guard, x.buff.block ? 0.5 : 0);
+  }
   if (!t) return;
-  const dx = t.x - f.x, dy = t.y - f.y, dist = Math.hypot(dx, dy) || 0.01;
+  const dx = t.x - f.x, dy = t.y - f.y, dist = Math.hypot(dx, dy) || 0.01, x0 = f.x, y0 = f.y;
   f.facing = dx >= 0 ? 1 : -1;
-  if (x.back) { fxDust(B, f.x, f.y, 5); f.x -= dx / dist * 22; f.y -= dy / dist * 10; }
-  const strikes = x.mult || x.net || x.weak;
-  if (!strikes) return;
-  if (!x.net || x.mult) {                     // close with him: a blow needs reach, a net does not
-    const go = Math.max(0, dist - f.reach * 0.85);
-    if (go > 0) { fxDust(B, f.x, f.y, x.lunge ? 6 : 3); f.x += dx / dist * go; f.y += dy / dist * go; if (x.lunge) fxDust(B, f.x, f.y, 4); }
+  if (x.back) { fxDust(B, f.x, f.y, 5); f.x -= dx / dist * 22; f.y -= dy / dist * 10; vfx(B, { k: 'trail', under: true, x: x0, y: y0, x2: f.x, y2: f.y, col: B.col[f.team], dur: 0.35 }); }
+  if (!(x.mult || x.net || x.weak)) return;
+  // a net with no blow behind it is thrown: it flies, and may miss
+  if (x.net && !x.mult) {
+    const hit = Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - t.g.stats.agi * 0.012, 0.25, 0.9);
+    B.projs.push({ from: f, to: t, x: f.x, y: f.y, t: 0, dur: 0.35, hit, snare: x.net, weak: x.weak });
+    snd(B, 'net', 1, f); f.atkAnim = 1;
+    return;
+  }
+  // close with him: a blow needs reach
+  const go = Math.max(0, dist - f.reach * 0.85);
+  if (go > 0) {
+    fxDust(B, f.x, f.y, x.lunge ? 6 : 3); f.x += dx / dist * go; f.y += dy / dist * go;
+    if (go > 5) vfx(B, { k: 'trail', under: true, x: x0, y: y0, x2: f.x, y2: f.y, col: x.lunge ? '#fff0c0' : B.col[f.team], dur: x.lunge ? 0.4 : 0.25 });
+    if (x.lunge) fxDust(B, f.x, f.y, 4);
   }
   const foes = x.aoe ? B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe) : [t];
-  for (const o of foes) {
-    if (x.net) {
-      const hit = x.mult && !x.aoe ? true : Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - o.g.stats.agi * 0.012, 0.25, 0.9);
-      if (hit) { o.snare = Math.max(o.snare, x.net); fxText(B, o, 'netted', '#d8c79a'); snd(B, 'net', 1, o); if (o.state === 'windup') { o.state = 'ready'; o.move = null; } }
-      else { fxText(B, o, 'net misses', '#cfc6b4'); if (!x.mult) continue; }
-    }
-    let res = 'hit';
-    for (let i = 0; i < (x.n || 1) && x.mult && !out(o); i++) {
-      res = resolveAttack(B, f, o, { mult: x.mult * (x.exec && o.hp < o.maxHp * 0.4 ? x.exec : 1), unblockable: x.unblockable, pierce: x.pierce, bleed: x.bleed, stun: x.stun, kb: x.kb, nodge: x.nodge, crit: x.crit, ham: x.ham, ability: true });
-    }
-    if (out(o) || res === 'miss' || res === 'dodge') continue;
+  if (x.aoe) vfx(B, { k: 'ring', under: true, x: t.x, y: t.y, r: x.aoe, r0: 5, col: '#f2e2b8', dur: 0.4, fill: true, w: 3 });
+  if (x.net) for (const o of foes) {              // a net swung or hauled, with a blow to follow
+    const got = !x.aoe || Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - o.g.stats.agi * 0.012, 0.25, 0.9);
+    if (got) { o.snare = Math.max(o.snare, x.net); fxText(B, o, 'netted', '#d8c79a'); snd(B, 'net', 1, o); if (o.state === 'windup') { o.state = 'ready'; o.move = null; } }
+    else fxText(B, o, 'net misses', '#cfc6b4');
+  }
+  const hit = abilityStrike(B, f, foes, x);
+  for (const o of hit) {
     if (x.weak) { o.weakT = x.weak.t; o.weakAmt = x.weak.amt; fxText(B, o, 'weakened', '#c9b458'); }
     if (x.expose) o.open = Math.max(o.open, x.expose);
   }
-  f.atkAnim = 1; f.slash = 0.16; f.cd = f.atkTime * 0.6;
+  if ((x.n || 1) > 1) f.combo = { foes, left: x.n - 1, t: 0.13, x };
+  else f.cd = f.atkTime * 0.6;
 }
 
 // What a man chooses for himself when nobody is choosing for him.

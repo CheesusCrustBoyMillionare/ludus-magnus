@@ -90,7 +90,7 @@ function createBattle(teamA, teamB, opts) {
     intro: opts.noIntro ? 0 : 2.6,
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
-    parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [],
+    parts: [], stains: [], texts: [], projs: [], feed: [], crowd: [], specks: [], props: [], vfx: [],
     towel: false, lastDown: null, finish: null,
     ask: !!opts.ask, pick: null,                  // ask: stop the fight when one of the player's men is charged, and let him choose (pick is who is waiting)
     wild: opts.wild || null,                                     // a fight outside the walls: what stands behind it
@@ -359,7 +359,8 @@ function fighterAct(B, f, dt) {
   const dx = t.x - f.x, dy = t.y - f.y, dist = Math.hypot(dx, dy) || 0.01;
   const ux = dx / dist, uy = dy / dist;
   f.facing = dx >= 0 ? 1 : -1;
-  if (f.stun > 0) { f.stun -= dt; return; }
+  if (f.stun > 0) { f.stun -= dt; f.combo = null; return; }
+  if (f.combo) { comboStep(B, f, dt); return; }             // in the middle of an ability of several blows
 
   if (f.state === 'windup') {
     f.t -= dt;
@@ -408,6 +409,8 @@ function stepFx(B, dt) {
   B.parts = B.parts.filter(p => !p.dead);
   for (const t of B.texts) { t.y -= (t.big ? 7 : 14) * dt; t.life -= dt; }
   B.texts = B.texts.filter(t => t.life > 0);
+  for (const v of B.vfx) v.t += dt;
+  B.vfx = B.vfx.filter(v => v.t < v.dur);
   for (const l of B.feed) l.life -= dt;
   B.shake = Math.max(0, B.shake - dt * 12);
   B.flashT = Math.max(0, B.flashT - dt);
@@ -482,7 +485,9 @@ function stepBattle(B, dt) {
     if (k >= 1) {
       p.dead = true;
       if (p.hit && !out(p.to)) {
-        p.to.snare = 3; fxText(B, p.to, 'netted', '#d8c79a'); B.exc += 0.05 * p.from.show;
+        p.to.snare = Math.max(p.to.snare, p.snare || 3); fxText(B, p.to, 'netted', '#d8c79a'); B.exc += 0.05 * p.from.show;
+        if (p.weak) { p.to.weakT = p.weak.t; p.to.weakAmt = p.weak.amt; }
+        vfx(B, { k: 'ring', under: true, x: p.to.x, y: p.to.y, r: 12, col: '#e8dcb4', dur: 0.35 });
         if (p.to.state === 'windup') { p.to.state = 'ready'; p.to.move = null; }
         feed(B, `${p.from.g.name} nets ${p.to.g.name}`, p.from.team);
       } else if (!out(p.to)) fxText(B, p.to, 'net misses', '#cfc6b4');
@@ -995,6 +1000,54 @@ function renderBackdrop(B) {
   return cv;
 }
 
+// ---------- what an ability looks like ----------
+// Short-lived pictures laid over the fight: a burst under a man as he calls on an ability, the arc of a heavy
+// blow, a shockwave, the streak of a lunge, motes rising round a man who has steeled or mended himself.
+// Positions are in world units; they are drawn in sprite pixels (two to a unit). `under` ones go beneath the fighters.
+function vfx(B, o) { if (B.vfx.length < 60) B.vfx.push(Object.assign({ t: 0, dur: 0.4 }, o)); }
+function drawVfx(ctx, B, under) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  for (const v of B.vfx) {
+    const k = clamp(v.t / v.dur, 0, 1), a = 1 - k;
+    if (!!v.under !== under) continue;
+    if (v.k === 'ring') {                      // a ring spreading over the sand
+      const r = (v.r0 || 3) + ((v.r || 16) - (v.r0 || 3)) * (1 - (1 - k) * (1 - k)), n = Math.max(14, Math.round(r * 1.6));
+      ctx.globalAlpha = a * (v.a || 0.9);
+      for (let i = 0; i < n; i++) { const an = i / n * 6.283; R(v.x * 2 + Math.cos(an) * r * 2 - 1, v.y * 2 + Math.sin(an) * r * 0.9 - 1, v.w || 3, v.w || 3, v.col); }
+      if (v.fill) { ctx.globalAlpha = a * 0.24; for (let yy = -r * 0.9; yy <= r * 0.9; yy += 2) { const hw = r * 2 * Math.sqrt(Math.max(0, 1 - (yy * yy) / (r * r * 0.81))); R(v.x * 2 - hw, v.y * 2 + yy, hw * 2, 2, v.col); } }
+    } else if (v.k === 'trail') {              // where he was a moment ago, and where he is
+      for (let i = 0; i < 7; i++) { const q = i / 6; ctx.globalAlpha = a * q * 0.5; R((v.x + (v.x2 - v.x) * q) * 2 - 5, (v.y + (v.y2 - v.y) * q) * 2 - 34, 10, 30, v.col); R((v.x + (v.x2 - v.x) * q) * 2 - 8, (v.y + (v.y2 - v.y) * q) * 2 - 2, 16, 2, '#ead2a0'); }
+    } else if (v.k === 'arc') {                // the sweep of a blade: a crescent that opens and fades
+      const rad = 12 + v.size * 9, th = v.size > 1.4 ? 4 : 3, from = -1.25, span = 2.5 * Math.min(1, k * 2.2 + 0.25);
+      ctx.globalAlpha = a;
+      for (let i = 0; i <= 12; i++) { const an = from + span * (i / 12), px = v.x * 2 + v.dir * (Math.cos(an) * rad - rad * 0.55), py = v.y * 2 - 24 + Math.sin(an) * rad * 1.15; R(px, py, th, th, i > 8 ? '#ffffff' : v.col); if (v.size > 1.2) R(px - v.dir * 2, py, th, th, v.col2 || v.col); }
+    } else if (v.k === 'motes' && v.f && !out(v.f)) {      // sparks rising round him
+      for (let i = 0; i < 9; i++) { const up = (k * 46 + i * 11) % 44; ctx.globalAlpha = a * (1 - up / 50); R(v.f.x * 2 + Math.sin(i * 2.4 + k * 3) * 11, v.f.y * 2 - 4 - up, 2, 2, v.col); }
+    } else if (v.k === 'flash') {              // the sand lights for an instant under a great blow
+      ctx.globalAlpha = a * 0.5; for (let i = 0; i < 4; i++) R(v.x * 2 - 22 + i * 3, v.y * 2 - 3 + i, 44 - i * 6, 2, v.col);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+// What shows on a man for as long as it lasts: the glow of a buff, stars round a stunned head, the sag of a weakened arm.
+function drawAuras(ctx, B, T) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  for (const f of B.fighters) {
+    if (out(f)) continue;
+    const x = f.x * 2, y = f.y * 2, top = y - f.tall - 6;
+    if (f.buff) {
+      const b = f.buff, col = b.dmg > 0 && !(b.dr > 0) && !b.block ? '#ff8a5a' : b.dr > 0 || b.block ? '#8fc0ff' : '#ffe27a';
+      ctx.globalAlpha = 0.75 * Math.min(1, b.t);
+      for (let i = 0; i < 6; i++) { const an = T * 3.2 + i * 1.047; R(x + Math.cos(an) * 13, y - 3 + Math.sin(an) * 4 - (i % 2) * 2, 2, 2, col); }
+      for (let i = 0; i < 3; i++) { const up = (T * 26 + i * 15) % 40; R(x - 9 + i * 9, y - 6 - up, 1, 3, col); }
+    }
+    if (f.stun > 0.35) { ctx.globalAlpha = 1; for (let i = 0; i < 3; i++) { const an = T * 7 + i * 2.094; R(x + Math.cos(an) * 8, top + Math.sin(an) * 2.5, 2, 2, i ? '#ffe27a' : '#ffffff'); } }
+    if (f.weakT > 0) { ctx.globalAlpha = 0.8; for (let i = 0; i < 2; i++) { const d = (T * 14 + i * 7) % 12; R(x - 12 + i * 22, y - 30 + d, 3, 1, '#a39a88'); R(x - 11 + i * 22, y - 29 + d, 1, 1, '#a39a88'); } }
+    if (f.charge >= 100) { ctx.globalAlpha = 0.5 + 0.4 * Math.sin(T * 10); R(x - 10, y + 2, 20, 1, '#ffd24a'); R(x - 7, y + 4, 14, 1, '#ffd24a'); }
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawBattle(ctx, B) {
   const T = B.clock;
   ctx.imageSmoothingEnabled = false;
@@ -1024,6 +1077,7 @@ function drawBattle(ctx, B) {
   const dusk = B.light === 'dusk';
   const shadow = dusk ? { len: 16, a: 0.3 } : { len: 5, a: 0.22 };
   const flat = f => f.down && f.fallT <= 0;
+  drawVfx(ctx, B, true);
   const sorted = B.fighters.slice().sort((a, b) => (flat(a) === flat(b) ? a.y - b.y : flat(a) ? -1 : 1));
   for (const f of sorted) {
     drawSprite(ctx, {
@@ -1038,6 +1092,8 @@ function drawBattle(ctx, B) {
       hamstrung: f.hamstrung, armWound: f.armWound, shieldDmg: f.shieldHits >= 9 ? 2 : f.shieldHits >= 4 ? 1 : 0,
     });
   }
+  drawVfx(ctx, B, false);
+  drawAuras(ctx, B, T);
   for (const p of B.parts) { ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 2, 2); }
   showFront(ctx, B, T);       // dust, things thrown from the stands
 
@@ -1091,6 +1147,18 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(f.g.name, fx + 0.4, ny + 0.4);
     ctx.fillStyle = f.team ? '#bcd6ff' : '#ffd9d2'; ctx.fillText(f.g.name, fx, ny);
   }
+  for (const v of B.vfx) {
+    if (v.k !== 'banner' || !v.f) continue;
+    const k = v.t / v.dur, bx = v.f.x * Z, by = v.f.y * Z - Math.round(v.f.tall * FINE / SCALE) - 13 - k * 4;
+    ctx.font = 'bold 5px Cinzel, Georgia, serif';
+    const w = Math.ceil(ctx.measureText(v.text).width) + 8;
+    ctx.globalAlpha = Math.min(1, (1 - k) * 4) * Math.min(1, k * 12 + 0.3);
+    ctx.fillStyle = '#1a110c'; ctx.fillRect(bx - w / 2 - 1, by - 6, w + 2, 9);
+    ctx.fillStyle = B.col[v.f.team]; ctx.fillRect(bx - w / 2, by - 5, w, 7);
+    ctx.fillStyle = '#ffd24a'; ctx.fillRect(bx - w / 2, by - 5, w, 1); ctx.fillRect(bx - w / 2, by + 1, w, 1);
+    ctx.fillStyle = '#fff6d8'; ctx.fillText(v.text, bx, by);
+  }
+  ctx.globalAlpha = 1;
   for (const t of B.texts) {
     ctx.font = t.big ? 'bold 8px Cinzel, Georgia, serif' : 'bold 6px Consolas, monospace';
     ctx.globalAlpha = Math.min(1, t.life * 2.5);

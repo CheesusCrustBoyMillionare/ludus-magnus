@@ -300,6 +300,29 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
     let k = 0; while ((!F.over || F.outro <= F.outroEnd) && k++ < 40000) stepBattle(F, 1 / 30);
     assert(F.over, 'the fight after ' + ab.id + ' reaches a verdict');
   }
+  // an ability of several blows lands them one at a time, and every cast leaves something to look at
+  {
+    const me = makeGladiator(45, { cls: 'dimachaerus' }), F = createBattle([me], [makeGladiator(58, { cls: 'murmillo' })], { noIntro: true });
+    for (let i = 0; i < 60; i++) stepBattle(F, 1 / 30);
+    const f = F.fighters[0], foe = F.fighters[1]; foe.hp = foe.maxHp; f.stun = 0; F.vfx.length = 0; F.hitstop = 0;
+    castAbility(F, f, abilityById('dimachaerus.agi1'));                    // Blade storm: five cuts
+    assert(f.combo && f.combo.left === 4, 'the first cut lands at once and four are still to come');
+    assert(F.vfx.some(v => v.k === 'banner' && v.text === 'BLADE STORM') && F.vfx.some(v => v.k === 'ring') && F.vfx.some(v => v.k === 'arc'), 'a ribbon with its name, a ring at his feet, and the arc of the blade');
+    let steps = 0; while (f.combo && steps++ < 90) stepBattle(F, 1 / 30);
+    assert(!f.combo && steps > 8 && steps < 60, 'the rest follow over about half a second (' + steps + ' frames)');
+    for (let i = 0; i < 90; i++) stepBattle(F, 1 / 30);
+    assert(!F.vfx.some(v => v.k === 'banner' && v.text === 'BLADE STORM'), 'and the pictures clear away');
+    // a thrown net flies before it lands
+    const R = createBattle([makeGladiator(45, { cls: 'retiarius' })], [makeGladiator(45)], { noIntro: true }), r = R.fighters[0];
+    for (let i = 0; i < 30; i++) stepBattle(R, 1 / 30);
+    R.projs.length = 0; castAbility(R, r, abilityById('retiarius.skl0'));
+    assert(R.projs.length === 1 && R.projs[0].snare === 3.5 && R.fighters[1].snare === 0, 'the net is in the air, and he is not yet caught');
+    // a stun breaks a combo off
+    const S = createBattle([makeGladiator(45, { cls: 'dimachaerus' })], [makeGladiator(58)], { noIntro: true }), sf = S.fighters[0];
+    for (let i = 0; i < 30; i++) stepBattle(S, 1 / 30);
+    S.hitstop = 0; castAbility(S, sf, abilityById('dimachaerus.agi1')); sf.stun = 1; S.hitstop = 0; stepBattle(S, 1 / 30);
+    assert(!sf.combo, 'a stunned man loses the rest of his blows');
+  }
   // watched fights stop for the player's men, and only for them
   B = createBattle([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)], { noIntro: true, ask: true });
   let asked = 0, foeCasts = 0, steps = 0;
