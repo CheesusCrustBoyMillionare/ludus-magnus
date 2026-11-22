@@ -45,11 +45,11 @@ function provLand() {
   const REG_NAMES = WILD_REGIONS.map(q => q.name), regT = new Uint8Array(TW * TH);
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) regT[ty * TW + tx] = REG_NAMES.indexOf(wildRegion(tx * 10 + 5 + (wildNoise(tx / 6, ty / 6, 801) - 0.5) * 220 + (wildNoise(tx / 2, ty / 2, 803) - 0.5) * 70 + (h(tx, ty, 805) - 0.5) * 50, ty * 10 + 5 + (wildNoise(tx / 6, ty / 6, 802) - 0.5) * 220 + (wildNoise(tx / 2, ty / 2, 804) - 0.5) * 70 + (h(ty, tx, 806) - 0.5) * 50));
   const GROUND = {
-    'The Home Fields': ['#84a04e', '#8caa54', '#5d7f3f'], 'The Long Meadows': ['#7aa64e', '#84b056', '#588040'], 'The Salt Shore': ['#909a52', '#9aa45a', '#647a40'],
-    'Greywood': ['#74905a', '#7e9a62', '#52705a'], 'The Quarry Hills': ['#8c9a50', '#96a458', '#627a3e'], 'The High Fells': ['#7c9462', '#869e6a', '#4f7448'],
-    'The Barrow Downs': ['#6c9246', '#769c4e', '#4c7238'], 'Blackmere': ['#6a8a52', '#74945a', '#4a6a48'],
+    'The Home Fields': ['#84a04e', '#8caa54', '#5d7f3f', '#8c9854'], 'The Long Meadows': ['#7aa64e', '#84b056', '#588040', '#869a52'], 'The Salt Shore': ['#909a52', '#9aa45a', '#647a40', '#9a965c'],
+    'Greywood': ['#74905a', '#7e9a62', '#52705a', '#88925f'], 'The Quarry Hills': ['#8c9a50', '#96a458', '#627a3e', '#9b9865'], 'The High Fells': ['#7c9462', '#869e6a', '#4f7448', '#868e61'],
+    'The Barrow Downs': ['#6c9246', '#769c4e', '#4c7238', '#819253'], 'Blackmere': ['#6a8a52', '#74945a', '#4a6a48', '#848e59'],
   };
-  const ground = (k, tx, ty) => { const g = GROUND[REG_NAMES[regT[Math.max(0, Math.min(TH - 1, ty)) * TW + Math.max(0, Math.min(TW - 1, tx))]]]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : TILE_COL[k]; };
+  const ground = (k, tx, ty) => { const g = GROUND[REG_NAMES[regT[Math.max(0, Math.min(TH - 1, ty)) * TW + Math.max(0, Math.min(TW - 1, tx))]]]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : TILE_COL[k]; };
   const col = (k, tx, ty) => k === T_WATER ? (deep(tx, ty) ? '#3f7dab' : '#5a9cc6') : tint(ground(k === T_ROAD || k === T_BRIDGE ? T_GRASS : k, tx, ty), tone(tx, ty));
 
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
@@ -108,6 +108,34 @@ function provLand() {
     else if (form === 3) for (let q = 0; q < 4; q++) R(bx + Math.floor(v(5 + q) * w), by - 1 - Math.floor(v(9 + q) * hh), 1, 1, q % 2 ? '#f8f8f4' : '#f4d0d8');                      // in blossom
     else if (form === 4) { R(bx + w - 1, by - hh + 1, 3, Math.max(1, hh - 1), dk); R(bx + w, by - hh, 2, 1, lt); }                                                                     // two grown together
   };
+  // A hill: a rounded body lit from the north-west. The light is worked out along each row of it, so that the
+  // brow is bright, the flank falls through two middle tones into shade on the south-east, and the foot is dark;
+  // the lines between the tones are broken, not ruled. It throws a soft shadow down and to the right, and has
+  // no outline: its foot runs out into the ground. sh is its build: dome 0, ridge 1, cone 2, tor 3, table 4, scarp 5.
+  const hillMound = (cx, cy, rx, ry, sh, pal, rk, t) => {
+    const hi = tint(pal[1], t * 1.07), lt = tint(pal[1], t * 0.99), md = tint(pal[0], t), sd = tint(pal[2], t), dk = tint(pal[3] || pal[2], t * (pal[3] ? 1 : 0.86)), seed = cx * 7 + cy * 13;
+    const sry = Math.max(2, Math.round(ry * 0.4));
+    for (let dy = -sry; dy <= sry; dy++) { const w = Math.round(rx * 0.95 * Math.sqrt(1 - (dy * dy) / (sry * sry + 0.5))); if (w > 0) R(cx + Math.round(rx * 0.42) - w + Math.round(dy * 0.5), cy + 1 + dy, w * 2, 1, 'rgba(24,34,14,.11)'); }      // the shadow it throws
+    for (let dy = -ry; dy <= 0; dy++) {
+      const fr = (dy + ry) / Math.max(1, ry), dome = Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)), prof = sh === 2 ? 0.45 * dome + 0.55 * Math.pow(fr * 0.9 + 0.1, 0.8) : sh === 4 ? 0.7 + 0.3 * fr : dome;
+      const w = Math.max(1, Math.round(rx * prof + (h(seed + dy, cy, 121) - 0.5) * 1.4)), up = (1 - fr) * 0.55, j = q => (h(seed + dy, q, 1350) - 0.5) * 0.14;
+      const xa = cx - w, xb = cx + w, at2 = u => Math.max(xa, Math.min(xb, Math.round(cx + u * w)));
+      const x1 = at2((up - 0.5) / 0.62 + j(1)), x2 = at2((up - 0.12) / 0.62 + j(2)), x3 = at2((up + 0.34) / 0.62 + j(3)), x4 = fr > 0.72 ? at2(0.45 + (1 - fr) * 1.6 + j(4)) : xb;
+      R(xa, cy + dy, xb - xa, 1, md);
+      if (x1 > xa) R(xa, cy + dy, x1 - xa, 1, hi);
+      if (x2 > x1) R(x1, cy + dy, x2 - x1, 1, lt);
+      if (xb > x3) R(x3, cy + dy, xb - x3, 1, sd);
+      if (xb > x4) R(Math.max(x3, x4), cy + dy, xb - Math.max(x3, x4), 1, dk);
+      if (dy < 0 && dy > -ry) { if (x2 > xa + 1 && (dy + seed) % 2) R(x2, cy + dy, 1, 1, lt); if (x3 < xb - 1 && (dy + seed) % 2 === 0) R(x3 - 1, cy + dy, 1, 1, sd); }      // the tones broken into each other
+      if (dy === -ry || (dy === -ry + 1 && w > 3)) R(xa, cy + dy, Math.max(1, Math.round((xb - xa) * 0.6)), 1, hi);                                                              // the brow catching the light
+      if (rk && sh === 4 && dy + ry >= 1 && dy + ry <= (ry > 5 ? 3 : 2)) { R(xa, cy + dy, w, 1, rk[0]); R(cx, cy + dy, w, 1, rk[1]); if (h(cx, dy, 913) > 0.5) R(xa + 1 + Math.floor(h(dy, cx, 914) * w), cy + dy, 1, 1, rk[1]); }
+      if (rk && sh === 5 && fr > 0.45 && dy < 0) { const fw = Math.max(1, Math.round(w * (0.5 + h(cx, dy, 915) * 0.45))); R(xb - fw, cy + dy, fw, 1, (dy + cx) % 3 ? rk[1] : rk[0]); if (h(dy, cx, 916) > 0.7) R(xb - fw, cy + dy, 1, 1, rk[0]); }
+    }
+    for (let q = 0, n = Math.floor(rx * ry / 12); q < n; q++) { const fy = -Math.floor(h(seed, q, 1351) * ry * 0.85), fw = Math.round(rx * Math.sqrt(1 - (fy * fy) / (ry * ry + 0.5)) * 0.8), fx = cx - fw + Math.floor(h(q, seed, 1352) * fw * 2); R(fx, cy + fy, 1 + (q % 3 === 0 ? 1 : 0), 1, fx < cx ? 'rgba(255,255,220,.13)' : 'rgba(20,30,10,.13)'); }      // turf: flecks lighter on the lit side, darker on the other
+    for (let q = -rx + 1; q < rx; q += 2) if (h(seed, q, 1353) > 0.45) R(cx + q, cy + 1, 1 + (q % 4 === 0 ? 1 : 0), 1, q > rx * 0.2 ? dk : md);                                                                                                                                  // the foot, ragged, running out into the ground
+    if (rk && sh === 3) { const tw = Math.max(3, Math.min(7, rx >> 1)); R(cx - (tw >> 1), cy - ry - 1, tw, 2, rk[1]); R(cx - (tw >> 1), cy - ry - 1, tw >> 1, 2, rk[0]); R(cx - (tw >> 1) + 1, cy - ry - 3, Math.max(2, tw - 2), 2, rk[1]); R(cx - (tw >> 1) + 1, cy - ry - 3, 1, 2, rk[0]); if (tw > 4) R(cx, cy - ry - 5, 2, 2, rk[0]); }
+  };
+  const hillDepth = (tx, ty) => { for (let r = 1; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) { const o = at(tx + dx, ty + dy); if (o !== T_HILL && o !== T_PEAK) return r; } return 4; };      // how far into the high ground
   const lone = [];
   const shoreD = new Uint8Array(TW * TH).fill(255);
   { let cur = []; for (let i = 0; i < TW * TH; i++) if (L.t[i] !== T_WATER && L.t[i] !== T_BRIDGE) { shoreD[i] = 0; cur.push(i); }
@@ -299,28 +327,16 @@ function provLand() {
       const rk = reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876'] : reg === 'The High Fells' ? ['#a2aab4', '#646c78'] : reg === 'The Barrow Downs' ? ['#e6e2d2', '#b4b09c'] : ['#aaa496', '#6b665c'];
       // a hill is a dome (0), a long ridge (1), a steep cone (2), a tor with rock on its crown (3), a flat-topped
       // table with a band of rock under the rim (4), or a scarp with a broken face to the south-east (5)
-      const mound = (cx, cy, rx, ry, sh) => {
-        R(cx - rx, cy + 1, rx * 2 + 2, 1, 'rgba(0,0,0,.16)');
-        for (let dy = -ry; dy <= 0; dy++) {
-          const fr = (dy + ry) / Math.max(1, ry), prof = sh === 2 ? Math.pow(fr * 0.9 + 0.1, 0.85) : sh === 4 ? 0.7 + 0.3 * fr : Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5));
-          const w = Math.max(1, Math.round(rx * prof + (h(cx + dy, cy, 121) - 0.5) * 1.6));
-          R(cx - w, cy + dy, w * 2, 1, tint(pal[0], t));
-          if (dy < -ry * 0.25) R(cx - w + 1, cy + dy, Math.max(1, Math.round(w * (0.9 - (dy + ry) / (ry * 2.2)))), 1, tint(pal[1], t));      // the light, from the north-west
-          R(cx + w - Math.max(1, Math.round(w * 0.3)), cy + dy, Math.max(1, Math.round(w * 0.3)), 1, tint(pal[2], t));                              // the far side, in shade
-          if (sh === 4 && dy + ry >= 1 && dy + ry <= (ry > 5 ? 3 : 2)) { R(cx - w, cy + dy, w, 1, rk[0]); R(cx, cy + dy, w, 1, rk[1]); if (h(cx, dy, 913) > 0.5) R(cx - w + 1 + Math.floor(h(dy, cx, 914) * w), cy + dy, 1, 1, rk[1]); }
-          if (sh === 5 && fr > 0.45 && dy < 0) { const fw = Math.max(1, Math.round(w * (0.5 + h(cx, dy, 915) * 0.45))); R(cx + w - fw, cy + dy, fw, 1, (dy + cx) % 3 ? rk[1] : rk[0]); if (h(dy, cx, 916) > 0.7) R(cx + w - fw, cy + dy, 1, 1, rk[0]); }
-        }
-        R(cx - rx + 1, cy, rx * 2 - 1, 1, tint(pal[3], t));
-        if (sh === 3) { const tw = Math.max(3, Math.min(7, rx >> 1)); R(cx - (tw >> 1), cy - ry - 1, tw, 2, rk[1]); R(cx - (tw >> 1), cy - ry - 1, tw >> 1, 2, rk[0]); R(cx - (tw >> 1) + 1, cy - ry - 3, Math.max(2, tw - 2), 2, rk[1]); R(cx - (tw >> 1) + 1, cy - ry - 3, 1, 2, rk[0]); if (tw > 4) R(cx, cy - ry - 5, 2, 2, rk[0]); }
-      };
-      if (a > 0.58 || (hillN < 3 && a > 0.3)) {
-        const big = hillN === 4 && a > 0.8, form = h(tx, ty, 911) < 0.6 ? zq(wildNoise(tx / 8, ty / 8, 910), 6) : Math.floor(h(tx, ty, 912) * 6);
-        let rx = big ? 10 + Math.floor(b * 8) : 4 + Math.floor(b * 6), ry = Math.max(3, Math.round(rx * (0.5 + h(tx, ty, 122) * 0.35)));
-        if (form === 1) { rx = Math.round(rx * 1.7); ry = Math.max(2, Math.round(rx * 0.26)); }
-        else if (form === 2) ry = Math.round(rx * (0.95 + h(tx, ty, 122) * 0.45));
+      const mound = (cx, cy, rx, ry, sh) => hillMound(cx, cy, rx, ry, sh, pal, rk, t);
+      const hd = hillDepth(tx, ty), quiet = h(tx, ty, 1360) > 0.5;
+      if (a > (hd === 1 ? 0.6 : hd === 2 ? 0.66 : hd === 3 ? 0.72 : 0.76)) {
+        const form = h(tx, ty, 911) < 0.6 ? zq(wildNoise(tx / 8, ty / 8, 910), 6) : Math.floor(h(tx, ty, 912) * 6);
+        let rx = hd === 1 ? 5 + Math.floor(b * 4) : hd === 2 ? 8 + Math.floor(b * 5) : hd === 3 ? 11 + Math.floor(b * 7) : 14 + Math.floor(b * 9), ry = Math.max(3, Math.round(rx * (0.5 + h(tx, ty, 122) * 0.28)));
+        if (form === 1) { rx = Math.round(rx * 1.5); ry = Math.max(3, Math.round(rx * 0.3)); }
+        else if (form === 2) ry = Math.round(rx * (0.8 + h(tx, ty, 122) * 0.3));
         else if (form === 4) ry = Math.max(3, Math.round(rx * 0.62));
         const cx = x + Math.floor(h(tx, ty, 123) * 10), cy = y + 2 + Math.floor(h(tx, ty, 124) * 10);
-        if (h(tx, ty, 125) > 0.7) mound(cx + rx - 2, cy - 1, Math.max(3, rx - 3), Math.max(2, ry - 1), form === 1 ? 1 : 0);      // a shoulder behind it
+        if (h(tx, ty, 125) > 0.55) { const sdir = h(tx, ty, 1361) > 0.5 ? 1 : -1; mound(cx + sdir * Math.round(rx * 0.75), cy - 1 - Math.round(ry * 0.15), Math.max(3, Math.round(rx * 0.68)), Math.max(2, Math.round(ry * 0.72)), form === 1 ? 1 : 0); }      // a shoulder behind it, to one side or the other
         mound(cx, cy, rx, ry, form);
         const e = h(tx, ty, 126), top = cy - ry;
         if (e > 0.03 && e < 0.09) for (let q = 0, n = 1 + Math.floor(b * 3); q < n; q++) { const px = cx - 3 + q * 3, py = top + 1 + (q % 2); R(px, py, 1, 2, '#4a3320'); R(px - 1, py - 2, 3, 2, '#2c5230'); R(px, py - 4, 1, 2, '#2c5230'); R(px - 1, py - 2, 1, 1, '#437046'); }      // pines along the crown
@@ -333,6 +349,8 @@ function provLand() {
         else if (e > 0.86) { R(cx - 3, cy - 2, 2, 1, '#55703a'); R(cx + 1, cy - 3, 2, 1, '#55703a'); R(cx - 1, cy - 1, 1, 1, '#6f8a4a'); }              // scrub
         else if (e > 0.82) for (let q = 0; q < 3; q++) R(cx - rx + 2 + q * 2, cy - 1 - q, rx - q * 2, 1, tint(pal[2], t));                              // terraces cut into it
         else if (e < 0.03) { R(cx, cy - ry - 5, 1, 5, '#4a3320'); R(cx - 2, cy - ry - 7, 5, 3, '#3f6a2c'); R(cx - 1, cy - ry - 8, 3, 1, '#57863a'); }  // a lone tree
+      } else if (quiet) {                          // half of what lies between the hills is left as open turf
+        if (b > 0.6) for (let q = 0; q < 2; q++) R(x + 1 + Math.floor(h(tx, ty, 1362 + q) * 8), y + 2 + Math.floor(h(tx, ty, 1364 + q) * 6), 2, 1, tint(pal[q ? 2 : 1], t));
       } else if (a < 0.1) {                        // bare ground between: stones, a goat track
         rocks(x, y, tx, ty, reg);
       } else if (a < 0.2) for (let q = 0; q < 5; q++) R(x + q * 2 + Math.floor(b * 2), y + 3 + Math.floor(h(tx + q, ty, 136) * 4), 2, 1, tint(pal[3], t));
@@ -1148,7 +1166,7 @@ function provLand() {
     } else if (dHill && e1 < (dHill === 1 ? 0.5 : 0.2)) {        // foothills
       const pal = reg === 'The Quarry Hills' ? ['#b9b083', '#cfc79c', '#8d8660'] : reg === 'The High Fells' ? ['#8f9a78', '#a6b08e', '#6c765a'] : reg === 'The Barrow Downs' ? ['#86a05a', '#9ab56c', '#64803f'] : ['#a3a866', '#b9be7c', '#7f8548'];
       const rx = 3 + Math.floor(e2 * (dHill === 1 ? 5 : 3)), ry = Math.max(2, Math.round(rx * 0.55)), cx = x + Math.floor(e3 * 10), cy = y + 3 + Math.floor(e2 * 7), t = tone(tx, ty);
-      feats.push({ y: cy - 6, d: () => { R(cx - rx, cy + 1, rx * 2 + 2, 1, 'rgba(0,0,0,.14)'); for (let dy = -ry; dy <= 0; dy++) { const w = Math.max(1, Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)))); R(cx - w, cy + dy, w * 2, 1, tint(pal[0], t)); if (dy < -ry * 0.3) R(cx - w + 1, cy + dy, Math.max(1, Math.round(w * 0.7)), 1, tint(pal[1], t)); R(cx + w - Math.max(1, Math.round(w * 0.3)), cy + dy, Math.max(1, Math.round(w * 0.3)), 1, tint(pal[2], t)); } } });
+      feats.push({ y: cy - 6, d: () => hillMound(cx, cy, rx + 1, ry + 1, 0, pal, null, t) });
     } else if (dMarsh && e1 < (dMarsh === 1 ? 0.55 : 0.2)) {     // wet ground at the marsh's edge
       feats.push({ y: y, d: () => {
         if (e2 > 0.5) { const pw = 3 + Math.floor(e3 * 4), px = x + Math.floor(e2 * (10 - pw)); R(px, y + 5, pw, 2, '#3d5a52'); R(px + 1, y + 4, Math.max(1, pw - 2), 1, '#3d5a52'); R(px + 1, y + 5, Math.max(1, pw - 2), 1, '#587a78'); }
