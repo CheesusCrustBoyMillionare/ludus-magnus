@@ -199,7 +199,11 @@ function vilPerson(ctx, X, Y, o) {
 
 // Everything that does not move, drawn once.
 function villageLayer() {
-  if (vil.layer && vil.layer.width === VILLAGE.W * VILLAGE.S) return vil.layer;
+  // What you have built shows on the map, so the map is painted again whenever a level changes.
+  const F = (typeof G !== 'undefined' && G && G.fac) || {}, SM = (typeof G !== 'undefined' && G && G.smith) ? (G.smith.level | 0) : 0;
+  const key = [F.barracks, F.ground, F.infirmary, F.baths, F.shrine, F.stores, F.stables, SM].map(v => v | 0).join('');
+  if (vil.layer && vil.layer.width === VILLAGE.W * VILLAGE.S && vil.layerKey === key) return vil.layer;
+  vil.layerKey = key;
   const cv = document.createElement('canvas'); cv.width = VILLAGE.W * VILLAGE.S; cv.height = VILLAGE.H * VILLAGE.S;
   const ctx = cv.getContext('2d'); ctx.setTransform(VILLAGE.S, 0, 0, VILLAGE.S, 0, 0); ctx.imageSmoothingEnabled = false;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
@@ -245,7 +249,7 @@ function villageLayer() {
   R(291, 88, 10, 4, '#a39d8a'); R(292, 87, 8, 1, '#d4cfbc'); R(294, 79, 4, 8, '#c9c3ae'); R(294, 76, 4, 3, '#d9d2bd'); R(293, 80, 1, 5, '#b5af9b'); R(298, 81, 2, 1, '#c9c3ae');
   for (const [bx, by] of [[262, 136], [322, 136], [262, 96], [322, 96]]) { R(bx, by, 12, 3, '#8a6a3a'); R(bx, by, 12, 1, '#a8834a'); R(bx + 1, by + 3, 1, 2, '#5a4326'); R(bx + 10, by + 3, 1, 2, '#5a4326'); }
   // flowers by the temple, barrels by the tavern, crates by the market, hay by the school, washing by the forge
-  for (const fx of [374, 460]) { R(fx, 56, 8, 5, '#5a4326'); for (let k = 0; k < 4; k++) R(fx + k * 2, 56 + (k % 2), 2, 2, ['#e06a8a', '#f2e6a0', '#b9a0e0', '#e8a0a0'][k]); }
+  for (const fx of ((F.shrine | 0) >= 1 ? [460] : [374, 460])) { R(fx, 56, 8, 5, '#5a4326'); for (let k = 0; k < 4; k++) R(fx + k * 2, 56 + (k % 2), 2, 2, ['#e06a8a', '#f2e6a0', '#b9a0e0', '#e8a0a0'][k]); }
   for (const bx of [478, 562]) { R(bx, 142, 6, 7, '#7a5a2a'); R(bx, 142, 6, 1, '#3a2a1c'); R(bx, 145, 6, 1, '#3a2a1c'); R(bx + 1, 141, 4, 1, '#a8834a'); }
   R(138, 140, 7, 7, '#a8834a'); R(138, 140, 7, 1, '#c9a25a'); R(141, 135, 6, 6, '#a8834a'); R(141, 135, 6, 1, '#c9a25a');
   R(213, 52, 12, 8, '#c9a24a'); R(214, 50, 10, 2, '#d9bd6a'); R(213, 59, 12, 1, '#a8853a');
@@ -278,12 +282,29 @@ function villageLayer() {
       tiles(x, y, w, 30, '#b5522e'); R(x + 26, y + 8, 26, 14, '#5a2a18'); R(x + 27, y + 9, 24, 12, '#6f9a4a'); R(x + 36, y + 13, 6, 4, '#6fb0d0'); R(x + 30, y + 11, 2, 2, '#3f6a2a'); R(x + 46, y + 17, 2, 2, '#3f6a2a');
       wall(x + 2, y + 30, w - 4, 16, '#ead9b4'); for (const cx of [x + 8, x + 18, x + w - 21, x + w - 11]) win(cx, y + 35);
       R(p.dx - 9, y + 31, 2, 15, '#f4ecd8'); R(p.dx + 7, y + 31, 2, 15, '#f4ecd8'); door(p, 8, 11);
-    } else if (p.kind === 'ludus') {          // the school: barracks round a sanded yard
-      tiles(x, y, w, 32, '#a8482a'); R(x + 16, y + 7, w - 32, 22, '#5a2a18'); R(x + 17, y + 8, w - 34, 20, '#e2c98f');
-      for (let i = 0; i < 4; i++) { R(x + 26 + i * 15, y + 14, 2, 8, '#7a5a2a'); R(x + 25 + i * 15, y + 14, 4, 1, '#7a5a2a'); }
-      for (let i = 0; i < 26; i++) R(x + 18 + rnd(i + 3, w - 38), y + 9 + rnd(i + 9, 17), 2, 1, '#d2b77c');
-      wall(x + 2, y + 32, w - 4, 16, '#dccba0'); for (let cx = x + 8; cx < x + w - 8; cx += 11) if (Math.abs(cx + 1 - p.dx) > 9) win(cx, y + 37);
-      door(p, 10, 12, '#4a2c18'); R(p.dx - 7, y + 33, 14, 2, '#7e241c'); R(x + 4, y + 24, 1, 9, '#5a4326'); R(x + 5, y + 24, 6, 4, '#a02d22');
+    } else if (p.kind === 'ludus') {          // the school: barracks round a sanded yard, and everything you have built there
+      const bl = F.barracks | 0, gl = F.ground | 0, il = F.infirmary | 0, wl = F.baths | 0, ch = bl >= 2 ? 16 : 20;
+      tiles(x, y, w, 32, bl >= 1 ? '#a8482a' : '#9a7a42');                               // thatch until the barracks are built up; tile after
+      if (bl === 0) for (let q = 0; q < 60; q++) R(x + 1 + rnd(q + 500, w - 3), y + 1 + rnd(q + 560, 30), 1, 2, q % 2 ? '#c8a85a' : '#7a5e30');
+      R(x + 16, y + 7, w - 32, ch + 2, '#5a2a18'); R(x + 17, y + 8, w - 34, ch, '#e2c98f');
+      for (let q = 0; q < 26; q++) R(x + 18 + rnd(q + 3, w - 38), y + 9 + rnd(q + 9, ch - 3), 2, 1, '#d2b77c');
+      // the training ground: a post for each level, then a chalked ring, then a rack of arms and a statue of some old champion
+      for (let q = 0; q <= gl; q++) { const px = x + 24 + q * 13; R(px, y + 12, 2, 8, '#7a5a2a'); R(px - 1, y + 12, 4, 1, '#7a5a2a'); R(px, y + 20, 3, 1, 'rgba(0,0,0,.2)'); if (gl >= 2) { R(px, y + 14, 2, 2, '#a8452e'); } }
+      if (gl >= 2) for (let q = 0; q < 26; q++) { const a2 = q / 26 * 6.283; R(x + w / 2 + Math.cos(a2) * 24, y + 8 + ch / 2 + Math.sin(a2) * (ch / 2 - 2), 2, 1, '#f6ecc8'); }
+      if (gl >= 3) { const rx = x + 20; R(rx, y + 9, 1, 6, '#5e4426'); R(rx + 6, y + 9, 1, 6, '#5e4426'); R(rx, y + 10, 7, 1, '#7a5a2a'); for (let q = 0; q < 3; q++) R(rx + 1 + q * 2, y + 7, 1, 6, '#c1c7cc'); R(x + w - 44, y + 9, 4, 2, '#c9c0aa'); R(x + w - 43, y + 5, 2, 4, '#d6ccb8'); R(x + w - 43, y + 4, 2, 1, '#e8e2d2'); }
+      // the baths: a trough, then a pool, then a larger one rimmed in white, then a dome over the hot room
+      if (wl === 0) { R(x + w - 28, y + ch + 3, 6, 2, '#6b4f2c'); R(x + w - 27, y + ch + 3, 4, 1, '#5aa0d0'); }
+      else { const pw = wl >= 2 ? 11 : 8, phh = wl >= 2 ? 6 : 5, px = x + w - 19 - pw, py = y + 8 + ch - phh - 1; R(px, py, pw, phh, wl >= 2 ? '#f4fafb' : '#b8ab94'); R(px + 1, py + 1, pw - 2, phh - 2, '#4f8fb8'); R(px + 2, py + 1, pw - 5, 1, '#8fc3e0'); }
+      if (wl >= 3) { ell(x + w - 9, y + 15, 6, 5, '#7f97a4'); ell(x + w - 9, y + 14, 6, 4, '#a8c4d0'); ell(x + w - 11, y + 12, 3, 2, '#cfe2ea'); R(x + w - 10, y + 9, 2, 2, '#e3b04a'); }
+      // the barracks' front: one floor, then two, then a colonnade along it
+      const wy = bl >= 2 ? y + 26 : y + 32, wh = y + 48 - wy;
+      wall(x + 2, wy, w - 4, wh, bl >= 2 ? '#e6d6ae' : '#dccba0');
+      for (let cx = x + 8; cx < x + w - 8; cx += 11) { if (Math.abs(cx + 1 - p.dx) > 9) win(cx, y + 37); if (bl >= 2) win(cx, y + 29); }
+      door(p, 10, 12, '#4a2c18'); R(p.dx - 7, y + 33, 14, 2, '#7e241c');
+      if (bl >= 3) { for (let cx = x + 4; cx < x + w - 4; cx += 12) if (Math.abs(cx + 1 - p.dx) > 7) { R(cx, wy + 1, 2, wh - 1, '#f8f2e2'); R(cx + 1, wy + 1, 1, wh - 1, '#d8d0bc'); R(cx - 1, wy, 4, 1, '#fbf6ea'); } R(x + 2, wy - 1, w - 4, 1, '#f0e8d6'); for (let q = 0; q < 4; q++) R(p.dx - 8 + q * 2, wy - 2 - q, 16 - q * 4, 1, q === 3 ? '#e8b545' : '#f0e8d6'); }
+      // the infirmary: a stretch of the front whitewashed, under a green cross, wider as it is improved, with a door of its own
+      if (il >= 1) { const iw = 9 + il * 4; R(x + 2, wy, iw, wh, '#f6f1e4'); R(x + 2, wy, iw, 1, '#cfc8b4'); R(x + 2 + iw, wy, 1, wh, '#b8ab94'); R(x + 2, wy + wh - 2, iw, 2, '#ddd6c2'); const cxx = x + 2 + Math.floor(iw / 2); R(cxx, wy + 2, 1, 5, '#3f8a3a'); R(cxx - 2, wy + 4, 5, 1, '#3f8a3a'); if (il >= 2) { R(cxx - 2, y + 40, 4, 8, '#3a2416'); R(cxx - 3, y + 39, 6, 1, '#5a4326'); } if (il >= 3) { R(x + 1, wy - 2, iw + 2, 2, '#c2552e'); R(x + 1, wy - 2, iw + 2, 1, '#de7652'); } }
+      R(x + w - 6, y + 22, 1, 11, '#5a4326'); R(x + w - 5, y + 22, 6, 4, '#a02d22'); R(x + w - 5, y + 22, 6, 1, '#c8483a');
     } else if (p.kind === 'arena') {          // the amphitheatre, seen from above and a little to the south
       const cx = x + w / 2, cy = y + 28;
       // one ring of it: the far half in the light, the near half in its own shade
@@ -332,10 +353,22 @@ function villageLayer() {
       R(x, y + 8, w, h - 8, '#8a6a3a'); for (let yy = y + 11; yy < y + h; yy += 4) R(x, yy, w, 1, '#77592e'); R(x, y + h - 2, w, 2, '#5f4622');
       [['#b93a2e', 2], ['#2f6db8', 35], ['#c9a21e', 68]].forEach(([c, ox]) => { for (let i = 0; i < 28; i += 4) { R(x + ox + i, y, 2, 14, c); R(x + ox + i + 2, y, 2, 14, '#efe6cf'); } R(x + ox, y + 13, 28, 2, shade(c, 0.7)); R(x + ox, y + 15, 1, 12, '#5a4326'); R(x + ox + 27, y + 15, 1, 12, '#5a4326'); R(x + ox + 4, y + 20, 20, 5, '#a8834a'); R(x + ox + 6, y + 18, 4, 2, '#d9642e'); R(x + ox + 13, y + 18, 4, 2, '#7fae4a'); R(x + ox + 19, y + 18, 3, 2, '#e8d27a'); });
       R(x + 6, y + 33, 7, 7, '#a8834a'); R(x + 6, y + 33, 7, 1, '#c9a25a'); R(x + w - 16, y + 32, 9, 8, '#a8834a'); R(x + w - 16, y + 32, 9, 1, '#c9a25a'); R(p.dx - 6, y + h - 6, 12, 6, '#6b5028'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
-    } else if (p.kind === 'forge') {          // dark slate, a chimney, and a fire you can see from the street
-      tiles(x, y, w, 28, '#5d5864'); R(x + w - 18, y + 4, 10, 10, '#4a4650'); R(x + w - 17, y + 5, 8, 8, '#8f8a84'); R(x + w - 15, y + 7, 4, 4, '#1c1614');
-      wall(x + 2, y + 28, w - 4, 18, '#b8ab94'); win(x + 9, y + 34); R(p.dx - 7, y + 33, 14, 13, '#2a1a12'); R(p.dx - 8, y + 32, 16, 1, '#5a4326'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
-      R(x + w - 16, y + 38, 8, 3, '#55504a'); R(x + w - 14, y + 41, 4, 5, '#3f3a36');
+    } else if (p.kind === 'forge') {          // the forge, as good as you have made it
+      if (SM === 0) { tiles(x, y, w, 28, '#8a6a3a'); for (let q = 0; q < 50; q++) R(x + 1 + rnd(q + 700, w - 3), y + 1 + rnd(q + 760, 26), 1, 2, q % 2 ? '#b8964e' : '#6b4f2c'); }      // wooden shingles and straw
+      else tiles(x, y, w, 28, SM >= 3 ? '#4f4a58' : '#5d5864');
+      if (SM >= 1) { R(x + w - 18, y + 4, 10, 10, '#4a4650'); R(x + w - 17, y + 5, 8, 8, '#8f8a84'); R(x + w - 15, y + 7, 4, 4, '#1c1614'); }            // the chimney
+      if (SM >= 2) { R(x + 8, y + 6, 8, 8, '#4a4650'); R(x + 9, y + 7, 6, 6, '#8f8a84'); R(x + 11, y + 9, 2, 2, '#1c1614'); }                                // a second hearth, a second chimney
+      if (SM >= 3) { R(x, y + 13, w, 2, '#a8482a'); R(x, y + 13, w, 1, '#c9684a'); }                                                                          // the ridge capped in tile
+      if (SM >= 4) { R(x, y + 13, w, 1, '#e8b545'); R(p.dx - 2, y + 9, 4, 4, '#e8b545'); R(p.dx - 4, y + 10, 2, 2, '#e8b545'); R(p.dx + 2, y + 10, 2, 2, '#e8b545'); }      // gilded, with the eagle on it
+      wall(x + 2, y + 28, w - 4, 18, SM === 0 ? '#a89878' : SM >= 3 ? '#c4b8a2' : '#b8ab94');
+      if (SM >= 3) for (const qx of [x + 2, x + w - 5]) for (let q = 0; q < 18; q += 4) R(qx, y + 28 + q, 3, 3, '#ddd4c0');                                 // dressed stone at the corners
+      win(x + 9, y + 34); if (SM >= 2) win(x + 17, y + 34);
+      R(p.dx - 7, y + 33, 14, 13, '#2a1a12'); R(p.dx - 8, y + 32, 16, 1, '#5a4326'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
+      if (SM >= 2) { for (let q = 0; q < 16; q += 4) { R(p.dx - 8 + q, y + 29, 2, 3, '#8a2a20'); R(p.dx - 6 + q, y + 29, 2, 3, '#e8dcc0'); } R(p.dx - 8, y + 32, 16, 1, '#5e1c16'); }      // an awning over the door
+      R(x + w - 16, y + 38, 8, 3, '#55504a'); R(x + w - 14, y + 41, 4, 5, '#3f3a36');                                                                        // the anvil outside
+      if (SM >= 1) { R(x + w - 9, y + 30, 1, 3, '#3a2a1c'); R(x + w - 11, y + 33, 5, 4, SM >= 3 ? '#e8b545' : '#8a8478'); R(x + w - 10, y + 34, 3, 2, '#3a2a1c'); }      // his sign: iron, then gold
+      if (SM >= 2) { R(x + 22, y + 36, 1, 10, '#5e4426'); R(x + 30, y + 36, 1, 10, '#5e4426'); R(x + 22, y + 37, 9, 1, '#7a5a2a'); for (let q = 0; q < 3; q++) R(x + 24 + q * 2, y + 33, 1, 9, '#c1c7cc'); }      // a rack of blades for sale
+      if (SM >= 4) { for (const qx of [p.dx - 11, p.dx + 9]) { R(qx, y + 30, 2, 16, '#f4ecd8'); R(qx + 1, y + 30, 1, 16, '#d8d0bc'); R(qx - 1, y + 29, 4, 1, '#fbf6ea'); } for (const qx of [x + 4, x + w - 8]) { R(qx, y + 29, 4, 9, '#a8261c'); R(qx, y + 29, 4, 1, '#e8b545'); R(qx + 1, y + 32, 2, 2, '#e8b545'); } }      // columns by the door and the emperor's colours
     } else if (p.kind === 'forum') {          // an open colonnade where notices are posted
       R(x, y, w, h, '#c9c2ad'); for (let yy = y + 2; yy < y + h; yy += 7) for (let xx = x + ((yy - y) % 14 ? 2 : 6); xx < x + w - 6; xx += 10) R(xx, yy, 9, 6, '#d6d0bd');
       R(x, y, w, 9, '#b5522e'); for (let xx = x + 3; xx < x + w; xx += 6) R(xx, y, 1, 9, '#a04628'); R(x, y + 8, w, 1, '#6f2e1a'); R(x, y, w, 1, '#d0673c');
@@ -351,6 +384,29 @@ function villageLayer() {
       R(x + 6, y + 40, 5, 6, '#7a5a2a'); R(x + 6, y + 40, 5, 1, '#3a2a1c'); R(x + 6, y + 43, 5, 1, '#3a2a1c');
     }
   }
+  // your shrine in the temple precinct: an altar, then a little house for the god, then a greater one with gold on it
+  { const l = F.shrine | 0, sx = 362, sy = 60;
+    if (l >= 1) { R(sx, sy, 18, 2, 'rgba(0,0,0,.2)');
+      if (l === 1) { R(sx + 5, sy - 7, 7, 7, '#d8d2c0'); R(sx + 4, sy - 8, 9, 1, '#f0ebde'); R(sx + 4, sy - 1, 9, 1, '#b5ad98'); R(sx + 10, sy - 7, 2, 7, '#b5ad98'); R(sx + 7, sy - 10, 3, 2, '#e2702a'); R(sx + 8, sy - 11, 1, 1, '#f5c04a'); }
+      else { const w2 = l === 2 ? 12 : 16, h2 = l === 2 ? 10 : 13, x0 = sx + ((18 - w2) >> 1);
+        R(x0, sy - h2, w2, h2, '#e8e2d2'); R(x0 + 2, sy - h2 + 3, w2 - 4, h2 - 3, '#3a2a1c'); R(x0, sy - h2 + 3, 2, h2 - 3, '#f8f4ea'); R(x0 + w2 - 2, sy - h2 + 3, 2, h2 - 3, '#c9c2ae'); if (l === 3) { R(x0 + 5, sy - h2 + 3, 2, h2 - 3, '#f8f4ea'); R(x0 + w2 - 7, sy - h2 + 3, 2, h2 - 3, '#d8d2c0'); }
+        for (let q = 0; q < 4; q++) R(x0 - 1 + q * 2, sy - h2 - q, w2 + 2 - q * 4, 1, q === 0 ? '#d8d2c0' : '#efe9da'); R(x0 + (w2 >> 1) - 1, sy - h2 - 5, 2, 2, l === 3 ? '#e8b545' : '#d8d2c0');
+        R(x0 + (w2 >> 1) - 1, sy - 5, 2, 5, '#d8d2c0'); R(x0 + (w2 >> 1) - 1, sy - 7, 2, 2, '#e2702a'); R(x0 - 1, sy - 1, w2 + 2, 1, '#b5ad98'); if (l === 3) { R(x0 - 3, sy - 3, 2, 3, '#5d7f3f'); R(x0 + w2 + 1, sy - 3, 2, 3, '#5d7f3f'); R(x0, sy - h2, w2, 1, '#e8b545'); } } } }
+  // the stables across the street from the forum: a shed and a mule, then stalls and a cart, then a tiled range, a wagon and hay
+  { const l = F.stables | 0, sx = 402, sy = 185;
+    if (l >= 1) { const w2 = 12 + l * 6; R(sx + 2, sy, w2 + 2, 2, 'rgba(0,0,0,.2)');
+      R(sx, sy - 9, w2, 9, l >= 3 ? '#dccba0' : '#8a6a3a'); for (let q = 3; q < w2; q += 6) { R(sx + q, sy - 7, 4, 7, '#2a1c14'); R(sx + q, sy - 3, 4, 1, '#6b4f2c'); }
+      if (l >= 3) tiles(sx - 1, sy - 14, w2 + 2, 5, '#a8482a'); else { R(sx - 1, sy - 12, w2 + 2, 3, '#9a7a42'); R(sx - 1, sy - 12, w2 + 2, 1, '#b8964e'); }
+      R(sx + 4, sy - 5, 4, 2, '#8a6a4a'); R(sx + 7, sy - 6, 2, 2, '#8a6a4a');                                      // a mule looking out
+      if (l >= 2) { const cx2 = sx + w2 + 3; R(cx2, sy - 5, 9, 4, '#8a6a3a'); R(cx2, sy - 6, 9, 1, '#a8834a'); R(cx2 + 1, sy - 2, 3, 3, '#3a2a1c'); R(cx2 + 6, sy - 2, 3, 3, '#3a2a1c'); R(cx2 + 9, sy - 4, 4, 1, '#6b4f2c'); if (l >= 3) { R(cx2, sy - 9, 9, 3, '#d9c27a'); R(cx2 + 1, sy - 10, 7, 1, '#e6d088'); } }
+      if (l >= 3) { R(sx - 8, sy - 5, 6, 5, '#d9c070'); R(sx - 7, sy - 6, 4, 1, '#e6d088'); R(sx - 8, sy - 3, 6, 1, '#b89a4a'); } } }
+  // the granary and garden beside your house: beds and a pig, then a round store, then a great one with more beds
+  { const l = F.stores | 0, gx = 94, gy = 60;
+    if (l >= 1) {
+      for (let q = 0; q < (l >= 3 ? 3 : 2); q++) { R(gx, gy - 6 - q * 6, 8, 5, '#6b5028'); for (let k = 0; k < 3; k++) R(gx + 1 + k * 2, gy - 5 - q * 6, 2, 3, (q + k) % 2 ? '#6f9a3a' : '#8ab04a'); }
+      R(gx + 10, gy - 5, 6, 1, '#7a5a2a'); R(gx + 10, gy - 1, 6, 1, '#7a5a2a'); R(gx + 10, gy - 5, 1, 5, '#7a5a2a'); R(gx + 15, gy - 5, 1, 5, '#7a5a2a'); R(gx + 11, gy - 3, 3, 2, '#e0a8a0'); R(gx + 14, gy - 3, 1, 1, '#c88880');
+      if (l >= 2) { const gr = l >= 3 ? 5 : 4; ell(gx + 13, gy - 9, gr + 2, 2, 'rgba(0,0,0,.2)'); R(gx + 13 - gr, gy - 16, gr * 2, 7, '#d8c9a2'); R(gx + 13 + gr - 2, gy - 16, 2, 7, '#bcae88'); ell(gx + 13, gy - 17, gr + 1, 3, l >= 3 ? '#a8482a' : '#9a7a42'); ell(gx + 12, gy - 18, gr - 1, 2, l >= 3 ? '#c9684a' : '#b8964e'); R(gx + 12, gy - 13, 2, 4, '#3a2416'); }
+      if (l >= 3) { R(gx + 3, gy - 22, 4, 4, '#d9c070'); R(gx + 3, gy - 22, 4, 1, '#e6d088'); R(gx + 3, gy - 20, 4, 1, '#b89a4a'); } } }
   // the town wall, all the way round, with its battlements
   const stone = '#b8ab94', top = '#d8cdb6', dark = '#8f846e';
   R(0, 0, 590, 3, stone); R(0, 3, 590, 1, dark); R(0, 186, 590, 4, stone); R(0, 186, 590, 1, top);
@@ -404,6 +460,11 @@ function drawVillage(cv, T) {
     if (!still) { ctx.globalAlpha = 0.5; R(px - fwd * 4, py, 2, 1, '#bfe0f4'); R(px - fwd * 6, py + 1, 2, 1, '#bfe0f4'); ctx.globalAlpha = 1; }
   }
   { const q = (T * 0.25) % 1; ctx.globalAlpha = 0.6 * (1 - q); R(388 - q * 4, 178, 2 + Math.round(q * 8), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
+  // what you have built, alive: the flame on your shrine, steam off the bath, the school's flag
+  { const F2 = G.fac || {}, lu = placeOf('ludus');
+    if ((F2.shrine | 0) >= 1) { const fl2 = Math.sin(T * 11) > 0 ? 1 : 0; R(370, 51 - fl2 - ((F2.shrine | 0) > 1 ? 2 : -1), 2, 2 + fl2, '#f5c04a'); if (night > 0.3) sceneGlow(ctx, 371, 52, 10, '255,170,80', 0.3 * Math.min(1, (night - 0.3) * 2.5)); }
+    if ((F2.baths | 0) >= 2 && night < 0.7) for (let q = 0; q < 2; q++) { const p2 = (T * 0.3 + q / 2) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(lu.x + lu.w - 26 + q * 4 + Math.sin(p2 * 5) * 2, lu.y + 20 - p2 * 9, 3, 2, '#eef6f8'); } ctx.globalAlpha = 1;
+    if ((F2.stables | 0) >= 1 && Math.sin(T * 0.8) > 0.7) R(411, 178, 1, 1, '#6f5a48'); }
   // what moves on the buildings: water, smoke, the forge fire, flags
   for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.6; R(296 + Math.cos(a) * 5, 118 + Math.sin(a) * 3, 2, 1, '#d6ecf8'); }
   R(295, 109 - Math.abs(Math.sin(T * 3)) * 2, 2, 3, '#bfe0f4');
