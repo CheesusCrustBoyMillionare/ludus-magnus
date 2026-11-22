@@ -107,6 +107,7 @@ function drawPlace(cv, T, tab) {
     for (const [cx, ch] of [[18, 34], [44, 26], [556, 30], [578, 38], [300, 22]]) E.cypress(cx, 122, ch);
   }
   scene.draw(E);
+  placeGuest(E, tab);                           // and the master of the house, if he has come in
   if (!scene.indoor && sky.night < 0.6 && wx.rain < 0.4) {      // a dog with business of its own goes through, now and then
     const cyc = ((T + tab.length * 17) % 61) / 14;
     if (cyc < 1) { const d = tab.length % 2 ? 1 : -1, dx = Math.round(d > 0 ? -20 + cyc * 640 : 610 - cyc * 640), dy = 184, st = Math.sin(T * 14) > 0 ? 1 : 0, c = ['#8a6a4a', '#c9b48a', '#3a322c'][tab.length % 3], F = (px, py, w, hh, col) => R(d > 0 ? dx + px : dx - px - w, dy + py, w, hh, col);
@@ -171,8 +172,43 @@ const TOWN_TUNICS = ['#8a4a3a', '#4a6a8a', '#7a7a3a', '#6a4a7a', '#3f7a5a', '#a8
 const TOWN_SKINS = ['#d9a57c', '#c9966c', '#8a5a3a', '#e3b48f'];
 const townsman = i => ({ tunic: TOWN_TUNICS[i % 9], skin: TOWN_SKINS[i % 4], hair: i % 2 ? '#2a1c14' : '#6a4a2a' });
 
-// The lanista, indoors at the forge: where he stands in the picture of it.
-const smithGuest = { token: 0, x: 568, y: 160, d: -1, t: 0, walk: 0 };
+// The lanista, in the picture of whatever place he has gone into (vil.inside, see village.js). He comes in at the side
+// the door is on, goes to whatever is being read in the list beside the picture, and points it out; with nothing of
+// the place's chosen, he waits where a visitor would. For each place: where he comes in, the line he walks, where he
+// waits, and (point) what he should be pointing at just now: { x, y } of the thing, and frame: [w, h] to ring it.
+const sceneGuests = {};
+const GUEST = {
+  smith: () => { const stock = G.smith.stock.slice(0, 12), i = stock.findIndex(it => it.id === ui.isel);
+    return { door: 568, y: 160, wait: 524, point: i >= 0 ? { x: 308 + (i % 6) * 40, y: 62 + Math.floor(i / 6) * 52, frame: [26, 43] } : null }; },
+  contracts: () => { const offers = (G.contracts || []).slice(0, 8), i = offers.findIndex(c => c.id === ui.csel);
+    return { door: 20, y: 150, wait: 150, point: i >= 0 ? { x: 221 + (i % 4) * 34, y: 87 + Math.floor(i / 4) * 21 } : null }; },
+  market: () => { const men = (G.market || []).slice(0, 6), i = men.findIndex(m => m.id === ui.msel);
+    return { door: 570, y: 182, wait: 430, point: i >= 0 ? { x: 216 + i * (men.length > 4 ? 30 : 36), y: 104, frame: [16, 46] } : null }; },
+  rivals: () => { const rows = G.houses.map(H => ({ id: H.id, p: H.prestige })).concat([{ p: G.fame, you: true }]).sort((a, b) => b.p - a.p), i = rows.findIndex(h => h.id !== undefined && h.id === ui.hsel);
+    return { door: 14, y: 162, wait: 130, point: i >= 0 ? { x: 196 + i * 62, y: 47 } : null }; },
+  patrons: () => ({ door: 20, y: 176, wait: 330, point: null }),
+  arena: () => ({ door: 20, y: 176, wait: 250, point: null }),
+  facilities: () => ({ door: 20, y: 176, wait: 300, point: null }),
+  chronicle: () => ({ door: 20, y: 162, wait: 300, point: null }),
+};
+function placeGuest(E, tab) {
+  if (typeof vil === 'undefined' || vil.inside !== tab || !GUEST[tab] || typeof ui === 'undefined') return;
+  const { R, T } = E, o = GUEST[tab](), Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }), pt = o.point;
+  if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = o.door; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; }      // just in: he starts at the door
+  const dt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
+  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = pt ? pt.x + side * 13 : o.wait, gap = tx - Gs.x, moving = Math.abs(gap) > 1;
+  if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), 62 * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * 11; } else Gs.d = pt ? -side : (o.door > 295 ? -1 : 1);
+  const X = Math.round(Gs.x), Y = o.y, d = Gs.d;
+  if (pt && pt.frame) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed
+  E.P(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
+  R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a');                                                   // the purple stripe, and the laurel
+  R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
+  if (!moving && pt) {                                                                              // his arm up, and his stick to reach what his arm cannot: gold at the tip
+    const sx = X + d * 3, sy = Y - 26, ax = pt.x - d * 8 - sx, ay = pt.y - sy, n = Math.hypot(ax, ay) || 1, reach = 11 + (Math.sin(T * 2.2) > 0.6 ? 1 : 0);
+    for (let q = 0; q <= reach; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > reach - 3 ? '#e3b48f' : '#d9a57c');
+    const far = Math.max(reach + 2, Math.min(n - 16, reach + 30)); for (let q = reach + 1; q <= far; q++) R(Math.round(sx + ax / n * q), Math.round(sy + ay / n * q), 1, 1, q > far - 2 ? '#e8b545' : '#7a5a2a');
+  }
+}
 const PLACE_SCENES = {
   // ---- the slave market: stalls, and the block with today's men on it ----
   market: { draw(E) {
@@ -309,25 +345,6 @@ const PLACE_SCENES = {
     for (let i = 0; i < 3 + lv * 2; i++) R(300 + (i % 4) * 9 + (Math.floor(i / 4) % 2) * 4, 136 - Math.floor(i / 4) * 4, 8, 3, i % 3 ? '#8d9094' : '#b98a34');
     E.barrel(468, 144); E.barrel(480, 146);
     E.lamp(280, 76); E.lamp(540, 44);
-    // the master of the house, once he has come in at the door: he goes along the wall to the piece being read, and points it out
-    if (typeof vil !== 'undefined' && vil.inside === 'smith') {
-      const Gs = smithGuest, floorY = 160, stock = G.smith.stock.slice(0, 12), sel = typeof ui !== 'undefined' ? stock.findIndex(it => it.id === ui.isel) : -1;
-      if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = 568; Gs.y = floorY; Gs.d = -1; Gs.t = T; Gs.walk = 0; }      // just in: he starts at the door
-      const dt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
-      const ix = sel >= 0 ? 308 + (sel % 6) * 40 : 0, iy = sel >= 0 ? 48 + Math.floor(sel / 6) * 52 + 14 : 0;
-      const tx = sel >= 0 ? ix - 13 : 524, gap = tx - Gs.x, moving = Math.abs(gap) > 1;      // nothing of the smith's chosen: he waits by his own racks at the door
-      if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), 62 * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * 11; } else Gs.d = sel >= 0 ? 1 : -1;
-      const X = Math.round(Gs.x), Y = Gs.y, d = Gs.d;
-      if (sel >= 0) { const c = '#f5d584', a2 = 0.55 + 0.35 * Math.sin(T * 5); E.ctx().globalAlpha = a2; R(ix - 13, iy - 20, 26, 1, c); R(ix - 13, iy + 22, 26, 1, c); R(ix - 13, iy - 20, 1, 43, c); R(ix + 12, iy - 20, 1, 43, c); E.ctx().globalAlpha = 1; }      // the piece in question, marked on the wall
-      E.P(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
-      R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a');                                                   // the purple stripe, and the laurel
-      R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
-      if (!moving && sel >= 0) {                                                                         // his arm up, and a finger on it
-        const sx = X + d * 3, sy = Y - 26, ax = ix - d * 8 - sx, ay = iy - sy, n = Math.hypot(ax, ay) || 1, reach = 11 + (Math.sin(T * 2.2) > 0.6 ? 1 : 0);
-        for (let q = 0; q <= reach; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > reach - 3 ? '#e3b48f' : '#d9a57c');
-        { const far = Math.max(reach + 2, Math.min(n - 16, reach + 30)); for (let q = reach + 1; q <= far; q++) R(Math.round(sx + ax / n * q), Math.round(sy + ay / n * q), 1, 1, q > far - 2 ? '#e8b545' : '#7a5a2a'); }      // and his stick, to reach what his arm cannot: gold at the tip
-      }
-    }
   } },
 
   // ---- the arena, from the street ----

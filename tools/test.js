@@ -909,6 +909,25 @@ test('a man who falls while the fight goes on is judged at once, and a killing i
   assert(plain > 3, 'nobody died');
 }));
 
+test('the quick ways through are closed: a lost final costs fame and a wait, and a man out of a story is no better than the school has earned', () => game()(function () {
+  // beaten before the Emperor
+  newGame(); G.fame = FINAL_FAME + 100; G.day = GAMES_EVERY; genBouts();
+  const b = G.bouts.find(x => x.final); assert(b, 'the summons comes at ' + FINAL_FAME + ' fame');
+  while (G.roster.length < 3) G.roster.push(makeGladiator(18));
+  let B = null; for (let i = 0; i < 20 && !(B && B.winner === 1); i++) { G.roster.forEach(g => { g.hp = maxHp(g); g.injury = 0; g.foughtDay = 0; }); B = fight(G.roster.slice(0, 3), boutEnemies(b)); }
+  assert(B.winner === 1, 'three novices do not beat the men of the Emperor');
+  const fame = G.fame, r = applyBoutResult(b, B, 0, 1);
+  assert(!r.win && !G.won && G.fame === fame - FINAL_LOSS && G.finalBar === G.day + FINAL_WAIT && r.lines.some(l => /summons/.test(l)), 'a lost final: ' + FINAL_LOSS + ' fame, and no summons for ' + FINAL_WAIT + ' days');
+  G.fame = FINAL_FAME + 500; G.roster.forEach(g => { g.injury = 0; });
+  G.day = b ? G.day + GAMES_EVERY : G.day; genBouts(); assert(!G.bouts.some(x => x.final), 'no summons while Rome is still waiting');
+  G.day = G.finalBar + (GAMES_EVERY - G.finalBar % GAMES_EVERY) % GAMES_EVERY; genBouts(); assert(G.bouts.some(x => x.final), 'and then it comes again');
+  // a man out of a story
+  newGame(); const best = Math.max(...G.roster.map(statSum));
+  assert(taleBudget(50, 6) === best + 6 && taleBudget(50, 0) === best && taleBudget(20, 6) === 20, 'measured against the best man of the school, and never past what the country allows');
+  G.roster[0].stats = { str: 20, agi: 20, skl: 20 }; assert(taleBudget(50, 6) === 50 && taleBudget(26, -3) === 26, 'a great school gets the man the country has to give');
+  G.roster = []; assert(taleBudget(50, 6) === 16, 'and nobody is handed a champion for having no one');
+}));
+
 test('a bout pays out and updates records', () => game()(function () {
   let wins = 0, losses = 0;
   for (let i = 0; i < 40; i++) {

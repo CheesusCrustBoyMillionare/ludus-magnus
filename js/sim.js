@@ -1900,7 +1900,7 @@ function genBouts() {
       H.roster = H.roster.filter(g => g !== drop);
     }
   }
-  if (G.fame >= FINAL_FAME && !G.won) {
+  if (G.fame >= FINAL_FAME && !G.won && !(G.finalBar > G.day)) {
     const enemies = [];
     for (let k = 0; k < 3; k++) enemies.push(makeEnemy(FINAL_BUDGET, 4));
     bouts.unshift({
@@ -2236,6 +2236,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
   bout.res = { win, purse, fame: fameGain, bet: wager ? wagerGain - wager : 0, men: mine.map(f => f.g.name), dead: dead.map(g => g.name), kills, exc: Math.round(avgExc * 100) };
   if (bout.tourney) advanceTourney(win, lines);
   if (bout.final && win) G.won = true;
+  if (bout.final && !win) { const drop = Math.min(G.fame, FINAL_LOSS); G.fame -= drop; G.finalBar = G.day + FINAL_WAIT; lines.push(`<span class="bad">Beaten before the Emperor. Rome is slow to send twice for a school it has seen lose: <b class="num">${drop}</b> fame is gone, and no summons will come for ${FINAL_WAIT} days, however the school stands by then.</span>`); log(`Beaten at the Emperor's Games: ${drop} fame lost, and no summons for ${FINAL_WAIT} days.`, 'bad'); }
   if (win) {                                  // what goes in the book of records
     const who = mine.map(f => f.g.name).join(' & ');
     setRecord('purse', purse, who, bout.house, true); setRecord('fame', fameGain, who, bout.house, true); setRecord('wager', wagerGain, who, bout.house, true);

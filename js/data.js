@@ -171,6 +171,9 @@ const TIERS = [
   { name: 'The Great Arena',   fame: 700 },
 ];
 const FINAL_FAME = 1100;
+// To be beaten before the Emperor is not forgotten: the summons is withdrawn, and has to be earned again. (Without this
+// the quickest way to win was to go up for it every games day at any odds: see tools/race.js, the plan finalBold.)
+const FINAL_LOSS = 120, FINAL_WAIT = 20;      // fame lost, and days before Rome will send again
 const GAMES_EVERY = 5;
 
 const ACTIVITIES = { rest: 'Rest', str: 'Train strength', agi: 'Train agility', skl: 'Train skill', spar: 'Spar (needs a doctore)' };

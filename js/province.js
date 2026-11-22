@@ -4,6 +4,9 @@
 // The map is 2400 by 1800 units; the window shows 480 by 360 of it, at 2 canvas pixels per unit.
 
 const PROV = { VW: 480, VH: 360, S: 2, SPEED: 88 };
+// The eagle over the column: how fast she flies, how far behind the column's own movements she is (seconds), and how
+// slowly she comes round to a new heading (the share of the old heading she still has after a second).
+const EAGLE = { speed: 104, lag: 0.55, turn: 0.07 };
 const prov = { land: null, raf: 0, last: 0, prev: 0, path: null, trail: [], face: 'down', walk: 0, moving: false, mini: 0, saved: 0, camX: 0, camY: 0, hint: 0, big: false, night: -1e9 };
 
 // ---------- the country, painted once ----------
@@ -3932,7 +3935,17 @@ function drawProvince(cv, T) {
   point(tx, ty, 'HOME', '#2a1a0c', '#f1ead8');
   // the eagle, turning over the column: wider and higher the better it is trained, its shadow going over the ground beneath
   { const el = facLvl('eagle'); if (el > 0 && !prov.big) {
-      const an = T * (0.55 - el * 0.05), rr = 22 + el * 9, ex = Math.round(F.x - camX + Math.cos(an) * rr), ey = Math.round(F.y - camY - 30 - el * 4 + Math.sin(an) * rr * 0.45), flap = Math.sin(T * 2.2) > 0.75 ? 1 : 0, wspan = 3 + el, bank = Math.cos(an) > 0 ? 1 : -1;
+      // She is not tied to the column: she follows it. What she flies for is where the column was a moment ago (EAGLE.lag),
+      // she comes round to a new heading by degrees and not at once, and she has a speed of her own, a little better than a
+      // mounted column's. Left behind, she makes it up; when the column halts she overruns it a little and goes back to circling.
+      const E = prov.eagleAt && Math.hypot(prov.eagleAt.x - F.x, prov.eagleAt.y - F.y) < 420 ? prov.eagleAt : (prov.eagleAt = { x: F.x, y: F.y, vx: 0, vy: 0, t: T, was: [], head: 1 });
+      const edt = clamp(T - E.t, 0, 0.1); E.t = T;
+      E.was.push([T, F.x, F.y]); while (E.was.length > 2 && E.was[1][0] <= T - EAGLE.lag) E.was.shift();
+      const gx = E.was[0][1] - E.x, gy = E.was[0][2] - E.y, gd = Math.hypot(gx, gy), want = Math.min(EAGLE.speed, gd * 1.6), turn = 1 - Math.pow(EAGLE.turn, edt);
+      E.vx += ((gd > 0.5 ? gx / gd * want : 0) - E.vx) * turn; E.vy += ((gd > 0.5 ? gy / gd * want : 0) - E.vy) * turn;
+      E.x += E.vx * edt; E.y += E.vy * edt;
+      const going = clamp(Math.hypot(E.vx, E.vy) / EAGLE.speed, 0, 1); if (Math.abs(E.vx) > 6) E.head = E.vx > 0 ? 1 : -1;
+      const an = T * (0.55 - el * 0.05), rr = (22 + el * 9) * (1 - 0.75 * going), ex = Math.round(E.x - camX + Math.cos(an) * rr), ey = Math.round(E.y - camY - 30 - el * 4 + Math.sin(an) * rr * 0.45), flap = Math.sin(T * (2.2 + going * 5)) > 0.75 - going * 0.6 ? 1 : 0, wspan = 3 + el, bank = going > 0.3 ? E.head : Math.cos(an) > 0 ? 1 : -1;
       const P = (x, y, ww, hh, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, ww, hh); };
       P(ex - wspan + 6, ey + 34 + el * 4, wspan * 2 + 1, 1, 'rgba(0,0,0,.16)'); P(ex + 5, ey + 35 + el * 4, 3, 1, 'rgba(0,0,0,.12)');
       P(ex - wspan, ey - flap, wspan, 1, '#4a3a2a'); P(ex + 1, ey - flap, wspan, 1, '#4a3a2a'); P(ex - wspan - 1, ey - flap - 1, 2, 1, '#3a2c20'); P(ex + wspan, ey - flap - 1, 2, 1, '#3a2c20');

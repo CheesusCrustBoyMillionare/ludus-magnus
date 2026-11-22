@@ -146,7 +146,7 @@ function followPath(o, dt, speed) {
 
 // Doors he goes in at, instead of standing on the step: he walks into the doorway, small in it, and is gone from the
 // map (vil.inside) until he is walked somewhere else; the screen of the place shows him indoors (see places.js).
-const INDOORS = ['smith'], DOOR_IN = 0.75, DOOR_OUT = 0.35;
+const INDOORS = PLACES.map(p => p.key), DOOR_IN = 0.75, DOOR_OUT = 0.35;      // every building in the town
 function villageOut() { if (vil.inside || vil.enter) { vil.outKey = vil.inside || vil.enter.key; vil.outT = DOOR_OUT; } vil.inside = null; vil.enter = null; }
 function villageStep(dt, frozen) {
   if (vil.enter) {                              // on his way in at a door
@@ -614,7 +614,7 @@ function drawVillage(cv, T) {
     const k = vil.enter ? clamp(vil.enter.t / DOOR_IN, 0, 1) : vil.outT > 0 ? vil.outT / DOOR_OUT : 0;      // how far into the doorway he is
     if (k <= 0) { vilPerson(ctx, vil.x, vil.y, look); return; }
     // going in: up off the step into the doorway, growing small as he goes (a little smaller than the door), and gone
-    const p = placeOf(vil.enter ? vil.enter.key : vil.outKey), dx = p.dx, dy = p.y + p.h, s = 1 - 0.42 * k, x = vil.x + (dx - vil.x) * k, y = vil.y + (dy - vil.y) * k;
+    const p = placeOf(vil.enter ? vil.enter.key : vil.outKey), dx = p.dx, dy = p.y + p.h, s = 1 - (p.kind === 'arena' ? 0.3 : 0.42) * k, x = vil.x + (dx - vil.x) * k, y = vil.y + (dy - vil.y) * k;
     ctx.save(); ctx.globalAlpha = k > 0.82 ? Math.max(0, (1 - k) / 0.18) : 1; ctx.translate(Math.round(x), Math.round(y)); ctx.scale(s, s);
     vilPerson(ctx, 0, 0, Object.assign(look, vil.enter ? { face: 'up', moving: true, walk: T * 14 } : { face: 'down' }));
     ctx.restore();

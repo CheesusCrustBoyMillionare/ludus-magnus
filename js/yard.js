@@ -11,7 +11,9 @@ let yardHits = [];          // click targets: { x0, x1, y0, y1, fighter | tab }
 let yardPrev = 0;           // when the yard was last drawn, to step the people in it
 const yardAgents = {};      // staff and resting fighters who move about: where they are and what they are doing
 let yardBirds = null;
-let yardForce = null;       // for testing from the console: { weather: 'rain', u: 0.8 } pins the weather and the hour
+let yardForce = null;
+let yardSel = null;         // where the fighter whose dossier is open stands in the yard, this frame
+const yardGuest = { token: 0, x: 537, y: 136, d: -1, t: 0, walk: 0 };      // the lanista, when he has come in at the gate       // for testing from the console: { weather: 'rain', u: 0.8 } pins the weather and the hour
 
 // Anyone who walks about the yard. He heads for (tx, ty), then waits there.
 function yardAgent(key, x, y) {
@@ -500,7 +502,10 @@ function drawYard(cv, T) {
       for (let q = 0; q < 1 + Math.floor(w / 50); q++) R(x + 2 + Math.floor(wildHash(x, q, 1511) * (w - 8)), y - 3 - Math.floor(wildHash(q, x, 1512) * 5), 3, 1, '#6f8a4a'); }      // moss in a joint or two
     else { R(x - 2, y - 3, w + 4, 4, '#8a6a4a'); R(x - 2, y - 3, w + 4, 1, '#a8855e'); }
   };
-  const door = (x, w, h) => { doors.push([x, w, h]); R(x - 1, GY - h - 1, w + 2, h + 1, '#5a4334'); R(x - 1, GY - h - 1, w + 2, 1, '#7a6150'); R(x, GY - h, w, h, '#241812'); R(x, GY - h, 1, h, '#3a2a1c'); R(x + 1, GY - h, w - 1, 3, 'rgba(0,0,0,.3)'); R(x - 2, GY - 1, w + 4, 1, '#9a8a70'); };
+  const door = (x, w, h) => { const di = doors.length; doors.push([x, w, h]); R(x - 1, GY - h - 1, w + 2, h + 1, '#5a4334'); R(x - 1, GY - h - 1, w + 2, 1, '#7a6150'); R(x, GY - h, w, h, '#241812'); R(x, GY - h, 1, h, '#3a2a1c'); R(x + 1, GY - h, w - 1, 3, 'rgba(0,0,0,.3)'); R(x - 2, GY - 1, w + 4, 1, '#9a8a70');
+    // a lamp lit inside some of the cells after dark: painted here, in the doorway itself, so that whatever stands in front
+    // of the door (a column, a man asleep against the wall) is in front of its light too. Bright, because the night is laid over it.
+    if (sky.night > 0.05 && (di * 7 + 3) % 5 < 3) { ctx.globalAlpha = Math.min(1, sky.night * 1.1); R(x, GY - h, w, h, '#c8742a'); R(x + 1, GY - h + 2, w - 2, h - 2, '#ffb24a'); R(x + 2, GY - h + 5, w - 4, h - 9, '#ffd27a'); R(x, GY - h, w, 2, '#8a4a1c'); ctx.globalAlpha = 1; } };
   const win = (x, y) => { R(x - 1, y - 1, 8, 9, '#5a4334'); R(x, y, 6, 7, '#241812'); R(x + 3, y, 1, 7, '#5a4334'); for (const sx of [-4, 7]) { R(x + sx, y - 1, 3, 9, '#6f5140'); R(x + sx, y - 1, 3, 1, '#8a6a54'); for (let q = 1; q < 8; q += 2) R(x + sx, y + q, 3, 1, '#57402f'); } R(x - 2, y + 8, 10, 1, '#c9bca0'); R(x - 2, y + 9, 10, 1, 'rgba(0,0,0,.2)'); lights.push([x, y]); };      // shutters folded back, and a sill
   const column = (x, y, h) => { R(x, y, 5, h, '#f0e8d6'); R(x, y, 1, h, '#c9c0aa'); R(x + 2, y + 3, 1, h - 6, '#dcd2be'); R(x + 4, y + 2, 1, h - 4, '#fbf6ea'); R(x - 1, y, 7, 2, '#f0e8d6'); R(x - 2, y - 1, 9, 1, '#fbf6ea'); R(x - 1, y + h - 2, 7, 2, '#d6ccb8'); R(x - 2, y + h, 9, 1, 'rgba(0,0,0,.2)'); };
 
@@ -733,7 +738,9 @@ function drawYard(cv, T) {
         things.push({ y: GY + 13, draw: () => yardPerson(ctx, 522, GY + 13, -1, { tunic: c, hair: '#2a1c14', item: 'scroll' }) });
         label(522, GY + 22, k === 'temple' ? 'from the Temple' : k === 'guild' ? 'from the Guild' : 'from the Magistrate'); } }
   }
+  yardSel = null;
   const place = (g, x, y, o) => {
+    if (typeof ui !== 'undefined' && g.id === ui.sel) yardSel = { id: g.id, x, y };      // where the man being read stands, for his master to walk over to
     things.push({ y, draw: () => {
       drawSprite(ctx, Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o));
       if (g.id === ui.sel) { R(x - 2, y - 52, 5, 2, '#e8b545'); R(x - 1, y - 50, 3, 1, '#e8b545'); R(x, y - 49, 1, 1, '#e8b545'); }
@@ -879,6 +886,18 @@ function drawYard(cv, T) {
       }
     } });
   });
+  if (typeof vil !== 'undefined' && vil.inside === 'ludus') {      // the master, in at the street gate: over to the man whose dossier is open, or else by the gate with his thumbs in his belt
+    const Gs = yardGuest; if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = 537; Gs.y = GY + 8; Gs.d = -1; Gs.t = T; Gs.walk = 0; }
+    const gdt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
+    const who = yardSel && yardSel.id === ui.sel && !ui.school ? yardSel : null, tx = who ? who.x + (who.x > 300 ? 17 : -17) : 492, ty = who ? clamp(who.y + 3, GY + 6, YARD.H - 6) : GY + 12, gx = tx - Gs.x, gy = ty - Gs.y, far = Math.hypot(gx, gy), moving = far > 1.2;
+    if (moving) { const st = Math.min(far, 58 * gdt); Gs.x += gx / far * st; Gs.y += gy / far * st; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += gdt * 11; } else Gs.d = who ? (who.x > Gs.x ? 1 : -1) : -1;
+    const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
+    things.push({ y: Y, draw: () => {
+      yardPerson(ctx, X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
+      R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a'); R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
+      if (!moving && who) { const sx = X + d * 3, sy = Y - 26, ax = who.x - d * 6 - sx, ay = who.y - 30 - sy, n = Math.hypot(ax, ay) || 1; for (let q = 0; q <= 9; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > 6 ? '#e3b48f' : '#d9a57c'); }      // a hand out towards him
+    } });
+  }
   things.sort((a, b) => a.y - b.y).forEach(o => o.draw());
 
   // ---- the light of the hour over everything below the sky, then what glows in the dark ----
@@ -899,7 +918,7 @@ function drawYard(cv, T) {
     R(512 - 1, GY - 46, 3, 6, '#e2702a'); R(562 - 1, GY - 46, 3, 6, '#e2702a');
     for (const [lx, ly] of lights) { sceneGlow(ctx, lx + 3, ly + 3, 15, '255,190,90', 0.42 * n); scenePool(ctx, lx + 3, GY + 5, 22, '255,180,90', 0.12 * n); }
     for (const [fx, fy] of fires) sceneMoths(ctx, T, fx, fy - 6, n);
-    doors.forEach(([dx2, dw, dh], i) => { if ((i * 7 + 3) % 5 < 3) { ctx.globalAlpha = n * 0.5; R(dx2, GY - dh, dw, dh, '#7a4a20'); R(dx2 + 1, GY - dh + 2, dw - 2, dh - 2, '#b8742e'); ctx.globalAlpha = 1; scenePool(ctx, dx2 + dw / 2, GY + 7, 18, '255,185,100', 0.2 * n); } });      // a lamp lit inside some of the cells, and its light lying out through the door
+    doors.forEach(([dx2, dw, dh], i) => { if ((i * 7 + 3) % 5 < 3) { scenePool(ctx, dx2 + dw / 2, GY + 7, 18, '255,185,100', 0.2 * n); } });      // a lamp lit inside some of the cells, and its light lying out through the door
     for (const [fx, fy, r] of fires) {
       const k = (0.85 + Math.sin(T * 8 + fx) * 0.15) * n;
       sceneGlow(ctx, fx, fy, r * 1.25, '255,150,60', 0.42 * k); scenePool(ctx, fx, GY + 8, r * 1.9, '255,165,80', 0.26 * k);

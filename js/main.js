@@ -1035,6 +1035,7 @@ function boutCard(b) {
     <h3${tip('bout')}>${boutTitle(b)} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
     ${b.death ? `<div class="death">${b.funeral ? 'Funeral games: ' : b.captive ? 'The triumph: ' : b.raised ? 'At your asking: ' : ''}Sine missione &mdash; to the death</div>` : ''}
     ${b.hunt ? '<div class="death">Beasts give no quarter</div>' : ''}
+    ${b.final ? `<div class="death"${tip(`Win, and the campaign is won. Lose, and ${FINAL_LOSS} fame is lost and no summons comes for ${FINAL_WAIT} days: it is not a thing to try before the school is ready.`)}>Lose before the Emperor: ${FINAL_LOSS} fame gone, and no summons for ${FINAL_WAIT} days</div>` : ''}
     <div class="kvs three">
       <div${tip('purse')}><span>Purse</span><b class="num gold">${b.purse}</b><small>if you win</small></div>
       <div><span>Fame</span><b class="num">+${b.fame}</b><small>${above ? 'more for beating a greater house' : 'and more for a good show'}</small></div>
