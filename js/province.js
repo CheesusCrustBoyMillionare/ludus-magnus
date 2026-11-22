@@ -214,45 +214,104 @@ function provLand() {
   for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 90), b = h(tx, ty, 91), reg = wildRegion(x + 5, y + 5);
     const sh = (sx, sy, sw) => R(sx, sy, sw, 1, 'rgba(0,0,0,.2)');
+    const v1 = h(tx, ty, 440), v2 = h(tx, ty, 441), v3 = h(tx, ty, 442), v4 = h(tx, ty, 443);
     if (reg === 'The Barrow Downs' && (k === T_GRASS || k === T_HILL || k === T_MEADOW)) {
-      if (a > 0.965) { sh(x + 3, y + 8, 5); R(x + 4, y + 2, 2, 6, '#a8a290'); R(x + 4, y + 2, 1, 6, '#c9c3ae'); R(x + 3, y + 7, 4, 1, '#8f8876'); }                         // a standing stone
-      else if (a > 0.945) { sh(x, y + 8, 11); R(x + 1, y + 5, 9, 3, '#6f8f48'); R(x + 2, y + 4, 7, 1, '#7f9f56'); R(x + 3, y + 3, 5, 1, '#8aa862'); R(x + 5, y + 6, 1, 2, '#2a1d12'); }   // a barrow, with its door
+      if (a > 0.965) {                         // standing stones: tall, short, leaning on a neighbour, or long since fallen
+        const hh = 4 + Math.floor(b * 5);
+        if (v1 > 0.85) { sh(x + 1, y + 8, 8); R(x + 1, y + 6, 7, 2, '#a8a290'); R(x + 1, y + 6, 7, 1, '#c9c3ae'); R(x + 2, y + 5, 2, 1, '#6f8a4a'); }
+        else {
+          sh(x + 3, y + 8, v2 > 0.6 ? 8 : 5); R(x + 4, y + 8 - hh, 2 + (b > 0.6 ? 1 : 0), hh, '#a8a290'); R(x + 4, y + 8 - hh, 1, hh, '#c9c3ae');
+          if (v2 > 0.6) { R(x + 8, y + 10 - hh, 2, hh - 2, '#9a9484'); R(x + 8, y + 10 - hh, 1, hh - 2, '#bdb8a8'); if (v3 > 0.6) R(x + 4, y + 7 - hh, 6, 1, '#b5af9b'); }
+          if (v4 > 0.7) R(x + 4, y + 8 - hh, 2, 1, '#6f8a4a');
+        }
+      }
+      else if (a > 0.945) {                    // barrows: great and small, some with a door, a kerb of stones, a marker on top
+        const rx = 4 + Math.floor(b * 4), ry = 2 + Math.floor(v1 * 3), cx = x + 5, cy = y + 8;
+        sh(cx - rx, cy, rx * 2 + 1);
+        for (let dy = -ry; dy <= 0; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5))); R(cx - w, cy + dy, w * 2, 1, dy < -ry * 0.5 ? '#8aa862' : '#6f8f48'); R(cx + w - 2, cy + dy, 2, 1, '#5a7a3a'); }
+        if (v2 > 0.4) R(cx, cy - 1, 1, 2, '#2a1d12');
+        if (v3 > 0.6) { R(cx - rx - 1, cy, 1, 1, '#c9c3ae'); R(cx + rx, cy, 1, 1, '#c9c3ae'); R(cx - 2, cy + 1, 1, 1, '#c9c3ae'); R(cx + 2, cy + 1, 1, 1, '#c9c3ae'); }
+        if (v4 > 0.8) R(cx, cy - ry - 2, 1, 2, '#a8a290');
+      }
     } else if (reg === 'Blackmere') {
       if (k === T_MARSH || wet(k)) R(x, y, 10, 10, 'rgba(14,26,30,.16)');                    // black water
-      if (k === T_MARSH && a > 0.86) { sh(x + 3, y + 9, 5); R(x + 4, y + 1, 1, 8, '#4a4038'); R(x + 2, y + 3, 2, 1, '#4a4038'); R(x + 5, y + 2, 2, 1, '#4a4038'); R(x + 6, y + 1, 1, 1, '#4a4038'); R(x + 2, y + 2, 1, 1, '#4a4038'); }      // a drowned tree
+      if (k === T_MARSH && a > 0.86) {         // drowned trees, each with its own branches
+        const hh = 5 + Math.floor(b * 5), t1 = x + 2 + Math.floor(v1 * 5);
+        sh(t1 - 1, y + 9, 4); R(t1, y + 9 - hh, 1, hh, '#4a4038');
+        for (let q = 0, n = 2 + Math.floor(v2 * 3); q < n; q++) { const by = y + 10 - hh + q * 2, dir = (q + (v3 > 0.5 ? 1 : 0)) % 2 ? 1 : -1, len = 1 + Math.floor(h(tx + q, ty, 444) * 3); R(dir > 0 ? t1 + 1 : t1 - len, by, len, 1, '#4a4038'); R(dir > 0 ? t1 + len : t1 - len, by - 1, 1, 1, '#4a4038'); }
+        if (v4 > 0.8) R(t1 - 1, y + 8 - hh, 2, 1, '#1c1310');
+      }
     } else if (reg === 'The Quarry Hills' && k === T_HILL) {
-      if (a > 0.972) { sh(x + 1, y + 9, 9); R(x + 1, y + 5, 4, 4, '#e8e4d8'); R(x + 1, y + 5, 4, 1, '#f8f6ee'); R(x + 6, y + 6, 3, 3, '#d8d4c6'); R(x + 3, y + 2, 4, 3, '#e8e4d8'); R(x + 3, y + 4, 4, 1, '#b8b2a0'); }      // cut blocks, left where they were dressed
-      else if (a > 0.955) { R(x + 2, y + 3, 6, 5, '#b8b2a0'); R(x + 2, y + 3, 6, 1, '#d8d4c6'); R(x + 3, y + 5, 4, 3, '#8f8a78'); }                                                                        // a cutting in the hillside
+      if (a > 0.972) {                         // cut blocks, left where they were dressed: one, or a stack
+        sh(x + 1, y + 9, 9);
+        for (let q = 0, n = 1 + Math.floor(v1 * 4); q < n; q++) { const bw = 3 + Math.floor(h(tx, ty, 445 + q) * 3), bx = x + Math.floor(h(tx, ty, 449 + q) * (10 - bw)), by = y + 6 - (q % 2) * 3 - Math.floor(q / 2); R(bx, by, bw, 3, q % 2 ? '#d8d4c6' : '#e8e4d8'); R(bx, by, bw, 1, '#f8f6ee'); R(bx + bw - 1, by + 1, 1, 2, '#b8b2a0'); }
+      }
+      else if (a > 0.955) { const cw = 4 + Math.floor(b * 4), cx = x + Math.floor(v1 * (10 - cw)); R(cx, y + 3, cw, 5, '#b8b2a0'); R(cx, y + 3, cw, 1, '#d8d4c6'); R(cx + 1, y + 5, cw - 2, 3, '#8f8a78'); if (v2 > 0.5) { R(cx + cw - 2, y + 1, 1, 7, '#6b4f2c'); for (let q = 0; q < 3; q++) R(cx + cw - 3, y + 2 + q * 2, 3, 1, '#8a6a3a'); } }      // a cutting in the hillside, some with a ladder left in it
+      else if (a > 0.94) { for (let q = 0; q < 5; q++) R(x + 1 + Math.floor(h(tx, ty, 453 + q) * 7), y + 4 + Math.floor(h(tx, ty, 458 + q) * 4), 2, 1, q % 2 ? '#e0dccf' : '#c9c4b4'); R(x + 3, y + 3, 4, 2, '#d8d4c6'); }      // a spoil heap
     } else if (reg === 'The Salt Shore' && k === T_SAND) {
-      if (a > 0.9) { R(x + 1, y + 2, 8, 6, '#a39a7a'); R(x + 2, y + 3, 6, 4, '#eef0ee'); R(x + 2, y + 3, 6, 1, '#ffffff'); R(x + 5, y + 3, 1, 4, '#a39a7a'); }       // a salt pan
-      else if (a > 0.86) { sh(x + 2, y + 8, 7); R(x + 2, y + 3, 1, 5, '#6b4f2c'); R(x + 7, y + 3, 1, 5, '#6b4f2c'); R(x + 2, y + 3, 6, 1, '#6b4f2c'); R(x + 3, y + 4, 1, 3, '#c9c3ae'); R(x + 5, y + 4, 1, 2, '#c9c3ae'); }      // fish drying on a rack
+      if (a > 0.9) {                           // salt pans: a single pan, or a run of them
+        const cols = 1 + Math.floor(v1 * 2), rows = 1 + Math.floor(v2 * 2), pw = Math.floor(8 / cols), ph = Math.floor(6 / rows);
+        R(x + 1, y + 2, 8, 6, '#a39a7a');
+        for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) { const dry = h(tx + cx, ty + cy, 463) > 0.5; R(x + 1 + cx * pw + 1, y + 2 + cy * ph + 1, pw - 1, ph - 1, dry ? '#ffffff' : '#cfe0e8'); }
+        if (v3 > 0.6) { R(x + 8, y, 2, 2, '#ffffff'); R(x + 7, y + 1, 4, 1, '#eef0ee'); }
+      }
+      else if (a > 0.86) { const rl = 4 + Math.floor(b * 4), rx0 = x + 1; sh(rx0, y + 8, rl + 1); R(rx0, y + 3, 1, 5, '#6b4f2c'); R(rx0 + rl, y + 3, 1, 5, '#6b4f2c'); R(rx0, y + 3, rl + 1, 1, '#6b4f2c'); for (let q = 1; q < rl; q += 2) R(rx0 + q, y + 4, 1, 2 + Math.floor(h(tx + q, ty, 464) * 2), '#c9c3ae'); }      // fish drying on a rack
+      else if (a > 0.83) { sh(x + 1, y + 8, 9); R(x + 1, y + 5, 8, 3, v1 > 0.5 ? '#7a5a34' : '#5e6a7a'); R(x + 2, y + 4, 6, 1, v1 > 0.5 ? '#94703f' : '#7a8696'); R(x + 1, y + 7, 8, 1, '#3a2a1c'); }      // a boat turned over above the tide
+      else if (a > 0.81) { R(x + 1, y + 2, 1, 7, '#6b4f2c'); R(x + 8, y + 2, 1, 7, '#6b4f2c'); for (let q = 0; q < 4; q++) R(x + 2, y + 3 + q, 6, 1, q % 2 ? '#a39a84' : 'rgba(163,154,132,.5)'); }      // a net between two poles
     } else if (reg === 'The Long Meadows' && (k === T_MEADOW || k === T_GRASS) && !farmland(tx, ty)) {
-      if (a > 0.972) { sh(x + 2, y + 8, 7); R(x + 3, y + 4, 5, 4, '#d9c070'); R(x + 4, y + 3, 3, 1, '#e6d088'); R(x + 3, y + 7, 5, 1, '#b89a4a'); }                // a haycock
-      else if (a > 0.94) for (let q = 0; q < 3; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 92 + q) * 7), sy = y + 2 + q * 3; R(sx, sy, 3, 2, '#f1ead8'); R(sx + 3, sy, 1, 1, '#2a1c14'); R(sx, sy + 2, 1, 1, '#2a1c14'); R(sx + 2, sy + 2, 1, 1, '#2a1c14'); }      // sheep
+      if (a > 0.972) { const w = 4 + Math.floor(b * 3), hh = 3 + Math.floor(v1 * 3), hx = x + 2; sh(hx - 1, y + 8, w + 2); R(hx, y + 8 - hh, w, hh, '#d9c070'); R(hx + 1, y + 7 - hh, w - 2, 1, '#e6d088'); R(hx, y + 7, w, 1, '#b89a4a'); if (v2 > 0.6) R(hx + (w >> 1), y + 5 - hh, 1, 3, '#6b4f2c'); }      // a haycock, some round a pole
+      else if (a > 0.94) {                     // a flock: one sheep or five, a black one among them, some lying down
+        for (let q = 0, n = 1 + Math.floor(v1 * 5); q < n; q++) { const sx = x + Math.floor(h(tx, ty, 465 + q) * 8), sy = y + 1 + Math.floor(h(tx, ty, 470 + q) * 7), black = h(tx, ty, 475 + q) > 0.88, lying = h(tx, ty, 480 + q) > 0.7, left = h(tx, ty, 485 + q) > 0.5;
+          R(sx, sy, 3, 2, black ? '#3a322c' : '#f1ead8'); R(left ? sx - 1 : sx + 3, sy, 1, 1, '#2a1c14'); if (!lying) { R(sx, sy + 2, 1, 1, '#2a1c14'); R(sx + 2, sy + 2, 1, 1, '#2a1c14'); } }
+        if (v2 > 0.9) { R(x + 8, y + 2, 2, 4, '#8a6a4a'); R(x + 8, y + 1, 2, 1, '#d9a57c'); R(x + 10, y, 1, 6, '#6b4f2c'); }      // and now and then the shepherd
+      }
+      else if (a > 0.925) for (let q = 0, n = 1 + Math.floor(v1 * 2); q < n; q++) { const cx = x + Math.floor(h(tx, ty, 490 + q) * 5), cy = y + 2 + q * 4, c = h(tx, ty, 492 + q) > 0.5 ? '#8a5a32' : '#e8e2d2'; R(cx, cy, 5, 3, c); R(cx + 1, cy, 2, 1, c === '#8a5a32' ? '#e8e2d2' : '#3a2a1c'); R(cx + 5, cy, 2, 2, c); R(cx, cy + 3, 1, 1, '#2a1c14'); R(cx + 4, cy + 3, 1, 1, '#2a1c14'); }      // cattle
     } else if (reg === 'The High Fells' && k === T_HILL) {
-      if (a > 0.9) { R(x + 2, y + 3, 6, 2, '#f2efe6'); R(x + 3, y + 5, 4, 1, '#d8d4c8'); }       // snow lying in the hollows
-      else if (a > 0.84) { sh(x + 2, y + 8, 6); R(x + 2, y + 4, 5, 4, '#8a8478'); R(x + 3, y + 3, 3, 1, '#a39c88'); R(x + 2, y + 4, 2, 1, '#bdb8ac'); }
+      if (a > 0.9) { for (let q = 0, n = 2 + Math.floor(v1 * 2); q < n; q++) { const sw = 3 + Math.floor(h(tx, ty, 494 + q) * 5), sx = x + Math.floor(h(tx, ty, 497 + q) * (10 - sw)), sy = y + 2 + q * 2; R(sx, sy, sw, 2, '#f2efe6'); R(sx + 1, sy + 2, Math.max(1, sw - 2), 1, '#d8d4c8'); } }       // snow lying in the hollows
+      else if (a > 0.84) { const bw = 3 + Math.floor(b * 4), bh = 2 + Math.floor(v1 * 3), bx = x + 1 + Math.floor(v2 * (8 - bw)); sh(bx, y + 8, bw + 1); R(bx, y + 8 - bh, bw, bh, '#8a8478'); R(bx + 1, y + 7 - bh, Math.max(1, bw - 2), 1, '#a39c88'); R(bx, y + 8 - bh, Math.max(1, bw >> 1), 1, '#bdb8ac'); if (v3 > 0.7) R(bx + 1, y + 6 - bh, 2, 1, '#6f8a5a'); }      // a boulder, some with moss
+      else if (a > 0.82) { sh(x + 3, y + 8, 5); R(x + 3, y + 6, 5, 2, '#9a958a'); R(x + 4, y + 4, 3, 2, '#a8a398'); R(x + 5, y + 2, 1, 2, '#bdb8ac'); }      // a cairn, to mark the way
     } else if (reg === 'The Home Fields' && k === T_GRASS && !farmland(tx, ty)) {
-      const d = Math.hypot(tx - tx0, ty - ty0), plot = h(Math.floor(tx / 3), Math.floor(ty / 3), 93);
-      if (d > 10.5 && d < 17 && plot > 0.78) {                        // vineyards and olive groves beyond the fields
-        if (plot > 0.9) { R(x, y, 10, 10, '#8a9a5a'); for (const [ox, oy] of [[2, 2], [7, 2], [2, 7], [7, 7]]) { R(x + ox - 1, y + oy, 3, 2, '#6f8a5a'); R(x + ox - 1, y + oy - 1, 2, 1, '#8aa672'); R(x + ox, y + oy + 2, 1, 1, '#4a3320'); } }
-        else { R(x, y, 10, 10, '#8a7a4a'); for (let q = 1; q < 10; q += 3) { R(x, y + q, 10, 2, '#557a36'); for (let v = 1; v < 10; v += 3) R(x + v, y + q, 1, 1, '#7a3a6a'); } }
+      const d = Math.hypot(tx - tx0, ty - ty0), px = Math.floor(tx / 3), py = Math.floor(ty / 3), plot = h(px, py, 93), pv = h(px, py, 94);
+      if (d > 10.5 && d < 17 && plot > 0.7) {                         // vineyards, olive groves and orchards beyond the fields
+        if (plot > 0.9) {                      // olives: old trees, each where it happened to grow
+          R(x, y, 10, 10, pv > 0.5 ? '#8a9a5a' : '#96a468');
+          for (let q = 0, n = 2 + Math.floor(v1 * 3); q < n; q++) { const ox = 1 + Math.floor(h(tx, ty, 500 + q) * 7), oy = 2 + Math.floor(h(tx, ty, 504 + q) * 6), r = 1 + Math.floor(h(tx, ty, 508 + q) * 2); R(x + ox - r, y + oy, r * 2 + 1, 2, '#6f8a5a'); R(x + ox - r, y + oy - 1, r + 1, 1, '#9ab284'); R(x + ox, y + oy + 2, 1, 1, '#4a3320'); }
+        } else if (plot > 0.78) {              // vines: the rows run one way on one plot and the other way on the next
+          R(x, y, 10, 10, '#8a7a4a'); const grape = pv > 0.6 ? '#7a3a6a' : pv > 0.3 ? '#9aa83a' : '#5a2a4a';
+          if (pv * 7 % 1 > 0.5) for (let q = 1; q < 10; q += 3) { R(x, y + q, 10, 2, '#557a36'); for (let u = 1 + (q % 2); u < 10; u += 3) R(x + u, y + q, 1, 1, grape); R(x + (tx % 3 === 0 ? 0 : 9), y + q - 1, 1, 3, '#6b4f2c'); }
+          else for (let q = 1; q < 10; q += 3) { R(x + q, y, 2, 10, '#557a36'); for (let u = 1 + (q % 2); u < 10; u += 3) R(x + q, y + u, 1, 1, grape); }
+        } else {                               // an orchard, in blossom or in fruit
+          R(x, y, 10, 10, '#84a052');
+          for (let q = 0, n = 1 + Math.floor(v1 * 2); q < n; q++) { const ox = 2 + Math.floor(h(tx, ty, 512 + q) * 6), oy = 3 + q * 4; R(x + ox - 2, y + oy - 2, 5, 3, '#4c7f38'); R(x + ox - 1, y + oy - 3, 3, 1, '#69a04a'); R(x + ox, y + oy + 1, 1, 2, '#4a3320'); R(x + ox - 1 + Math.floor(v2 * 3), y + oy - 2, 1, 1, pv > 0.5 ? '#f4d0d8' : '#c23b2e'); R(x + ox + 1, y + oy - 1, 1, 1, pv > 0.5 ? '#ffffff' : '#e3b04a'); }
+        }
       }
     }
-    // poplars along the roads near the town
+    // poplars along the roads near the town: a tall one, a short one, sometimes two together
     if (k === T_GRASS && !farmland(tx, ty) && b > 0.86 && Math.hypot(tx - tx0, ty - ty0) < 30 && (at(tx, ty + 1) === T_ROAD || at(tx, ty - 1) === T_ROAD || at(tx + 1, ty) === T_ROAD || at(tx - 1, ty) === T_ROAD)) {
-      sh(x + 3, y + 9, 5); R(x + 4, y + 6, 1, 3, '#4a3320'); for (let q = 0; q < 8; q++) { const w2 = q < 2 || q > 5 ? 1 : 2; R(x + 4 - (w2 >> 1), y - 2 + q, w2 + 1, 1, q % 3 ? '#3f6a2c' : '#57863a'); }
+      const poplar = (px, hh, c1, c2) => { sh(px - 1, y + 9, 5); R(px, y + 6, 1, 3, '#4a3320'); for (let q = 0; q < hh; q++) { const w2 = q < 2 || q > hh - 3 ? 1 : 2; R(px - (w2 >> 1), y + 6 - hh + q, w2 + 1, 1, q % 3 ? c1 : c2); } };
+      poplar(x + 3 + Math.floor(v1 * 3), 6 + Math.floor(v2 * 6), '#3f6a2c', '#57863a');
+      if (v3 > 0.7) poplar(x + 8, 5 + Math.floor(v4 * 4), '#356026', '#4c7a34');
     }
     // fishing boats lie off the Salt Shore (they are drawn live, bobbing): open water, a little way out
     if (reg === 'The Salt Shore' && wet(k) && a > 0.992 && wet(at(tx + 1, ty)) && wet(at(tx - 1, ty)) && prov.boats.length < 9) prov.boats.push([x + 5, y + 5]);
   }
-  // farmsteads among the fields
-  for (const [dx, dy] of [[-6, -5], [7, 6], [-8, 4], [6, -7], [-3, 8]]) {
+  // farmsteads among the fields: five families, five ways of building
+  const STEADS = [
+    (x, y) => { R(x - 1, y + 8, 13, 2, 'rgba(0,0,0,.22)'); R(x, y + 2, 11, 7, '#e2d2a8'); R(x - 1, y - 2, 13, 4, '#a8482a'); R(x, y - 3, 11, 1, '#c2603a'); R(x + 4, y + 5, 3, 4, '#3a2416'); R(x + 13, y + 4, 4, 5, '#8a6a3a'); R(x + 13, y + 3, 4, 1, '#c9b25a'); },      // a tiled house and its rick
+    (x, y) => { R(x - 1, y + 8, 21, 2, 'rgba(0,0,0,.22)'); R(x, y + 3, 18, 6, '#cdbd94'); R(x - 1, y - 1, 20, 4, '#9a7a42'); R(x, y - 2, 18, 1, '#b8964e'); for (let q = 0; q < 20; q += 4) R(x - 1 + q, y - 1, 1, 4, '#7a5e30'); R(x + 3, y + 5, 3, 4, '#3a2416'); R(x + 11, y + 5, 5, 4, '#5a4326');
+      for (let q = 0; q < 12; q += 3) R(x + 20 + q, y + 4, 1, 5, '#6b4f2c'); R(x + 20, y + 5, 12, 1, '#6b4f2c'); R(x + 24, y + 7, 4, 2, '#e0a8a0'); },                                                                                                                 // a long thatched house with its byre, and a pig in the yard
+    (x, y) => { R(x - 1, y + 8, 22, 2, 'rgba(0,0,0,.22)'); R(x, y + 1, 10, 8, '#f0e8d6'); R(x - 1, y - 3, 12, 4, '#b5522e'); R(x + 10, y + 4, 9, 5, '#e8dcc0'); R(x + 10, y + 1, 10, 3, '#a8482a'); R(x + 3, y + 5, 3, 4, '#3a2416'); R(x + 13, y + 6, 2, 3, '#3a2416'); R(x + 2, y + 2, 2, 2, '#3a2a1c');
+      R(x + 22, y + 5, 5, 4, '#b8ab94'); R(x + 22, y + 5, 5, 1, '#d8cdb6'); R(x + 23, y + 6, 3, 2, '#4f8fb8'); R(x + 24, y + 1, 1, 4, '#6b4f2c'); R(x + 22, y + 1, 5, 1, '#6b4f2c'); },                                                                              // two wings, whitewashed, and a well
+    (x, y) => { R(x - 1, y + 8, 20, 2, 'rgba(0,0,0,.22)'); R(x, y - 6, 7, 15, '#d8cdb6'); R(x, y - 6, 1, 15, '#f0e8d6'); R(x - 1, y - 9, 9, 3, '#b5522e'); for (let q = 0; q < 3; q++) { R(x + 2, y - 4 + q * 4, 1, 1, '#3a2a1c'); R(x + 4, y - 2 + q * 4, 1, 1, '#3a2a1c'); } R(x + 2, y + 5, 3, 4, '#3a2416');
+      R(x + 9, y + 2, 10, 7, '#8a6a3a'); R(x + 8, y - 1, 12, 3, '#6b4f2c'); R(x + 12, y + 4, 4, 5, '#3a2416'); R(x + 3, y - 12, 2, 1, '#f1ead8'); },                                                                                                                   // a dovecote tower and a barn
+    (x, y) => { R(x - 2, y + 8, 26, 2, 'rgba(0,0,0,.22)'); R(x - 2, y + 4, 26, 5, '#c9bca8'); R(x - 2, y + 4, 26, 1, '#e0d6c4'); R(x + 9, y + 5, 4, 4, '#5a4326'); R(x + 1, y - 2, 9, 7, '#e2d2a8'); R(x, y - 5, 11, 3, '#a8482a'); R(x + 14, y - 1, 8, 6, '#e8dcc0'); R(x + 13, y - 4, 10, 3, '#b5522e');
+      R(x + 24, y - 2, 1, 10, '#4a3320'); R(x + 22, y - 6, 5, 5, '#35602b'); R(x + 23, y - 7, 3, 1, '#4c7f38'); },                                                                                                                                                         // a walled yard with two houses, and a tree at the gate
+  ];
+  [[-6, -5], [7, 6], [-8, 4], [6, -7], [-3, 8]].forEach(([dx, dy], n) => {
     const tx = tx0 + dx, ty = ty0 + dy, k = at(tx, ty);
-    if (k !== T_GRASS && k !== T_MEADOW) continue;
-    const x = tx * 10, y = ty * 10;
-    R(x - 1, y + 8, 13, 2, 'rgba(0,0,0,.22)'); R(x, y + 2, 11, 7, '#e2d2a8'); R(x - 1, y - 2, 13, 4, '#a8482a'); R(x, y - 3, 11, 1, '#c2603a'); R(x + 4, y + 5, 3, 4, '#3a2416'); R(x + 13, y + 4, 4, 5, '#8a6a3a'); R(x + 13, y + 3, 4, 1, '#c9b25a');
-  }
+    if (k !== T_GRASS && k !== T_MEADOW) return;
+    STEADS[n](tx * 10, ty * 10);
+  });
   // what stands up from the ground is gathered first and drawn from the back of the picture to the front, so that
   // each thing overlaps what is behind it. Nothing is stamped: every tree and every mountain is made for its own spot.
   const feats = [];
@@ -406,6 +465,14 @@ function provLand() {
     for (let q = 0; q < 4; q++) { R(x + q * 3, y - 6 + q * 4, 34 - q * 6, 4, ['#e8e4d8', '#d8d4c6', '#c4bfae', '#a8a290'][q]); R(x + q * 3, y - 6 + q * 4, 34 - q * 6, 1, '#f8f6ee'); }
     R(x + 28, y - 22, 2, 20, '#6b4f2c'); for (let q = 0; q < 12; q++) R(x + 28 - q, y - 22 + Math.round(q * 0.5), 1, 2, '#7a5a34'); R(x + 17, y - 16, 1, 10, '#c9b890'); R(x + 15, y - 6, 5, 4, '#f0ece0'); R(x + 15, y - 6, 5, 1, '#ffffff');
     R(x + 2, y + 6, 4, 3, '#f0ece0'); R(x + 8, y + 7, 3, 2, '#e0dccf');
+  });
+  setDown(27, on(HL, 'The Quarry Hills'), 16, 'The lime kiln', (x, y) => {
+    sh2(x, y + 10, 22); R(x + 2, y - 4, 16, 14, '#b8ab94'); R(x + 4, y - 8, 12, 4, '#a39a84'); R(x + 6, y - 11, 8, 3, '#8f8676'); R(x + 2, y - 4, 2, 14, '#d8cdb6'); R(x + 7, y + 3, 6, 7, '#2a1c14'); R(x + 8, y + 6, 4, 4, '#e2702a'); R(x + 9, y + 7, 2, 2, '#f5c04a');
+    for (let q = 0; q < 4; q++) R(x + 8 + q * 2, y - 15 - q * 3, 3 + q, 2, `rgba(230,230,225,${(0.55 - q * 0.11).toFixed(2)})`); R(x + 20, y + 6, 6, 4, '#f0ece0'); R(x + 21, y + 5, 4, 1, '#ffffff');
+  });
+  setDown(28, on(HL, 'The Quarry Hills'), 20, 'The unfinished columns', (x, y) => {
+    sh2(x - 1, y + 10, 38); for (const [cx, cy, l] of [[0, 4, 22], [6, 8, 26], [14, 0, 18]]) { R(x + cx, y + cy, l, 3, '#e8e4d8'); R(x + cx, y + cy, l, 1, '#f8f6ee'); for (let q = 3; q < l; q += 5) R(x + cx + q, y + cy, 1, 3, '#b8b2a0'); R(x + cx + l - 1, y + cy, 1, 3, '#c4bfae'); }
+    R(x + 30, y - 10, 4, 20, '#e8e4d8'); R(x + 30, y - 10, 1, 20, '#f8f6ee'); R(x + 29, y - 11, 6, 1, '#d8d4c6'); for (let q = 0; q < 6; q++) R(x - 2 + q * 3, y + 9 - (q % 2), 2, 1, '#e0dccf');
   });
   // -- the High Fells --
   setDown(17, on(HL, 'The High Fells'), 16, 'The watchtower', (x, y) => {
@@ -732,20 +799,56 @@ function provIcon(ctx, s, T, done) {
   const hut = (ox, oy) => { R(ox - 4, oy - 3, 8, 5, '#d9c9a0'); R(ox - 5, oy - 6, 10, 3, '#8a5a32'); R(ox - 4, oy - 7, 8, 1, '#a8703c'); R(ox - 1, oy - 1, 2, 3, '#3a2416'); };
   const tent = (ox, oy, c) => { for (let i = 0; i < 6; i++) R(ox - i, oy - 6 + i, i * 2 + 1, 1, i % 4 < 2 ? c : shade(c, 0.85)); R(ox - 1, oy - 2, 2, 3, '#2a1d12'); };
   R(-7, 3, 15, 2, 'rgba(0,0,0,.22)');
-  const k = s.kind;
+  const k = s.kind, tr = s.tier || 1;
+  // a number from the place's own name, so that two of a kind are still not two of a picture
+  const sd = [...String(s.id || s.kind)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7), v = n => ((sd * (n * 2 + 3) * 7919) % 1000) / 1000;
+  const pick = (n, list) => list[Math.floor(v(n) * list.length) % list.length];
   if (k === 'bounty') { tent(-3, 4, '#8a3a2a'); R(4, -8, 1, 12, '#5a4326'); R(5, -8, 5, 4, '#c23b2e'); R(6, -7, 2, 2, '#f1ead8'); R(-8, 2, 3, 2, '#efe8d8'); R(-7, 1, 1, 1, '#efe8d8'); }
-  else if (k === 'lair') { R(-7, -5, 14, 9, '#77705f'); R(-6, -7, 11, 2, '#8f8a78'); R(-3, -3, 7, 7, '#1a1410'); R(-2, -4, 5, 1, '#1a1410'); R(4, 2, 2, 1, '#efe8d8'); }
-  else if (k === 'camp' || k === 'slavers') { tent(-4, 3, k === 'camp' ? '#b8a880' : '#a05a48'); tent(4, 4, k === 'camp' ? '#a89868' : '#8a4a3a'); R(0, 2, 2, 2, '#e2702a'); R(0, 1, 1, 1, '#f5c04a'); if (k === 'slavers') { R(7, -8, 1, 8, '#3a2a1c'); R(8, -8, 4, 3, '#8a2a20'); } }
+  else if (k === 'lair') {
+    if (tr === 1) { R(-7, -2, 14, 6, '#7a6a4a'); R(-5, -4, 10, 2, '#8a7a56'); R(-2, -1, 5, 5, '#1a1410'); R(-1, -2, 3, 1, '#1a1410'); R(5, 3, 2, 1, '#efe8d8'); R(-7, 3, 1, 1, '#efe8d8'); R(v(1) > 0.5 ? -6 : 3, -5, 3, 1, '#6f8a4a'); }                       // a den dug into a bank
+    else if (tr === 2) { R(-8, -1, 16, 6, '#5a4a34'); R(-6, 0, 12, 4, '#3d3426'); R(-3, 1, 6, 2, '#57492f'); R(-9, -4, 1, 4, '#8a9a4a'); R(7, -5, 1, 5, '#8a9a4a'); R(-7, -5, 1, 4, '#9aaa5a'); R(3, 3, 3, 2, '#efe8d8'); R(6, 3, 1, 1, '#efe8d8'); }                 // a wallow, churned to mud
+    else if (tr === 3) { R(-8, -6, 16, 11, '#77705f'); R(-7, -8, 13, 2, '#8f8a78'); R(-5, -10, 8, 2, '#8f8a78'); R(-3, -3, 7, 8, '#1a1410'); R(-2, -4, 5, 1, '#1a1410'); R(5, 3, 2, 1, '#efe8d8'); R(-8, 2, 2, 3, '#6a6352'); R(6, -6, 2, 2, '#a39c88'); }               // a cave in the rock
+    else if (tr === 4) { R(-9, 0, 18, 5, '#8f8a78'); R(-7, -3, 12, 3, '#a39c88'); R(-9, 0, 18, 1, '#b5ae9a'); R(-3, -6, 7, 3, '#c9a05a'); R(3, -7, 3, 3, '#c9a05a'); R(-4, -7, 3, 2, '#a8803c'); R(-5, -5, 2, 1, '#c9a05a'); R(6, 2, 2, 1, '#efe8d8'); R(-6, 3, 3, 1, '#efe8d8'); }      // a ridge, and what lies sunning on it
+    else { R(-8, 0, 16, 5, 'rgba(120,30,20,.35)'); for (let q = 0; q < 5; q++) R(-6 + q * 3, -5 + Math.abs(q - 2), 1, 6 - Math.abs(q - 2), '#efe8d8'); R(-7, 1, 14, 1, '#e0d8c4'); R(-9, -1, 3, 3, '#efe8d8'); R(-8, 0, 1, 1, '#1a1410'); R(6, 2, 3, 2, '#efe8d8'); R(3, 4, 4, 1, '#efe8d8'); }      // a killing ground: what is left of everything that came here
+  }
+  else if (k === 'camp') {
+    const c1 = pick(1, ['#b8a880', '#a89868', '#9a8a70', '#b09a7a']), c2 = pick(2, ['#a89868', '#8a7a5a', '#b8a880']);
+    if (tr === 1) { R(-6, -3, 7, 1, '#6b4f2c'); for (let q = 0; q < 5; q++) R(-6 + q, -2 + q, 7 - q, 1, c1); R(2, 2, 2, 2, '#e2702a'); R(2, 1, 1, 1, '#f5c04a'); R(5, 3, 4, 1, '#5a4326'); R(-8, 4, 2, 1, '#8f8a84'); }                                                // a fire and a lean-to
+    else if (tr === 2) { tent(-4, 3, c1); tent(4, 4, c2); R(0, 2, 2, 2, '#e2702a'); R(0, 1, 1, 1, '#f5c04a'); if (v(3) > 0.5) { R(8, -2, 1, 6, '#5a4326'); R(6, -1, 5, 1, '#5a4326'); } }                                                                           // two tents round a fire
+    else if (tr === 3) { for (let q = -9; q <= 8; q += 2) { R(q, -3 + (q % 4 ? 0 : -1), 2, 7, '#6b4f2c'); R(q, -4 + (q % 4 ? 0 : -1), 2, 1, '#8a6a3a'); } R(-2, -1, 4, 5, '#2a1d12'); tent(-5, 1, c1); R(4, -8, 1, 6, '#3a2a1c'); R(5, -8, 4, 3, '#5a5a4a'); }          // a stockade
+    else if (tr === 4) { R(-9, -5, 18, 10, '#8a7a5a'); R(-9, -5, 18, 2, '#a8966e'); for (let q = -9; q < 9; q += 4) R(q, -7, 2, 2, '#8a7a5a'); R(-2, 0, 4, 5, '#2a1d12'); R(-7, -2, 3, 3, '#6a5a44'); R(4, -2, 3, 3, '#6a5a44'); R(0, -13, 1, 7, '#3a2a1c'); R(1, -13, 5, 3, '#8a2a20'); R(2, -12, 2, 1, '#c9a21e'); }      // a fort, under a stolen standard
+    else { R(-10, -2, 20, 7, '#5e4c3a'); for (let q = -10; q < 10; q += 3) R(q, -4, 2, 3, '#6b4f2c'); R(-4, -12, 8, 12, '#6a6052'); R(-4, -12, 2, 12, '#857a68'); R(-5, -14, 10, 2, '#4a4038'); R(-1, -5, 2, 5, '#1a1410'); R(-2, -9, 1, 2, '#1a1410'); R(1, -9, 1, 2, '#1a1410');
+      for (const px of [-9, 8]) { R(px, -9, 1, 7, '#3a2a1c'); R(px - 1, -11, 3, 2, '#efe8d8'); } }                                                                                                                                                                  // a hold: a tower, a palisade, and skulls on poles
+  }
+  else if (k === 'slavers') { tent(-4, 3, '#a05a48'); tent(4, 4, '#8a4a3a'); R(0, 2, 2, 2, '#e2702a'); R(0, 1, 1, 1, '#f5c04a'); R(7, -8, 1, 8, '#3a2a1c'); R(8, -8, 4, 3, '#8a2a20'); for (let q = 0; q < 4; q++) R(-10 + q * 2, -2, 1, 6, '#3a2a1c'); R(-10, -2, 7, 1, '#3a2a1c'); }
   else if (k === 'chief') { for (let i = -8; i <= 7; i += 3) { R(i, -4 + ((i + 8) % 6 ? 0 : -1), 2, 8, '#6b4f2c'); R(i, -5 + ((i + 8) % 6 ? 0 : -1), 2, 1, '#8a6a3a'); } R(-3, -1, 6, 5, '#2a1d12'); R(-1, -11, 1, 7, '#3a2a1c'); R(0, -11, 5, 3, '#8a2a20'); }
-  else if (k === 'ruin' || k === 'battlefield') { R(-6, -6, 3, 9, '#c9c3ae'); R(-7, -7, 5, 1, '#e4dfcd'); R(1, -2, 3, 5, '#c9c3ae'); R(5, -4, 3, 7, '#b5af9b'); R(-2, 2, 6, 2, '#b5af9b'); if (k === 'battlefield') { R(-1, -10, 1, 9, '#5a4326'); R(0, -10, 4, 3, '#7e241c'); R(-5, 4, 3, 1, '#efe8d8'); } }
+  else if (k === 'ruin') {
+    if (tr === 1) { R(-5, 1, 10, 3, '#b5af9b'); R(-3, -5, 2, 6, '#c9c3ae'); R(-4, -6, 4, 1, '#e4dfcd'); R(2, -1, 5, 2, '#c9c3ae'); R(2, -1, 5, 1, '#e4dfcd'); R(-7, 3, 2, 1, '#a39c88'); R(5, 3, 3, 1, '#a39c88'); R(-1, 0, 2, 1, '#6f8a4a'); }                           // a wayside shrine, its column down
+    else if (tr === 2) { R(-8, -4, 16, 8, '#8f8676'); R(-8, -4, 2, 8, '#c9bca8'); R(-8, -7, 3, 3, '#c9bca8'); R(5, -6, 3, 2, '#b5aa94'); R(-5, -2, 10, 6, '#2a241e'); R(-3, -5, 1, 4, '#3a322c'); R(1, -6, 1, 5, '#3a322c'); R(-6, 4, 12, 1, '#57504a'); R(3, 1, 2, 3, '#120c0a'); }      // a villa, burnt out
+    else if (tr === 3) { R(-6, -5, 12, 9, '#c9c3ae'); R(-6, -5, 2, 9, '#e4dfcd'); R(-7, -7, 14, 2, '#b5af9b'); R(-4, -9, 8, 2, '#c9c3ae'); R(-2, -2, 4, 6, '#1a1410'); R(3, 2, 3, 2, '#b5af9b'); R(4, 1, 2, 1, '#d9d2bd'); R(-8, 3, 2, 1, '#a39c88'); }                 // a tomb, its door broken in
+    else if (tr === 4) { R(-7, -5, 14, 9, '#d9d2bd'); R(-7, -5, 2, 9, '#f0ead8'); R(5, -5, 2, 9, '#b5af9b'); R(-8, -7, 16, 2, '#c9c3ae'); for (let q = 0; q < 4; q++) R(-6 + q, -8 - q, 12 - q * 2, 1, '#d9d2bd'); R(-2, -2, 4, 6, '#a39c88'); R(-2, -2, 4, 1, '#c9c3ae'); R(-1, 0, 2, 1, '#8a2a20'); }      // a tomb still sealed
+    else { for (let q = 0; q < 5; q++) R(-10 + q * 2, 2 - q * 3, 20 - q * 4, 3, q % 2 ? '#a39c88' : '#b5af9b'); R(-10, 2, 20, 1, '#c9c3ae'); R(-2, -1, 4, 4, '#1a1410'); R(-3, -2, 6, 1, '#d9d2bd'); R(-1, -13, 2, 3, '#b98a34'); for (const px of [-11, 10]) { R(px, -3, 1, 8, '#5a4326'); R(px - 1, -5, 3, 2, '#8a2a20'); } }      // a warlord's tomb, stepped, with his trophies
+  }
+  else if (k === 'battlefield') { R(-6, -6, 3, 9, '#c9c3ae'); R(-7, -7, 5, 1, '#e4dfcd'); R(1, -2, 3, 5, '#c9c3ae'); R(5, -4, 3, 7, '#b5af9b'); R(-2, 2, 6, 2, '#b5af9b'); R(-1, -10, 1, 9, '#5a4326'); R(0, -10, 4, 3, '#7e241c'); R(-5, 4, 3, 1, '#efe8d8'); }
   else if (k === 'barrow') { for (let i = 0; i < 6; i++) R(-9 + i, -1 - i, 18 - i * 2, 1, i < 2 ? '#5f7f3f' : '#6f8f48'); R(-9, 0, 18, 3, '#5f7f3f'); R(-2, -1, 4, 4, '#1a1410'); R(-3, -2, 6, 1, '#c9c3ae'); for (const ox of [-11, -7, 7, 10]) R(ox, 1, 2, 4, '#a8a290'); }
-  else if (k === 'shrine' || k === 'vow') { R(-5, 1, 10, 3, '#d6d0bd'); R(-4, -5, 2, 6, '#f1ecdc'); R(2, -5, 2, 6, '#f1ecdc'); R(-5, -7, 10, 2, '#d9d2bd'); R(-1, -2, 2, 2, '#e2702a'); R(-1, -3, 1, 1, '#f5c04a'); }
-  else if (k === 'hamlet') { hut(-5, 2); hut(5, 3); hut(0, -3); }
-  else if (k === 'merchant') { R(-6, -2, 7, 4, '#8a6a4a'); R(-7, -4, 3, 3, '#8a6a4a'); R(-5, 2, 1, 2, '#5a4326'); R(-1, 2, 1, 2, '#5a4326'); R(-4, -5, 5, 3, '#c9a25a'); R(3, -5, 3, 6, '#7a2a8a'); R(3, -8, 3, 3, '#d9a57c'); }
+  else if (k === 'shrine' || k === 'vow') {
+    const fl = pick(1, ['#e2702a', '#f0e0a0', '#7fd0c8']), cols = v(2) > 0.5 ? [-4, 2] : [-5, -1, 3];
+    R(-6, 1, 12, 3, '#d6d0bd'); for (const cx of cols) { R(cx, -5, 2, 6, '#f1ecdc'); R(cx, -5, 1, 6, '#ffffff'); } R(-6, -7, 12, 2, '#d9d2bd'); if (v(3) > 0.5) for (let q = 0; q < 3; q++) R(-4 + q, -8 - q, 8 - q * 2, 1, '#d9d2bd');
+    R(-1, -1, 2, 2, fl); R(-1, -2, 1, 1, '#f5c04a'); if (k === 'vow') R(5, -1, 2, 2, '#8a2a20');
+  }
+  else if (k === 'hamlet') {
+    const roofs = ['#8a5a32', '#9a7a42', '#a8482a', '#7a6a4a'], cot = (ox, oy, n) => { R(ox - 4, oy - 3, 8, 5, pick(n, ['#d9c9a0', '#cdbd94', '#e2d2a8'])); R(ox - 5, oy - 6, 10, 3, roofs[Math.floor(v(n + 4) * 4)]); R(ox - 4, oy - 7, 8, 1, '#a8703c'); R(ox - 1, oy - 1, 2, 3, '#3a2416'); };
+    cot(-5, 2, 1); cot(5, 3, 2); if (v(3) > 0.35) cot(0, -3, 3); if (v(7) > 0.5) { R(9, -2, 1, 6, '#6b4f2c'); R(-10, 1, 1, 4, '#6b4f2c'); R(-10, 2, 5, 1, '#6b4f2c'); } else { R(-9, 3, 3, 2, '#d9c070'); R(-8, 2, 1, 1, '#e6d088'); }
+  }
+  else if (k === 'merchant') { const awn = pick(1, ['#c9a25a', '#b93a2e', '#2f6db8', '#7a2a8a']); R(-6, -2, 7, 4, '#8a6a4a'); R(-7, -4, 3, 3, '#8a6a4a'); R(-5, 2, 1, 2, '#5a4326'); R(-1, 2, 1, 2, '#5a4326'); R(-4, -5, 5, 3, awn); R(3, -5, 3, 6, pick(2, ['#7a2a8a', '#3f7a5a', '#a8763a'])); R(3, -8, 3, 3, '#d9a57c'); if (v(3) > 0.5) { R(7, 0, 3, 3, '#b8703c'); R(8, -1, 1, 1, '#b8703c'); } }
   else if (k === 'quarry') { R(-8, -6, 16, 10, '#b8b2a0'); R(-6, -4, 12, 8, '#e8e4d8'); R(-6, 0, 12, 1, '#b8b2a0'); R(-2, -4, 1, 8, '#b8b2a0'); R(3, -1, 4, 3, '#f8f6ee'); }
   else if (k === 'cache') { for (let i = -4; i <= 4; i++) { R(i, i, 2, 2, '#8a2a20'); R(i, -i, 2, 2, '#8a2a20'); } }
   else if (k === 'herb') { R(-1, -2, 2, 6, '#3f6a2a'); R(-4, -5, 3, 3, '#7fbf6a'); R(1, -6, 3, 3, '#7fbf6a'); R(-1, -8, 2, 2, '#c9e8a0'); }
-  else hut(0, 2);                                                         // hermit, healer, the old soldier, the beekeeper
+  else if (k === 'healer') { hut(0, 2); for (let q = 0; q < 4; q++) R(-9 + q * 2, 3 + (q % 2), 1, 2, q % 2 ? '#7fbf6a' : '#5f9a4a'); R(6, 1, 1, 4, '#6b4f2c'); R(5, 0, 3, 1, '#7fbf6a'); R(7, 2, 1, 1, '#c9e8a0'); for (let q = 0; q < 3; q++) R(2 + q, -9 - q * 2, 2, 1, 'rgba(230,230,225,.6)'); }      // herbs in rows, a bunch hung to dry, smoke from the roof
+  else if (k === 'hermit') { R(-6, -3, 12, 7, '#8a8478'); R(-5, -5, 9, 2, '#a39c88'); R(-2, -1, 4, 5, '#1a1410'); R(6, -6, 1, 10, '#6b4f2c'); R(5, -4, 3, 1, '#6b4f2c'); R(-8, 3, 2, 1, '#efe8d8'); }      // a cell in the rock, and his staff outside it
+  else if (k === 'deserter') { hut(0, 2); R(6, -4, 1, 8, '#6b4f2c'); R(7, -4, 3, 2, '#8a2a20'); R(-8, 1, 3, 3, '#6b4f2c'); R(-8, 1, 3, 1, '#8a6a3a'); }      // an old soldier's hut: a faded pennant, and wood split and stacked
+  else if (k === 'master') { hut(0, 2); for (let q = 0; q < 3; q++) { R(6 + q * 3, 1, 2, 3, '#d9b060'); R(6 + q * 3, 2, 2, 1, '#b89040'); } R(-8, 3, 4, 1, '#6f9a48'); }      // the beekeeper's: skeps by the door
+  else hut(0, 2);
   if (done) { ctx.fillStyle = '#2a1a0c'; ctx.fillRect(Math.round(s.x - 6), Math.round(s.y - 1), 13, 1); }
 }
 
@@ -967,7 +1070,7 @@ function drawOverview(cv, T) {
     if (mark) { const b = Math.sin(T * 5) > 0 ? 3 : 0; ctx.strokeStyle = '#f5d584'; ctx.lineWidth = 5; ctx.strokeRect(s.x - 40 - b, s.y - 42 - b, 80 + b * 2, 74 + b * 2); }
     if (s === hv) { ctx.strokeStyle = '#fff6d8'; ctx.lineWidth = 3; ctx.strokeRect(s.x - 36, s.y - 38, 72, 66); }
     if (unseen) { for (let q = -14; q <= 14; q += 2) { R(s.x + q - 3, s.y + q - 3, 7, 7, '#8a2a20'); R(s.x + q - 3, s.y - q - 3, 7, 7, '#8a2a20'); } }
-    else { ctx.save(); ctx.translate(s.x, s.y); ctx.scale(4, 4); provIcon(ctx, { x: 0, y: 0, kind: s.kind }, T, siteDone(s)); ctx.restore(); }
+    else { ctx.save(); ctx.translate(s.x, s.y); ctx.scale(4, 4); provIcon(ctx, { x: 0, y: 0, kind: s.kind, tier: s.tier, id: s.id }, T, siteDone(s)); ctx.restore(); }
     if (mark) name(s.x, s.y, s.name.toUpperCase(), '#f5d584');
   }
   for (const pk of F.packs) if (wildSeen(pk.x, pk.y)) { dot(pk.x, pk.y, 5, '#c23b2e'); }
