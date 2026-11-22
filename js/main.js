@@ -1233,17 +1233,18 @@ function viewFacilities() {
     const st = G.staff[k], armed = ui.fireArm === k, offers = G.hires.filter(h => h.role === k).length;
     return st
       ? `<div class="htile"${tip(r.desc(st.skill))}><div class="hh"><b>${r.name}</b>${grade(st.skill)}<span class="end num dim">${st.wage ? st.wage + ' a day' : 'no wage'}</span></div>
-          <small>${st.name}, ${STAFF_GRADES[st.skill].toLowerCase()}. ${r.desc(st.skill)}</small>
-          <button class="mini ${armed ? 'primary' : ''}" data-act="fire" data-v="${k}"${tip('Dismissing him saves his wage, but the fee you paid is gone and the post stands empty.')}>${armed ? 'Sure?' : 'Dismiss'}</button></div>`
+          <small>${st.name}, ${STAFF_GRADES[st.skill].toLowerCase()}, ${servedDays(st)} day${servedDays(st) === 1 ? '' : 's'} in the post. ${r.desc(st.skill)}</small>
+          <div class="hbtns">${st.skill < 3 ? `<button class="mini ${raiseBlock(k) ? '' : 'primary'}" data-act="raise" data-v="${k}" ${raiseBlock(k) ? 'disabled' : ''}${tip(`Raise him to ${STAFF_GRADES[st.skill + 1].toLowerCase()}: ${r.desc(st.skill + 1)}\nIt costs less than hiring a new man of that grade${st.wage ? `, and his wage goes to ${1 + 2 * (st.skill + 1)} a day` : ''}. A man must have served ${raiseDays(st)} days first.${raiseBlock(k) ? '\n' + raiseBlock(k) : ''}`)}>Raise &mdash; ${raiseCost(st)}</button>` : ''}<button class="mini ${armed ? 'primary' : ''}" data-act="fire" data-v="${k}"${tip('Dismissing him saves his wage, but the fee you paid is gone and the post stands empty.')}>${armed ? 'Sure?' : 'Dismiss'}</button></div></div>`
       : `<div class="htile vacant"${tip(`A journeyman would give: ${r.desc(1)}`)}><div class="hh"><b>${r.name}</b><span class="end ${offers ? 'gold' : 'dim'}">${offers ? 'one in the hall' : 'post vacant'}</span></div>
-          <small>${r.desc(1)}</small></div>`;
+          <small>${r.desc(1)}</small>
+          ${offers ? '' : `<div class="hbtns"><button class="mini" data-act="seek" data-v="${k}" ${seekBlock(k) ? 'disabled' : ''}${tip(`Send word round the taverns: a ${r.name.toLowerCase()} will be in the hall at the next games, and as good a one as this town has. The money is spent whether or not you hire him. One such errand at a time.${seekBlock(k) ? '\n' + seekBlock(k) : ''}`)}>${G.hireOrder === k ? 'Sent for' : `Send for one &mdash; ${seekCost()}`}</button></div>`}</div>`;
   }).join('');
   const hallMen = G.hires.filter(h => !SMITH_POSTS.includes(h.role));
   const hall = hallMen.map(h => {
     const cur = G.staff[h.role], better = cur && h.skill > cur.skill, worse = cur && h.skill < cur.skill, dw = cur ? h.wage - cur.wage : h.wage;
     const note = cur ? `${better ? 'Better' : worse ? 'Worse' : 'No better'} than ${cur.name}, your ${STAFF_GRADES[cur.skill].toLowerCase()}; wages ${dw > 0 ? 'rise by ' + dw : dw < 0 ? 'fall by ' + -dw : 'stay the same'}.` : 'Fills an empty post.';
     return `<div class="htile hire"${tip(`${STAFF_ROLES[h.role].desc(h.skill)}\n${note}`)}><div class="hh"><b>${STAFF_ROLES[h.role].name}</b>${grade(h.skill)}<span class="end num dim">${h.wage} a day</span></div>
-      <small>${h.name}. <span class="${cur ? (better ? 'good' : worse ? 'bad' : '') : 'good'}">${note}</span></small>
+      <small>${h.name}${h.sought ? ', who came because you sent for him' : ''}. <span class="${cur ? (better ? 'good' : worse ? 'bad' : '') : 'good'}">${note}</span></small>
       <button class="mini ${worse ? '' : 'primary'}" data-act="hire" data-v="${h.id}" ${G.denarii < h.fee ? 'disabled' : ''}>${cur ? 'Replace' : 'Hire'} &mdash; ${h.fee}</button></div>`;
   }).join('') || '<div class="listnote">No one is looking for work.</div>';
   const fac = Object.keys(FACILITIES).filter(k => !SCHOOL_FACS.includes(k) && !ELSEWHERE_FACS[k]).map(facTile).join('');
@@ -1260,7 +1261,7 @@ function viewFacilities() {
         <span class="${net < 0 ? 'bad' : 'good'}"${tip('Food and wages against the Guild stipend, on a day with no games.')}><b class="num">${net > 0 ? '+' : ''}${net}</b> a day</span>
         ${last >= 0 ? `<span class="${last < dg ? 'bad' : ''}"${tip('How long the purse lasts at this rate if nothing comes in. Purses, wagers and contracts are what fill it.')}>purse lasts <b class="num">${last}</b> day${last === 1 ? '' : 's'}</span>` : ''}
         <span${tip('The hiring hall changes its faces every games day.')}>new faces ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span></div></div>
-      <div class="pane" data-pane="staff"><div class="htiles">${staff}</div>
+      <div class="pane" data-pane="staff">${staffLack() ? `<div class="listnote" style="margin:0 0 6px"><b>Your steward:</b> We have no ${STAFF_ROLES[staffLack()[0]].name.toLowerCase()}, dominus: ${staffLack()[1]}.${G.hireOrder ? ` Word is out for a ${STAFF_ROLES[G.hireOrder].name.toLowerCase()}.` : ''}</div>` : ''}<div class="htiles">${staff}</div>
       <h2>Hiring hall <small>${hallMen.length} looking for a place${hallMen.length < G.hires.length ? ' &middot; an armourer is asking at the Blacksmith' : ''}</small></h2><div class="htiles">${hall}</div></div></div>
     <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen. The shrine is with the Patrons, the stables outside the east gate, and the armourer at the Blacksmith.')}>the rest stands where it is used</small></h2><div class="pane" data-pane="fac"><div class="htiles solo">${fac}</div>
       <h2${tip('rations')}>Rations <small>${fed} at table &middot; morale ${avg}</small></h2><div class="rations">${rations}</div>
@@ -2563,11 +2564,13 @@ const ACTIONS = {
     const h = G.hires.find(x => x.id === +v);
     if (!h || G.denarii < h.fee) return;
     G.denarii -= h.fee;
-    G.staff[h.role] = { name: h.name, skill: h.skill, wage: h.wage };
+    G.staff[h.role] = { name: h.name, skill: h.skill, wage: h.wage, since: G.day };
     G.hires = G.hires.filter(x => x !== h);
     log(`${h.name} is taken on as ${STAFF_ROLES[h.role].name.toLowerCase()}.`);
     save(); render();
   },
+  raise(v) { if (raiseStaff(v)) { SFX.ui('coin'); save(); render(); } },
+  seek(v) { if (seekStaff(v)) { SFX.ui('coin'); save(); render(); } },
   fire(v) {
     const s = G.staff[v]; if (!s) return;
     if (ui.fireArm !== v) { ui.fireArm = v; render(); return; }      // asked twice: his fee does not come back

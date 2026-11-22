@@ -308,12 +308,53 @@ function payTithe() {
 
 function giftCost(k) { return Math.round((40 + 25 * G.gifts[k]) * (1 + tier() * 0.5) / 5) * 5; }
 
+// ---- the household: men who stay are worth more than men who are bought ----
+// A man who has served long enough can be raised a grade, for less than a new man of that grade would cost to hire,
+// and whatever the hiring hall has to offer this season. Fifteen days as a journeyman, thirty as a seasoned man.
+const raiseDays = st => 15 * st.skill;
+const servedDays = st => Math.max(0, G.day - (st.since || 1));
+const raiseCost = st => 25 * (st.skill + 1) * (st.skill + 1);
+function raiseBlock(role) {
+  const st = G.staff[role];
+  if (!st) return 'The post is vacant.';
+  if (st.skill >= 3) return 'He is a master of his trade already.';
+  if (servedDays(st) < raiseDays(st)) return `He has served ${servedDays(st)} of the ${raiseDays(st)} days it takes.`;
+  if (G.denarii < raiseCost(st)) return `You are ${raiseCost(st) - G.denarii} denarii short.`;
+  return '';
+}
+function raiseStaff(role) {
+  if (raiseBlock(role)) return false;
+  const st = G.staff[role];
+  G.denarii -= raiseCost(st); st.skill++; st.since = G.day;
+  if (st.wage) st.wage = 1 + 2 * st.skill;                 // a man who serves the family for nothing goes on doing so
+  log(`${st.name} the ${STAFF_ROLES[role].name.toLowerCase()} is raised: he is a ${STAFF_GRADES[st.skill].toLowerCase()} of his trade now.`, 'gold');
+  return true;
+}
+// Word can be sent round the taverns for a man of one trade: he will be in the hall at the next games, and a good one.
+const seekCost = () => 15 + tier() * 10;
+function seekBlock(role) {
+  if (!STAFF_ROLES[role]) return 'There is no such post.';
+  if (G.hireOrder) return `Word is out already, for a ${STAFF_ROLES[G.hireOrder].name.toLowerCase()}.`;
+  if (G.denarii < seekCost()) return `You are ${seekCost() - G.denarii} denarii short.`;
+  return '';
+}
+function seekStaff(role) {
+  if (seekBlock(role)) return false;
+  G.denarii -= seekCost(); G.hireOrder = role;
+  log(`Word is sent round the taverns for a ${STAFF_ROLES[role].name.toLowerCase()}.`);
+  return true;
+}
+// What the house most lacks, in the steward's opinion: the first vacant post in the order that matters.
+const STAFF_NEED = [['doctore', 'nobody is teaching the men, and they cannot spar'], ['medicus', 'every wound takes its own time, and more of the fallen die'], ['cook', 'the men eat what they are given, and their spirits show it'],
+  ['unctor', 'the men carry yesterday\'s work into today'], ['scout', 'we buy men at market without knowing what is in them'], ['dispensator', 'nobody is watching what the kitchen and the wages cost'], ['faber', 'the blades are kept by whoever carries them']];
+const staffLack = () => STAFF_NEED.find(([k]) => !G.staff[k]) || null;
 function genHires() {
-  const maxS = clamp(1 + tier(), 1, 3);
-  const roles = Object.keys(STAFF_ROLES).sort(() => Math.random() - 0.5).slice(0, 4);
+  const maxS = clamp(1 + tier(), 1, 3), sought = G.hireOrder && STAFF_ROLES[G.hireOrder] ? G.hireOrder : null;
+  const roles = (sought ? [sought] : []).concat(Object.keys(STAFF_ROLES).filter(k => k !== sought).sort(() => Math.random() - 0.5)).slice(0, 4);
+  G.hireOrder = null;
   G.hires = roles.map(role => {
-    const skill = rint(1, maxS);
-    return { id: ++G.nextId, role, skill, name: pick(STAFF_NAMES), fee: 40 * skill * skill + rint(0, 4) * 5, wage: 1 + 2 * skill };
+    const skill = role === sought ? maxS : rint(1, maxS);
+    return { id: ++G.nextId, role, skill, name: pick(STAFF_NAMES), fee: 40 * skill * skill + rint(0, 4) * 5, wage: 1 + 2 * skill, sought: role === sought || undefined };
   });
 }
 

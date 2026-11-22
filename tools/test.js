@@ -248,6 +248,25 @@ test('household: new buildings, new posts and the regimen each do what they say'
   G.fac.stables = 0; const d0 = marchDay(); G.fac.stables = 2; assert(Math.abs(marchDay() - d0 * 1.24) < 1e-9, 'mules lengthen the march');
   // four faces in the hall; an old save gains the new buildings
   genHires(); assert(G.hires.length === 4, 'four in the hiring hall');
+  // a man who has served can be raised: cheaper than hiring his better, but it takes time
+  { const purse0 = G.denarii, day0 = G.day; G.denarii = 5000; G.staff = { medicus: { name: 'M', skill: 1, wage: 3, since: G.day } };
+    assert(raiseDays(G.staff.medicus) === 15 && raiseCost(G.staff.medicus) === 100 && raiseCost(G.staff.medicus) < 40 * 2 * 2 && /served 0 of the 15/.test(raiseBlock('medicus')) && !raiseStaff('medicus'), 'not on the day he is hired');
+    G.day += 15; const d = G.denarii, w0 = wages(), m0 = mercyBonus();
+    assert(!raiseBlock('medicus') && raiseStaff('medicus') && G.staff.medicus.skill === 2 && G.staff.medicus.wage === 5 && G.denarii === d - 100 && wages() === w0 + 2 && mercyBonus() > m0, 'after fifteen days: a seasoned man, at the wage of one');
+    assert(raiseDays(G.staff.medicus) === 30 && servedDays(G.staff.medicus) === 0 && !raiseStaff('medicus'), 'and the count begins again, longer');
+    G.day += 30; assert(raiseStaff('medicus') && G.staff.medicus.skill === 3 && /master/.test(raiseBlock('medicus')) && !raiseStaff('medicus'), 'then a master, and no further');
+    G.staff.cook = { name: 'C', skill: 1, wage: 0 }; assert(servedDays(G.staff.cook) >= 44 && raiseStaff('cook') && G.staff.cook.wage === 0, 'one who serves for nothing goes on doing so; and a man from an older save has his days counted from the first');
+    G.denarii = 0; G.staff.scout = { name: 'S', skill: 1, wage: 3, since: 1 }; assert(/short/.test(raiseBlock('scout')) && /vacant/.test(raiseBlock('unctor')), 'not without the money, and not an empty post');
+    G.denarii = purse0; G.day = day0; G.staff = {}; }
+  // word sent for a man of one trade: he is in the hall at the next games, and as good as the town has
+  { const d = G.denarii = 500; assert(seekCost() >= 15 && seekStaff('medicus') && G.hireOrder === 'medicus' && G.denarii === d - seekCost() && /already/.test(seekBlock('cook')) && !seekStaff('cook'), 'one errand at a time');
+    genHires(); const h = G.hires.find(x => x.role === 'medicus');
+    assert(G.hires.length === 4 && h && h.sought && h.skill === clamp(1 + tier(), 1, 3) && !G.hireOrder && new Set(G.hires.map(x => x.role)).size === 4, 'he comes, and no trade twice');
+    genHires(); assert(!G.hires.some(x => x.sought), 'the next hall is as chance sends it'); }
+  // the steward names what the house most lacks
+  { G.staff = {}; assert(staffLack()[0] === 'doctore' && STAFF_NEED.length === Object.keys(STAFF_ROLES).length && STAFF_NEED.every(([k, why]) => STAFF_ROLES[k] && why.length > 20), 'first a doctore');
+    G.staff.doctore = { name: 'd', skill: 1, wage: 3 }; assert(staffLack()[0] === 'medicus', 'then a medicus');
+    for (const k in STAFF_ROLES) G.staff[k] = { name: 'x', skill: 1, wage: 3 }; assert(staffLack() === null, 'and nothing, when every post is filled'); G.staff = {}; }
   delete G.fac.shrine; delete G.regimen; migrate(); assert(G.fac.shrine === 0 && G.regimen === 1, 'an older save is brought up to date');
   endDay(); assert(G.purseLog && G.purseLog.length === 1 && !badNumber(G), 'the purse is written down each day');
 }));
