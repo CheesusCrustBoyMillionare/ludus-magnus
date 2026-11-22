@@ -58,8 +58,13 @@ function provLand() {
     // a ragged edge where one kind of ground meets another
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], n) => {
       const o = at(tx + dx, ty + dy);
-      if (o === k || o === T_ROAD || o === T_BRIDGE || k === T_ROAD || k === T_BRIDGE) return;
+      if (o === T_ROAD || o === T_BRIDGE || k === T_ROAD || k === T_BRIDGE) return;
       const oc = col(o, tx + dx, ty + dy);
+      if (o === k) {                             // the same ground in another shade: the two run together
+        if (oc === base || k === T_WATER) return;
+        for (let i = 0; i < 7; i++) { const q = Math.floor(h(tx + i, ty, 840 + n) * 9), inn = Math.floor(h(tx, ty + i, 844 + n) * h(tx + i, ty + n, 848) * 7), sw = 1 + Math.floor(h(tx + i, ty + i, 852 + n) * 3); R(dx ? x + (dx > 0 ? 9 - inn - (sw > 1 ? 1 : 0) : inn) : x + q, dy ? y + (dy > 0 ? 9 - inn : inn) : y + q, dx ? (sw > 1 ? 2 : 1) : sw, dx ? (sw > 2 ? 2 : 1) : 1, oc); }
+        return;
+      }
       // the neighbour's ground comes a little way in, further in some places than others, so that no border is a ruled line
       for (let i = 0; i < 11; i++) { const q = Math.floor(h(tx, ty, 20 + n * 5 + i) * 9), inn = Math.floor(h(tx + i, ty + n, 810) * h(tx, ty + i, 811) * 8); R(dx ? x + (dx > 0 ? 8 - inn : inn) : x + q, dy ? y + (dy > 0 ? 8 - inn : inn) : y + q, 2, 2, oc); }
     });
@@ -367,13 +372,17 @@ function provLand() {
   // what stands up from the ground is gathered first and drawn from the back of the picture to the front, so that
   // each thing overlaps what is behind it. Nothing is stamped: every tree and every mountain is made for its own spot.
   const feats = [];
+  const WOOD = { blight: 0.14, thin: 0.72, old: 0.64, young: 0.28, turn: 0.885 };
+  prov.wood = WOOD;
   const peakDepth = (tx, ty) => { for (let r = 1; r <= 4; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && at(tx + dx, ty + dy) !== T_PEAK) return r; return 5; };
   // a tree: its kind, its size, and a shade of its own
+  const LEAF = { oak: ['#35602b', '#4c7f38', '#69a04a'], beech: ['#3f7032', '#5f9a46', '#7fb85a'], chestnut: ['#4a6a2a', '#7a9a3a', '#69a04a'], blossom: ['#4c7f38', '#69a04a', '#69a04a'],
+    olive: ['#557a50', '#74986a', '#90b084'], yew: ['#21402a', '#2d5236', '#3a6442'], gold: ['#b0842a', '#d4a43a', '#ecc85c'], russet: ['#8f4422', '#b45f2c', '#cf8040'] };
   const tree = (cx, cy, kind, sz, f) => {
     const C = c => tint(c, f);
     R(cx - sz - 1, cy + 1, sz * 2 + 3, 2, 'rgba(0,0,0,.2)');
-    if (kind === 'pine' || kind === 'fir') {
-      const dk = kind === 'fir' ? '#27483a' : '#2c5230', lt = kind === 'fir' ? '#3c6450' : '#437046', tiers = 2 + Math.floor(sz / 2);
+    if (kind === 'pine' || kind === 'fir' || kind === 'larch') {
+      const dk = kind === 'fir' ? '#27483a' : kind === 'larch' ? '#5a7a34' : '#2c5230', lt = kind === 'fir' ? '#3c6450' : kind === 'larch' ? '#84a04c' : '#437046', tiers = 2 + Math.floor(sz / 2);
       R(cx, cy - 1, 1, 3, '#4a3320');
       for (let q = 0; q < tiers; q++) { const w = sz - Math.round(q * sz / (tiers + 0.5)), y0 = cy - 2 - q * 2; R(cx - w, y0, w * 2 + 1, 2, C(dk)); R(cx - w, y0, Math.max(1, w), 1, C(lt)); }
       R(cx, cy - 2 - tiers * 2, 1, 2, C(dk));
@@ -383,18 +392,20 @@ function provLand() {
     } else if (kind === 'birch') {
       R(cx, cy - sz - 2, 1, sz + 4, '#e8e4d8'); R(cx, cy - 1, 1, 1, '#5a5448'); R(cx, cy - sz, 1, 1, '#5a5448');
       R(cx - sz + 1, cy - sz - 5, sz * 2 - 1, sz, C('#6f9a48')); R(cx - sz + 2, cy - sz - 6, Math.max(1, sz * 2 - 3), 1, C('#6f9a48')); R(cx - sz + 1, cy - sz - 5, sz - 1, Math.max(1, sz - 2), C('#93b866'));
-    } else if (kind === 'cypress') {
+    } else if (kind === 'cypress' || kind === 'poplar') {      // a dark spire, or the tall pale one that stands by water and road
+      const pop = kind === 'poplar', top = sz * 2 + (pop ? 6 : 3);
       R(cx, cy - 1, 1, 3, '#4a3320');
-      for (let q = 0; q < sz * 2 + 3; q++) { const w = q < 2 || q > sz * 2 ? 0 : 1; R(cx - w, cy - 2 - q, w * 2 + 1, 1, C(q % 3 ? '#2f5234' : '#3f6844')); }
+      for (let q = 0; q < top; q++) { const w = q < 2 || q > top - 3 ? 0 : 1; R(cx - w, cy - 2 - q, w * 2 + 1, 1, C(pop ? (q % 3 ? '#4f8a3a' : '#74ac50') : (q % 3 ? '#2f5234' : '#3f6844'))); if (pop && w && q % 2) R(cx - 1, cy - 2 - q, 1, 1, C('#8cc062')); }
     } else if (kind === 'willow') {              // over water: a low wide head, and the withies hanging
       R(cx, cy - 2, 1, 4, '#4a4030');
       R(cx - sz - 1, cy - sz - 3, sz * 2 + 3, sz, C('#5f7f4a')); R(cx - sz, cy - sz - 4, sz * 2 + 1, 1, C('#5f7f4a')); R(cx - sz - 1, cy - sz - 3, sz + 1, 1, C('#7f9f62'));
       for (let q = -sz - 1; q <= sz + 1; q += 2) R(cx + q, cy - 3, 1, 2 + (Math.abs(q) % 3), C('#6f8f56'));
-    } else if (kind === 'dead') {
-      R(cx, cy - sz - 3, 1, sz + 5, '#5a5046'); R(cx - 2, cy - sz - 1, 2, 1, '#5a5046'); R(cx - 3, cy - sz - 2, 1, 1, '#5a5046'); R(cx + 1, cy - sz, 2, 1, '#5a5046'); R(cx + 3, cy - sz - 1, 1, 1, '#5a5046'); R(cx + 1, cy - sz - 4, 1, 2, '#5a5046');
+    } else if (kind === 'dead' || kind === 'burnt') {
+      const dc = kind === 'burnt' ? '#2e2824' : '#5a5046';
+      R(cx, cy - sz - 3, 1, sz + 5, dc); R(cx - 2, cy - sz - 1, 2, 1, dc); R(cx - 3, cy - sz - 2, 1, 1, dc); R(cx + 1, cy - sz, 2, 1, dc); R(cx + 3, cy - sz - 1, 1, 1, dc); R(cx + 1, cy - sz - 4, 1, 2, dc);
     } else {                                     // broadleaf: a crown built of two or three lobes, so that no two have one outline
-      const dk = kind === 'beech' ? '#3f7032' : kind === 'chestnut' ? '#4a6a2a' : kind === 'blossom' ? '#4c7f38' : '#35602b', lt = kind === 'beech' ? '#5f9a46' : kind === 'chestnut' ? '#7a9a3a' : kind === 'blossom' ? '#69a04a' : '#4c7f38', hi = kind === 'beech' ? '#7fb85a' : '#69a04a';
-      R(cx, cy - 2, 1, 4, '#4a3320');
+      const [dk, lt, hi] = LEAF[kind] || LEAF.oak;
+      R(cx, cy - 2, 1, 4, kind === 'olive' ? '#6a5a44' : '#4a3320'); if (kind === 'olive') R(cx - 1, cy, 1, 2, '#6a5a44');
       const lobes = 2 + Math.floor(h(cx, cy, 190) * 2);
       for (let q = 0; q < lobes; q++) { const ox = Math.round((h(cx + q, cy, 191) - 0.5) * sz * 1.4), oy = -Math.round(h(cx, cy + q, 192) * sz * 0.8), r = Math.max(2, sz - q);
         R(cx + ox - r, cy - 3 - r + oy, r * 2 + 1, r + 1, C(dk)); R(cx + ox - r + 1, cy - 4 - r + oy, Math.max(1, r * 2 - 1), 1, C(dk)); R(cx + ox - r, cy - 3 - r + oy, r, Math.max(1, r - 1), C(lt)); R(cx + ox - r + 1, cy - 4 - r + oy, Math.max(1, r - 1), 1, C(hi)); }
@@ -404,14 +415,14 @@ function provLand() {
   // which trees grow where
   const species = (tx, ty, reg, r) => {
     const nn = north(tx, ty) + (r - 0.5) * 0.24;
-    if (reg === 'Greywood') return r < 0.1 ? 'dead' : r < 0.45 ? 'fir' : r < 0.8 ? 'oak' : 'birch';
+    if (reg === 'Greywood') return r < 0.1 ? 'dead' : r < 0.4 ? 'fir' : r < 0.68 ? 'oak' : r < 0.84 ? 'birch' : 'yew';
     if (reg === 'Blackmere') return r < 0.25 ? 'dead' : r < 0.7 ? 'willow' : 'fir';
-    if (reg === 'The Salt Shore') return r < 0.5 ? 'stone' : r < 0.75 ? 'cypress' : 'oak';
-    if (reg === 'The Quarry Hills') return r < 0.35 ? 'cypress' : r < 0.7 ? 'pine' : 'oak';
-    if (reg === 'The High Fells' || reg === 'The Barrow Downs') return r < 0.6 ? 'pine' : r < 0.85 ? 'fir' : 'birch';
-    if (reg === 'The Home Fields') return r < 0.15 ? 'blossom' : r < 0.5 ? 'beech' : r < 0.85 ? 'oak' : 'chestnut';
-    if (nn > 0.6) return r < 0.7 ? 'pine' : 'birch';
-    return r < 0.4 ? 'oak' : r < 0.7 ? 'beech' : r < 0.9 ? 'chestnut' : 'birch';
+    if (reg === 'The Salt Shore') return r < 0.4 ? 'stone' : r < 0.58 ? 'cypress' : r < 0.84 ? 'olive' : 'oak';
+    if (reg === 'The Quarry Hills') return r < 0.28 ? 'cypress' : r < 0.55 ? 'pine' : r < 0.8 ? 'olive' : 'oak';
+    if (reg === 'The High Fells' || reg === 'The Barrow Downs') return r < 0.48 ? 'pine' : r < 0.68 ? 'fir' : r < 0.86 ? 'larch' : 'birch';
+    if (reg === 'The Home Fields') return r < 0.15 ? 'blossom' : r < 0.45 ? 'beech' : r < 0.74 ? 'oak' : r < 0.88 ? 'chestnut' : 'poplar';
+    if (nn > 0.6) return r < 0.52 ? 'pine' : r < 0.76 ? 'larch' : 'birch';
+    return r < 0.34 ? 'oak' : r < 0.6 ? 'beech' : r < 0.78 ? 'chestnut' : r < 0.9 ? 'birch' : 'poplar';
   };
   // Places there is only one of. Each is set down where it belongs: on ground of the right kind, in its own part of
   // the country, clear of the town, of the places you can visit, and of each other. They are scenery: nothing is
@@ -633,9 +644,56 @@ function provLand() {
         } });
         continue;
       }
-      const n = edge ? 1 + (b > 0.6 ? 1 : 0) : 1 + (b > 0.35 ? 1 : 0) + (b > 0.8 ? 1 : 0);
+      // A wood is not one thing all through. It grows in stands, each led by one kind of tree; here it is old and
+      // the trees are few and great, there it is a thicket; in places the leaf has turned, the canopy opens over
+      // fern and bluebell, or a patch has burned, blown down or drowned.
+      const stand = Math.max(0, Math.min(0.999, (wildNoise(tx / 9, ty / 9, 871) - 0.5) * 2.4 + 0.5)), lead = species(tx, ty, reg, (Math.floor(stand * 7) + 0.5) / 7);
+      const age = wildNoise(tx / 7, ty / 7, 872), turn = wildNoise(tx / 11, ty / 11, 873), blight = wildNoise(tx / 5, ty / 5, 874), thin = wildNoise(tx / 6, ty / 6, 875);
+      if (!edge && blight < WOOD.blight) {
+        const what = reg === 'Blackmere' ? 'drowned' : wildNoise(tx / 22, ty / 22, 877) > 0.5 ? 'burnt' : 'blown', c1 = h(tx, ty, 886), c2 = h(tx, ty, 887);
+        feats.push({ y: y - 14, d: () => {
+          if (what === 'burnt') { R(x, y, 10, 10, 'rgba(34,26,20,.42)'); for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 888 + q) * 9), y + Math.floor(h(tx, ty, 891 + q) * 9), 2, 1, q % 2 ? '#1e1a16' : '#8a8478'); }
+          else if (what === 'drowned') { R(x, y, 10, 10, '#3d5a52'); R(x + 1 + Math.floor(c1 * 3), y + 2 + Math.floor(c2 * 4), 5 + Math.floor(c2 * 3), 3, '#4f7470'); R(x + 2 + Math.floor(c1 * 4), y + 3 + Math.floor(c2 * 4), 3, 1, '#7a9a98'); }
+          else R(x, y, 10, 10, 'rgba(120,110,60,.18)');
+        } });
+        const cx = x + 2 + Math.floor(c1 * 6), cy = y + 4 + Math.floor(c2 * 5);
+        if (what === 'burnt') {
+          if (a < 0.4) feats.push({ y: cy, d: () => tree(cx, cy, 'burnt', 2 + Math.floor(b * 4), 1) });
+          else if (a < 0.62) feats.push({ y: cy, d: () => { R(cx, cy - 2, 2, 3, '#2a2420'); R(cx, cy - 2, 2, 1, '#4a4038'); } });                                 // a charred stump
+          else if (a < 0.78) feats.push({ y: cy, d: () => { R(cx - 3, cy, 7, 2, '#241f1b'); R(cx - 3, cy, 7, 1, '#3a322c'); if (b > 0.5) R(cx + 1, cy - 1, 1, 1, '#d8742a'); } });   // a fallen trunk, an ember in it yet
+          else if (a > 0.9) feats.push({ y: cy, d: () => { for (let q = 0; q < 3; q++) { R(cx - 3 + q * 3, cy - 2 - (q % 2), 1, 3, '#5f9a46'); R(cx - 3 + q * 3, cy - 3 - (q % 2), 1, 1, '#d070a0'); } } });      // fireweed, first to come back
+        } else if (what === 'drowned') {
+          if (a < 0.5) feats.push({ y: cy, d: () => { tree(cx, cy, 'dead', 2 + Math.floor(b * 4), 1); R(cx - 2, cy + 1, 5, 1, '#7a9a98'); } });
+          else if (a < 0.75) feats.push({ y: cy, d: () => { for (let q = 0; q < 3; q++) R(cx - 3 + q * 2 + Math.floor(b * 2), cy - 3 - (q % 2), 1, 4 + (q % 2), q % 2 ? '#8a9a4a' : '#9aaa5a'); R(cx - 3 + Math.floor(b * 2), cy - 4, 1, 2, '#6b4a2a'); } });
+          else if (a > 0.9) feats.push({ y: cy, d: () => { R(cx - 3, cy, 7, 2, '#4a4030'); R(cx - 3, cy, 7, 1, '#6f8a4a'); } });                                    // a trunk gone over, green with moss
+        } else {                                 // blown down: the trunks all lie one way, root plates in the air
+          const dir = wildNoise(tx / 22, ty / 22, 879) > 0.5 ? 1 : -1;
+          if (a < 0.55) feats.push({ y: cy, d: () => { const len = 6 + Math.floor(b * 5); for (let q = 0; q < len; q++) R(cx + dir * q, cy - Math.floor(q / 4), 1, 2, q % 4 === 3 ? '#5a4326' : '#7a5a34'); R(cx - dir, cy - 3, 2, 5, '#4a3320'); R(cx - dir * 2, cy - 2, 1, 3, '#6b4f2c'); for (let q = 0; q < 3; q++) R(cx + dir * (len - 1 + q), cy - 3 - Math.floor(len / 4) + q * 2, 2, 2, '#4c7f38'); } });
+          else if (a < 0.72) feats.push({ y: cy, d: () => tree(cx, cy, lead === 'dead' ? 'oak' : lead, 2, 1.05) });                                                   // what came up in the light
+          else if (a < 0.84) feats.push({ y: cy, d: () => { R(cx, cy - 4, 2, 5, '#6b4f2c'); R(cx, cy - 5, 1, 1, '#c9a763'); R(cx + 1, cy - 6, 1, 2, '#c9a763'); } });      // a trunk snapped off short
+        }
+        continue;
+      }
+      const open = !edge && thin > WOOD.thin, old = !edge && !open && age > WOOD.old, young = !open && age < WOOD.young, fall = turn > WOOD.turn;
+      if (open) {                                // light on the floor of the wood
+        const fl = wildNoise(tx / 3, ty / 3, 878), c1 = h(tx, ty, 894), c2 = h(tx, ty, 895);
+        feats.push({ y: y - 14, d: () => {
+          R(x, y, 10, 10, 'rgba(240,240,170,.07)');
+          if (a > 0.93) { const bx = x + 2 + Math.floor(c1 * 4), by = y + 4 + Math.floor(c2 * 3); R(bx - 1, by + 2, 6, 1, 'rgba(0,0,0,.2)'); R(bx, by, 4, 2, '#8a8478'); R(bx + 1, by - 1, 2, 1, '#a39a8a'); R(bx, by - 1 + (c1 > 0.5 ? 1 : 0), 2 + Math.floor(c2 * 2), 1, '#6f8a4a'); }      // a boulder under moss
+          else if (a > 0.86) { const lx = x + Math.floor(c1 * 3); R(lx, y + 6, 7, 2, '#5a4326'); R(lx, y + 6, 3 + Math.floor(c2 * 4), 1, '#6f8a4a'); R(lx + 6, y + 6, 1, 2, '#c9a763'); }                                                 // a mossed log
+          else if (a > 0.8) { const mx = x + 5, my = y + 5; for (let q = 0; q < 6; q++) R(mx + Math.round(Math.cos(q * 1.05 + c1) * 3), my + Math.round(Math.sin(q * 1.05 + c1) * 2), 1, 1, q % 2 ? '#e8dcc0' : '#c8a878'); }          // a ring of mushrooms
+          else if (fall) for (let q = 0; q < 5; q++) R(x + Math.floor(h(tx, ty, 896 + q) * 9), y + Math.floor(h(tx, ty, 901 + q) * 9), 1 + (q % 2), 1, ['#b45f2c', '#d4a43a', '#8f4422'][q % 3]);                                      // leaves down
+          else if (fl > 0.56) for (let q = 0; q < 6; q++) R(x + Math.floor(h(tx, ty, 896 + q) * 10), y + Math.floor(h(tx, ty, 901 + q) * 10), 1, 1, reg === 'Greywood' ? (q % 2 ? '#e8e4f0' : '#c8c0e0') : q % 3 ? '#7a8ad8' : '#a0acf0');   // bluebells; in the old wood, windflowers
+          else if (fl < 0.44) for (let q = 0; q < 3; q++) { const fx = x + 1 + Math.floor(h(tx, ty, 896 + q) * 7), fy = y + 3 + Math.floor(h(tx, ty, 901 + q) * 6); R(fx, fy, 1, 2, '#4f8a3a'); R(fx - 1, fy - 1, 1, 1, '#6faa4e'); R(fx + 1, fy - 1, 1, 1, '#6faa4e'); if (q % 2) R(fx + 2, fy, 1, 1, '#4f8a3a'); }      // fern
+          else if (a < 0.3) { const bx = x + 1 + Math.floor(c1 * 4); R(bx, y + 5, 5, 3, '#3f6a34'); R(bx + 1, y + 4, 3, 1, '#4c7f38'); R(bx + 1 + Math.floor(c2 * 3), y + 5, 1, 1, '#7a2a4a'); R(bx + Math.floor(c1 * 4), y + 7, 1, 1, '#2a1a3a'); }                                // bramble, in fruit
+        } });
+      }
+      const n = open ? (b > 0.6 ? 1 : 0) : edge ? (young ? 2 : 1) + (b > 0.6 ? 1 : 0) : old ? 1 + (b > 0.78 ? 1 : 0) : young ? 3 + (b > 0.5 ? 1 : 0) : 1 + (b > 0.35 ? 1 : 0) + (b > 0.8 ? 1 : 0);
       for (let q = 0; q < n; q++) {
-        const cx = x + 1 + Math.floor(h(tx, ty, 63 + q) * 9), cy = y + 2 + Math.floor(h(tx, ty, 66 + q) * 8), kind = species(tx, ty, reg, h(tx, ty, 69 + q)), sz = (edge ? 2 : 3) + Math.floor(h(tx, ty, 72 + q) * (edge ? 2 : 3)), f = 0.86 + h(tx, ty, 75 + q) * 0.26;
+        const cx = x + 1 + Math.floor(h(tx, ty, 63 + q) * 9), cy = y + 2 + Math.floor(h(tx, ty, 66 + q) * 8), f = 0.86 + h(tx, ty, 75 + q) * 0.26;
+        let kind = h(tx, ty, 860 + q) < 0.66 ? lead : species(tx, ty, reg, h(tx, ty, 69 + q));
+        if (fall && ['oak', 'beech', 'chestnut', 'birch', 'poplar', 'blossom'].includes(kind) && h(tx, ty, 864 + q) < 0.6) kind = h(tx, ty, 868 + q) > 0.5 ? 'gold' : 'russet';
+        const sz = edge ? 2 + Math.floor(h(tx, ty, 72 + q) * 2) : old ? 5 + Math.floor(h(tx, ty, 72 + q) * 3) : young ? 2 + Math.floor(h(tx, ty, 72 + q) * 2) : 3 + Math.floor(h(tx, ty, 72 + q) * 3);
         if (!nearMark(cx, cy)) feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
       }
       if (edge && a > 0.7) feats.push({ y: y + 9, d: () => { R(x + 1 + Math.floor(b * 5), y + 7, 4, 2, '#4c7f38'); R(x + 2 + Math.floor(b * 5), y + 6, 2, 1, '#69a04a'); } });      // brush along the wood's edge
