@@ -1228,6 +1228,7 @@ function provLand() {
       const dx = (px - cx) / RX, dy = (py - cy) / RY, e = dx * dx + dy * dy; if (e > 1 + (wildHash(Math.round(px / 6), Math.round(py / 6), 3100 + sd) - 0.5) * 0.35) return false;      // a ragged edge to it
       const ttx = Math.floor(px / 10), tty = Math.floor(py / 10), k = at(ttx, tty);
       if (!kinds.includes(k) || farm(ttx, tty) || inTown(ttx, tty, 4)) return false;
+      for (const [ox, oy] of [[-6, 0], [6, 0], [0, -6], [0, 6]]) { const k2 = at(Math.floor((px + ox) / 10), Math.floor((py + oy) / 10)); if (k2 === T_ROAD || k2 === T_BRIDGE) return false; }      // and it keeps a little off the road
       if (siteTiles.some(([sx, sy]) => Math.abs(sx - ttx) < 3 && Math.abs(sy - tty) < 3)) return false;
       for (const m of marks) if (m !== self && Math.abs(m.x + m.r - px) < m.r + 14 && Math.abs(m.y - py) < 26) return false;
       return true;
@@ -1299,9 +1300,13 @@ function provLand() {
       strew(9, (px, py, h2) => { const w = 2 + Math.floor(h2 * 3); R(px, py + 2, w + 1, 1, 'rgba(0,0,0,.2)'); R(px, py, w, 2, '#9a9484'); R(px, py, w, 1, '#c9c3b2'); R(px + w - 1, py + 1, 1, 1, '#6d6858'); });
     }
   };
+  // A place that is found by a road, but wants room round it that the road would cut through, is set a little way back
+  // from it: so many tiles east of where it would otherwise stand, if the ground there is as good.
+  const SET_BACK = { 'The fort': 4 };
   const setDown = (seed, ok, r, name, draw) => {
     const tryAt = (tx, ty) => {
       if (!ok(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 13) return false;
+      if (SET_BACK[name]) { const sx = tx + SET_BACK[name]; if (on(GR)(sx, ty) && on(GR)(sx + 2, ty) && !byRoad(sx, ty) && !byRoad(sx + 2, ty)) tx = sx; }
       if (underAq(tx * 10 + r, ty * 10 - 6, r + 20)) return false;
       if (siteTiles.some(([sx, sy]) => Math.hypot(sx - tx, sy - ty) < 5)) return false;
       const x = tx * 10, y = ty * 10;
