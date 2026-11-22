@@ -2088,6 +2088,200 @@ const TALES = {
           { label: () => 'Buy wine and honey of both, and leave them to it (30 denarii)', ok: () => G.denarii >= 30, go: 'end', run: t => { G.denarii -= 30; t.end = 'supper'; taleTire(-12); taleCheer(8); return 'Honey on new bread, and the wine that tastes of it. The men have not eaten so well since the last games. When you look back from the road there is smoke from one chimney, and a man in a clean tunic walking towards it with a jar.'; } },
         ] },
     ] },
+
+  // ---- the fishers' huts, and the bones of a whale ----
+  whale: { name: 'The jawbone',
+    lore: { back: { 'The bones of a whale': 'The jaw is back in its place. The fishers leave it the first fish of every catch.', "The fishers' huts": 'The boats go out again.' },
+      carted: { 'The bones of a whale': "Gone, to the last rib, to the governor's garden. There is a hollow in the sand.", "The fishers' huts": 'Half the boats are drawn up for good.' },
+      cast: { 'The bones of a whale': 'The jaw is back in its place, with plaster dust still in the grain of it.', "The fishers' huts": 'The boats go out again.' } },
+    steps: [
+      { mark: "The fishers' huts", who: 'The fishers', title: 'Boats drawn up in fair weather',
+        text: () => `Every boat is drawn up above the tide-line, on a morning any fisherman would give a tooth for. The nets are dry. An old woman, <b>Mamma Tutia</b>, who seems to do the talking for all of them, points along the shore with her chin. "Somebody has been at the whale. The jaw is gone. We do not put out while the whale is not whole, and do not ask me why, because my grandmother did not know either. Go and look, since you are walking that way."`,
+        opts: [
+          { label: () => 'Go and look at the whale', run: () => 'They give you dried fish for the road, which is all they have to give until the boats go out.' },
+          { label: () => 'Ask what the whale has to do with it', run: t => { t.asked = true; return 'It came ashore the year of the great storm, she says, the only year no boat of theirs was lost. Nobody has wished to find out whether that was chance. You go and look.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'She spits, politely, to one side.' },
+        ] },
+      { mark: 'The bones of a whale', title: 'A Greek with a measuring rod',
+        text: t => `There is a cart among the ribs, and in the cart, packed in straw, the jawbone, as long as two men. A Greek in a clean tunic is measuring what is left with a knotted cord and calling numbers to a slave with a tablet. He is <b>Master Pollio</b>, and he has the governor's letter: the whole animal is to be set up in the governor's garden, wired together, as a wonder. "They are fishermen," he says, when you tell him. "They will fish${t.asked ? '. A storm is weather, not a whale' : ''}."`,
+        opts: [
+          { label: () => 'The jaw goes back where it lay', go: 'end', run: t => { t.end = 'back'; favor('magistrate', -3); taleCheer(4); G.fame += 2; return 'Your men lift it out of his cart while he reads his letter at them, louder each time. It goes back into its own print in the sand as if it had been waiting. By the time you pass the huts again the first boat is afloat, and there is fish for everybody. The governor will be told who spoiled his wonder: Magistrate favour -3, fame +2.'; } },
+          { label: () => 'Help him load the rest', go: 'end', run: (t, id) => { t.end = 'carted'; const n = taleCoin(id, 30); taleTire(8); return `It is a day's work and he pays for it like a man spending somebody else's money: <b class="gold num">${n}</b> denarii. You go home by another road than the one past the huts.`; } },
+          { label: () => 'Take a mould of it in plaster, and give him that', go: 'end', run: (t, id) => {
+            if (chance(clamp(0.35 + bestWits() * 0.03, 0.35, 0.9))) { t.end = 'cast'; const n = taleCoin(id, 18); G.fame += 2; return `It is your own men's notion, and they are absurdly proud of it. Pollio objects until it is pointed out that plaster does not rot, smell, or need wiring. He takes his cast and pays <b class="gold num">${n}</b> denarii for the idea; the bone goes back in the sand; the boats go out. Fame +2.`; }
+            t.end = 'back'; taleTire(6); return 'The plaster will not set in the sea air, and by evening there is a great deal of white mud and one furious Greek. In the end he goes off to fetch better plaster from the town, and your men put the jaw back while he is gone. The boats go out. He will not be back before winter.'; } },
+        ] },
+    ] },
+
+  // ---- the gallows, and the fort ----
+  gallows: { name: 'The man on the barrel',
+    lore: { freed: { 'The gallows': 'Empty, this month. The barrel has been taken for firewood.', 'The fort': 'They have a new quartermaster.' },
+      cut: { 'The gallows': 'A cut rope hangs from it. Nobody has claimed the reward.' }, hanged: { 'The gallows': 'A clerk hangs here, who said to the end that he was no thief.' } },
+    steps: [
+      { mark: 'The gallows', who: 'A man with a rope round his neck', title: 'The man on the barrel',
+        text: () => `There is a man standing on a barrel under the gallows, with his hands tied and the rope already round his neck, and nobody else in sight: the hangman has gone to his dinner and left him to think. "Do not kick it," he says. "I beg you. I am <b>Naso</b>, pay-clerk at the fort. Forty men's pay went out of the chest and I am to hang for it at sundown tomorrow. Ask the quartermaster to show you his own ledger. That is all. Ask him to show it."`,
+        opts: [
+          { label: () => 'Go to the fort and ask', run: () => 'He thanks you as far as the rope allows. You leave him his barrel.' },
+          { label: () => 'Cut him down, and let him run', go: 'end', run: t => { t.end = 'cut'; favor('magistrate', -5); taleCheer(5); return 'He is gone into the gorse before the rope has stopped swinging. Whether he stole the pay or not, you will never know now, and neither will the fort. The men like it. The Magistrate, whose gallows it is, does not: favour -5.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He watches you all the way to the bend of the road.' },
+        ] },
+      { mark: 'The fort', title: "The quartermaster's ledger",
+        text: () => `The quartermaster of the fort is a broad, comfortable man called <b>Sulca</b>, with new boots. He is delighted to see a lanista; he will not hear of the pay chest; and the ledger, he regrets, is under lock by the centurion's order. As you are leaving he falls into step beside you and remarks that the fort buys a great deal of oil, leather and wine, and has been thinking of changing its suppliers, and that a clerk is only a clerk.`,
+        opts: [
+          { label: () => 'Say it before the centurion, in front of the men', run: t => {
+            if (chance(clamp(0.4 + G.fame / 400, 0.4, 0.85))) { t.proof = true; return 'The centurion does not like gladiators, but he likes being robbed less, and the men whose pay it was are listening. He has the strongbox opened on the parade ground. There are two ledgers in it. Sulca is put in the clerk\'s old cell, and you are given a tablet for the hangman, with the fort\'s seal on it.'; }
+            t.proof = false; return 'The centurion hears you out and has you shown to the gate. But he looked at Sulca\'s boots while you were talking; and a soldier catches you up on the road with a scrawled note for the hangman. It asks for three days\' delay. It is not a pardon.'; } },
+          { label: () => 'Have the ledger out of his room tonight', run: t => {
+            if (chance(clamp(0.3 + bestWits() * 0.035, 0.3, 0.9))) { t.proof = true; return `It is under his mattress, where a man keeps what he reads last thing at night. <b>${taleLead().name}</b> is in and out by the latrine window before the watch changes. Forty men's pay, in Sulca's own hand, a little at a time over two years.`; }
+            t.proof = false; taleTire(10); return 'The latrine window is narrower than it looked. Your man is not caught, but he comes back with nothing but the smell, and by morning Sulca has doubled his door-guard. All you have for the hangman is your own word.'; } },
+          { label: () => 'Take the hint, and the contract', go: 'end', run: (t, id) => { t.end = 'hanged'; const n = taleCoin(id, 45); favor('magistrate', 2); taleCheer(-4); return `Oil, leather and wine: the first payment is <b class="gold num">${n}</b> denarii, in advance, in coin that has plainly been in a pay chest. The men know what it was for. At sundown the next day, from a long way off, you can see that the barrel is gone. Magistrate favour +2.`; } },
+        ] },
+      { mark: 'The gallows', title: 'Sundown',
+        text: t => t.proof ? `The hangman reads the tablet twice, sighs for his fee, and climbs up to take the rope off. Naso sits down on the barrel, as his legs will not do anything else. His wife and two brothers have come to see him die and have brought what the family could raise for a mason; they hold it out to you instead.`
+          : `The hangman reads what you have brought, and scratches his neck. Three days, or your word against the fort's. He is a reasonable man, he says, and a poor one. Naso is still on the barrel. His wife and two brothers are there, with what the family could raise for a mason.`,
+        opts: [
+          { label: t => t.proof ? "Take the family's purse" : "Pay the hangman out of the family's purse", go: 'end', run: (t, id) => { t.end = 'freed'; const n = t.proof ? taleCoin(id, 30) : 0; return t.proof ? `It is <b class="gold num">${n}</b> denarii, in small coin, and they would be shamed if you refused it.` : 'It takes all of it. The hangman finds that the rope has rotted and that a rotted rope is the will of the gods. By the time anybody at the fort looks into Sulca\'s ledgers, as they will, Naso is three provinces away.'; } },
+          { label: () => 'Take nothing', go: 'end', run: t => { t.end = 'freed'; if (!t.proof) G.denarii -= Math.min(G.denarii > 0 ? G.denarii : 0, 25); G.fame += 3; favor('temple', 2); return `${t.proof ? 'You leave them their mason\'s money' : 'You pay the hangman yourself, twenty-five denarii, and leave them their mason\'s money'}; they have no use for a mason now. It is told in the town before you are home. Fame +3, temple favour +2.`; } },
+          { label: () => 'A clerk who can keep honest books is worth feeding', ok: () => G.roster.length < capacity(), go: 'end', run: (t, id) => { t.end = 'freed'; const g = taleRecruit('Naso', 18 + taleTier(id) * 2, null, 'A pay-clerk taken down off the gallows barrel, who would not go back to the fort.'); g.morale = 85; return `He cannot go back to the fort; nobody there will forgive him for being right. <b>${g.name}</b> comes with the school. He is no fighter yet, but he has stood a day and a night on a barrel without falling, which is a kind of nerve.`; } },
+        ] },
+    ] },
+
+  // ---- the lime kiln, and the great quarry ----
+  kiln: { name: 'The fire that must not go out',
+    lore: { round: { 'The great quarry': 'There is a face in the rock, and the cut goes round it.', 'The lime kiln': 'Its fire has not been let go out in years. It nearly was, once.' },
+      broken: { 'The great quarry': 'A fresh scar in the east face, and the men will not look at it.', 'The lime kiln': 'Its fire has not been let go out in years.' },
+      out: { 'The lime kiln': 'Cold. They are waiting on a priest to light it again.', 'The great quarry': 'There is a face in the rock. Nobody cuts there.' } },
+    steps: [
+      { mark: 'The lime kiln', who: 'The lime burner', title: 'The fire that must not go out',
+        text: () => `The lime burner is feeding his kiln with fence rails. "Nineteen years," says <b>Fuscus</b>, without turning round. "My father lit it. You do not relight a kiln this size; you build another. And the quarry has sent me no stone in eight days and no word why. I have two days of stone left, and I cannot leave the fire to go and ask."`,
+        opts: [
+          { label: () => 'Go and ask at the quarry', run: () => 'He nods at the fire, which is as much thanks as he can spare from it.' },
+          { label: () => 'Leave two men to feed it, and go', run: t => { t.help = true; taleTire(5); return 'He looks at your two men as a man might look at somebody offering to mind his child. Then he shows them, exactly, how. The rest of you go to the quarry.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He throws on another rail.' },
+        ] },
+      { mark: 'The great quarry', title: 'The face in the rock',
+        text: () => `Nobody is working. The quarrymen are sitting along the top bench with their mallets across their knees, looking at the east face, and the overseer, <b>Blaesus</b>, is hoarse. Eight days ago a block came away and left a face behind it in the living rock: eyes shut, a mouth, something like a beard, as tall as a house door. Nobody carved it. The best stone in the quarry lies straight through it, and the men will not put a wedge in.`,
+        opts: [
+          { label: () => 'Have them cut round it', go: 'end', run: t => { t.end = 'round'; favor('temple', 5); G.fame += 2; return 'It costs Blaesus forty feet of his best bed and he says so, at length. But a quarry with a god in it is still a quarry, and one with a strike in it is a hole. The first cartload reaches the kiln with a day to spare, and the priests, when they hear, send somebody out to look at the face. Temple favour +5, fame +2.'; } },
+          { label: () => 'Have your own men carry a load down to the kiln', go: 'end', run: (t, id) => { t.end = t.help ? 'round' : 'out'; taleTire(14); const n = taleCoin(id, 26); return t.help ? `Loose stone off the spoil heap, on their backs, eight miles. It buys the fire four days, and in four days the quarrymen have talked themselves round to cutting somewhere else. Fuscus pays <b class="gold num">${n}</b> denarii and does not stop feeding the kiln to do it.` : `Loose stone off the spoil heap, on their backs, eight miles. Fuscus pays <b class="gold num">${n}</b> denarii for it. But one load is one load, the quarry is still idle when it is burnt, and on the tenth night the fire his father lit goes down to a red eye and then to nothing.`; } },
+          { label: () => 'Put the first wedge in yourself', go: 'end', run: (t, id) => { t.end = 'broken'; const n = taleCoin(id, 38); favor('temple', -5); taleCheer(-3); return `Somebody has to, Blaesus says, and pays you <b class="gold num">${n}</b> denarii to be the one. It splits along the mouth. The men go back to work at once and do not speak to you, and yours are not much better. Temple favour -5.`; } },
+        ] },
+    ] },
+
+  // ---- the huts on stilts, and the bog oak ----
+  bog: { name: 'The bog man',
+    lore: { buried: { 'The bog oak': 'There is a grave under it now, with a child\'s wooden horse on the mound.' }, torc: { 'The bog oak': 'The peat under it has been dug over, and left open.' },
+      kept: { 'The bog oak': 'Something sleeps in the peat beneath it. A child brings it milk.', 'The huts on stilts': 'The children are not afraid of the marsh. Their mothers are.' } },
+    steps: [
+      { mark: 'The huts on stilts', who: 'The marsh people', title: 'The bog man',
+        text: () => `The marsh people do not like strangers, and it is a mark of how things stand that a woman poles straight across to you. Her girl, <b>Uisca</b>, seven years old, goes out at dusk and comes back at dawn with peat to the knees, and will say only that she has been "minding him". The other children say there is a man in the bog by the black oak who does not get up. The men of the village will not go there after dark, or before it.`,
+        opts: [
+          { label: () => 'Go to the bog oak', run: () => 'She gives you a bundle of reeds to lay where the ground will not hold. It is not much to give, and here it is a great deal.' },
+          { label: () => 'Ask the child', run: t => { t.child = true; return 'Uisca looks you over and decides you will do. "He is cold," she says. "He has been asleep a long time and nobody tucked him in." She shows you which way, with a wet finger, and says to mind his hair.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'She poles back without a word.' },
+        ] },
+      { mark: 'The bog oak', title: 'The one who does not get up',
+        text: t => `Under the roots of the black oak, where the peat has slumped, there is a man lying on his side. He is the colour of the oak and as hard, with every hair of his red beard in place and a cord still round his neck. He has been there since before there was a town. Somebody has put a child's blanket over him, and a bowl of milk by his head${t.child ? ', and combed his hair' : ''}. Round his arm, black with the bog, is a ring as thick as a thumb, and where the blanket has rubbed it, it is gold.`,
+        opts: [
+          { label: () => 'Bury him properly, with the child to see it done', go: 'end', run: t => { t.end = 'buried'; taleTire(6); favor('temple', 4); G.fame += 2; return 'On the dry rise beyond the oak, with the ring still on his arm and the blanket over him. Uisca wants to know whether he will be warm now, and is told yes. She leaves him her wooden horse. The marsh people watch from their boats, and that night, for the first time anybody remembers, they send food to a stranger\'s fire. Temple favour +4, fame +2.'; } },
+          { label: () => 'Take the arm-ring', go: 'end', run: (t, id) => { t.end = 'torc'; const n = taleCoin(id, 60); taleCheer(-6); favor('temple', -3); return `It will not come over the hand, and what has to be done to get it is done by you, since no man of yours will. A goldsmith gives <b class="gold num">${n}</b> denarii and asks nothing. The child is told that he woke up and went home. She does not believe it. Temple favour -3, and the men are uneasy.`; } },
+          { label: () => 'Cover him again, and tell the village he harms nobody', go: 'end', run: t => { t.end = 'kept'; taleCheer(5); const g = taleLead(); g.xp = (g.xp || 0) + 2; return `You put the peat back over all but his face, as she had it. The village is not comforted, exactly; but a dead man who needs a blanket is less to be afraid of than one who walks. <b>${g.name}</b> stays behind a moment to straighten the bowl.`; } },
+        ] },
+    ] },
+
+  // ---- the old arena, and the old arch ----
+  sweeper: { name: 'The last games',
+    lore: { held: { 'The old arena': 'Swept every morning. The last games held in it were fought before one old man.' }, quiet: { 'The old arena': 'Nobody sweeps it now. The grass is coming up through the sand.' } },
+    steps: [
+      { mark: 'The old arena', who: 'An old man with a broom', title: 'The man who sweeps the sand',
+        text: () => `An old man is sweeping the sand of the old arena, in straight lines, as if there were games tomorrow. There have been no games here for forty years. <b>Hirpus</b> was the arena's boy, then its gate-man, then all that was left of it. "The last day was never finished," he says, leaning on the broom. "The Magistrate's men came in at the seventh bout. The editor buried the victor's palm and the prize purse under the old arch so they should not have it, and died that winter. If I had the palm, I could close the games. They ought to be closed."`,
+        opts: [
+          { label: () => 'Go and dig at the old arch', run: () => 'He tells you which pier, and how many paces from it, and then tells you again in case you were not listening.' },
+          { label: () => 'Ask who was winning', run: t => { t.asked = true; return 'A Thracian called Sagaris, against a murmillo whose name he has forgotten, which grieves him. Sagaris had him down. The thumb had not been given. He tells you which pier of the arch, and how many paces.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He goes back to his lines.' },
+        ] },
+      { mark: 'The old arch', title: 'Under the third pier',
+        text: () => `Three feet down, in an oiled leather bag that has outlasted the man who buried it: a palm branch of gilded bronze, as long as an arm, and under it a purse. The purse is heavy. Forty years ago it was a fine prize, and silver does not spoil.`,
+        opts: [
+          { label: () => 'Take him both', run: t => { t.purse = 'his'; return 'It all goes back into the bag as it came out.'; } },
+          { label: () => 'Take him the palm. The purse was never his', run: (t, id) => { t.purse = 'yours'; const n = taleCoin(id, 40); return `<b class="gold num">${n}</b> denarii, in coin with an emperor on it that your younger men have never seen. He asked for the palm.`; } },
+          { label: () => 'Keep both, and go home', go: 'end', run: (t, id) => { t.end = 'quiet'; const n = taleCoin(id, 55); taleCheer(-3); return `The purse, and what a bronze-founder gives for the palm: <b class="gold num">${n}</b> denarii. Somewhere behind you an old man is still sweeping.`; } },
+        ] },
+      { mark: 'The old arena', title: 'The seventh bout',
+        text: t => `Hirpus takes the palm in both hands and cannot speak for a little. Then he is all business. The seventh bout must be fought out before the games can be closed: two of your men, on his sand, with him in the editor's box${t.asked ? ', one for Sagaris and one for the man whose name he has lost' : ''}. There will be no crowd. He does not seem to think that matters.`,
+        opts: [
+          { label: () => 'Let them fight it in earnest, with wooden swords', go: 'end', run: t => { t.end = 'held'; const men = fieldParty().slice(0, 2); men.forEach(g => { g.xp = (g.xp || 0) + 4; g.fatigue = clamp(g.fatigue + 18, 0, 100); }); G.fame += 3; return `${men.length > 1 ? `<b>${men[0].name}</b> and <b>${men[1].name}</b>` : 'Your men'} fight it as if the stands were full, and Hirpus gives the thumb as if forty thousand were waiting on it. He awards the palm, takes it back, and declares the games closed. Both men have learned something. It gets about. Fame +3.`; } },
+          { label: () => 'Give him a show: all of them, the whole pageant', go: 'end', run: t => { t.end = 'held'; taleCheer(9); taleTire(8); G.fame += 2; return 'The entry, the salute, the pairs, the lot, for an audience of one old man and some lizards. Your men have never enjoyed anything so much. He weeps without shame through the whole of it, and closes the games at dusk. Fame +2.'; } },
+          { label: t => t.purse === 'his' ? 'One bout; and the purse is his, to keep the place' : 'One bout, and leave him something to keep the place', go: 'end', run: t => { t.end = 'held'; if (t.purse !== 'his') G.denarii -= Math.min(Math.max(0, G.denarii), 30); favor('magistrate', 3); G.fame += 4; return `It is fought, and judged, and closed. ${t.purse === 'his' ? 'He will not take the purse for himself; he takes it for the arena.' : 'You leave him thirty denarii, for brooms.'} A swept arena is somewhere a town might one day hold games again, and the Magistrate, when he hears of it, sends a man to look. Fame +4, Magistrate favour +3.`; } },
+        ] },
+    ] },
+
+  // ---- the shepherds' fold, and the wolf stone ----
+  whitewolf: { name: 'The wolf that lies down with the sheep',
+    lore: { dog: { "The shepherds' fold": 'The flocks are counted in at night by an old white dog.', 'The wolf stone': 'There is a grave at the foot of it. Flowers are left there now.' },
+      left: { 'The wolf stone': 'An old white dog sleeps at the foot of it, on a grave.' }, killed: { 'The wolf stone': 'Carved by no one living. A white pelt was taken here.' } },
+    steps: [
+      { mark: "The shepherds' fold", who: 'The shepherds', title: 'The wolf that lies down with the sheep',
+        text: () => `The shepherds have all come in to the fold, which they do not do in summer, and none of them wants to be the one to say it. In the end it is the youngest. Every night for a month a white wolf has come over the wall, walked through the flock, and lain down in the middle of it until dawn. It has not touched a lamb. The ewes get up and follow it to the gate when it goes. "Wolves that kill, we know," says the boy. "It goes back up to the wolf stone. We want it dead before we find out what it is."`,
+        opts: [
+          { label: () => 'Go up to the wolf stone', run: () => 'They give you a cheese, and stand at the wall to watch you out of sight.' },
+          { label: () => 'Wait in the fold tonight, and see it', run: t => { t.seen = true; taleTire(6); return 'It comes at moonrise, as they said: big, white, lame in the off hind leg. It counts the flock, or looks as if it does; and it turns its head when one of the shepherds coughs, as an animal does that knows the sound. At dawn it goes up the hill to the wolf stone, and you go after it.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'They look at one another. Nobody had another plan.' },
+        ] },
+      { mark: 'The wolf stone', danger: true, title: 'At the foot of the stone',
+        text: t => `It is lying at the foot of the wolf stone, on a long low mound with a shepherd's crook stuck in the head of it, and it does not get up. It is not a wolf${t.seen ? ', as you had begun to think' : ''}. It is a dog: one of the great white fold-dogs, gone grey at the muzzle and wild in the coat, with a collar worn to a string. Old Mato, who kept this hill, died in the spring. They buried him up here and said that his dog had run off the same night.`,
+        opts: [
+          { label: () => 'Bring him down to the fold on a rope', go: 'end', run: (t, id) => { t.end = 'dog'; const n = taleCoin(id, 20); taleCheer(6); return `He comes, once it is clear the sheep are where you are going. The shepherds are ashamed of themselves in a body, and then, being shepherds, very pleased to have the best dog on the hill back for nothing. They give <b class="gold num">${n}</b> denarii and a fleece. He goes up to the stone every evening all the same, and is back by the counting.`; } },
+          { label: () => 'Leave him where he is, and tell them', go: 'end', run: t => { t.end = 'left'; favor('temple', 3); G.fame += 2; return 'You leave your bread on the mound. The shepherds hear it out in silence; that night they leave the gate of the fold open, and a bowl by it. Fame +2, and the priests of Mars, who keep count of such things, are told: temple favour +3.'; } },
+          { label: () => 'They asked for a white pelt', ok: canFightNow, go: 'end', run: (t, id) => { const tr = Math.min(3, taleTier(id)); return wildFight('The white dog of the wolf stone', [questBeast('wolf', tr, 'The white dog', 1.5)], 'rock', 'tale', { tier: tr, day: true }); },
+            won: (t, id) => { t.end = 'killed'; const n = taleCoin(id, 32); taleCheer(-6); return `He would not leave the mound, so it was done there. The shepherds pay what they promised, <b class="gold num">${n}</b> denarii, and one of the older ones looks at the collar for a long time and then puts it in his shirt. Your men are sick of the whole business.`; } },
+        ] },
+    ] },
+
+  // ---- the broken aqueduct, and the great waterfall ----
+  surveyor: { name: "The surveyor's mark",
+    lore: { found: { 'The broken aqueduct': 'There are masons\' pegs along it. The governor has been asked for the money.', 'The great waterfall': 'Behind the fall there is a mark cut by the men who built the aqueduct.' },
+      guessed: { 'The broken aqueduct': 'There are masons\' pegs along it, in slightly the wrong places.' }, shared: { 'The great waterfall': 'There are men behind the fall who would rather not be visited.' } },
+    steps: [
+      { mark: 'The broken aqueduct', who: 'A man with a levelling-staff', title: "The surveyor's mark",
+        text: () => `A thin man is walking the broken aqueduct with a levelling-staff, talking to himself in numbers. <b>Strabo the surveyor</b> has been at it a year, on his own money. "It can be mended. Eleven arches, no more. But the governor will not pay to rebuild a channel unless I can show him the fall from the source, and the men who built it cut their datum on the rock behind the great waterfall, and I am fifty-eight and cannot swim. One number. It will be cut in the rock at about the height of a man's eyes."`,
+        opts: [
+          { label: () => 'Go and read it for him', run: () => 'He writes out for you what the mark will look like, and what it will not, and what to do if there are two.' },
+          { label: () => 'Ask what is in it for the school', run: t => { t.paid = true; return 'He had not thought. Then he has it: the men who mend an aqueduct are the Guild\'s men, and the Guild remembers who found it work. He writes out what the mark will look like.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He is back among his numbers before you have turned round.' },
+        ] },
+      { mark: 'The great waterfall', danger: true, title: 'Behind the fall',
+        text: (t, id) => `There is a ledge behind the water, and a dry cave, as he said. There is also a fire in it, and bales, and jars with no tax-seal, and the men they belong to: smugglers, who run goods up the river by night and have used this cave since before Strabo could count. The surveyors' mark is on the back wall, behind their stores. <span class="bad">${skulls(taleTier(id))}</span> Your fit men come to strength <b class="num">${yours()}</b>.`,
+        opts: [
+          { label: () => 'Clear them out', ok: canFightNow, go: 'end', run: (t, id) => { const tr = taleTier(id); return wildFight('Smugglers behind the fall', [questBoss(tr, 'The smugglers\' captain', { tactic: 'balanced' })].concat(wildMen(tr, Math.max(1, wildCount(tr) - 2))), 'rock', 'tale', { tier: tr, day: true }); },
+            won: (t, id) => { t.end = 'found'; const n = taleCoin(id, 40); favor('guild', t.paid ? 8 : 6); favor('magistrate', 3); return `The mark is where he said, at the height of a man's eyes: a line, a numeral, and a mason's initials six generations old. What the smugglers leave behind is worth <b class="gold num">${n}</b> denarii. Strabo has his number, the governor his reason, and the Guild a year's work for its masons. Guild favour +${t.paid ? 8 : 6}, Magistrate +3.`; } },
+          { label: () => 'Pay to be let through to the back wall (40 denarii)', ok: () => G.denarii >= 40, go: 'end', run: t => { G.denarii -= 40; t.end = 'found'; favor('guild', t.paid ? 7 : 5); G.fame += 1; return `They think it the funniest thing that has happened in the cave: a lanista paying toll to read a number off a rock. They even hold the torch. Strabo has his number. Guild favour +${t.paid ? 7 : 5}.`; } },
+          { label: () => 'Go back and give him a likely number', go: 'end', run: (t, id) => {
+            if (chance(clamp(0.3 + bestWits() * 0.03, 0.3, 0.8))) { t.end = 'guessed'; favor('guild', 3); return 'Your sharpest man paces the fall from the top, counts on his fingers, and names a figure. Strabo frowns at it, works it three ways, and finds to his delight that it agrees with his own. It may even be right. Guild favour +3.'; }
+            t.end = 'shared'; favor('guild', -2); return 'He knows it for a guess before you have finished saying it; a man does not walk an aqueduct for a year without knowing what the number ought to be near. He thanks you, quite politely, and goes back to his staff. Guild favour -2.'; } },
+        ] },
+    ] },
+
+  // ---- the villa, and the salt pans ----
+  cook: { name: "The lady's cook",
+    lore: { free: { 'A villa in its garden': 'The lady keeps a new cook, and buys her fish sauce by the jar.', 'The salt pans': 'A freedman makes the best garum in the province here, and signs every jar.' },
+      taken: { 'A villa in its garden': 'The cook is back in the kitchen. The dinners are not what they were.' }, jar: { 'The salt pans': 'A runaway cook makes garum here, under another name.' } },
+    steps: [
+      { mark: 'A villa in its garden', who: 'The lady of the villa', title: "The lady's cook",
+        text: () => `The lady of the villa receives you in the garden, since gladiators are not brought indoors. <b>Domitia</b> has the governor to dinner in nine days, and no cook. "Syrus. Thirty years in my kitchen. He walked out at the new moon with his knives and the receipt for his fish sauce, which is the only reason anybody of consequence dines here, and he is at the salt pans, I am told, making it for anyone with a copper. Bring me back my cook."`,
+        opts: [
+          { label: () => 'Go to the salt pans', run: () => 'She has a slave give your men a meal in the yard, cold, which tells you what the kitchen has come to.' },
+          { label: () => 'Ask why he left', run: t => { t.asked = true; return '"I cannot imagine," she says, and for a moment looks as if she can. You are fed in the yard, cold, and sent on your way.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'She has already turned back to her roses.' },
+        ] },
+      { mark: 'The salt pans', title: 'The best garum in the province',
+        text: t => `You could find him with your eyes shut: a row of vats in the sun, and a smell like the bottom of the sea. <b>Syrus</b> is a small bald man with a ladle, and entirely at his ease. "She freed me eleven years ago. In front of witnesses, at the Saturnalia, when the sauce was good. She has never given me the paper${t.asked ? ', and she knows it' : ''}. No paper, no wages: I am a freedman who is fed like a slave. Here I am paid by the jar. Tell her she may have a cook, or a paper, and that I should think the governor would rather she had both."`,
+        opts: [
+          { label: () => 'Carry his terms to her', go: 'end', run: (t, id) => { t.end = 'free'; const n = taleCoin(id, 24); favor('guild', 3); return `She signs. It takes her a day and a broken wine-cup to do it, and she will not have him back in the house after: but the governor dines on a jar of the real thing, bought at the salt pans at the proper price, and you are paid <b class="gold num">${n}</b> denarii for a deal well made. The Guild likes a man who signs his jars. Guild favour +3.`; } },
+          { label: () => 'She said to bring him. Bring him', go: 'end', run: (t, id) => { t.end = 'taken'; const n = taleCoin(id, 34); favor('magistrate', -2); taleCheer(-3); return `He does not struggle. He packs his knives. Domitia pays <b class="gold num">${n}</b> denarii and is gracious about it. The governor's dinner is said afterwards to have been correct in every particular, and the fish sauce quite without flavour; and there were eleven witnesses at that Saturnalia, some of whom talk. Magistrate favour -2.`; } },
+          { label: () => 'Buy a jar for the lady, and say he could not be found (25 denarii)', ok: () => G.denarii >= 25, go: 'end', run: (t, id) => { G.denarii -= 25; t.end = 'jar'; const n = taleCoin(id, 26); taleCheer(4); return `He seals it himself and will take no more than the price. Domitia does not believe a word of it, tastes the sauce, and decides to. She pays <b class="gold num">${n}</b> denarii for the errand. There is a second jar in the baggage that nobody paid for, and the men's porridge is the better for it all week.`; } },
+        ] },
+    ] },
 };
 
 // The places where a story stands just now: somebody waiting, or the next place it leads.

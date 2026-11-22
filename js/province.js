@@ -3651,7 +3651,7 @@ function placeRows() {
   const F = G.field, M = wildMap();
   return wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => {
     const man = st.journey || QUEST_SITE[st.kind] ? questAt(st) : null, q = st.errand ? errandById(st.errand) : null;
-    const tag = man ? 'Journey' : q ? 'Quest' : st.kind === 'tale' ? 'Story' : st.kind === 'bounty' ? 'Bounty' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(st.kind) && M.marks[st.id] ? 'Eagle' : M.marks[st.id] ? 'Marked' : '';
+    const tag = man ? 'Journey' : q ? 'Quest' : st.kind === 'tale' && !st.waiting ? 'Story' : st.kind === 'bounty' ? 'Bounty' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(st.kind) && M.marks[st.id] ? 'Eagle' : M.marks[st.id] ? 'Marked' : '';
     const sub = q ? `<b class="gold num">${q.pay}</b> &middot; <span class="${q.until - G.day <= 3 ? 'bad' : ''}">${Math.max(0, q.until - G.day)}d left</span>` : st.kind === 'bounty' && G.bounty ? `<b class="gold num">${G.bounty.pay}</b> &middot; <span class="${G.bounty.until - G.day <= 3 ? 'bad' : ''}">${G.bounty.until - G.day}d left</span>` : '';
     return { st, tag, sub, d: Math.hypot(st.x - F.x, st.y - F.y), name: man ? `${man.name}: ${lower(st.name)}` : st.name,
       what: man ? `${man.name} asked to be brought here, and you gave your word.` : q ? `For ${q.giver.name}. ${SITE_WHAT[st.kind] || 'Somebody in town asked this of you.'}` : st.kind === 'tale' && !st.waiting ? `${TALES[st.tale].name}: the story leads here.` : SITE_WHAT[st.kind] || '' };
