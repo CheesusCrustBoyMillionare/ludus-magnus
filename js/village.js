@@ -496,6 +496,36 @@ function drawVillage(cv, T) {
   const bob = Math.round(Math.sin(T * 5));                              // a mark over your own head, so you can find him
   R(vil.x - 2, vil.y - 21 + bob, 5, 1, '#f5d584'); R(vil.x - 1, vil.y - 20 + bob, 3, 1, '#f5d584'); R(vil.x, vil.y - 19 + bob, 1, 1, '#f5d584');
 
+  // small life: butterflies by day, a leaf coming down from a tree, sparrows on the roofs, light on the water, rings where rain falls
+  if (night < 0.4 && wx.rain < 0.2) for (let i = 0; i < 6; i++) {
+    const bx = 30 + ((i * 97) % 530) + Math.sin(T * 0.5 + i * 2) * 18 + Math.sin(T * 2.3 + i) * 3, by = [18, 44, 100, 132, 176, 120][i] + Math.cos(T * 0.4 + i) * 6 + Math.sin(T * 3.1 + i) * 2, open = Math.sin(T * 14 + i) > 0, c = ['#f4f4f0', '#f2d060', '#e8a0c0', '#a8c0f0'][i % 4];
+    R(bx, by, 1, 1, '#2a1c14'); if (open) { R(bx - 1, by - 1, 1, 2, c); R(bx + 1, by - 1, 1, 2, c); } else R(bx, by - 1, 1, 1, c);
+  }
+  VIL_TREES.forEach(([tx, ty], i) => { const p2 = (T * 0.11 + i * 0.37) % (1.6 - wx.gust); if (p2 < 1 && (i % 3 === 0 || wx.gust > 0.3)) R(tx - 4 + Math.sin(p2 * 8 + i) * 4 + wx.gust * p2 * 20, ty - 12 + p2 * 13, Math.sin(p2 * 18) > 0 ? 2 : 1, 1, i % 2 ? '#8ab04a' : '#b8a040'); });
+  if (night < 0.5 && wx.rain < 0.3) PLACES.forEach((p, i) => {
+    if (p.kind === 'arena' || p.kind === 'market') return;
+    for (let q = 0; q < 2; q++) { const cyc = (T * 0.07 + i * 0.31 + q * 0.5) % 1, away = cyc > 0.86, sx = p.x + 6 + ((i * 13 + q * 23 + Math.floor(T * 0.07 + i * 0.31 + q * 0.5) * 7) % Math.max(4, p.w - 12)), sy = p.y + 3 + q * 3, hop = Math.sin(T * 6 + i + q) > 0.7 ? 1 : 0;
+      if (away) { const k = (cyc - 0.86) / 0.14; R(sx + k * 30, sy - k * 16, 2, 1, '#5a4a3a'); R(sx + k * 30 - 1, sy - k * 16 - (Math.sin(T * 20) > 0 ? 1 : 0), 1, 1, '#5a4a3a'); }
+      else { R(sx, sy - hop, 2, 2, '#6a5a48'); R(sx + (q ? 2 : -1), sy - hop, 1, 1, '#4a3a2c'); R(sx, sy + 1 - hop, 1, 1, '#c8b898'); } }
+  });
+  for (let i = 0; i < 4; i++) if (Math.sin(T * 2.6 + i * 1.9) > 0.75) R(372 + i * 6, 176 + (i % 2) * 2, 1, 1, '#ffffff');      // the sun on the pond
+  if (wx.rain > 0.05) for (let i = 0, n = Math.round(26 * wx.rain); i < n; i++) { const k = Math.floor(T * 8) + i * 17, sx = (k * 73) % 580 + 4, sy = (i % 2 ? 66 : 154) + (k * 29) % 14, rp = (T * 8) % 1; ctx.globalAlpha = 0.6 * (1 - rp); R(sx - rp * 2, sy, 2 + Math.round(rp * 4), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
+  // PASS 27. the shadows lengthen and swing with the sun: laid over the ones painted on the map
+  if (typeof sceneLow !== 'undefined' && night < 0.6) {
+    const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * 14);
+    if (len > 1) { ctx.fillStyle = `rgba(20,14,6,${(0.1 + low * 0.08).toFixed(3)})`; for (const p of PLACES) { if (p.kind === 'arena') continue; ctx.beginPath(); ctx.moveTo(p.x, p.y + p.h); ctx.lineTo(p.x + p.w, p.y + p.h); ctx.lineTo(p.x + p.w + dir * len, p.y + p.h + 4 + (len >> 2)); ctx.lineTo(p.x + dir * len, p.y + p.h + 4 + (len >> 2)); ctx.closePath(); ctx.fill(); }
+      for (const [tx, ty] of VIL_TREES) { ctx.beginPath(); ctx.moveTo(tx - 2, ty); ctx.lineTo(tx + 2, ty); ctx.lineTo(tx + dir * (len + 6) + 5, ty + 3); ctx.lineTo(tx + dir * (len + 6) - 5, ty + 3); ctx.closePath(); ctx.fill(); } }
+  }
+  // PASS 28. leaves turning in the light on every tree
+  if (night < 0.6) VIL_TREES.forEach(([tx, ty], i) => { for (let q = 0; q < 2; q++) { const a = T * (1.1 + wx.gust * 3) + i * 1.7 + q * 2.4; if (Math.sin(a * 1.3) > 0.2) R(tx - 3 + Math.cos(a) * 3, ty - 10 + Math.sin(a * 0.7) * 3, 1, 1, 'rgba(200,236,150,.75)'); } });
+  // PASS 29. the arena: on a games day the crowd is on its feet; otherwise two men rake the sand
+  { const ar = PLACES.find(p => p.kind === 'arena'); if (ar) { const cx = ar.x + ar.w / 2, cy = ar.y + 28;
+      if (games) for (let i = 0; i < 46; i++) { const a = i * 0.137 * 6.283, rr = 0.68 + ((i * 37) % 28) / 100, up = Math.sin(T * 5 + i * 1.3) > 0.3 ? 1 : 0; R(cx + Math.cos(a) * 55 * rr, cy + Math.sin(a) * 21 * rr - up, 1, 1 + up, ['#c23b2e', '#3a6ea8', '#f1ead8', '#e8b545'][i % 4]); }
+      else if (night < 0.5) for (let i = 0; i < 2; i++) { const a = T * 0.2 + i * 3.1, px = cx + Math.cos(a) * 20, py = cy + Math.sin(a) * 6; R(px, py - 3, 1, 1, '#d9a57c'); R(px, py - 2, 1, 2, '#8a6a4a'); R(px + 1, py - 1, 3, 1, '#6b4f2c'); }
+      for (const fx of [-50, 50]) { const wv = Math.sin(T * 5 + fx) > 0 ? 1 : 0; R(cx + fx, cy - 28, 1, 7, '#5a4326'); R(cx + fx + 1, cy - 28 + wv, 4, 3, games ? '#c23b2e' : '#c9a21e'); } } }
+  // PASS 30. men on the north wall, walking their beat, and a flag on each of the lower towers
+  for (let i = 0; i < 2; i++) { const u = (T * 0.012 + i * 0.5) % 2, f = u < 1 ? u : 2 - u, gx = 30 + f * 520 * (i ? 1 : 0.5) + (i ? 0 : 260 * 0); R(gx, 0, 1, 1, '#d9a57c'); R(gx, 1, 1, 2, '#a8261c'); R(gx + 1, 0, 1, 3, '#c1c7cc'); }
+  for (const tx of [4, 584]) { const wv = Math.sin(T * 5 + tx) > 0 ? 1 : 0; R(tx, 172, 1, 9, '#5a4326'); R(tx + (tx < 295 ? 1 : -4), 172 + wv, 4, 3, '#a02d22'); }
   // the shadows of clouds going over the town, and now and then a flight of birds
   for (let i = 0; i < 3; i++) {
     const cx = ((i * 263 + T * 9) % 900) - 150, cy = 30 + i * 62, rx = 60 + i * 14, ry = 16 + i * 4;
@@ -509,6 +539,8 @@ function drawVillage(cv, T) {
   if (night > 0.25) {
     const la = Math.min(1, (night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
     const glow = (gx, gy, r) => sceneGlow(ctx, gx, gy, r * 1.25, '255,170,80', 0.4 * la);
+    for (const p of PLACES) if (p.kind !== 'arena' && p.kind !== 'market') scenePool(ctx, p.dx, p.y + p.h + 3, 15, '255,185,100', 0.3 * la);      // light from every open door lying on the street
+    for (const p of PLACES) if (p.kind !== 'arena' && p.kind !== 'market' && p.kind !== 'forum') { ctx.fillStyle = `rgba(170,190,255,${(0.22 * la).toFixed(3)})`; ctx.fillRect(p.x, p.y, p.w, 1); ctx.fillRect(p.x, p.y, 1, 14); ctx.fillStyle = `rgba(170,190,255,${(0.1 * la).toFixed(3)})`; ctx.fillRect(p.x, p.y + 1, p.w, 2); }      // PASS 31: the moon along the ridges and gable ends of the roofs
     ctx.globalAlpha = la;
     for (const pl of PLACES) {
       if (pl.kind === 'market' || pl.kind === 'arena') continue;
@@ -529,6 +561,7 @@ function drawVillage(cv, T) {
   }
   if (wx.gust > 0) { ctx.globalAlpha = wx.gust; for (let i = 0; i < 6; i++) R((i * 211 + T * 120) % 640 - 20, 20 + (i * 43) % 160 - Math.abs(Math.sin(T * 5 + i)) * 8, 2, 1, i % 2 ? '#6f8a3a' : '#a8722e'); ctx.globalAlpha = 1; }
 
+  sceneGrade(ctx, sky, wx);
   sceneVignette(ctx, 590, 190, 0.3);
 
   // what the mouse is resting on: a gold line round it, and a word about it along the foot of the map
