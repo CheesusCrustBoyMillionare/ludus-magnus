@@ -818,12 +818,41 @@ function provLand() {
     R(x + 28, y - 19, 3, 2, '#c9c2ae'); R(x + 30, y + 6, 4, 3, '#c9c2ae'); R(x + 40, y + 8, 3, 2, '#b5ad9c'); R(x + 2, y - 21, 3, 1, '#6f9a48'); R(x + 20, y - 21, 4, 1, '#6f9a48'); R(x + 13, y - 6, 2, 4, '#6f9a48');
   });
   // -- eight great ones, one to a country --
-  setDown(41, (tx, ty) => on(HL, 'The High Fells')(tx, ty) && on(HL)(tx, ty - 1), 16, 'The great waterfall', (x, y) => {
-    sh2(x - 1, y + 10, 34); for (let q = 0; q < 30; q++) R(x + (q % 7 === 3 ? 1 : 0), y - 24 + q, 30 - (q % 5 === 2 ? 1 : 0), 1, q % 5 === 4 ? '#646c78' : q % 3 ? '#8a929c' : '#7d8692');
-    R(x, y - 24, 30, 2, '#a2aab4'); R(x - 1, y - 27, 32, 3, '#7c9462'); R(x - 1, y - 27, 32, 1, '#96ae78'); R(x, y - 24, 3, 30, '#a2aab4'); R(x + 27, y - 24, 3, 30, '#646c78');
-    R(x + 11, y - 27, 8, 33, '#9ccbe8'); R(x + 12, y - 27, 3, 33, '#d8ecf6'); R(x + 17, y - 25, 1, 30, '#7fb6d8');
-    R(x + 3, y + 4, 26, 6, '#4f86ae'); R(x + 5, y + 3, 22, 1, '#4f86ae'); R(x + 7, y + 6, 16, 2, '#8fc3e0'); R(x + 9, y + 4, 12, 2, '#e6f3fa'); R(x - 1, y + 7, 6, 3, '#646c78'); R(x - 1, y + 7, 6, 1, '#8a929c'); R(x + 26, y + 6, 6, 4, '#7d8692'); R(x + 26, y + 6, 6, 1, '#a2aab4');
-    R(x + 3, y - 14, 4, 2, '#35543a'); R(x + 23, y - 18, 4, 2, '#35543a'); R(x + 5, y - 6, 3, 1, '#6f8a4a');
+  setDown(41, (tx, ty) => on(HL, 'The High Fells')(tx, ty) && on(HL)(tx, ty - 1), 22, 'The great waterfall', (x, y) => {
+    // a mountain of its own, greater than any round it, with the water coming out of a cleft under the snow and down its face in two leaps
+    const LIT = '#a2aab4', MID = '#7d8692', DARK = '#646c78', DEEP = '#4a515c', jg = (i, k) => wildHash(i, 41, k);
+    const mass = (cx, by, mw, mh, lean, sr, k, pw) => {
+      R(cx - (mw >> 1) - 1, by, mw + 5, 2, 'rgba(0,0,0,.22)');
+      for (let i = 0; i < mh; i++) {
+        const fr = (i + 1) / mh, half = Math.max(1, Math.round((mw / 2) * Math.pow(fr, pw) + (jg(i, k) - 0.5) * (2 + fr * 5))), px = Math.round(cx + lean * mw * (1 - fr)), yy = by - mh + i;
+        const snL = i < sr + Math.round((jg(i, k + 1) - 0.5) * 4), snR = i < sr * 0.72 + Math.round((jg(i, k + 2) - 0.5) * 4);
+        R(px - half, yy, half, 1, snL ? '#f4f6fa' : i % 5 === 4 ? MID : LIT); R(px, yy, half + 1, 1, snR ? '#c9d2de' : i % 4 === 3 ? DEEP : DARK);
+        if (!snL && fr > 0.3 && jg(i, k + 3) > 0.6) R(px - Math.round(half * (0.25 + jg(i, k + 4) * 0.6)), yy, 2, 1, '#b8c0c8');      // ledges catching the light
+        if (!snR && fr > 0.3 && jg(i, k + 5) > 0.6) R(px + Math.round(half * (0.25 + jg(i, k + 6) * 0.6)), yy, 2, 1, DEEP);           // gullies
+        if (snL && !snR && jg(i, k + 7) > 0.5) R(px, yy, 2, 1, '#e2e8f0');
+      }
+    };
+    mass(x + 44, y + 7, 40, 40, -0.1, 12, 10, 0.9);                    // the shoulder behind, to the east
+    mass(x - 12, y + 8, 30, 27, 0.12, 6, 20, 0.95);                    // and a spur to the west
+    mass(x + 15, y + 10, 70, 70, 0.04, 26, 30, 0.82);                  // the mountain itself
+    mass(x + 37, y + 10, 30, 30, -0.15, 0, 40, 0.9); mass(x - 9, y + 10, 26, 22, 0.15, 0, 50, 0.9);      // its knees, either side of the fall
+    // snow lying in the high gullies below the cap, and a streak of it down the lit face
+    for (const [sx, sy, sw] of [[4, -30, 4], [1, -27, 3], [7, -33, 3], [25, -31, 3], [28, -27, 2], [-3, -20, 3]]) R(x + sx, y + sy, sw, 1, sx > 15 ? '#c9d2de' : '#f4f6fa');
+    // the cleft the water has cut: dark rock either side of it, all the way down
+    for (let q = 0; q < 34; q++) { const wd = 10 + (q > 17 ? 2 : 0) + (q % 6 === 0 ? 1 : 0); R(x + 15 - (wd >> 1), y - 29 + q, wd, 1, q % 4 === 1 ? DARK : DEEP); }
+    R(x + 9, y - 30, 12, 1, '#2f343c'); R(x + 11, y - 31, 8, 1, '#2f343c');
+    // the upper leap, narrow, out of the cleft's mouth; a shelf; then the lower leap, broader
+    R(x + 14, y - 29, 4, 18, '#9ccbe8'); R(x + 15, y - 29, 2, 18, '#d8ecf6'); R(x + 17, y - 28, 1, 16, '#7fb6d8');
+    R(x + 7, y - 11, 8, 2, '#b8c0c8'); R(x + 7, y - 9, 10, 1, DEEP); R(x + 18, y - 10, 4, 2, DARK); R(x + 12, y - 12, 7, 2, '#e6f3fa'); R(x + 13, y - 13, 4, 1, '#ffffff');
+    R(x + 10, y - 10, 8, 15, '#9ccbe8'); R(x + 11, y - 10, 3, 15, '#d8ecf6'); R(x + 17, y - 9, 1, 13, '#7fb6d8');
+    // a thread of meltwater high on the lit face
+    for (let q = 0; q < 10; q++) R(x + 3 + Math.floor(q / 4), y - 40 + q, 1, 1, '#b4d6ea');
+    // pines on the lower slopes, and scree
+    for (const [px2, py2] of [[-14, 2], [-9, 5], [-4, -2], [1, 3], [29, 1], [34, 5], [38, -1], [43, 4], [-19, 6], [24, -4]]) { R(x + px2, y + py2 - 5, 1, 1, '#2d5236'); R(x + px2 - 1, y + py2 - 4, 3, 2, '#2d5236'); R(x + px2 - 2, y + py2 - 2, 5, 2, '#21402a'); R(x + px2 - 1, y + py2 - 4, 1, 2, '#3a6442'); R(x + px2, y + py2, 1, 2, '#3a2416'); }
+    for (const [sx, sy] of [[-6, 8], [3, 9], [27, 9], [36, 8], [47, 9], [-16, 9]]) { R(x + sx, y + sy, 3, 2, MID); R(x + sx, y + sy, 3, 1, LIT); }
+    // the pool it has dug at the foot, the rocks round it, and where it runs away
+    R(x + 1, y + 4, 28, 7, '#4f86ae'); R(x + 3, y + 3, 24, 1, '#4f86ae'); R(x + 4, y + 11, 22, 1, '#3f7298'); R(x + 6, y + 7, 18, 2, '#8fc3e0'); R(x + 8, y + 4, 14, 3, '#e6f3fa'); R(x + 10, y + 3, 10, 1, '#ffffff');
+    R(x - 3, y + 7, 6, 4, DARK); R(x - 3, y + 7, 6, 1, LIT); R(x + 27, y + 6, 6, 5, MID); R(x + 27, y + 6, 6, 1, LIT); R(x + 12, y + 12, 6, 3, '#4f86ae'); R(x + 13, y + 15, 5, 2, '#5a9cc6');
   });
   setDown(42, on(SD, 'The Salt Shore'), 21, 'The salt pans', (x, y) => {
     R(x - 1, y - 6, 44, 17, '#b8a26a'); for (let r0 = 0; r0 < 2; r0++) for (let q = 0; q < 4; q++) { const c = ['#9ec4c8', '#cfe0e0', '#e8f0ee', '#f8f8f4'][(q + r0 * 2) % 4]; R(x + q * 11, y - 5 + r0 * 8, 10, 7, c); R(x + q * 11, y - 5 + r0 * 8, 10, 1, shade(c, 1.08)); if ((q + r0) % 2) R(x + q * 11 + 2, y - 3 + r0 * 8, 5, 1, '#ffffff'); }

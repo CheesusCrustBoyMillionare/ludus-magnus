@@ -868,7 +868,7 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
   const fame = G.fame, n = G.roster.length;
   EVENTS.promiseDue.opts[0].run(G.pendingEvent.c);
   assert(G.roster.length === n - 1 && G.fame > fame && !G.roster.includes(c), 'keeping your word frees him and earns fame');
-  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || id === 'errandOffer' || EVENTS[id].field || EVENTS[id].wild || id === 'eagleHome' || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
+  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || id === 'errandOffer' || id === 'errandThanks' || EVENTS[id].field || EVENTS[id].wild || id === 'eagleHome' || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
 }));
 
 test('contracts: terms, a name for good work, and asking around', () => game()(function () {
@@ -1373,27 +1373,56 @@ test('quests: people at the fountain, landmarks, unique pieces, deadlines, and n
   for (const k in ERRANDS) {
     newGame(); G.tally.wins = 1;
     const q = errandNew(k), T = ERRANDS[k];
+    assert(!T.boss || (q.boss && q.boss.length > 3), k + ' has somebody with a name waiting there');
     assert(q && q.tpl === k && LANDMARKS.includes(q.mark) && T.marks.includes(q.mark) && T.givers.includes(q.giver.kind) && q.tier >= 1 && q.tier <= 5 && q.pay >= 0 && q.fame >= 1 && q.days >= 10, k + ' can be offered: ' + JSON.stringify(q));
     assert(T.ask(q).length > 40 && T.at(q).length > 10 && T.won(q).length > 10 && T.title(q.mark).length > 5 && !/undefined|NaN/.test(T.ask(q) + T.at(q) + T.won(q) + T.title(q.mark)), k + ' has its words');
     G.asks = [q];
     assert(errandTake(q.id) === q && errands().length === 1 && !asksNow().length && q.until === G.day + q.days, k + ' is taken on');
     const st = wildSites().find(x => x.errand === q.id);
     assert(st && SITE_EVENT[st.kind] && EVENTS[SITE_EVENT[st.kind]] && siteShown(st) && siteLive(st) && st.x === q.x && st.y === q.y, k + ' is a place on the map');
-    if (T.foes) { const foes = T.foes(q); assert(foes.length >= 1 && foes.every(f => f.hp > 0), k + ' has something to fight'); }
-    const purse = G.denarii, fame = G.fame, arm = G.armoury.length;
+    if (T.foes) { const foes = T.foes(q); assert(foes.length >= (k === 'beastking' ? 1 : 2) && foes.every(f => f.hp > 0) && (!T.boss || (foes[0].boss && foes[0].name === q.boss)), k + ' has a named leader and others to fight'); }
+    if (T.lead && q.boss) assert(T.lead(q).length > 20 && !/undefined|NaN/.test(T.lead(q)), k + ' says who is there');
+    const purse = G.denarii, fame = G.fame, arm = G.armoury.length, men = G.roster.length;
     assert(wildEnter(), 'the school marches out');
+    // done out there: what was found is yours at once, but nobody has paid yet
     const lines = errandDone(q, []);
-    assert(G.denarii === purse + q.pay && G.fame === fame + q.fame && !errands().length && !wildSites().some(x => x.errand) && lines.join(' ').length > 30 && !/undefined|NaN/.test(lines.join(' ')), k + ' pays what was promised');
+    assert(G.denarii === purse && G.fame === fame && !errands().length && !wildSites().some(x => x.errand) && owed().length === 1 && owed()[0] === q && q.owedPay === q.pay && lines.join(' ').length > 30 && !/undefined|NaN/.test(lines.join(' ')), k + ' is done, and the pay is waiting at home');
+    if (T.recruit) assert(G.roster.length === men + 1, k + ' brings a freed man into the school');
+    // home: the purse at the fountain, and for some, more to do
+    assert(fountainFolk().length === 1 && fountainFolk()[0].owed, k + ': the giver is at the fountain to pay');
+    const said = errandPay(q.id, false).join(' ');
+    assert(G.denarii === purse + q.pay && G.fame === fame + q.fame && !owed().length && said.length > 20 && !/undefined|NaN/.test(said), k + ' pays what was promised, at the fountain');
+    if (T.next) { const nx = asksNow()[0]; assert(asksNow().length === 1 && nx.tpl === T.next && ERRANDS[T.next].chain && nx.giver.name === q.giver.name && nx.giver.kind === q.giver.kind && nx.from === k, k + ' leads on to ' + T.next + ', from the same person'); }
+    else assert(!asksNow().length, k + ' ends there');
     if (T.relic) {
-      const it = G.armoury[G.armoury.length - 1];
-      assert(G.armoury.length === arm + 1 && it.relic === T.relic && itemName(it) === RELICS[T.relic].name && wildMap().relics.includes(T.relic), k + ' leaves its piece in the armoury');
+      const it = G.armoury.filter(x => x.relic).pop();
+      assert(G.armoury.length === arm + 1 + (T.trophy ? 1 : 0) && it.relic === T.relic && itemName(it) === RELICS[T.relic].name && wildMap().relics.includes(T.relic), k + ' leaves its piece in the armoury');
       const plain = makeItem(it.slot, it.r, it.cls), a = itemStats(it), b = itemStats(plain);
       assert(Object.keys(a).some(key => a[key] > b[key] + 1e-9), RELICS[T.relic].name + ' is better than a plain piece of its grade');
       assert(!errandNew(k), 'a unique piece is not offered twice');
     }
     n++;
   }
-  assert(n >= 22 && Object.keys(ERRANDS).filter(k => ERRANDS[k].relic).length === 12, 'ten kinds of work and twelve unique pieces: ' + n);
+  assert(n >= 26 && Object.keys(ERRANDS).filter(k => ERRANDS[k].relic).length === 12 && Object.keys(ERRANDS).filter(k => ERRANDS[k].chain).length === 5, 'ten kinds of work, five that follow on, and twelve unique pieces: ' + n);
+  // what follows on is never offered cold
+  newGame(); G.tally.wins = 1; G.fame = 5000;
+  for (let i = 0; i < 400; i++) { const q = errandNew(); assert(q && !ERRANDS[q.tpl].chain, 'a follow-up was offered to a stranger: ' + (q && q.tpl)); }
+  // a quest can be done well: how the fight went decides the bonus, or the loss
+  { newGame(); G.tally.wins = 1; assert(wildEnter(), 'out');
+    const a = errandNew('wolves'); errands().push(a); errandDone(a, [], { time: 20, down: 0, n: 5 });
+    const b = errandNew('wolves'); errands().push(b); errandDone(b, [], { time: 20, down: 2, n: 5 });
+    assert(a.owedPay === round5(a.pay * 1.25) && a.well && b.owedPay === b.pay && !b.well, 'wolves: clean work is paid a quarter more');
+    const c = errandNew('rescue'); errands().push(c); errandDone(c, [], { time: 10, down: 3, n: 5 });
+    const d = errandNew('rescue'); errands().push(d); errandDone(d, [], { time: 300, down: 0, n: 5 });
+    assert(c.owedPay === c.pay && d.owedPay === round5(d.pay * 0.7), 'a slow rescue costs captives, and pay');
+    const e = errandNew('champion'); errands().push(e); errandDone(e, [], { time: 99, down: 0, n: 5 });
+    assert(e.owedFame === e.fame + 4, 'a champion beaten without a man down is worth more fame'); }
+  // giving the purse back is worth more fame than taking it
+  { newGame(); G.tally.wins = 1; assert(wildEnter(), 'out'); const q = errandNew('heirloom'); errands().push(q); errandDone(q, []); const purse = G.denarii, fame = G.fame; errandPay(q.id, true);
+    assert(G.denarii === purse && G.fame === fame + q.fame + 2 && asksNow().length === 1 && asksNow()[0].tpl === 'buried', 'the purse refused: more fame, no coin, and she still has more to say'); }
+  // one who waits a month for you sends most of it round
+  { newGame(); G.tally.wins = 1; assert(wildEnter(), 'out'); const q = errandNew('bandits'); errands().push(q); errandDone(q, []); const purse = G.denarii; G.day += 31; rollAsks();
+    assert(!owed().length && G.denarii === purse + round5(q.pay * 0.8), 'left unclaimed a month, four parts in five are sent round'); }
   // the pieces people send you for are never found by chance in a ruin
   newGame(); for (let i = 0; i < 12; i++) { const it = wildRelic(); if (it) assert(!RELICS[it.relic].quest, 'a quest piece turned up by chance'); }
   // a rescue has two places: the second is marked only once somebody has talked

@@ -155,6 +155,61 @@ function botJobs(R) {
   }
 }
 
+// Quests: the bot hears whoever is at the fountain, takes what it is strong enough for, and marches out for it when
+// there is time to be back before the games. It fights whatever is there with every fit man, searches or hands over
+// as asked, comes home and collects. Returns the days it was away.
+const questStats = { offered: 0, taken: 0, done: 0, lost: 0, fights: 0, fightsWon: 0, well: 0, deaths: 0, days: 0, pay: 0, relics: 0, chains: 0, secs: 0 };
+function botWildFight(q) {
+  const F = G.field && G.field.fight; if (!F) return null;
+  const party = fieldParty(); if (!party.length) { G.field.fight = null; return null; }
+  const before = G.roster.length;
+  const B = createBattle(party, F.foes, { hunt: true, mercy: [mercyBonus(), 0], noIntro: true });
+  let n = 0; while (!B.over && n++ < 40000) stepBattle(B, 1 / 30);
+  const r = applyWildResult(B);
+  questStats.fights++; if (B.winner === 0) questStats.fightsWon++; questStats.deaths += before - G.roster.length; questStats.secs += B.time;
+  if (G.field) { const day = F.day; G.field.fight = null; if (day) fieldDay('march'); }
+  return B.winner === 0;
+}
+function botQuest(R) {
+  if (!good || G.field || !gateOpen() || G.ruin) return 0;
+  for (const o of owed().slice()) { questStats.pay += o.owedPay; if (o.well) questStats.well++; errandPay(o.id, false); }
+  for (const a of asksNow().slice()) { if (!a.counted) { a.counted = true; questStats.offered++; if (a.from) questStats.chains++; } const dd = Math.hypot(a.x - WILD.TOWN.x, a.y - WILD.TOWN.y) + (a.x2 ? Math.hypot(a.x2 - a.x, a.y2 - a.y) + Math.hypot(a.x2 - WILD.TOWN.x, a.y2 - WILD.TOWN.y) : Math.hypot(a.x - WILD.TOWN.x, a.y - WILD.TOWN.y)); if (errands().length < 2 && a.tier <= tier() + 2 && Math.ceil(dd / (marchDay() * 0.85)) + 1 <= 8) { errandTake(a.id); questStats.taken++; } }
+  const q = errands().slice().sort((a, b) => a.until - b.until)[0]; if (!q) return 0;
+  const T = ERRANDS[q.tpl], party = fieldParty();
+  const dist = Math.hypot(q.x - WILD.TOWN.x, q.y - WILD.TOWN.y) + (T.type === 'rescue' ? Math.hypot(q.x2 - q.x, q.y2 - q.y) : 0), days = Math.max(1, Math.ceil(dist / (marchDay() * 0.85)));
+  const back = T.type === 'rescue' ? Math.max(1, Math.ceil(Math.hypot(q.x2 - WILD.TOWN.x, q.y2 - WILD.TOWN.y) / (marchDay() * 0.85))) : days;
+  // a short one is fitted in between two games days; a long one costs a games day, and the bot will pay that once in a while, setting out the morning after the games
+  const fits = daysToGames() >= days + back + 1, mayMiss = daysToGames() === GAMES_EVERY - 1 && days + back + 1 <= 8 && G.day - (G.lastTrip || -99) >= GAMES_EVERY * 4;
+  if (isGamesDay() || (!fits && !mayMiss)) return 0;                                 // only when it can be home again before the games
+  if (party.length < Math.min(3, G.roster.length) || party.reduce((n, g) => n + g.hp / maxHp(g), 0) / party.length < 0.6) return 0;      // not until enough of them are fit
+  if (T.foes && strength(T.foes(q)) > yours() * 1.0) return 0;                                    // not until they are strong enough
+  if (!wildEnter()) return 0;
+  const start = G.day; if (!fits) { G.lastTrip = G.day; questStats.missed = (questStats.missed || 0) + 1; }
+  const march = n => { for (let i = 0; i < n && G.field && !G.ruin; i++) { fieldDay('march'); while (G.pendingEvent) botEvent(); if (G.field && G.field.fight) botWildFight(q); } };
+  march(T.type === 'rescue' ? Math.max(1, Math.ceil(Math.hypot(q.x - WILD.TOWN.x, q.y - WILD.TOWN.y) / (marchDay() * 0.85))) : days);
+  const alive = () => G.field && errands().includes(q);
+  if (alive() && T.type === 'rescue') { q.step = 1; march(Math.max(1, Math.ceil(Math.hypot(q.x2 - q.x, q.y2 - q.y) / (marchDay() * 0.85)))); }
+  if (alive()) {
+    G.field.x = T.type === 'rescue' ? q.x2 : q.x; G.field.y = T.type === 'rescue' ? q.y2 : q.y;
+    const st = wildSites().find(x => x.errand === q.id), id = SITE_EVENT[st.kind], c = { sid: st.id };
+    for (let tries = 0; tries < 5 && alive(); tries++) {
+      if (fieldParty().length < 2) break;
+      const o = EVENTS[id].opts[0];
+      if (o.ok && !o.ok(c)) break;
+      o.run(c);
+      if (G.field && G.field.fight) { if (!botWildFight(q)) break; }
+      while (G.pendingEvent) botEvent();
+    }
+  }
+  if (!errands().includes(q) && owed().includes(q)) { questStats.done++; if (q.relic) questStats.relics++; }
+  march(back);
+  if (G.field) wildLeave();
+  while (G.pendingEvent) botEvent();
+  for (const o of owed().slice()) { questStats.pay += o.owedPay; if (o.well) questStats.well++; errandPay(o.id, false); }
+  questStats.days += G.day - start;
+  return G.day - start;
+}
+
 // The bot's succession: take the best man, the first boon, and whatever the points will buy.
 function botHeir() {
   const best = G.roster.slice().sort((a, b) => power(b) - power(a))[0];
@@ -172,6 +227,11 @@ function playRun() {
     if (G.ruin) { botHeir(); R.heirs++; continue; }
     while (G.pendingEvent) botEvent();
     botJobs(R);
+    { const away = botQuest(R); total += away; R.questDays = (R.questDays || 0) + away; }
+    if (G.won) { R.result = 'won'; break; }
+    if (G.over) { R.result = G.over; break; }
+    if (G.ruin) continue;
+    while (G.pendingEvent) botEvent();
     G.roster.forEach(g => { while (g.perkPending > 0) choosePerk(g, perkOffer(g)[0]); });
     botSpend();
     if (G.bouts) botFight(R);
@@ -197,6 +257,8 @@ const out2 = {
   skill: SKILL, runs: RUNS, dynasty: { runsThatFell: runs.filter(r => r.heirs > 0).length, mostHeirs: Math.max(...runs.map(r => r.heirs)), wonAfterFalling: runs.filter(r => r.heirs > 0 && r.result === 'won').length, wonFirstGeneration: runs.filter(r => r.heirs === 0 && r.result === 'won').length }, gear: { medianSmithLevel: med(runs.map(r => r.smith)), medianBestKit: med(runs.map(r => +r.kit.toFixed(2))), spendPerRun: Math.round(gearSpend / RUNS) },
   tourneys: { entered: med(runs.map(r => r.tEntered || 0)), won: med(runs.map(r => r.tWon || 0)), totalWon: runs.reduce((a, r) => a + (r.tWon || 0), 0), totalEntered: runs.reduce((a, r) => a + (r.tEntered || 0), 0) },
   hunts: { fought: huntStats[0], winRate: +(huntStats[1] / Math.max(1, huntStats[0])).toFixed(2), deathsPerHunt: +(huntStats[2] / Math.max(1, huntStats[0])).toFixed(3), avgOdds: +(huntStats[3] / Math.max(1, huntStats[0])).toFixed(2), perRun: med(runs.map(r => r.hunts || 0)) }, meleesPerRun: med(runs.map(r => r.melees || 0)), medianGrudgeBouts: med(runs.map(r => r.grudges || 0)), debtDaysTotal: R_debt.n,
+  quests: Object.assign({}, questStats, { perRun: +(questStats.done / RUNS).toFixed(1), winRate: +(questStats.fightsWon / Math.max(1, questStats.fights)).toFixed(2), deathsPerQuest: +(questStats.deaths / Math.max(1, questStats.done)).toFixed(3), payPerDay: Math.round(questStats.pay / Math.max(1, questStats.days)), avgFightSecs: Math.round(questStats.secs / Math.max(1, questStats.fights)), wellRate: +(questStats.well / Math.max(1, questStats.done)).toFixed(2) }),
+  gamesPayPerDay: Math.round(runs.reduce((a, r) => a + r.purses, 0) / Math.max(1, runs.reduce((a, r) => a + r.day, 0))),
   contracts: { sentPerRun: med(runs.map(r => r.sent || 0)), payOfferedPerRun: med(runs.map(r => r.jobPay || 0)), outingsEnded: med(runs.map(r => r.jobs || 0)) },
   lossDays: runs.filter(r => r.result !== 'won').map(r => r.result[0] + r.day),
   results: { won: count('won'), debt: count('debt'), empty: count('empty'), timeout: count('timeout') },
