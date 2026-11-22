@@ -703,6 +703,40 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
   return asked + ' choices asked of the player in one two-a-side fight';
 }));
 
+test('the arena: a whole card filled without sending a man twice, and the games remembered afterwards', () => game()(function () {
+  let filled = 0, logged = 0;
+  for (let i = 0; i < 25; i++) {
+    newGame(); G.day = 5; G.denarii = 5000;
+    while (G.roster.length < 5) { const m = G.market[0] || (genMarket(), G.market[0]); m.id = m.id || nextId(); G.roster.push(m); G.market.shift(); }
+    genBouts();
+    const CP = cardPlan(), ids = [].concat(...Object.values(CP.plan));
+    assert(new Set(ids).size === ids.length, 'a man is named for two bouts');
+    for (const b of G.bouts) {
+      const p = CP.plan[b.id];
+      if (!p) { assert(CP.skipped.includes(b.id), 'a bout neither planned nor passed over'); continue; }
+      assert(p.length === b.size && p.every(id => boutFit(b, byId(id))), 'the plan sends men who may fight it');
+      const odds = winOdds(p.map(byId), boutEnemies(b)).p;
+      assert(b.defence || odds >= CARD_FLOOR, 'the plan sends men to a bout they should lose');
+      filled++;
+    }
+    const b = G.bouts.find(x => CP.plan[x.id] && x.size === 1); if (!b) continue;
+    const g = byId(CP.plan[b.id][0]), money = G.denarii;
+    const r = applyBoutResult(b, fight([g], [boutEnemies(b)[0]]), 0, 1);
+    assert(b.res && b.res.win === r.win && b.res.purse === r.purse && b.res.fame === r.fameGain && b.res.men[0] === g.name, 'the bout keeps its result');
+    assert(!cardPlan().plan[b.id], 'a fought bout is planned again');
+    const day = G.day, n = G.bouts.length;
+    endDay();
+    const C = G.cardLog[0];
+    assert(C && C.day === day && C.rows.length === 1 && C.passed === n - 1 && typeof C.rows[0].t === 'string' && C.rows[0].t.length, 'the games day is written down');
+    const s = cardSum(C.rows);
+    assert(s.w + s.l === 1 && s.purse === r.purse && s.fame === r.fameGain, 'the day adds up');
+    logged++;
+  }
+  assert(filled > 20 && logged > 10, 'too little was tried: ' + filled + ' bouts planned, ' + logged + ' days logged');
+  for (let d = 0; d < 60; d++) { if (G.pendingEvent) answerEvent(0); endDay(); }
+  assert(G.cardLog.length <= 6, 'the record of games grows without end');
+}));
+
 test('a bout pays out and updates records', () => game()(function () {
   let wins = 0, losses = 0;
   for (let i = 0; i < 40; i++) {

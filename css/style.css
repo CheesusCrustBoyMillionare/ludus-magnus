@@ -1447,3 +1447,11 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .quests .qmore { margin-top: 5px; }
 .quests .qmore summary { font-size: 11.5px; color: #6b4410; cursor: pointer; letter-spacing: .04em; }
 .quests .qmore .qbody { margin-top: 3px; }
+
+/* the arena: what a bout and a card came to */
+.lrow.gres .end { font-size: 12px; white-space: nowrap; }
+.lrow.gres.old { opacity: .75; }
+.listnote.gsum { color: var(--text); }
+.foughtbox small { display: block; margin-top: 3px; }
+.schoolbar .tally .sofar { flex-basis: 100%; }
+.lrow.done .end .good, .lrow.done .end .bad, .lrow.done .end .gold { opacity: 1; }

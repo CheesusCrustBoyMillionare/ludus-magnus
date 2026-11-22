@@ -888,11 +888,11 @@ function provLand() {
         lmDab(x - 4, y - 2, 44, 13, 12, ['#c23b2e', '#d8382a'], 16);                                                                                                                           // poppies
       } },
     'The bee garden': {
-      u: (x, y) => { lmSoft(x + 15, y + 6, 24, 9, 'rgba(160,190,90,.22)', 17); lmDab(x - 8, y - 4, 46, 20, 26, ['#b9a0e0', '#f2e6a0', '#e8a0c0', '#f4f4f0', '#9a7ad0'], 18);
-        for (let q = -6; q < 38; q += 4) { R(x + q, y - 5, 1, 6, '#8a6a3a'); } R(x - 6, y - 4, 44, 1, '#a8834a'); R(x - 6, y - 1, 44, 1, '#94703f'); },      // a wattle fence against the wind
+      u: (x, y) => { lmSoft(x + 15, y + 6, 24, 9, 'rgba(160,190,90,.22)', 17); lmDab(x - 24, y - 4, 58, 20, 30, ['#b9a0e0', '#f2e6a0', '#e8a0c0', '#f4f4f0', '#9a7ad0'], 18);
+        for (let q = -26; q < 34; q += 4) { R(x + q, y - 5, 1, 6, '#8a6a3a'); } R(x - 26, y - 4, 60, 1, '#a8834a'); R(x - 26, y - 1, 60, 1, '#94703f'); },      // a wattle fence against the wind
       o: (x, y) => {
         for (let q = 0; q < 5; q++) { const hx = x + 1 + q * 6; R(hx + 1, y, 3, 1, '#c9a050'); R(hx + 2, y - 1, 1, 1, '#b89040'); R(hx, y + 2, 1, 5, '#e6c478'); R(hx + 4, y + 2, 1, 5, '#a88030'); R(hx, y + 4, 5, 1, '#c9a050'); }      // each skep bound in its rings of straw
-        R(x, y + 7, 30, 1, '#94703f'); R(x + 34, y - 1, 9, 9, '#cdbd94'); R(x + 34, y - 1, 2, 9, '#e0d2ac'); R(x + 33, y - 5, 11, 4, '#9a7a42'); R(x + 33, y - 5, 11, 1, '#b8964e'); R(x + 37, y + 3, 3, 5, '#3a2416');      // the bee-man's hut
+        R(x, y + 7, 30, 1, '#94703f'); R(x - 22, y - 1, 9, 9, '#cdbd94'); R(x - 22, y - 1, 2, 9, '#e0d2ac'); R(x - 23, y - 5, 11, 4, '#9a7a42'); R(x - 23, y - 5, 11, 1, '#b8964e'); R(x - 19, y + 3, 3, 5, '#3a2416');      // the bee-man's hut
         for (let q = 0; q < 7; q++) { R(x - 4 + q * 6, y + 12, 4, 2, '#6f8a5a'); R(x - 3 + q * 6, y + 11, 2, 1, '#9a7ad0'); R(x - 4 + q * 6, y + 12, 1, 1, '#b9a0e0'); }                    // lavender, in a row before them
         R(x - 9, y + 5, 3, 4, '#b8703c'); R(x - 9, y + 5, 3, 1, '#d08a54');
       } },
@@ -2358,7 +2358,7 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
     'The white temple': (x, y) => { const pc = pace(x + 4, x + 32, 0.03, 0.7); man(pc.x, y + 16, { face: pc.face, tunic: '#f1ead8', hair: '#8a8a8a' }); if (lit) glow(x + 18, y + 6, 18, '255,200,120', 0.05); },
     'The lime kiln': (x, y) => { const pc = pace(x + 22, x + 34, 0.06, 0.2); man(pc.x, y + 14, { face: pc.face, tunic: '#d8d4c6' }); },
     'A villa in its garden': (x, y) => { win(x + 5, y - 1, 3, 3); win(x + 29, y - 1, 3, 3); smoke(x + 34, y - 18, 2); },
-    'The bee garden': (x, y) => { win(x + 38, y + 1, 2, 2); },
+    'The bee garden': (x, y) => { win(x - 18, y + 1, 2, 2); },
     'The great oak': (x, y) => { const sq = (T * 0.15) % 1, up = sq < 0.5; R(x + 17, y + 6 - Math.round((up ? sq : 1 - sq) * 20), 2, 1, '#a8703c'); R(x + 18, y + 5 - Math.round((up ? sq : 1 - sq) * 20), 1, 1, '#a8703c'); },      // a squirrel, up the trunk and down again
   };
   // who is to be found at each by day, where there was nobody: they go in when the lamps are lit

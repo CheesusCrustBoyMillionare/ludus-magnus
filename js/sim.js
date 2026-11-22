@@ -1699,6 +1699,61 @@ function finishTourneyOffscreen() {
 
 // ---------- the arena: the championship, wagers, stakes, the day's laurels ----------
 // Who may be sent to this bout: some are for novices only, and a title is defended by the man who holds it.
+// What the bout is called on the card.
+const boutTitle = b => b.final ? "The Emperor's Games" : b.captive ? 'Captives &middot; ' + DIFF[b.diff].name : b.style ? `Games of Mars &middot; ${STAT_NAMES[b.style]}` : b.defence ? 'Title defence' : b.title ? 'The championship' : b.novice ? "Novices' duel" : b.grudge ? 'Grudge match' : b.called ? 'Your challenge' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + DIFF[b.diff].name : b.melee ? 'The great melee'
+  : ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1] + ' &middot; ' + DIFF[b.diff].name;
+
+// The men who give the best chance in this bout, of those fit to fight today and not spoken for: every team is tried.
+// Where two teams stand within a hair of each other, the lighter one goes, and the better men are kept for elsewhere.
+function bestTeamOf(b, taken) {
+  const avail = G.roster.filter(g => boutFit(b, g) && !(taken && taken.includes(g.id))), foes = boutEnemies(b);
+  if (avail.length < b.size) return null;
+  const all = [];
+  const go = (from, team) => {
+    if (team.length === b.size) { all.push({ men: team.slice(), p: winOdds(team, foes).p }); return; }
+    for (let k = from; k < avail.length; k++) { team.push(avail[k]); go(k + 1, team); team.pop(); }
+  };
+  go(0, []);
+  let best = all[0];
+  for (const t of all) if (t.p > best.p) best = t;
+  if (taken) {
+    const wt = t => t.men.reduce((n, g) => n + power(g), 0);
+    const top = best.p;
+    for (const t of all) if (t.p >= top - 0.02 && wt(t) < wt(best)) best = t;
+  }
+  return best;
+}
+// A whole card, filled: the hardest bouts get first call on the men, nobody is sent twice,
+// and a bout the school would most likely lose is left for the master to judge.
+const CARD_FLOOR = 0.3;
+function cardPlan() {
+  const left = (G.bouts || []).filter(b => !b.done);
+  const foeMight = b => boutEnemies(b).reduce((n, e) => n + power(e), 0);
+  const first = (x, y) => (y.defence ? 1 : 0) - (x.defence ? 1 : 0) || ((y.novice || y.style ? 1 : 0) - (x.novice || x.style ? 1 : 0));
+  const tryOrder = by => {
+    const taken = [], plan = {}, skipped = []; let worth = 0;
+    for (const b of left.slice().sort((x, y) => first(x, y) || by(x, y))) {
+      const t = bestTeamOf(b, taken);
+      if (!t || (t.p < CARD_FLOOR && !b.defence)) { skipped.push(b.id); continue; }
+      plan[b.id] = t.men.map(g => g.id); t.men.forEach(g => taken.push(g.id));
+      worth += t.p * (b.purse + b.fame * 5) - (1 - t.p) * (b.death || b.hunt ? b.purse : 0);
+    }
+    return { plan, skipped, worth };
+  };
+  // three ways of dealing the men out, and whichever promises the most is kept
+  const tries = [tryOrder((x, y) => foeMight(y) - foeMight(x)), tryOrder((x, y) => foeMight(x) - foeMight(y)), tryOrder((x, y) => y.purse + y.fame * 5 - x.purse - x.fame * 5)];
+  return tries.reduce((best, t) => t.worth > best.worth + 1e-9 ? t : best);
+}
+// What the games day came to, kept once the arena empties.
+function closeCard() {
+  const fought = (G.bouts || []).filter(b => b.res);
+  if (!G.bouts || !G.bouts.length) return;
+  const rows = fought.map(b => Object.assign({ t: boutTitle(b), house: b.house, houseId: b.houseId || null, death: !!(b.death || b.hunt) }, b.res));
+  (G.cardLog = G.cardLog || []).unshift({ day: G.day, arena: TIERS[tier()].name, rows, passed: G.bouts.length - fought.length, away: !!G.field });
+  if (G.cardLog.length > 6) G.cardLog.length = 6;
+}
+const cardSum = rows => rows.reduce((s, r) => { s.w += r.win ? 1 : 0; s.l += r.win ? 0 : 1; s.purse += r.purse; s.fame += r.fame; s.bet += r.bet || 0; s.dead += (r.dead || []).length; return s; }, { w: 0, l: 0, purse: 0, fame: 0, bet: 0, dead: 0 });
+
 function boutFit(b, g) { return canFight(g) && (!b.novice || g.rank <= 1) && (!b.only || g.id === b.only) && (!b.style || styleOf(g) === b.style); }
 // Three ways to bet on your own side. The harder the thing, the more the bookmakers pay.
 const WAGER_KINDS = {
@@ -2006,6 +2061,7 @@ function endDay() {
     G.fame = Math.max(0, G.fame - 5);
     log(`${was} did not appear to defend the championship. ${foe ? `It passes to ${foe.name} of ${lapsed.house} without a blow struck.` : 'It stands empty.'}`, 'bad');
   }
+  closeCard();
   G.day++;
   if (G.festival.day < G.day) scheduleFestival();
   if (typeof rollAsks === 'function') rollAsks();      // somebody new at the fountain, perhaps (wilds.js)
@@ -2177,6 +2233,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
   G.denarii += purse + wagerGain;
   G.fame += fameGain;
   bout.done = true;
+  bout.res = { win, purse, fame: fameGain, bet: wager ? wagerGain - wager : 0, men: mine.map(f => f.g.name), dead: dead.map(g => g.name), kills, exc: Math.round(avgExc * 100) };
   if (bout.tourney) advanceTourney(win, lines);
   if (bout.final && win) G.won = true;
   if (win) {                                  // what goes in the book of records

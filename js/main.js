@@ -964,17 +964,25 @@ function showReports() {
   save();
 }
 
-// The men who give the best chance in this bout, of those fit to fight today: every team is tried.
-function bestBoutTeam(b) {
-  const avail = G.roster.filter(g => boutFit(b, g)), foes = boutEnemies(b);
-  if (avail.length < b.size) return null;
-  let best = null, bp = -1;
-  const go = (from, team) => {
-    if (team.length === b.size) { const p = winOdds(team, foes).p; if (p > bp) { bp = p; best = team.slice(); } return; }
-    for (let k = from; k < avail.length; k++) { team.push(avail[k]); go(k + 1, team); team.pop(); }
-  };
-  go(0, []);
-  return { men: best, p: bp };
+const bestBoutTeam = b => bestTeamOf(b);
+// A line on how a bout went.
+function boutResLine(r) {
+  return `<b class="${r.win ? 'good' : 'bad'}">${r.win ? 'Won' : 'Lost'}</b>${r.purse ? ` &middot; <span class="gold num">+${r.purse}</span>` : ''}${r.fame ? ` &middot; <span class="num">+${r.fame} fame</span>` : ''}${r.bet ? ` &middot; <span class="num ${r.bet > 0 ? 'gold' : 'bad'}">wager ${r.bet > 0 ? '+' : '&minus;'}${Math.abs(r.bet)}</span>` : ''}`;
+}
+// What a card came to, in a few words.
+function cardLine(s) {
+  return `<b class="num">${s.w}</b> won, <b class="num">${s.l}</b> lost &middot; <span class="gold num">${s.purse + s.bet >= 0 ? '+' : '&minus;'}${Math.abs(s.purse + s.bet)}</span> denarii &middot; <span class="num">+${s.fame}</span> fame${s.dead ? ` &middot; <span class="bad">${s.dead} dead</span>` : ''}`;
+}
+// The last games, bout by bout, and the ones before in a line each.
+function lastGames() {
+  const L = G.cardLog || []; if (!L.length) return '';
+  const C = L[0], s = cardSum(C.rows);
+  const rows = C.rows.map(r => `<div class="lrow gres" style="cursor:default"><div class="grow"><span class="t">${r.t}${r.death ? ' <span class="chip red">To the death</span>' : ''} <small class="inl">vs ${swatch(r.houseId)}${r.house}</small></span>
+      <small>${r.men.join(', ')}${r.dead.length ? ` &middot; <span class="bad">${r.dead.join(' and ')} died</span>` : ''}${r.kills ? ` &middot; ${r.kills} slain` : ''} &middot; the crowd ${r.exc > 55 ? 'roared' : r.exc > 30 ? 'was pleased' : 'was restless'}</small></div><span class="end">${boutResLine(r)}</span></div>`).join('');
+  const older = L.slice(1).map(c => `<div class="lrow gres old" style="cursor:default"><div class="grow"><span class="t">Day ${c.day} <small class="inl">${c.arena}</small></span></div><span class="end">${c.rows.length ? cardLine(cardSum(c.rows)) : '<span class="dim">' + (c.away ? 'the school was away' : 'no bout fought') + '</span>'}</span></div>`).join('');
+  return `<h2>The last games <small>day ${C.day} &middot; ${C.arena}</small></h2><div class="panel list tight">
+    ${C.rows.length ? `<div class="listnote gsum">${cardLine(s)}${C.passed ? ` &middot; <span class="dim">${C.passed} bout${C.passed === 1 ? '' : 's'} let pass</span>` : ''}</div>${rows}` : `<div class="listnote">${C.away ? 'The school was on the road, and the games went on without it.' : 'You sent no one to the sand.'}</div>`}
+    ${older}</div>`;
 }
 const might = g => Math.round(power(g));
 
@@ -990,7 +998,7 @@ function boutCard(b) {
           <div class="l2"><span class="sks">${STATS.map(k => `<span class="sk">${ic(k)}<b class="num">${e.stats[k]}</b></span>`).join('')}</span><small class="notes">${rivalNote(e)}${vowNote(e)}</small></div></div>
         <span class="end num"${tip('power')}>${might(e)}</span></div>`).join('');
   let body;
-  if (b.done) body = '<div class="dim">This bout has been fought.</div>';
+  if (b.done) body = b.res ? `<div class="oddsbox foughtbox"><div>${boutResLine(b.res)}</div><small class="dim">${b.res.men.join(', ')} fought it${b.res.dead.length ? `; <span class="bad">${b.res.dead.join(' and ')} did not come back</span>` : ''}.</small></div>` : '<div class="dim">This bout has been fought.</div>';
   else {
     const picks = (ui.picks[b.id] || []).filter(id => byId(id) && boutFit(b, byId(id)));
     ui.picks[b.id] = picks;
@@ -1037,8 +1045,6 @@ function boutCard(b) {
   </div>`;
 }
 
-const boutTitle = b => b.final ? "The Emperor's Games" : b.captive ? 'Captives &middot; ' + DIFF[b.diff].name : b.style ? `Games of Mars &middot; ${STAT_NAMES[b.style]}` : b.defence ? 'Title defence' : b.title ? 'The championship' : b.novice ? "Novices' duel" : b.grudge ? 'Grudge match' : b.called ? 'Your challenge' : b.vow ? 'A vow to settle' : b.hunt ? 'Beast hunt &middot; ' + DIFF[b.diff].name : b.melee ? 'The great melee'
-  : ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1] + ' &middot; ' + DIFF[b.diff].name;
 
 function viewArena() {
   const t = tier(), dg = daysToGames();
@@ -1054,7 +1060,7 @@ function viewArena() {
     }).join('');
     return `<div class="fill even">
     <div><h2>The arena is quiet</h2><div class="pane">${road}<div class="panel">The next games are in <b>${dg}</b> ${dg === 1 ? 'day' : 'days'}. Train, rest and arm your fighters until then.</div>
-      <h2>Who will be ready <small>as things stand</small></h2><div class="panel list tight">${ready || '<div class="listnote">You have no fighters.</div>'}</div></div></div>
+      <h2>Who will be ready <small>as things stand</small></h2><div class="panel list tight">${ready || '<div class="listnote">You have no fighters.</div>'}</div>${lastGames()}</div></div>
     <div><h2>The road to Rome</h2><div class="pane">${festivalNote()}${arenaStandings()}<div class="panel dim" style="font-size:13px"${tip('The fame of a bout grows with the excitement of the crowd, and beating a house that stands above you earns more.')}>Fame opens greater arenas, with richer purses and deadlier opponents. You have <b class="num">${G.fame}</b>${G.fame < FINAL_FAME ? `; reach ${FINAL_FAME} to be summoned before the Emperor` : ''}.</div></div></div>
   </div>`;
   }
@@ -1067,9 +1073,12 @@ function viewArena() {
     return lrow('bsel', b.id, `<div class="grow"><span class="t ${b.title ? 'gold' : ''}">${boutTitle(b)}${b.death || b.hunt ? ' <span class="chip red">To the death</span>' : ''}${b.fest ? ` <span class="chip gold"${tip('One of the festival\'s own bouts: winning it counts towards the festival crown.')}>Festival</span>` : ''}</span>
         <small>vs ${swatch(b.houseId)}${b.house} &middot; might ${boutEnemies(b).map(might).join(' + ')}${chosen.length ? ` &middot; <span class="gold">${namesOf(chosen)}</span>` : ''}</small></div>
         ${b.done ? '' : `<div class="bestodds"${tip(bt ? `The best you could send: ${namesOf(bt.men)}.` : 'You have too few men fit to fight this.')}>${bt ? `${oddsBar(bt.p)}<small>at best ${asPct(bt.p)}</small>` : '<small class="bad">too few fit</small>'}</div>`}
-        <span class="end">${b.done ? '<span class="dim">fought</span>' : `<b class="gold num">${b.purse}</b> <span class="num dim">+${b.fame}</span>`}</span>`, b.done ? 'done' : '');
+        <span class="end">${b.done ? (b.res ? boutResLine(b.res) : '<span class="dim">fought</span>') : `<b class="gold num">${b.purse}</b> <span class="num dim">+${b.fame}</span>`}</span>`, b.done ? 'done' : '');
   }).join('');
   const left = G.bouts.filter(b => !b.done), fit = G.roster.filter(canFight).length, purse = left.reduce((n, b) => n + b.purse, 0);
+  const fought = G.bouts.filter(b => b.res).map(b => b.res), CP = left.length ? cardPlan() : null;
+  const planned = CP ? Object.keys(CP.plan) : [], same = CP && left.every(b => (CP.plan[b.id] || []).slice().sort().join() === (ui.picks[b.id] || []).slice().sort().join());
+  const anyPick = left.some(b => (ui.picks[b.id] || []).length);
   return `<div class="fill even">
     <div><h2>Today's games</h2>
       <div class="panel schoolbar"><div class="tally">
@@ -1078,7 +1087,9 @@ function viewArena() {
         ${left.length ? `<span${tip('purse')}><b class="num">${purse}</b> in purses still to win</span>` : '<span>the day is done: end it when you are ready</span>'}
         ${(G.streak || 0) >= 2 ? `<span class="gold"${tip(`A run of victories draws the crowd: each win in a row adds 2% to the fame of the next, up to 20%. A defeat ends it. Your longest run is ${G.bestStreak || 0}.`)}><b class="num">${G.streak}</b> won running &middot; +${Math.round(streakBonus() * 100)}% fame</span>` : ''}
         ${titleYours() ? `<span class="gold"${tip('Your man holds the championship. While he does, every victory of the school earns a tenth more fame, and a challenger comes for the title each games day. If he does not appear, it is forfeit.')}>${G.title.name} is champion</span>` : ''}
-        ${G.fix ? '<span class="bad"><b>You have agreed to lose your next bout.</b></span>' : ''}</div></div>
+        ${G.fix ? '<span class="bad"><b>You have agreed to lose your next bout.</b></span>' : ''}
+        ${fought.length ? `<span class="sofar"${tip('What the day has brought so far: purses and wagers together, and the fame won.')}>so far ${cardLine(cardSum(fought))}</span>` : ''}</div>
+        ${left.length > 1 ? `<div class="acts mini"><button class="mini" data-act="bfill" ${planned.length && !same ? '' : 'disabled'}${tip(planned.length ? `Name men for ${planned.length === left.length ? 'every bout' : planned.length + ' of the ' + left.length + ' bouts'} at once: the hardest bouts get first call, and nobody is sent twice.${CP.skipped.length ? '\nA bout your best men would most likely lose is left for you to judge.' : ''} Key: F` : 'No bout here that your men could be sent to with a fair chance.')}>${same && planned.length ? 'Card filled' : 'Fill the card'}</button>${anyPick ? `<button class="mini" data-act="bclear"${tip('Take every man off the card and start again.')}>Clear</button>` : ''}</div>` : ''}</div>
       <div class="pane" data-pane="bouts">${road}<div class="panel list ${items.length > 8 ? 'longcard oneline' : items.length > 6 ? 'longcard' : ''}">${rows}</div></div></div>
     <div><h2>${cur && cur.id === 'lists' ? 'The tournament' : 'The bout'}</h2><div class="pane" data-pane="bout">${festivalNote(true)}${cur ? (cur.id === 'lists' ? tourneyPanel() : boutCard(cur)) : ''}</div></div>
   </div>`;
@@ -2578,6 +2589,13 @@ const ACTIONS = {
     for (const k in ui.picks) ui.picks[k] = ui.picks[k].filter(x => !ids.includes(x));
     ui.picks[b.id] = ids; render();
   },
+  bfill() {
+    if (!G.bouts) return;
+    const P = cardPlan().plan; if (!Object.keys(P).length) return;
+    G.bouts.forEach(b => { if (!b.done) ui.picks[b.id] = P[b.id] || []; });
+    render();
+  },
+  bclear() { (G.bouts || []).forEach(b => { if (!b.done) ui.picks[b.id] = []; }); render(); },
   wagerset(v, w) { ui.wagers[v] = +w; render(); },
   sponsor() { if (sponsorFestival()) { SFX.ui('coin'); save(); render(); } },
   wkind(v, w) { (ui.wkind = ui.wkind || {})[v] = w; render(); },
@@ -2811,7 +2829,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', cutins: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', bfill: 'tick', bclear: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', cutins: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -3021,6 +3039,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (ui.tab === 'arena' && k === 'b') return press($('#view [data-act=bbest]'));
+  if (ui.tab === 'arena' && k === 'f') return press($('#view [data-act=bfill]'));
   if (ui.tab === 'arena' && k === 'Enter' && at.tagName !== 'BUTTON') return press($('#view [data-act=fight]'));
   if (k === 'b' && ui.tab === 'market') return press($('#view [data-act=buy]'));
   if (k === 'b' && ui.tab === 'smith') return press($('#view [data-act=smithbuy]'));
