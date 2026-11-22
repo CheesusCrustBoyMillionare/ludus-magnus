@@ -38,7 +38,7 @@ function provLand() {
     for (const key of got) span[key] = info;
   }
   // what is grown on each plot, and what divides it from the next
-  const crop = (tx, ty) => Math.floor(h(Math.floor(tx / 4), Math.floor(ty / 3), 71) * 7), walled = (tx, ty) => h(Math.floor(tx / 4), Math.floor(ty / 3), 72) > 0.6;
+  const crop = (tx, ty) => Math.floor(h(Math.floor(tx / 4), Math.floor(ty / 3), 71) * 11), walled = (tx, ty) => h(Math.floor(tx / 4), Math.floor(ty / 3), 72) > 0.6;
   // Each region's grass, meadow and woodland floor has a colour of its own; where two regions meet the line between
   // them is ragged, so that one country runs into the next instead of stopping at a fence.
   const REG_NAMES = WILD_REGIONS.map(q => q.name), regT = new Uint8Array(TW * TH);
@@ -78,7 +78,8 @@ function provLand() {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 40), b = h(tx, ty, 41);
     if (k === T_ROAD || k === T_BRIDGE) {
       const dTown = Math.hypot(tx - tx0, ty - ty0), paved = k === T_ROAD && dTown < 9;
-      const road = k === T_ROAD ? (paved ? '#c4bca6' : dTown > 70 ? '#c2a674' : '#cdae78') : '#8a6a3a';
+      const rreg = REG_NAMES[regT[ty * TW + tx]], RC = { 'The Quarry Hills': '#d0c8b0', 'The High Fells': '#a89c88', 'Blackmere': '#8a7350', 'The Salt Shore': '#dcc890', 'Greywood': '#9a8058', 'The Long Meadows': '#c2a674', 'The Barrow Downs': '#c4b890' };
+      const road = k === T_ROAD ? (paved ? '#c4bca6' : RC[rreg] ? tint(RC[rreg], 0.97 + h(tx, ty, 1081) * 0.06) : dTown > 70 ? '#c2a674' : '#cdae78') : '#8a6a3a';
       R(x + 2, y + 2, 6, 6, road);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const o = at(tx + dx, ty + dy); if (o === T_ROAD || o === T_BRIDGE) R(dx ? x + (dx > 0 ? 8 : 0) : x + 2, dy ? y + (dy > 0 ? 8 : 0) : y + 2, dx ? 2 : 6, dy ? 2 : 6, road); }
       for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { const o = at(tx + dx, ty + dy); if (o === T_ROAD || o === T_BRIDGE) R(x + (dx > 0 ? 7 : 0), y + (dy > 0 ? 7 : 0), 3, 3, road); }
@@ -99,7 +100,15 @@ function provLand() {
       }
       else if (paved) { R(x + 2 + ((tx + ty) % 2) * 3, y + 2, 1, 6, '#a89f8a'); R(x + 2, y + 4 + ((tx * 3 + ty) % 2), 6, 1, '#a89f8a'); if (a > 0.8) R(x + 3 + Math.floor(b * 3), y + 3, 2, 2, '#d6cfbc'); }      // dressed stone, close to the gate
       else {
-        if (a > 0.6) R(x + 3 + Math.floor(b * 4), y + 3 + Math.floor(a * 3), 2, 1, '#b8955f'); if (a < 0.2) R(x + 4, y + 5, 1, 2, '#dcc396');       // ruts
+        const vert = at(tx, ty - 1) === T_ROAD || at(tx, ty + 1) === T_ROAD || at(tx, ty - 1) === T_BRIDGE || at(tx, ty + 1) === T_BRIDGE, r1 = h(tx, ty, 1082), r2 = h(tx, ty, 1083);
+        if (rreg === 'Blackmere') { for (let i = 0; i < 6; i += 2) { if (vert) R(x + 1, y + 2 + i, 8, 1, i % 4 ? '#6b5236' : '#7d6242'); else R(x + 2 + i, y + 1, 1, 8, i % 4 ? '#6b5236' : '#7d6242'); } if (r1 > 0.8) R(x + 3 + Math.floor(r2 * 3), y + 3 + Math.floor(r1 * 10) % 3, 2, 2, '#3d5a52'); }      // logs laid side by side over the wet, one or two gone under
+        else if (rreg === 'The High Fells') { for (let q = 0; q < 2 + Math.floor(r1 * 2); q++) { const sx = x + 2 + Math.floor(h(tx, ty, 1084 + q) * 5), sy = y + 2 + Math.floor(h(tx, ty, 1088 + q) * 5); R(sx, sy, 2, 1, '#c4c8cc'); R(sx, sy + 1, 2, 1, '#7a7e84'); } }                                                                                          // a track over bare rock
+        else if (rreg === 'The Long Meadows') { for (let i = 0; i < 10; i += 2) if (h(tx + i, ty, 1092) > 0.3) { if (vert) R(x + 4 + (i % 4 ? 1 : 0), y + i, 1, 2, '#8aa652'); else R(x + i, y + 4 + (i % 4 ? 1 : 0), 2, 1, '#8aa652'); } }                                                                              // two ruts, and grass down the middle
+        else if (rreg === 'Greywood') { for (let q = 0; q < 3; q++) R(x + 2 + Math.floor(h(tx, ty, 1084 + q) * 6), y + 2 + Math.floor(h(tx, ty, 1088 + q) * 6), 1, 1, ['#b45f2c', '#d4a43a', '#6b4f2c'][q]); if (r1 > 0.85) R(x + 2, y + 4 + Math.floor(r2 * 2), 5, 1, '#5a4326'); }                                              // leaves down on it, and a root across
+        else if (rreg === 'The Salt Shore') { R(x + 2 + Math.floor(r1 * 3), y + 3 + Math.floor(r2 * 4), 3, 1, '#ead8a4'); if (r1 > 0.7) R(x + 3 + Math.floor(r2 * 4), y + 5, 1, 1, '#f4ece0'); }                                                                                                                              // sand, and a shell trodden in
+        else if (rreg === 'The Quarry Hills') { for (let q = 0; q < 3; q++) R(x + 2 + Math.floor(h(tx, ty, 1084 + q) * 6), y + 2 + Math.floor(h(tx, ty, 1088 + q) * 6), 1, 1, '#f2eee2'); if (vert) { R(x + 3, y, 1, 10, '#b0a88e'); R(x + 6, y, 1, 10, '#b0a88e'); } else { R(x, y + 3, 10, 1, '#b0a88e'); R(x, y + 6, 10, 1, '#b0a88e'); } }      // chippings, and the ruts the stone carts cut
+        else if (rreg === 'The Barrow Downs') { if (r1 > 0.5) { R(x + 2 + Math.floor(r2 * 3), y + 3 + Math.floor(r1 * 10) % 3, 3, 2, '#e6e2d2'); } }                                                                                                                                                                      // the chalk showing through
+        if (a > 0.6) R(x + 3 + Math.floor(b * 4), y + 3 + Math.floor(a * 3), 2, 1, tint(road, 0.9)); if (a < 0.2) R(x + 4, y + 5, 1, 2, tint(road, 1.1));       // ruts
         const e = h(tx, ty, 45);
         if (e > 0.94) { R(x + 3, y + 4, 4, 2, '#8fa8b8'); R(x + 4, y + 4, 2, 1, '#b8ccd8'); }                                                           // a puddle
         else if (e > 0.88 && dTown > 40) { R(x + 4, y + 2 + Math.floor(b * 4), 1, 2, '#8a9a4a'); R(x + 5, y + 4 + Math.floor(a * 3), 1, 2, '#93a85c'); }      // grass coming up the middle, far from anywhere
@@ -303,7 +312,11 @@ function provLand() {
         else if (c === 3) { R(x, y, 10, 10, '#7f9a52'); for (let qy = 1; qy < 10; qy += 3) for (let qx = 1; qx < 10; qx += 3) { R(x + qx, y + qy, 2, 2, '#4f7a3a'); R(x + qx, y + qy, 1, 1, '#8fb865'); } }                                        // cabbages
         else if (c === 4) { R(x, y, 10, 10, '#86a45a'); for (let q = 0; q < 6; q++) R(x + Math.floor(h(tx, ty, 180 + q) * 10), y + Math.floor(h(tx, ty, 186 + q) * 10), 1, 1, q % 3 ? '#7fa0e0' : '#a8c0f0'); }                                // flax in flower
         else if (c === 5) { R(x, y, 10, 10, '#8aa052'); for (let q = 1; q < 10; q += 3) { R(x + q, y + 1, 1, 8, '#6b4f2c'); R(x + q - 1, y + 2, 3, 2, '#55803a'); R(x + q - 1, y + 5, 3, 2, '#55803a'); } }                                        // beans on their poles
-        else { R(x, y, 10, 10, '#d8c880'); for (let q = 0; q < 10; q += 2) R(x + ((q + ty) % 3), y + q, 8, 1, '#c2b068'); }                                 // barley, bending
+        else if (c === 6) { R(x, y, 10, 10, '#d8c880'); for (let q = 0; q < 10; q += 2) R(x + ((q + ty) % 3), y + q, 8, 1, '#c2b068'); }
+        else if (c === 7) { R(x, y, 10, 10, '#8a7a52'); for (let q = 1; q < 10; q += 4) { R(x, y + q + 1, 10, 1, '#6b4f2c'); for (let i = 0; i < 10; i += 3) { R(x + i, y + q - 1, 2, 2, '#4f7a3a'); if (h(tx + i, ty + q, 1100) > 0.5) R(x + i + 1, y + q + 1, 1, 1, '#6a3a7a'); } } }      // vines on their wires, the grapes dark
+        else if (c === 8) { R(x, y, 10, 10, '#86a45a'); const ox = x + 2 + (ty % 2) * 3, oy = y + 6; R(ox - 1, oy + 1, 5, 1, 'rgba(0,0,0,.18)'); R(ox + 1, oy - 2, 1, 3, '#5a3f26'); R(ox - 1, oy - 5, 5, 3, '#4c7f38'); R(ox, oy - 6, 3, 1, '#4c7f38'); R(ox - 1, oy - 5, 2, 1, '#69a04a'); R(ox + (tx % 3), oy - 4, 1, 1, h(Math.floor(tx / 4), Math.floor(ty / 3), 1101) > 0.5 ? '#d8382a' : '#e8c040'); }      // an orchard: apples, or pears
+        else if (c === 9) { R(x, y, 10, 10, '#7f8f4a'); for (let q = 0; q < 3; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 1102 + q) * 7), gy = y + 1 + Math.floor(h(tx, ty, 1105 + q) * 7); R(gx, gy, 2, 2, '#d8802a'); R(gx, gy, 1, 1, '#f0a040'); R(gx + 2, gy + 1, 2, 1, '#55803a'); } }      // gourds lying among their leaves
+        else { R(x, y, 10, 10, '#8fb05a'); if (a > 0.7) { R(x + 2 + Math.floor(b * 5), y + 4, 1, 3, '#7a9a48'); R(x + 3 + Math.floor(b * 5), y + 3, 1, 2, '#a8c468'); } if (mid) { R(x + 2, y + 5, 6, 2, '#6b4f2c'); R(x + 3, y + 5, 4, 1, '#6fa8c8'); } }      // a paddock kept for grazing, and the trough in it                                 // barley, bending
         // the bounds of the plot: a hedge, or a wall of field stones with a gap for the gate
         if (tx % 4 === 0) { if (walled(tx, ty)) { R(x, y, 1, 10, '#b5aa94'); R(x, y + 3, 1, 1, '#8f8676'); R(x, y + 7, 1, 1, '#8f8676'); } else R(x, y, 1, 10, a > 0.5 ? '#4f7038' : '#5f7f3f'); }
         if (ty % 3 === 0) { if (walled(tx, ty)) { R(x, y, 10, 1, '#b5aa94'); R(x + 4, y, 1, 1, '#8f8676'); if (tx % 4 === 2) R(x + 3, y, 4, 1, '#8a6a44'); } else R(x, y, 10, 1, b > 0.5 ? '#4f7038' : '#5f7f3f'); }
@@ -879,6 +892,19 @@ function provLand() {
       continue;
     }
     if (k === T_HILL) continue;
+    // A road has something beside it for a stretch, then something else: an avenue of trees, a hedge, a wall of
+    // field stones, a ditch, a flowering verge, a fence of posts and rails; or nothing.
+    const side = at(tx, ty - 1) === T_ROAD ? 'n' : at(tx, ty + 1) === T_ROAD ? 's' : at(tx - 1, ty) === T_ROAD ? 'w' : at(tx + 1, ty) === T_ROAD ? 'e' : '';
+    if (side) {
+      const rz = zq(wildNoise(tx / 9, ty / 9, 1090), 7), r1 = h(tx, ty, 1091), r2 = h(tx, ty, 1092), along = side === 'n' || side === 's';
+      const band = (th, d) => { const o = side === 'n' || side === 'w' ? 1 : 9 - th; if (along) d(x, y + o, 10, th); else d(x + o, y, th, 10); };      // a strip along the road's side of the tile
+      if (rz === 0) { if ((tx + ty) % 2 === 0) { const kind = reg === 'The Home Fields' || reg === 'The Long Meadows' ? 'poplar' : reg === 'The Salt Shore' || reg === 'The Quarry Hills' ? 'cypress' : species(tx, ty, reg, r2), cx = x + (side === 'w' ? 2 : side === 'e' ? 7 : 4 + Math.floor(r1 * 2)), cy = y + (side === 'n' ? 4 : side === 's' ? 8 : 5 + Math.floor(r1 * 2)); feats.push({ y: cy, d: () => tree(cx, cy, kind === 'dead' ? 'oak' : kind, 3, 0.94 + r1 * 0.14) }); } continue; }
+      if (rz === 1 && r1 > 0.12) { feats.push({ y: y + (side === 's' ? 9 : 3), d: () => band(3, (bx, by, bw, bh) => { R(bx, by, bw, bh, r2 > 0.5 ? '#4f7038' : '#5a7a3c'); if (along) { R(bx, by, bw, 1, '#6f9648'); R(bx, by + bh, bw, 1, 'rgba(0,0,0,.16)'); R(bx + Math.floor(r1 * 8), by + 1, 1, 1, r2 > 0.6 ? '#f4f4f0' : '#c23b2e'); } else { R(bx, by, 1, bh, '#6f9648'); R(bx + 1, by + Math.floor(r1 * 8), 1, 1, r2 > 0.6 ? '#f4f4f0' : '#c23b2e'); } }) }); continue; }      // a hedge, in flower or in berry, with a gap now and then
+      if (rz === 2 && r1 > 0.1) { feats.push({ y: y + (side === 's' ? 9 : 3), d: () => band(2, (bx, by, bw, bh) => { R(bx, by, bw, bh, '#a8a090'); if (along) { R(bx, by, bw, 1, '#c8c2b2'); for (let i = 1; i < 10; i += 3) R(bx + i + (ty % 2), by + 1, 1, 1, '#7d7668'); R(bx, by + bh, bw, 1, 'rgba(0,0,0,.18)'); } else { R(bx, by, 1, bh, '#c8c2b2'); for (let i = 1; i < 10; i += 3) R(bx + 1, by + i + (tx % 2), 1, 1, '#7d7668'); } if (r1 < 0.2) R(bx + (along ? 4 : -1), by + (along ? 2 : 4), 2, 1, '#a8a090'); }) }); continue; }      // a wall of field stones, a stone or two fallen from it
+      if (rz === 3) { feats.push({ y: y, d: () => band(2, (bx, by, bw, bh) => { R(bx, by, bw, bh, 'rgba(40,60,50,.35)'); if (along) R(bx + Math.floor(r1 * 5), by, 4, 1, '#6fa8c8'); else R(bx, by + Math.floor(r1 * 5), 1, 4, '#6fa8c8'); if (r2 > 0.6) { R(bx + (along ? Math.floor(r2 * 9) : 0), by + (along ? -2 : Math.floor(r2 * 7)), 1, 3, '#8a9a4a'); } }) }); continue; }      // a ditch, water standing in it
+      if (rz === 4) { const fc = reg === 'The Long Meadows' ? ['#f2e6a0', '#f4f4f0'] : reg === 'Greywood' ? ['#b9a0e0', '#f4f4f0'] : reg === 'The Salt Shore' ? ['#e8a0c0', '#f4f4f0'] : ['#c23b2e', '#6f80d8']; feats.push({ y: y, d: () => band(4, (bx, by, bw, bh) => { for (let q = 0; q < 6; q++) R(bx + Math.floor(h(tx, ty, 1093 + q) * bw), by + Math.floor(h(tx, ty, 1099 + q) * bh), 1, 1, fc[q % 2]); R(bx + Math.floor(r1 * (bw - 1)), by + Math.floor(r2 * (bh - 2)), 1, 2, '#93b055'); }) }); continue; }      // a verge left to flower
+      if (rz === 5) { feats.push({ y: y + (side === 's' ? 9 : 3), d: () => band(3, (bx, by, bw, bh) => { if (along) { R(bx, by + 1, bw, 1, '#8a6a3a'); for (let i = 1; i < 10; i += 4) { R(bx + i, by, 1, 3, '#6b4f2c'); } if (r1 < 0.15) R(bx + 3, by + 1, 4, 1, col(k, tx, ty)); } else { R(bx + 1, by, 1, bh, '#8a6a3a'); for (let i = 1; i < 10; i += 4) R(bx, by + i, 3, 1, '#6b4f2c'); } }) }); continue; }      // posts and a rail, a rail down here and there
+    }
     const dFor = nearKind(tx, ty, T_FOREST), dHill = nearKind(tx, ty, T_HILL), dMarsh = nearKind(tx, ty, T_MARSH), dSand = nearKind(tx, ty, T_SAND);
     if (dFor && e1 < (dFor === 1 ? 0.6 : 0.26)) {                // the wood's outliers: young trees, and brush
       const cx = x + 1 + Math.floor(e2 * 8), cy = y + 3 + Math.floor(e3 * 6);
