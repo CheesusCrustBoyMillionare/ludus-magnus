@@ -1750,7 +1750,7 @@ function drawHud(ctx, B) {
     if (B.pick === f) { ctx.fillStyle = '#ffd24a'; ctx.fillRect(x, y, 96, 0.6); ctx.fillRect(x, y + rh - 1.6, 96, 0.6); }
     const nx = many ? x + 4 : x + 10;
     if (!many) { if (f.style) drawIcon(ctx, f.style, x + 3.5, y + 2.5, 0.5); else { ctx.fillStyle = '#6b5f50'; ctx.fillRect(x + 4.5, y + 5, 4, 1); } }
-    ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(f.g.name.slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
+    ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(String(f.g.name || '').slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
     const bx = x + 44, bw = many ? 48 : 37;
     if (gone) {
       const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);

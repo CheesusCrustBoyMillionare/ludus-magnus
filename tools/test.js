@@ -1456,6 +1456,12 @@ test('quests: people at the fountain, landmarks, unique pieces, deadlines, and n
     assert(seen.size === 11 && rep === 0, 'eleven things on the road, none twice running: ' + seen.size + ', ' + rep); }
   assert(!badNumber(G), 'no bad numbers');
 }));
+test('quests: a quest from an older save, with no leader named, still gives everyone in the fight a name', () => game()(function () {
+  newGame();
+  for (const k of Object.keys(ERRANDS)) { const T = ERRANDS[k]; if (!T.foes) continue;
+    for (const tier of [1, 3, 5]) { const foes = T.foes({ id: 1, tpl: k, tier, mark: 'The gallows', mark2: 'The mill', pay: 0, fame: 0, giver: { name: 'X', kind: 'shepherd' } });
+      assert(foes.length && foes.every(f => typeof f.name === 'string' && f.name.length), k + ': a foe with no name at danger ' + tier); } }
+}));
 
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {
   assert(load() === false, 'nothing to load at first');

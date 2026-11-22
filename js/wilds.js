@@ -877,14 +877,14 @@ const QUEST_NAMES = {
 };
 function questBoss(tier, name, o) {
   const g = makeEnemy(WILD_BUDGET[tier - 1] + 5 + ((o && o.boost) || 0), clamp(tier, 0, 4), { cls: o && o.cls });
-  g.name = name; g.outlaw = true; g.boss = true; g.gear = null;
+  g.name = name || pick(QUEST_NAMES.outlaw || ['Their leader']); g.outlaw = true; g.boss = true; g.gear = null;      // a quest taken before leaders had names still has one to fight
   for (const t of ((o && o.traits) || [])) if (TRAITS[t] && !g.traits.includes(t)) g.traits.push(t);
   g.tactic = (o && o.tactic) || 'aggressive'; g.morale = 90; g.hp = maxHp(g);
   return g;
 }
 function questBeast(kind, tier, name, mult) {
   const b = makeBeast(kind, WILD_BUDGET[tier - 1] * (mult || 1.5));
-  b.name = name; b.boss = true; b.traits.push('ironhide'); b.hp = maxHp(b);
+  b.name = name || pick(QUEST_NAMES.great || ['The great one']); b.boss = true; b.traits.push('ironhide'); b.hp = maxHp(b);
   return b;
 }
 const greatKind = tier => tier <= 1 ? 'boar' : tier === 2 ? 'boar' : tier === 3 ? 'bear' : 'lion';

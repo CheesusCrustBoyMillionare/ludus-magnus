@@ -2059,6 +2059,7 @@ function startWildFight() {
   if (!F) return;
   const picks = fieldParty();
   if (!picks.length) { G.field.fight = null; return; }
+  for (const e of F.foes) if (!e.name) e.name = e.beast ? 'The great beast' : 'Their leader';      // nobody goes into a fight without a name to be called by
   const B = createBattle(picks, F.foes, { ask: !ui.autoCast, wild: F.backdrop, hunt: true, mercy: [mercyBonus(), 0], names: ['Your school', F.title] });
   B.cutins = !ui.noCut;                       // abilities are announced with a band across the screen
   B.fixedCam = !!ui.fixedCam;
@@ -2976,6 +2977,7 @@ if (load()) {
   render();
   showReports();
   if (G.pendingEvent) showEvent();
+  else if (G.field && G.field.fight) startWildFight();      // the page was closed with a fight out in the province still to be fought: fight it
   checkEnd();
 } else {
   newGame(); render(); intro();
