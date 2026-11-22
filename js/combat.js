@@ -151,6 +151,25 @@ function feed(B, str, team, kind) {
 
 // ---------- resolution ----------
 
+// Every kind of fighter kills in his own way, and the death screen shows it: the Murmillo's shield and the short thrust
+// after it, the Thraex's hooked blade from behind, the Retiarius's net and trident, the Hoplomachus's spear from
+// a length away, the Dimachaerus's two cuts crossing. Beasts have theirs too. `word` is what the crowd cries.
+const FATALS = {
+  murmillo:    { word: 'HOC HABET!',     how: 'IS CUT DOWN BEHIND THE SHIELD OF' },
+  thraex:      { word: 'IUGULA!',        how: 'IS OPENED BY THE HOOKED BLADE OF' },
+  retiarius:   { word: 'PERACTUM EST!',  how: 'IS NETTED AND SPEARED BY' },
+  hoplomachus: { word: 'FERRUM RECIPE!', how: 'IS RUN THROUGH BY' },
+  dimachaerus: { word: 'BIS HABET!',     how: 'IS CUT TWICE BY' },
+  claw:        { word: 'AD BESTIAS!',    how: 'IS TORN DOWN BY' },
+  wolf:        { word: 'AD BESTIAS!',    how: 'IS PULLED DOWN BY' },
+  boar:        { word: 'AD BESTIAS!',    how: 'IS GORED BY' },
+  none:        { word: 'HOC HABET!',     how: '' },
+};
+function fatalKind(by) {
+  if (!by) return 'none';
+  if (by.g.beast) return by.g.cls === 'wolf' ? 'wolf' : by.g.cls === 'boar' ? 'boar' : 'claw';
+  return FATALS[by.g.cls] ? by.g.cls : 'murmillo';
+}
 // A man has been killed: everything stops, and the death is shown on its own (drawFatal). Only where the fight is being
 // watched and such things are wanted (B.cutins), only for men, and in a crowd only for your own and for the first.
 function fatal(B, d, by) {
@@ -158,6 +177,7 @@ function fatal(B, d, by) {
   if (B.fighters.length > 6 && d.team !== 0 && B.fatalSeen) return;
   B.fatalSeen = true;
   B.fatal = { f: d, by: by && by !== d ? by : null, t: 0, dur: 3.1 };
+  B.fatal.kind = fatalKind(B.fatal.by);
   snd(B, 'cutin', 0.8, d);
 }
 function knockDown(B, d, a, how) {
@@ -521,7 +541,9 @@ function stepIntro(B, dt) {
 function stepBattle(B, dt) {
   if (B.fatal) {                              // a death is being shown: nothing else moves until it has been
     const was = B.fatal.t; B.fatal.t += dt;
-    if (was < 0.55 && B.fatal.t >= 0.55) snd(B, 'fatal', 1, B.fatal.f);
+    if (was < 0.55 && B.fatal.t >= 0.55) snd(B, 'fatal', 1, B.fatal.f, B.fatal.kind);
+    const beat2 = B.fatal.kind === 'murmillo' ? 0.89 : B.fatal.kind === 'dimachaerus' ? 0.69 : 0;      // the second blow of it, where there is one
+    if (beat2 && was < beat2 && B.fatal.t >= beat2) snd(B, 'strike', 0.9, B.fatal.f);
     if (B.fatal.t < B.fatal.dur && B.cutins) { B.clock += dt; return; }
     B.fatal = null;
   }
@@ -1289,27 +1311,96 @@ function drawFatal(ctx, B, T) {
   // the ground they stand on, and what runs out over it once he is down
   ctx.fillStyle = '#0a0202'; ctx.fillRect(-10, 136, 340, 50);
   ctx.fillStyle = 'rgba(255,80,50,.35)'; ctx.fillRect(-10, 136, 340, 0.7);
-  const vx = by ? 196 : 160, kx = 118, fallen = hit > 0.22;
-  if (hit > 0.3) { const pw = Math.min(46, (hit - 0.3) * 60); ctx.fillStyle = '#c2180e'; ctx.fillRect(vx - pw, 137, pw * 2, 2); ctx.fillStyle = '#7a0c08'; ctx.fillRect(vx - pw * 0.8, 139, pw * 1.6, 1.5); }
+  const kind = c.kind || fatalKind(by), FK = FATALS[kind] || FATALS.none, pre = cl(t / 0.5), vx0 = by ? 196 : 160;
+  // where each of them stands, and how, through the scene: the common case first, then each killer's own way of it
+  let kx = 118 + (hit >= 0 ? Math.min(10, hit * 60) : -pre * 4), vx = vx0 + (hit >= 0 ? Math.min(6, hit * 30) : 0), lift = 0, fallAt = 0.22, spray = by ? 'fwd' : 'both';
+  let kPose = hit < 0 ? { windup: true, windP: pre } : { atkAnim: Math.max(0.6, 1 - hit) }, vSnare = 0;
+  if (kind === 'murmillo') {                    // the shield goes in first and throws him back; the sword follows him down
+    kx = 122 + (hit >= 0 ? Math.min(34, hit * 150) : -pre * 6); vx = vx0 + (hit >= 0 ? Math.min(24, hit * 120) : 0); fallAt = 0.3;
+    kPose = hit < 0 ? { windup: true, windP: pre } : hit < 0.3 ? { atkAnim: 0.2 } : { atkAnim: Math.max(0.55, 1 - (hit - 0.3) * 1.5) };
+  } else if (kind === 'thraex') {               // he goes past on the blind side, and the hooked blade comes back over the shoulder
+    kx = 118 + (hit >= 0 ? Math.min(112, hit * 460) : -pre * 6); spray = 'up'; fallAt = 0.34;
+    kPose = hit < 0 ? { windup: true, windP: pre } : { atkAnim: Math.max(0.5, 1 - hit * 1.4), moving: hit < 0.24, walk: t * 30 };
+  } else if (kind === 'retiarius') {            // the net first, from a distance; then three points together
+    kx = 100 + (hit >= 0 ? Math.min(20, hit * 110) : 0); vSnare = pre >= 0.8 ? 1 : 0; fallAt = 0.4;
+    kPose = hit < 0 ? (pre < 0.6 ? { atkAnim: 1 - pre / 0.6 } : { windup: true, windP: cl((pre - 0.6) / 0.4) }) : { atkAnim: Math.max(0.6, 1 - hit) };
+  } else if (kind === 'hoplomachus') {          // the whole length of the spear: he is held up on it, and falls when it comes out
+    kx = 92 + (hit >= 0 ? Math.min(18, hit * 110) : -pre * 5); vx = vx0 + (hit >= 0 ? Math.min(4, hit * 20) : 0); fallAt = 0.62; spray = 'flat';
+    kPose = hit < 0 ? { windup: true, windP: pre } : { atkAnim: hit < 0.6 ? 0.95 : Math.max(0.5, 1 - (hit - 0.6) * 2) };
+  } else if (kind === 'dimachaerus') {          // inside his guard, and two cuts that cross on him
+    kx = 138 + (hit >= 0 ? Math.min(22, hit * 110) : -pre * 5); spray = 'both'; fallAt = 0.36;
+    kPose = hit < 0 ? { windup: true, windP: pre } : hit < 0.14 ? { atkAnim: 1 - hit * 3 } : { atkAnim: Math.max(0.5, 1 - (hit - 0.14) * 2.2) };
+  } else if (kind === 'boar') {                 // under him and up: he is thrown, and comes down wrong
+    kx = 124 + (hit >= 0 ? Math.min(52, hit * 220) : -pre * 8); lift = hit >= 0 && hit < 0.5 ? Math.sin(hit / 0.5 * Math.PI) * 34 : 0; vx = vx0 + (hit >= 0 ? Math.min(20, hit * 60) : 0); fallAt = 0.5; spray = 'up';
+    kPose = hit < 0 ? { moving: true, walk: t * 30 } : { atkAnim: Math.max(0.6, 1 - hit) };
+  } else if (kind === 'wolf' || kind === 'claw') {
+    kx = 130 + (hit >= 0 ? Math.min(30, hit * 160) : -pre * 8); fallAt = 0.26;
+    kPose = hit < 0 ? { windup: true, windP: pre } : { atkAnim: Math.max(0.6, 1 - hit) };
+  }
+  const fallen = hit > fallAt;
+  if (hit > fallAt + 0.08) { const pw = Math.min(46, (hit - fallAt - 0.08) * 60); ctx.fillStyle = '#c2180e'; ctx.fillRect(vx - pw, 137, pw * 2, 2); ctx.fillStyle = '#7a0c08'; ctx.fillRect(vx - pw * 0.8, 139, pw * 1.6, 1.5); }
   // the two of them, as shadows: he who struck, and he who took it
-  const shadow = (o, x, face, extra) => {
-    ctx.save(); ctx.translate(Math.round(x), 136); ctx.scale(1.9, 1.9);
+  const shadow = (o, x, face, extra, up) => {
+    ctx.save(); ctx.translate(Math.round(x), 136 - Math.round(up || 0)); ctx.scale(1.9, 1.9);
     drawSprite(ctx, Object.assign({ x: 0, y: 0, facing: face, g: o.g, team: o.team, col: '#000', colD: '#000', moving: false, walk: 0, clock: 0, atkAnim: 0, flash: 0, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: o.noHelm, solid: '#070202' }, extra));
     ctx.restore();
   };
-  if (by) shadow(by, kx + (hit >= 0 ? Math.min(10, hit * 60) : -cl(t / 0.5) * 4), 1, hit < 0 ? { windup: true, windP: cl(t / 0.5) } : { atkAnim: Math.max(0.6, 1 - hit) });
-  shadow(f, vx + (hit >= 0 ? Math.min(6, hit * 30) : 0), by ? -1 : 1, hit < 0 ? {} : fallen ? { down: true } : { falling: true, recoil: 1 });
-  // the blow: a white stroke through him that goes red, and what it throws out
-  if (hit >= 0 && hit < 0.45) {
-    const k = hit / 0.45;
-    for (const [w, col] of [[7, '#c2180e'], [3, k < 0.35 ? '#ffffff' : '#ff6a4a']]) {
-      ctx.globalAlpha = a * (1 - k); ctx.strokeStyle = col; ctx.lineWidth = w * (1 - k * 0.5);
-      ctx.beginPath(); ctx.moveTo(vx - 34, 62); ctx.quadraticCurveTo(vx + 6, 96, vx + 30, 134); ctx.stroke();
-    }
+  if (by) shadow(by, kx, 1, kPose);
+  shadow(f, vx, by ? -1 : 1, hit < 0 ? {} : fallen ? { down: true } : { falling: true, recoil: 1 }, lift);
+  // a stroke of light that goes red as it fades: k runs 0 to 1 over the life of it
+  const stroke = (k, path, fat) => {
+    if (k < 0 || k >= 1) return;
+    for (const [w, col] of [[7, '#c2180e'], [3, k < 0.35 ? '#ffffff' : '#ff6a4a']]) { ctx.globalAlpha = a * (1 - k); ctx.strokeStyle = col; ctx.lineWidth = w * (fat || 1) * (1 - k * 0.5); ctx.lineCap = 'round'; ctx.beginPath(); path(); ctx.stroke(); }
     ctx.globalAlpha = a;
-  }
+  };
+  const line = (x0, y0, x1, y1) => () => { ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); };
+  if (kind === 'murmillo') {
+    // the shield: a flat wall of light against him, and the shock going out from it
+    stroke(hit / 0.26, () => { ctx.moveTo(vx - 20, 74); ctx.lineTo(vx - 20, 132); }, 2.2);
+    if (hit >= 0 && hit < 0.26) for (let i = 0; i < 7; i++) { const yy = 78 + i * 8, ex = (hit / 0.26) * 26; ctx.fillStyle = `rgba(255,220,200,${(0.7 * (1 - hit / 0.26)).toFixed(3)})`; ctx.fillRect(vx - 14 + ex, yy, 10, 1); }
+    // then the short sword, straight down into a man on his back
+    stroke((hit - 0.34) / 0.4, line(vx - 26, 58, vx + 2, 134));
+  } else if (kind === 'thraex') {
+    // the sica: up from below, round, and down behind the shoulder
+    stroke(hit / 0.5, () => { ctx.moveTo(vx - 32, 126); ctx.bezierCurveTo(vx - 26, 46, vx + 44, 44, vx + 20, 104); });
+    if (hit >= 0.05 && hit < 0.5) { ctx.globalAlpha = a * (1 - hit / 0.5); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(vx + 20, 104); ctx.lineTo(vx + 30, 88); ctx.lineTo(vx + 14, 92); ctx.closePath(); ctx.fill(); ctx.globalAlpha = a; }      // the hook of it
+  } else if (kind === 'retiarius') {
+    // the net: thrown open in the air, then lying over him
+    const flying = pre < 0.8, nk = cl(pre / 0.8), nx = flying ? kx + 26 + (vx - kx - 26) * nk : vx, ny = flying ? 96 - Math.sin(nk * Math.PI) * 34 : 108 + (fallen ? 14 : 0), nr = flying ? 6 + nk * 20 : 22, nh = flying ? nr : (fallen ? 12 : 30);
+    ctx.save(); ctx.translate(nx, ny); if (flying) ctx.rotate(nk * 2.4);
+    ctx.strokeStyle = `rgba(255,150,120,${(0.75 * a).toFixed(3)})`; ctx.lineWidth = 0.7;
+    for (let q = -3; q <= 3; q++) { ctx.beginPath(); ctx.moveTo(q * nr / 3, -nh); ctx.lineTo(q * nr / 3 + nr / 3, nh); ctx.stroke(); ctx.beginPath(); ctx.moveTo(q * nr / 3, -nh); ctx.lineTo(q * nr / 3 - nr / 3, nh); ctx.stroke(); }
+    ctx.strokeStyle = `rgba(255,200,180,${(0.9 * a).toFixed(3)})`; ctx.lineWidth = 1; ctx.strokeRect(-nr, -nh, nr * 2, nh * 2);
+    for (const [wx, wy] of [[-nr, -nh], [nr, -nh], [-nr, nh], [nr, nh]]) { ctx.fillStyle = '#ffd0c0'; ctx.fillRect(wx - 1, wy - 1, 2.5, 2.5); }      // the weights at its corners
+    ctx.restore();
+    // the trident: three points, level, all the way through
+    for (const dy of [-7, 0, 7]) stroke(hit / 0.5, line(kx + 22, 102 + dy, vx + 30, 100 + dy), dy ? 0.7 : 1);
+  } else if (kind === 'hoplomachus') {
+    // the spear: one straight line from his hand to a long way past the man on it
+    stroke(hit / 0.75, line(kx + 20, 104, vx + 78, 96), 0.9);
+    if (hit >= 0 && hit < 0.62) { ctx.strokeStyle = '#000'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(kx + 20, 104); ctx.lineTo(vx + 40, 99); ctx.stroke(); ctx.fillStyle = '#ffe9dc'; ctx.beginPath(); ctx.moveTo(vx + 50, 98); ctx.lineTo(vx + 38, 95); ctx.lineTo(vx + 38, 102); ctx.closePath(); ctx.fill(); }      // the shaft, and the head standing out of his back
+  } else if (kind === 'dimachaerus') {
+    // one blade and then the other, crossing on him
+    stroke(hit / 0.4, line(vx - 34, 62, vx + 28, 132));
+    stroke((hit - 0.14) / 0.4, line(vx + 34, 62, vx - 28, 132));
+    if (hit >= 0.14 && hit < 0.34) { ctx.globalAlpha = a * (1 - (hit - 0.14) / 0.2); ctx.fillStyle = '#ffffff'; ctx.fillRect(vx - 5, 92, 10, 10); ctx.fillRect(vx - 2, 86, 4, 22); ctx.fillRect(vx - 11, 95, 22, 4); ctx.globalAlpha = a; }      // where they meet
+  } else if (kind === 'claw') {
+    for (let q = 0; q < 4; q++) stroke((hit - q * 0.02) / 0.42, line(vx - 30 + q * 9, 62 + q * 2, vx - 2 + q * 9, 130), 0.75);
+  } else if (kind === 'wolf') {
+    // the jaws: two rows of teeth that meet on him
+    if (hit >= -0.1 && hit < 0.5) { const k = cl((hit + 0.1) / 0.16), gap = 26 * (1 - k); ctx.globalAlpha = a * (hit < 0.2 ? 1 : 1 - (hit - 0.2) / 0.3); ctx.fillStyle = hit < 0.12 ? '#ffffff' : '#ff6a4a';
+      for (let q = 0; q < 6; q++) { const tx = vx - 24 + q * 9; ctx.beginPath(); ctx.moveTo(tx, 92 - gap - 12); ctx.lineTo(tx + 8, 92 - gap - 12); ctx.lineTo(tx + 4, 100 - gap); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(tx + 4, 116 + gap + 12); ctx.lineTo(tx + 12, 116 + gap + 12); ctx.lineTo(tx + 8, 108 + gap); ctx.closePath(); ctx.fill(); }
+      ctx.globalAlpha = a; }
+  } else if (kind === 'boar') {
+    stroke(hit / 0.45, () => { ctx.moveTo(vx - 30, 134); ctx.quadraticCurveTo(vx - 4, 128, vx + 10, 64); });
+    stroke((hit - 0.03) / 0.45, () => { ctx.moveTo(vx - 22, 134); ctx.quadraticCurveTo(vx + 4, 128, vx + 18, 70); }, 0.7);
+  } else stroke(hit / 0.45, () => { ctx.moveTo(vx - 34, 62); ctx.quadraticCurveTo(vx + 6, 96, vx + 30, 134); });
+  // what the blow throws out of him, the way that blow throws it
   if (hit >= 0) for (let i = 0; i < 34; i++) {
-    const an = -2.6 + h(i) * 2.1, sp = 40 + h(i + 50) * 130, tt = hit, px = vx + Math.cos(an) * sp * tt * (by ? 1 : (i % 2 ? 1 : -1)), py = 100 + Math.sin(an) * sp * tt + 210 * tt * tt;
+    const r1 = h(i), r2 = h(i + 50), tt = hit - (kind === 'dimachaerus' && i % 2 ? 0.14 : kind === 'murmillo' ? 0.34 : 0);
+    if (tt < 0) continue;
+    const an = spray === 'fwd' ? -1.45 + r1 * 1.5 : spray === 'flat' ? -0.42 + r1 * 0.5 : spray === 'up' ? -2.25 + r1 * 1.35 : (i % 2 ? -1.35 + r1 * 1.1 : -2.9 + r1 * 1.1);
+    const sp = (spray === 'flat' ? 90 : 40) + r2 * 130, px = vx + Math.cos(an) * sp * tt, py = 100 - lift + (kind === 'retiarius' ? ((i % 3) - 1) * 7 : 0) + Math.sin(an) * sp * tt + 210 * tt * tt;
     if (py > 137) continue;
     ctx.fillStyle = i % 3 ? '#e02a1a' : '#ff6a4a'; ctx.fillRect(Math.round(px), Math.round(py), i % 4 ? 2 : 3, i % 4 ? 2 : 3);
   }
@@ -1324,7 +1415,7 @@ function drawFatal(ctx, B, T) {
   ctx.fillStyle = '#8e120a'; ctx.fillRect(0, 12, 320, 1.5);
   // the word of it, coming down hard, and running
   if (slam >= 0) {
-    const k = cl(slam / 0.14), sc = 2.6 - 1.6 * k, word = 'HOC HABET!';
+    const k = cl(slam / 0.14), word = FK.word, sc = (2.6 - 1.6 * k) * (word.length > 11 ? 0.82 : 1);
     ctx.save(); ctx.translate(160 + shx, 42 + shy); ctx.scale(sc, sc);
     ctx.font = 'bold 27px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = '#080101'; ctx.strokeText(word, 0, 0);
@@ -1341,7 +1432,7 @@ function drawFatal(ctx, B, T) {
   const sa = cl((t - 1.35) / 0.3);
   if (sa > 0) {
     const nm = o => (o.g.beast ? 'the ' + o.c.name : o.g.name).toUpperCase();
-    const line = by ? `${nm(f)}  ${by.g.beast ? 'IS TORN DOWN BY' : 'IS SLAIN BY'}  ${nm(by)}` : `${nm(f)} IS DEAD`;
+    const line = by ? `${nm(f)}  ${FK.how || (by.g.beast ? 'IS TORN DOWN BY' : 'IS SLAIN BY')}  ${nm(by)}` : `${nm(f)} IS DEAD`;
     ctx.globalAlpha = a * sa; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.font = 'bold 8px Cinzel, Georgia, serif'; ctx.fillStyle = '#000'; ctx.fillText(line, 160.6, 156.6); ctx.fillStyle = '#ffe9dc'; ctx.fillText(line, 160, 156);
     const w = ctx.measureText(line).width; ctx.fillStyle = '#c2180e'; ctx.fillRect(160 - w / 2 * sa, 158.5, w * sa, 0.8);

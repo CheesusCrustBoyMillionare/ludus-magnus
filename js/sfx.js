@@ -196,7 +196,13 @@ const SFX = (() => {
       else { tone({ type: 'triangle', f0: 131, f1: 92, dur: 0.9, vol: 0.2, attack: 0.02, wet: 0.6 }); noise({ dur: 0.8, type: 'bandpass', f0: 500, f1: 280, vol: 0.24, q: 1.2, attack: 0.2, wet: 0.6 }); }
     },
     // a man's death, shown: the blow, a great weight falling a long way, and then one bell
-    fatal(v, pan) {
+    fatal(v, pan, kind) {
+      // each killer's own sound first: the shield's boom, the net's hiss, the spear's long thud, a beast's snarl
+      if (kind === 'murmillo') { tone({ f0: 150, f1: 60, dur: 0.22, vol: 0.5, attack: 0.002, pan, wet: 0.4 }); clang(330, 0.12, 0.35, pan, 0.4); }
+      else if (kind === 'retiarius') noise({ dur: 0.3, type: 'bandpass', f0: 300, f1: 1700, vol: 0.22, q: 1.6, attack: 0.06, pan, wet: 0.25 });
+      else if (kind === 'hoplomachus') tone({ f0: 210, f1: 70, dur: 0.3, vol: 0.4, attack: 0.004, pan, wet: 0.4 });
+      else if (kind === 'thraex' || kind === 'dimachaerus') noise({ dur: 0.16, type: 'highpass', f0: 3000, vol: 0.28, attack: 0.01, pan, wet: 0.3 });
+      else if (kind === 'claw' || kind === 'wolf' || kind === 'boar') tone({ type: 'sawtooth', f0: 120, f1: 70, dur: 0.4, vol: 0.22, attack: 0.03, pan, wet: 0.4 });
       noise({ dur: 0.09, type: 'bandpass', f0: 2600, f1: 1100, vol: 0.45, q: 1.2, pan, wet: 0.45 });
       drum(0.6, 0, pan);
       tone({ f0: 74, f1: 24, dur: 1.2, vol: 0.55, attack: 0.008, delay: 0.03, wet: 0.5 });
