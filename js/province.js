@@ -1820,7 +1820,7 @@ function provLand() {
   for (const [k, now] of laterRoad) L.t[k] = now;      // the mill road, back where it runs
   prov.marks = marks;
   // each road, as the run of its own tiles from one end to the other, so that travellers keep to it
-  prov.ways = WILD_ROADS.filter(q => q.length >= 3).map(poly => {
+  const wayOf = poly => {
     const pts = [];
     for (let i = 0; i + 1 < poly.length; i++) {
       const [ax, ay] = poly[i], [bx, by] = poly[i + 1], n = Math.max(1, Math.abs(bx - ax), Math.abs(by - ay));
@@ -1834,7 +1834,13 @@ function provLand() {
       }
     }
     return pts;
-  }).filter(w => w.length > 12);
+  };
+  prov.ways = WILD_ROADS.filter(q => q.length >= 3).map(wayOf).filter(w => w.length > 12);
+  // the mill road, from the first mill on it to the barns at its end: the miller's cart goes up and down it
+  { const way = wayOf(WILD_BYROAD); let from = 1e9;
+    for (const m of marks) if (m.name === 'The mill') { let bi = -1, bd = 90; way.forEach((p, i) => { const d = Math.hypot(p[0] - m.x - m.r, p[1] - m.y); if (d < bd) { bd = d; bi = i; } }); if (bi >= 0) from = Math.min(from, bi); }
+    if (from > way.length) from = 0;
+    prov.millWay = way.length - from > 12 ? way.slice(from) : way.length > 12 ? way : null; }
   prov.birds = [];
   for (const m of marks) {
     if (m.name === 'An old battlefield' || m.name === 'The gallows') prov.birds.push({ x: m.x + m.r, y: m.y - 14, kind: 'crow', n: 3, r: 16 });
@@ -2689,6 +2695,44 @@ function drawTraffic(ctx, T, R, inView) {
   });
 }
 
+// The miller's cart. It stands at the barns while the grain is thrown up, goes down the mill road under brown sacks,
+// stands at the mill while they are ground, and comes back under white ones, the carter as white as his load.
+const MILL_CART = { speed: 1.0, wait: 7 };
+function millCartAt(T) {
+  const way = prov.millWay; if (!way) return null;
+  const len = way.length - 1, go = len / MILL_CART.speed, w = MILL_CART.wait, t = T % ((go + w) * 2);
+  // 0: loading at the barns  1: to the mill with grain  2: at the mill  3: home with flour
+  const leg = t < w ? 0 : t < w + go ? 1 : t < w * 2 + go ? 2 : 3;
+  const idx = leg === 0 ? len : leg === 1 ? len - (t - w) * MILL_CART.speed : leg === 2 ? 0 : (t - w * 2 - go) * MILL_CART.speed;
+  const i0 = Math.max(0, Math.min(len - 1, Math.floor(idx))), fr = Math.max(0, Math.min(1, idx - i0)), a = way[i0], b = way[i0 + 1];
+  const dir = leg === 1 || leg === 2 ? -1 : 1, dx = (b[0] - a[0]) * dir, dy = (b[1] - a[1]) * dir;
+  return { x: Math.round(a[0] + (b[0] - a[0]) * fr), y: Math.round(a[1] + (b[1] - a[1]) * fr), leg, moving: leg === 1 || leg === 3, flour: leg === 3 || (leg === 2 && t - w - go > w / 2),
+    full: leg === 0 ? t / w : leg === 2 ? Math.abs((t - w - go) / w - 0.5) * 2 : 1,
+    face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up') };
+}
+function drawMillCart(ctx, T, R, inView) {
+  const C = millCartAt(T); if (!C) return;
+  const { x, y } = C;
+  if (!inView(x, y, 30) || !wildSeen(x, y)) return;
+  const d = C.face === 'left' ? -1 : 1, walk = T * 8, step = C.moving && Math.sin(walk) > 0 ? 1 : 0, jog = C.moving && Math.sin(walk * 0.5) > 0.6 ? 1 : 0;
+  const cx = x - d * 12, cy = y - jog;
+  R(cx - 7, y + 1, 15, 2, 'rgba(0,0,0,.25)');
+  R(cx - 6, cy - 6, 12, 5, '#8a6a3a'); R(cx - 6, cy - 7, 12, 1, '#a8834a'); R(cx - 6, cy - 2, 12, 1, '#6b4f2c');      // the bed, and its rails
+  R(cx - 6, cy - 10, 1, 4, '#6b4f2c'); R(cx + 5, cy - 10, 1, 4, '#6b4f2c');
+  const sack = C.flour ? ['#f2eee2', '#d8d2c0', '#b8b0a0'] : ['#c9a763', '#a8853f', '#8a6a34'], n = Math.max(0, Math.min(5, Math.round(C.full * 5)));
+  const spots = [[-5, -10], [-1, -10], [3, -10], [-3, -13], [1, -13]];
+  for (let q = 0; q < n; q++) { const [ox, oy] = spots[q]; R(cx + ox, cy + oy, 3, 3, sack[0]); R(cx + ox, cy + oy + 2, 3, 1, sack[1]); R(cx + ox + 1, cy + oy - 1, 1, 1, sack[2]); }      // sacks, tied at the neck
+  R(cx - 5, y - 2, 4, 4, '#3a2a1c'); R(cx - 4, y - 1, 2, 2, '#8a6a3a'); R(cx + 2, y - 2, 4, 4, '#3a2a1c'); R(cx + 3, y - 1, 2, 2, '#8a6a3a');      // the wheels
+  if (C.moving && Math.floor(walk) % 2) { R(cx - 4, y - 2, 1, 1, '#8a6a3a'); R(cx + 3, y - 2, 1, 1, '#8a6a3a'); }
+  R(cx + d * 6, cy - 5, d * 4, 1, '#6b4f2c');                                                                        // the shafts
+  const mc = '#9a8a72', bx = x;                                                                                      // the mule
+  R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
+  R(d > 0 ? bx + 3 : bx - 4, y - 9, 1, 2, '#6a5c4a'); R(bx - 3 + step, y - 2, 1, 3, '#5c5244'); R(bx + 3 - step, y - 2, 1, 3, '#5c5244'); R(d > 0 ? bx - 4 : bx + 4, y - 4, 1, 3, '#5c5244');
+  if (C.flour && C.moving && Math.floor(T * 3) % 4 === 0) R(cx - d * 8, cy - 9 - Math.floor(T * 6) % 3, 1, 1, 'rgba(255,255,255,.7)');      // flour, shaken out of the weave
+  vilPerson(ctx, x + d * 8, y + 1, { face: C.face, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c' });
+  provUnder(ctx, x, y, 26);
+}
+
 // ---------- the column, mounted ----------
 // With no stables the school goes on foot. With stables it rides, and the horses show what the stables are:
 //   1  a plain beast with a blanket over its back and a rope halter
@@ -3291,6 +3335,7 @@ function drawProvince(cv, T) {
   }
   drawHerds(ctx, T, R, inView);
   drawTraffic(ctx, T, R, inView);
+  drawMillCart(ctx, T, R, inView);
   drawAmbient(ctx, T, R, camX, camY, false);
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
