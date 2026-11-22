@@ -141,7 +141,7 @@ const SITE_NAMES = {
 let wildSiteCache = null;
 function wildSites() {
   const M = wildMap();
-  if (wildSiteCache && wildSiteCache.seed === M.seed) return bountyLive() ? wildSiteCache.list.concat(bountySite()) : wildSiteCache.list;
+  if (wildSiteCache && wildSiteCache.seed === M.seed) return (bountyLive() ? wildSiteCache.list.concat(bountySite()) : wildSiteCache.list).concat(errandSites());
   const rnd = wildRng(M.seed), deck = SITE_DECK.slice();
   for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
   const list = wildLand().sites.map((s, i) => {
@@ -150,7 +150,7 @@ function wildSites() {
   });
   for (const f of WILD_FIXED) list.push({ id: f.id, kind: f.kind, x: f.tx * 10 + 5, y: f.ty * 10 + 5, tier: wildTier(f.tx * 10, f.ty * 10), name: f.name, fixed: true });
   wildSiteCache = { seed: M.seed, list };
-  return bountyLive() ? list.concat(bountySite()) : list;
+  return (bountyLive() ? list.concat(bountySite()) : list).concat(errandSites());
 }
 // ---------- bounties: the Magistrate pays for a head, or a hide ----------
 const BOUNTY_NAMES = {
@@ -370,7 +370,7 @@ const RELICS = {
   vambrace:{ name: 'The hill-king\'s arm-ring', slot: 'arms', r: 6, note: 'Gold over iron. A further 6% block with a shield.', add: z => { z.block += 0.06; } },
 };
 function wildRelic(key) {
-  const M = wildMap(), k = key || Object.keys(RELICS).find(r => !M.relics.includes(r) && r !== 'crest' && r !== 'vambrace');
+  const M = wildMap(), k = key || Object.keys(RELICS).find(r => !M.relics.includes(r) && r !== 'crest' && r !== 'vambrace' && !RELICS[r].quest);      // the pieces people send you for are not found by chance
   if (!k) return null;
   const it = makeItem(RELICS[k].slot, RELICS[k].r);
   it.relic = k; M.relics.push(k); G.armoury.push(it);
@@ -799,7 +799,7 @@ function wildWalked(d) {
   if (F.walked < F.next || G.pendingEvent) return false;
   F.walked = 0; F.next = 600 + Math.random() * 700;
   if (Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y) < 220) return false;
-  const r = Math.random(), id = r < 0.4 ? 'wAmbush' : r < 0.7 ? 'wTraveller' : 'wFind';
+  const id = roadEventId();
   raiseEvent(id, EVENTS[id].make());
   return true;
 }
@@ -813,3 +813,531 @@ function eagleLead() {
     'You have the eagle of the Seventeenth. Carry it home.',
     M.eagle === 'rome' ? 'The eagle of the Seventeenth went back to Rome by your hand.' : M.eagle === 'kept' ? 'The eagle of the Seventeenth stands over your gate.' : 'The eagle of the Seventeenth was sold.'][M.story];
 }
+
+// =====================================================================================================
+// QUESTS FROM THE PEOPLE OF THE TOWN
+// Some mornings somebody is waiting by the fountain with work that is not the Guild's or the Magistrate's:
+// a shepherd with wolves in his fold, a widow whose husband's ring went down a hot spring, an old soldier
+// who knows where a king was buried with his sword. Each sends the school to one of the landmarks of the
+// province. G.asks are those waiting; G.errands are the ones you have taken on.
+// =====================================================================================================
+const LANDMARKS = ['The great oak', 'A villa in its garden', 'The old arch', 'The wine press', 'The fallen colossus', 'An old battlefield', 'The bee garden', 'The mill', 'A wreck on the strand', 'The beacon', 'The bones of a whale', "The fishers' huts", 'The charcoal burners', "The hunters' lodge", 'A burnt village', 'The great quarry', 'The lime kiln', 'The unfinished columns', 'The watchtower', 'The hot spring', 'The eagle rock', 'The ring of stones', "The giant's table", 'The needle', 'The drowned temple', 'The causeway', 'The bog oak', 'The huts on stilts', 'The wolf stone', "The shepherds' fold", 'The gallows', 'The broken aqueduct', 'The great waterfall', 'The salt pans', 'The sacred grove', 'The white temple', 'The barrow of kings', 'The fort', 'The old arena', 'The ferry'];
+// Where each landmark stands, as a place the school can walk to. The map paints them (province.js); without the map
+// (the tests) each is given a spot of its own from its name.
+let landmarkCache = null;
+function landmarkSpots() {
+  if (landmarkCache) return landmarkCache;
+  const L = wildLand(), out = {};
+  const snap = (x, y) => {
+    const tx0 = clamp(Math.floor(x / 10), 2, WILD.TW - 3), ty0 = clamp(Math.floor(y / 10), 2, WILD.TH - 3);
+    for (let r = 0; r <= 10; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      const tx = tx0 + dx, ty = ty0 + dy;
+      if (tx > 1 && ty > 1 && tx < WILD.TW - 2 && ty < WILD.TH - 2 && L.reach[ty * WILD.TW + tx]) return { x: tx * 10 + 5, y: ty * 10 + 5 };
+    }
+    return null;
+  };
+  if (typeof provLand === 'function' && typeof prov !== 'undefined' && typeof document !== 'undefined') {
+    try { if (!prov.marks) provLand(); for (const m of prov.marks || []) if (!m.dw) { const p = snap(m.x + m.r, m.y + 14); if (p) out[m.name] = p; } } catch (e) { /* no canvas: fall through */ }
+  }
+  LANDMARKS.forEach((n, i) => {
+    if (out[n]) return;
+    for (let t = 0; t < 4000; t++) { const p = snap(30 + wildHash(i, t, 991) * (WILD.W - 60), 30 + wildHash(t, i, 992) * (WILD.H - 60)); if (p && Math.hypot(p.x - WILD.TOWN.x, p.y - WILD.TOWN.y) > 160) { out[n] = p; break; } }
+  });
+  return (landmarkCache = out);
+}
+const landmarkAt = name => landmarkSpots()[name] || null;
+const lower = s => s.charAt(0).toLowerCase() + s.slice(1);
+
+// ---------- unique pieces, each lying at one landmark until somebody is sent for it ----------
+Object.assign(RELICS, {
+  kingsblade: { quest: true, name: "The barrow-king's sword", slot: 'weapon', r: 5, note: 'Forty years in the dark and it took an edge at the first stroke of the stone. A further 1.5 on every blow.', add: z => { z.dmg += 1.5; } },
+  tidemask:   { quest: true, name: "The drowned priest's mask", slot: 'head', r: 5, note: 'Bronze, green with the marsh, with no mouth. He is a further 20% harder to stun.', add: z => { z.stunRes += 0.2; } },
+  wolfmantle: { quest: true, name: 'The wolf-stone mantle', slot: 'shoulders', r: 5, note: 'A grey pelt nobody remembers killing. He dodges 4% more and bleeds far less.', add: z => { z.dodge += 0.046; z.bleedRes += 0.25; } },
+  colossus:   { quest: true, name: "The colossus's greaves", slot: 'legs', r: 6, note: 'Cast for a statue, not a man; they fit all the same. A further 1 off every blow, and he cannot be hamstrung.', add: z => { z.armor += 1; z.hamRes += 0.5; } },
+  cutlass:    { quest: true, name: "The sea-captain's blade", slot: 'weapon', r: 4, note: 'Light, curved and quick in the hand. A further 1 on every blow, and he moves 4% faster.', add: z => { z.dmg += 1; z.speed += 0.04; } },
+  oldhelm:    { quest: true, name: "The first champion's helm", slot: 'head', r: 6, note: 'The crest is gone; the dents are not. Telling blows against him are a further 14% less likely.', add: z => { z.critRes += 0.14; } },
+  eaglecrest: { quest: true, name: 'The eagle-feather crest', slot: 'head', r: 4, note: 'Three feathers from the nest on the rock. He moves a further 6% faster.', add: z => { z.speed += 0.06; } },
+  bracers:    { quest: true, name: "The quarry-master's bracers", slot: 'arms', r: 5, note: 'Iron bands made to turn a falling block. A further 6% block, and his sword arm cannot be numbed.', add: z => { z.block += 0.06; z.armRes += 0.4; } },
+  bogiron:    { quest: true, name: 'The bog-iron cuirass', slot: 'chest', r: 5, note: 'Black, pitted, and harder than anything a smith has made since. Takes a further 1.3 off every blow.', add: z => { z.armor += 1.3; } },
+  girdle:     { quest: true, name: 'The girdle of the grove', slot: 'chest', r: 4, note: 'Oak bark and silver wire, blessed over. He dodges 3% more and is 12% harder to stun.', add: z => { z.dodge += 0.036; z.stunRes += 0.12; } },
+  gladius:    { quest: true, name: "A centurion's gladius", slot: 'weapon', r: 5, note: 'Given, not found: the fort does not forget. A further 1.2 on every blow.', add: z => { z.dmg += 1.2; } },
+  vinestaff:  { quest: true, name: "The old doctore's greaves", slot: 'legs', r: 4, note: 'Worn by the man who trained the first school in this town. He moves a further 4% faster.', add: z => { z.speed += 0.04; } },
+});
+
+// ---------- who comes to the fountain ----------
+const GIVERS = {
+  shepherd:  { what: 'a shepherd', names: ['Old Tiro', 'Gaius the herd', 'Lame Marcus', 'Bodua'], tunic: '#8a6a4a', hair: '#8a8a8a', skin: '#c9966c' },
+  widow:     { what: 'a widow', names: ['Aemilia', 'The widow Paulla', 'Old Fausta', 'Cornelia'], tunic: '#4a4a52', hair: '#3a2a1c', skin: '#d9a57c' },
+  merchant:  { what: 'a merchant', names: ['Vibius the factor', 'Sextus Quarta', 'A Greek named Philon', 'Rufus the oil-seller'], tunic: '#3f7a5a', hair: '#2a1c14', skin: '#c9966c' },
+  hunter:    { what: 'a hunter', names: ['Brocc', 'One-Ear', 'Vindex', 'The boar-man'], tunic: '#5a6a3a', hair: '#6a4a2a', skin: '#8a5a3a' },
+  priest:    { what: 'a priest', names: ['The flamen Lucius', 'Brother Sabinus', 'The grey priest'], tunic: '#e8e2d2', hair: '#c9c2b2', skin: '#d9a57c' },
+  veteran:   { what: 'an old soldier', names: ['Decimus, of the Ninth', 'Crooked Quintus', 'The standard-bearer', 'Old Varro'], tunic: '#a8261c', hair: '#b4bec8', skin: '#c9966c' },
+  clerk:     { what: "the Magistrate's clerk", names: ['The clerk Hilarus', 'A man of the Magistrate', 'Scribe Nicias'], tunic: '#7a2a8a', hair: '#2a1c14', skin: '#e3b48f' },
+  scholar:   { what: 'a scholar', names: ['Strabo the surveyor', 'A Greek with instruments', 'Master Pollio'], tunic: '#5a8a9a', hair: '#8a8a8a', skin: '#e3b48f' },
+  noble:     { what: 'a young noble', names: ['Young Flavius', 'The lady Sabina', 'Marcellus Minor'], tunic: '#c9a21e', hair: '#3a2a1c', skin: '#e3b48f' },
+};
+
+// ---------- what they ask ----------
+// type: fight (go and beat something), fetch (find a thing), give (carry something there), rescue (a clue, then a fight).
+const ERRANDS = {
+  wolves: { type: 'fight', givers: ['shepherd'], marks: ["The shepherds' fold", 'The bee garden', 'The mill', 'The wine press', 'The great oak', 'The charcoal burners', "The hunters' lodge"], bg: 'forest',
+    title: m => `Wolves at ${lower(m)}`, foes: q => wildBeasts(q.tier),
+    ask: q => `"They come down every night now. Six ewes last week, and the dog. I have ${q.pay} denarii put by, and it is yours if your men will go out to ${lower(q.mark)} and make an end of them."`,
+    at: q => `The grass is torn up all round ${lower(q.mark)}, and there are bones in it. Whatever has been coming here will come again tonight.`,
+    won: q => `The carcasses are dragged out and burned. Nothing will trouble ${lower(q.mark)} for a good while.` },
+  bandits: { type: 'fight', givers: ['merchant', 'clerk'], marks: ['The old arena', 'A burnt village', 'The gallows', 'The old arch', 'The unfinished columns', 'The broken aqueduct', 'The causeway'], bg: 'camp', fame: 1,
+    title: m => `Robbers at ${lower(m)}`, foes: q => wildMen(q.tier, Math.max(2, wildCount(q.tier) - 1)),
+    ask: q => `"Three carts in a month, and the last carter did not come home. They sit at ${lower(q.mark)} as if they owned it. ${q.pay} denarii to whoever clears them out. Nobody need know I asked."`,
+    at: q => `There is a fire burning at ${lower(q.mark)}, and men round it who reach for their weapons when they see you.`,
+    won: q => `What they took is scattered through the camp. The road by ${lower(q.mark)} is open again.` },
+  beastking: { type: 'fight', givers: ['hunter'], marks: ['The eagle rock', 'The hot spring', 'The great waterfall', 'The wolf stone', "The giant's table"], bg: 'rock', fame: 3, pay: 1.3,
+    title: m => `The beast of ${lower(m)}`, foes: q => wildBeasts(q.tier, [['wolf'], ['boar'], ['bear'], ['bear', 'lion'], ['lion', 'bear']][q.tier - 1]),
+    ask: q => `"I have hunted these hills thirty years and I will not go near ${lower(q.mark)} again. It took my brother and both his dogs. Bring me its hide and you shall have ${q.pay} denarii and every hunter in the province will know who did it."`,
+    at: q => `Something very large has made its ground at ${lower(q.mark)}. It is not afraid of men; it has eaten several.`,
+    won: q => `It takes four men to carry the hide. The hunters will be telling this one for years.` },
+  champion: { type: 'fight', givers: ['noble'], marks: ['The ring of stones', 'The old arena', 'The needle'], bg: 'ruin', fame: 5, pay: 0.8,
+    title: m => `A challenge at ${lower(m)}`, foes: q => wildMen(q.tier, Math.max(2, Math.min(4, q.tier + 1)), 6),
+    ask: q => `"A man has set himself up at ${lower(q.mark)} with his followers and calls himself the best blade in the province. He has insulted my family. I will pay ${q.pay} denarii to see him taught otherwise, in front of witnesses."`,
+    at: q => `They are waiting at ${lower(q.mark)}, oiled and armed, with a crowd from the farms round about. Their leader salutes you as an equal. He is good.`,
+    won: q => `The crowd goes home with a story, and it is not his.` },
+  heirloom: { type: 'fetch', givers: ['widow'], marks: ['The hot spring', 'A villa in its garden', 'The wine press', 'The salt pans', 'The bones of a whale', 'The great oak'], pay: 0.8,
+    title: m => `Lost at ${lower(m)}`, thing: "her husband's ring",
+    ask: q => `"My husband's ring. He lost it at ${lower(q.mark)} the summer before he died and never told me until the end. I am too old to go and look. I can give ${q.pay} denarii, and my thanks."`,
+    at: q => `${q.mark}. Somewhere here, a dead man dropped a ring. It will take the day to look properly.`,
+    won: q => `It is plain iron, worth nothing. She will know it.` },
+  ledger: { type: 'fetch', guard: true, givers: ['merchant', 'clerk'], marks: ['The lime kiln', 'The great quarry', 'The mill', "The fishers' huts", 'The salt pans'], pay: 1.1,
+    title: m => `The strongbox at ${lower(m)}`, thing: 'the strongbox',
+    ask: q => `"My factor at ${lower(q.mark)} is dead, of a fever they say, and the strongbox with a year's accounts in it has not been seen since. I want it back before anybody reads it. ${q.pay} denarii."`,
+    at: q => `${q.mark}. The factor's hut has been turned over once already, and whoever did it may not have gone far.`,
+    won: q => `The box is under the hearthstone, where an honest man would never look.` },
+  supplies: { type: 'give', ambush: true, givers: ['clerk', 'veteran'], marks: ['The watchtower', 'The beacon', 'The fort', 'The ferry', 'The huts on stilts', 'The charcoal burners'], favor: ['magistrate', 4],
+    title: m => `Supplies for ${lower(m)}`,
+    ask: q => `"The men at ${lower(q.mark)} have had no pay and no oil since the roads went bad, and the last two carters were robbed. Your school could carry it and nobody would stop you. ${q.pay} denarii, and the Magistrate will hear of it."`,
+    at: q => `${q.mark}. They have seen you coming for a mile and somebody has put a pot on.`,
+    won: q => `They count the coin twice and sign for it. Tonight there is wine at ${lower(q.mark)} for the first time in a month.` },
+  offering: { type: 'give', cost: 40, givers: ['priest'], marks: ['The sacred grove', 'The white temple', 'The needle', 'The ring of stones'], favor: ['temple', 6], pay: 0.5,
+    title: m => `An offering at ${lower(m)}`,
+    ask: q => `"There is a vow outstanding at ${lower(q.mark)}, made by this town in a plague year and never paid. I am too old for the road. Take the offering there, add something of your own, and the god and I will both be in your debt. ${q.pay} denarii for your trouble."`,
+    at: q => `${q.mark}. It is very quiet. The priest's offering is in your pack; custom says the bearer adds to it.`,
+    won: q => `The smoke goes straight up. The men, who mocked the errand all the way here, are silent on the way back.`,
+    after: (q, lines) => { fieldParty().forEach(g => { g.morale = clamp(g.morale + 10, 0, 100); }); lines.push('Every man who stood there is in better heart: morale +10.'); } },
+  survey: { type: 'give', day: true, givers: ['scholar'], marks: ['The great quarry', 'The broken aqueduct', 'The unfinished columns', 'The salt pans', 'The causeway', 'The fallen colossus'], pay: 0.9,
+    title: m => `A survey of ${lower(m)}`,
+    ask: q => `"The governor wants ${lower(q.mark)} measured and drawn, and I am not walking into that country without swords about me. Take my boy and the instruments; a day there is all he needs. ${q.pay} denarii."`,
+    at: q => `${q.mark}. The surveyor's boy unpacks rods, cords and a bronze thing with four plumb-lines. He wants the whole day.`,
+    won: q => `He fills four tablets. From up here the men have had a long look at the country too.`,
+    after: (q, lines) => { const before = Object.keys(wildMap().seen).length; for (let dy = -260; dy <= 260; dy += 60) for (let dx = -260; dx <= 260; dx += 60) if (Math.hypot(dx, dy) <= 260) wildReveal(q.x + dx, q.y + dy); const n = Object.keys(wildMap().seen).length - before; if (n) lines.push(`<span class="gold">${n} new place${n === 1 ? '' : 's'} on your map.</span>`); } },
+  rescue: { type: 'rescue', givers: ['widow', 'shepherd', 'merchant'], marks: ["The fishers' huts", 'A burnt village', 'The ferry', "The shepherds' fold", 'The mill'], marks2: ['An old battlefield', 'The bog oak', 'The gallows', 'The causeway', 'The drowned temple', 'The old arena'], bg: 'camp', favor: ['guild', 4], fame: 3, pay: 1.4,
+    title: m => `Taken near ${lower(m)}`, foes: q => wildMen(q.tier, wildCount(q.tier)),
+    ask: q => `"My son went to ${lower(q.mark)} nine days ago with a cart and has not come back. The cart was found. He was not. Somebody there must have seen which way they took him. I have ${q.pay} denarii and I will find more."`,
+    at: q => `${q.mark}. Nobody wants to talk, until one of the old women does.`,
+    clue: q => `"Slavers. Six or eight of them, with a string of people roped at the neck. They went towards ${lower(q.mark2)}, and they were not hurrying."`,
+    at2: q => `They are camped at ${lower(q.mark2)} with their catch tied in a line beside the fire. They have not yet decided where to sell.`,
+    won: q => `The boy is among them, thinner but whole, and so are eleven others who will walk home telling everyone whose school this was.` },
+};
+// A unique piece at a landmark: [relic, landmark, how it is won, the old soldier's tale, what is found there].
+const RELIC_QUESTS = [
+  ['kingsblade', 'The barrow of kings', 'men', 'The tribes still watch that mound. They will not have it opened.', 'In the last chamber, on the knees of what was once a king'],
+  ['tidemask', 'The drowned temple', 'beasts', 'The marsh has things in it that were fed there once, and remember.', 'Under the altar, in a foot of black water'],
+  ['wolfmantle', 'The wolf stone', 'beasts', 'Wolves keep that stone. They always have.', 'Folded in a hollow under the stone, dry as the day it was put there'],
+  ['colossus', 'The fallen colossus', 'fetch', 'Nobody guards it. Nobody has thought to look inside the leg.', 'Inside the hollow bronze of the left shin'],
+  ['cutlass', 'A wreck on the strand', 'men', 'Wreckers work that shore. They think the hulk is theirs.', "In the captain's locker, still shut"],
+  ['oldhelm', 'The old arena', 'men', 'Men who call themselves his heirs train there. They will want to be beaten first.', 'On a peg in the cell under the east gate'],
+  ['eaglecrest', 'The eagle rock', 'fetch', 'It is a climb, and the birds do not like company.', 'In the nest itself, among the bones'],
+  ['bracers', 'The great quarry', 'fetch', 'The old workings are flooded, and not safe.', 'On a skeleton pinned under a block in the lowest gallery'],
+  ['bogiron', 'The bog oak', 'beasts', 'Something lies up in the roots of that tree.', 'Sunk in the peat between the roots'],
+  ['girdle', 'The sacred grove', 'fetch', 'The priestess will give it to one she judges fit, and to no other.', 'From the hands of the priestess'],
+  ['gladius', 'The fort', 'men', 'Deserters have had the fort shut in for a week. Break them and the centurion will not forget it.', "From the centurion's own belt"],
+  ['vinestaff', 'The great oak', 'fetch', 'He buried them under the tree himself, the day he was freed.', 'A hand deep, wrapped in oilcloth'],
+];
+RELIC_QUESTS.forEach(([k, mark, how, tale, where]) => {
+  const R = RELICS[k];
+  ERRANDS['relic_' + k] = { type: how === 'fetch' ? 'fetch' : 'fight', relic: k, givers: ['veteran', 'scholar'], marks: [mark], bg: how === 'beasts' ? 'forest' : 'ruin', fame: 4, pay: 0.4, thing: lower(R.name), hard: how === 'fetch',
+    title: () => R.name, foes: q => how === 'beasts' ? wildBeasts(q.tier, q.tier >= 3 ? ['bear'] : ['wolf']) : wildMen(q.tier, wildCount(q.tier), 3),
+    ask: q => `"I will tell you something for nothing, because I am too old to use it. <b>${R.name}</b> lies at ${lower(mark)}. ${tale} Send your men, and whatever else is there, that is yours. I ask ${q.pay ? 'only that you tell me how it ended, and I will give you ' + q.pay + ' denarii for the telling' : 'nothing'}."`,
+    at: q => how === 'fetch' ? `${mark}. ${tale}` : `${mark}. ${tale}`,
+    won: q => `${where}: <b>${R.name}</b>.` };
+});
+
+const asksNow = () => G.asks || (G.asks = []);
+const errands = () => G.errands || (G.errands = []);
+const errandById = id => errands().find(q => q.id === id) || null;
+const errandOf = sid => errandById(+String(sid).slice(1));
+const errandSites = () => errands().map(q => {
+  const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1;
+  return { id: 'e' + q.id, kind: 'errand_' + (T.type === 'rescue' ? (second ? 'fight' : 'clue') : T.type), x: second ? q.x2 : q.x, y: second ? q.y2 : q.y, tier: q.tier, name: T.title(second ? q.mark2 : q.mark), fixed: true, errand: q.id };
+});
+// A new matter for the fountain, of about the right weight for the school as it stands. Null if nothing suits today.
+function errandNew(only) {
+  const want = clamp(tier() + 1 + (chance(0.35) ? 1 : 0), 1, 5), taken = asksNow().concat(errands()).map(q => q.tpl), M = wildMap();
+  const keys = Object.keys(ERRANDS).filter(k => (!only || k === only) && !taken.includes(k) && !(ERRANDS[k].relic && (M.relics.includes(ERRANDS[k].relic) || G.armoury.some(it => it.relic === ERRANDS[k].relic))));
+  // the unique pieces are spoken of less often than ordinary work, and only once the school can get there
+  const pool = keys.filter(k => !ERRANDS[k].relic || only || (chance(0.3) && (landmarkAt(ERRANDS[k].marks[0]) ? wildTier(landmarkAt(ERRANDS[k].marks[0]).x, landmarkAt(ERRANDS[k].marks[0]).y) : 9) <= tier() + 3));
+  if (!pool.length) return null;
+  const tpl = pick(pool), T = ERRANDS[tpl];
+  const spots = T.marks.map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p).map(o => Object.assign(o, { t: wildTier(o.p.x, o.p.y) }));
+  if (!spots.length) return null;
+  const near = Math.min(...spots.map(o => Math.abs(o.t - want))), spot = pick(spots.filter(o => Math.abs(o.t - want) === near));
+  const kind = pick(T.givers), Gv = GIVERS[kind], t = spot.t;
+  const q = { id: ++G.nextId, tpl, mark: spot.m, x: spot.p.x, y: spot.p.y, tier: t, giver: { kind, name: pick(Gv.names) }, step: 0,
+    pay: round5(((35 + 28 * t) * rand(0.9, 1.2) + PURSE[tier()] * 0.3) * (T.pay || 1)), fame: t + (T.fame || 0), leaves: G.day + 3, days: 10 + t * 3, relic: T.relic || null };
+  if (T.type === 'rescue') { const s2 = T.marks2.map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p && o.m !== q.mark); if (!s2.length) return null; const o = pick(s2); q.mark2 = o.m; q.x2 = o.p.x; q.y2 = o.p.y; q.tier = clamp(Math.max(t, wildTier(o.p.x, o.p.y) - 1), 1, 5); }
+  return q;
+}
+// Each morning: those who have waited three days go home, and now and then somebody new is at the fountain.
+function rollAsks(force) {
+  const A = asksNow();
+  G.asks = A.filter(q => q.leaves >= G.day);
+  for (const q of errands().slice()) if (q.until < G.day) { G.errands = errands().filter(e => e !== q); delete wildMap().marks['e' + q.id]; G.fame = Math.max(0, G.fame - 1); log(`${q.giver.name} waited ${q.days} days for word of ${lower(ERRANDS[q.tpl].title(q.mark))}, and has gone elsewhere. It is talked of.`, 'bad'); }
+  if (!force && (!gateOpen() || G.asks.length >= 2 || !chance(0.4))) return null;
+  const q = errandNew(typeof force === 'string' ? force : null);
+  if (!q) return null;
+  G.asks.push(q);
+  log(`${q.giver.name}, ${GIVERS[q.giver.kind].what}, is waiting by the fountain in the square and asking for you.`, 'gold');
+  return q;
+}
+function errandTake(id) {
+  const q = asksNow().find(a => a.id === id);
+  if (!q || errands().length >= 3) return null;
+  G.asks = asksNow().filter(a => a !== q);
+  q.until = G.day + q.days; q.taken = G.day;
+  errands().push(q);
+  wildMark('e' + q.id, 'quest');
+  return q;
+}
+// Paid, and whatever else was promised.
+function errandDone(q, lines) {
+  const T = ERRANDS[q.tpl];
+  lines.push(T.won(q));
+  G.denarii += q.pay; G.fame += q.fame;
+  if (q.pay) lines.push(`${q.giver.name} sends what was promised by the next carter: <b class="gold num">${q.pay}</b> denarii. The story is worth <b class="num">+${q.fame}</b> fame.`);
+  else lines.push(`The story is worth <b class="num">+${q.fame}</b> fame.`);
+  if (T.favor) { favor(T.favor[0], T.favor[1]); lines.push(`${PATRONS[T.favor[0]].name} hears of it: favour +${T.favor[1]}.`); }
+  if (q.relic) {
+    const best = fieldParty()[0], it = makeItem(RELICS[q.relic].slot, RELICS[q.relic].r, best ? best.cls : Object.keys(CLASSES)[0]);
+    it.relic = q.relic; wildMap().relics.push(q.relic); G.armoury.push(it);
+    lines.push(`<span class="gold"><b>${RELICS[q.relic].name}</b> is in your armoury${it.slot === 'weapon' && best ? `, and it suits the hand of ${CLASSES[it.cls].name === undefined ? 'your best man' : 'a ' + CLASSES[it.cls].name.toLowerCase()}` : ''}.</span> <span class="dim">${RELICS[q.relic].note}</span>`);
+  }
+  if (T.after) T.after(q, lines);
+  G.errands = errands().filter(e => e !== q);
+  delete wildMap().marks['e' + q.id];
+  G.questsDone = (G.questsDone || 0) + 1;
+  log(`Done: ${lower(T.title(q.mark))}, for ${q.giver.name}.`, 'gold');
+  return lines;
+}
+
+Object.assign(SITE_EVENT, { errand_fight: 'wErrandFight', errand_fetch: 'wErrandFetch', errand_give: 'wErrandGive', errand_clue: 'wErrandClue' });
+Object.assign(WILD_WINS, {
+  errand(F) { const q = errandById(F.eid); return q ? errandDone(q, []) : ['Whoever asked for this is gone.']; },
+  // the men who were waiting on the road are beaten: the delivery is made
+  errandAmb(F) { const q = errandById(F.eid); return q ? errandDone(q, ['They were waiting for a carter and got a school of gladiators.']) : []; },
+  // whatever was guarding it is dead: now it can be looked for in peace
+  errandGuard(F) { const q = errandById(F.eid); if (!q) return []; q.clear = true; return [`Nothing else is going to come out of ${lower(q.mark)}. The men can search it properly now.`].concat(errandDone(q, [])); },
+});
+// For an event to be raised there must be such a matter in hand; if there is none, one is made (as the bounty is).
+function errandEnsure(kind) {
+  const find = () => errandSites().find(x => x.kind === 'errand_' + kind);
+  if (!find()) { const key = Object.keys(ERRANDS).find(k => { const T = ERRANDS[k]; return !T.relic && !errands().some(q => q.tpl === k) && (kind === 'clue' ? T.type === 'rescue' : T.type === kind); }), q = key && errandNew(key); if (q) { q.until = G.day + q.days; errands().push(q); wildMark('e' + q.id, 'quest'); } }
+  const st = find(); return st ? { sid: st.id } : {};
+}
+const errandC = c => errandOf(c.sid) || { tpl: 'wolves', mark: 'this place', mark2: 'that place', tier: 1, pay: 0, fame: 0, giver: { name: 'Nobody', kind: 'shepherd' }, gone: true };
+const bestWits = () => Math.max(0, ...fieldParty().map(g => g.stats.skl + g.stats.agi));
+const ERRAND_EVENTS = {
+  wErrandFight: {
+    title: 'What you were sent for', can: () => !!G.field, make: () => errandEnsure('fight'),
+    text: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return `<b>${T.title(T.type === 'rescue' ? q.mark2 : q.mark)}</b> <span class="bad">${skulls(q.tier)}</span>. ${T.type === 'rescue' ? T.at2(q) : T.at(q)} Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`; },
+    opts: [
+      { label: () => 'Do what you came to do', ok: c => canFightNow() && !errandC(c).gone, run: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return wildFight(T.title(T.type === 'rescue' ? q.mark2 : q.mark), T.foes(q), T.bg || 'forest', 'errand', { eid: q.id, tier: q.tier, day: true }); } },
+      { label: () => 'Not today', run: () => 'You draw off. It will keep, for as long as they will wait in town.' },
+    ],
+  },
+  wErrandFetch: {
+    title: 'Somewhere here', can: () => !!G.field, make: () => errandEnsure('fetch'),
+    text: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return `<b>${T.title(q.mark)}</b>. ${T.at(q)}${q.tries ? ` You have looked ${q.tries === 1 ? 'once' : q.tries + ' times'} already.` : ''}`; },
+    opts: [
+      { label: () => 'Search with care (the day)', ok: c => !errandC(c).gone, run: c => {
+        const q = errandC(c), T = ERRANDS[q.tpl]; aDay();
+        if (chance(clamp((T.hard ? 0.3 : 0.5) + bestWits() * 0.012 + (q.tries || 0) * 0.15, 0.2, 0.95))) return errandDone(q, []).join(' ');
+        q.tries = (q.tries || 0) + 1; return `Nothing, by dark. But there is less of ${lower(q.mark)} left to look in than there was this morning.`; } },
+      { label: () => 'Turn the place over', ok: c => !errandC(c).gone, run: c => {
+        const q = errandC(c), T = ERRANDS[q.tpl];
+        if (T.guard && !q.clear && chance(0.5) && canFightNow()) return wildFight(T.title(q.mark), wildMen(q.tier, Math.max(2, wildCount(q.tier) - 1)), 'ruin', 'errandGuard', { eid: q.id, tier: q.tier, day: true });
+        const lines = [];
+        if (chance(T.hard ? 0.5 : 0.25)) { const g = pick(fieldParty()); if (g) { g.injury = Math.max(g.injury, rint(1, 3)); addScar(g, 'cut'); lines.push(`It is done in an hour, and <b>${g.name}</b> pays for the hurry: laid up ${g.injury} day${g.injury === 1 ? '' : 's'}.`); } }
+        return lines.concat(errandDone(q, [])).join(' '); } },
+      { label: () => 'Not today', run: () => 'It has lain here this long.' },
+    ],
+  },
+  wErrandGive: {
+    title: 'Expected', can: () => !!G.field, make: () => errandEnsure('give'),
+    text: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return `<b>${T.title(q.mark)}</b>. ${T.at(q)}${T.cost ? ` Something of your own would be <b class="num">${T.cost}</b> denarii.` : ''}${T.day ? ' It will take the day.' : ''}`; },
+    opts: [
+      { label: c => { const T = ERRANDS[errandC(c).tpl]; return T.cost ? `Make the offering (${T.cost} denarii)` : T.day ? 'Stay the day' : 'Hand it over'; }, ok: c => !errandC(c).gone && G.denarii >= (ERRANDS[errandC(c).tpl].cost || 0), run: c => {
+        const q = errandC(c), T = ERRANDS[q.tpl];
+        if (T.ambush && !q.amb && chance(0.35) && canFightNow()) { q.amb = true; return wildFight('Men on the road', wildMen(q.tier, Math.max(2, wildCount(q.tier) - 1)), 'camp', 'errandAmb', { eid: q.id, tier: q.tier, day: true }); }
+        if (T.cost) G.denarii -= T.cost;
+        if (T.day) aDay();
+        return errandDone(q, []).join(' '); } },
+      { label: () => 'Not today', run: () => 'You keep it in the pack a while longer.' },
+    ],
+  },
+  wErrandClue: {
+    title: 'Somebody saw', can: () => !!G.field, make: () => errandEnsure('clue'),
+    text: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return `<b>${T.title(q.mark)}</b>. ${T.at(q)} ${T.clue(q)}`; },
+    opts: [
+      { label: c => `Go after them, to ${lower(errandC(c).mark2)}`, ok: c => !errandC(c).gone, run: c => { const q = errandC(c); q.step = 1; wildMark('e' + q.id, 'quest'); return `<span class="gold">${q.mark2} is marked on your map.</span> There are ${Math.max(0, q.until - G.day)} days left before ${q.giver.name} stops hoping.`; } },
+      { label: () => 'Not today', run: () => 'You say you will think on it. The old woman has heard that before.' },
+    ],
+  },
+  // in town: the one at the fountain says what is wanted
+  errandOffer: {
+    title: 'By the fountain', can: () => true, make: () => { const q = asksNow()[0] || rollAsks(true); return { a: q ? q.id : 0 }; },
+    text: c => { const q = asksNow().find(a => a.id === c.a); if (!q) return 'Whoever it was has gone.'; const T = ERRANDS[q.tpl], p = { x: q.x, y: q.y };
+      return `<b>${q.giver.name}</b>, ${GIVERS[q.giver.kind].what}, has been waiting since the gates opened. ${T.ask(q)}<br><br><small style="color:#5a4326">${q.mark}, in ${wildRegion(p.x, p.y)}: danger <span class="bad">${skulls(q.tier)}</span>, out through the east gate. ${q.relic ? `<b>${RELICS[q.relic].name}</b>: ${RELICS[q.relic].note} ` : ''}To be done within ${q.days} days. You have ${errands().length} of 3 such matters in hand.</small>`; },
+    opts: [
+      { label: () => 'Give your word', ok: c => errands().length < 3 && !!asksNow().find(a => a.id === c.a), run: c => { const q = errandTake(c.a); return q ? `It is marked on your map of the province: <b>${q.mark}</b>. ${q.giver.name} will wait ${q.days} days for word.` : 'It could not be agreed.'; } },
+      { label: () => 'Not today', run: c => { const q = asksNow().find(a => a.id === c.a); return q ? `${q.giver.name} will be here ${Math.max(1, q.leaves - G.day + 1)} more day${q.leaves - G.day + 1 === 1 ? '' : 's'}, and then will ask somebody else.` : 'Nobody is there.'; } },
+      { label: () => 'It is no work for this house', run: c => { G.asks = asksNow().filter(a => a.id !== c.a); return 'They nod, and go to look for somebody hungrier.'; } },
+    ],
+  },
+};
+for (const id in ERRAND_EVENTS) Object.assign(ERRAND_EVENTS[id], id === 'errandOffer' ? { auto: true } : { auto: true, wild: true });
+Object.assign(EVENTS, ERRAND_EVENTS);
+// What is said first when the lanista walks up to the fountain: the next person waiting.
+function fountainTalk() { const q = asksNow()[0]; if (!q || G.pendingEvent) return false; raiseEvent('errandOffer', { a: q.id }); return true; }
+
+// =====================================================================================================
+// MORE THAT CAN HAPPEN: on the road, and at home
+// =====================================================================================================
+const ROAD_EVENTS = {
+  wPedlar: {
+    title: 'A pedlar on the road', can: () => !!G.field, make: () => ({ cost: 25 + 15 * wildTier(G.field.x, G.field.y) }),
+    text: c => `A man with a mule and a great many small bags has stopped under a tree to let you pass. He sells salves, charms and knives, and swears by all three.`,
+    opts: [
+      { label: c => `Salve for every man (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; fieldParty().forEach(g => { g.hp = Math.min(maxHp(g), g.hp + maxHp(g) * 0.25); }); return 'It smells of goose-fat and something worse, and it works.'; } },
+      { label: c => `A charm for luck (${Math.round(c.cost / 2)})`, ok: c => G.denarii >= Math.round(c.cost / 2), run: c => { G.denarii -= Math.round(c.cost / 2); fieldParty().forEach(g => evMor(g, 6)); return 'A bronze hand on a thong. The men pass it round and are the better for it.'; } },
+      { label: () => 'Walk on', run: () => 'He wishes you a short road, which is what pedlars say.' },
+    ],
+  },
+  wStorm: {
+    title: 'The sky comes down', can: () => !!G.field, make: () => ({}),
+    text: () => 'It has been coming since noon: a wall of black out of the west, and now the first hail. There is a hollow a little way off that would keep the worst of it out.',
+    opts: [
+      { label: () => 'Take shelter (the rest of the day)', run: () => { aDay(); fieldParty().forEach(g => { g.fatigue = clamp(g.fatigue - 10, 0, 100); }); return 'You sit it out under hides. Nobody is the worse, and some have slept.'; } },
+      { label: () => 'March through it', run: () => { fieldParty().forEach(g => { g.fatigue = clamp(g.fatigue + 14, 0, 100); evMor(g, -3); }); return 'You keep the road and lose no time. Every man is soaked and sore, and says so.'; } },
+    ],
+  },
+  wShepherdBoy: {
+    title: 'A boy who knows a way', can: () => !!G.field, make: () => ({}),
+    text: () => 'A shepherd boy has been keeping pace with the column along the ridge for an hour. At last he comes down and says there is a drove road that would save you half a day, if somebody gave him a coin to show it.',
+    opts: [
+      { label: () => 'Give him five denarii', ok: () => G.denarii >= 5, run: () => { G.denarii -= 5; if (chance(0.8)) { G.field.march = Math.max(0, (G.field.march || 0) - marchDay() * 0.4); return 'It is where he said, and better than the road. You have gained the best part of half a day.'; } fieldParty().forEach(g => { g.fatigue = clamp(g.fatigue + 8, 0, 100); }); return 'It ends at a bog. The boy has gone, with your five denarii.'; } },
+      { label: () => 'Keep to the road', run: () => 'He shrugs and goes back up to his sheep.' },
+    ],
+  },
+  wDeadMule: {
+    title: 'A cart with no carter', can: () => !!G.field, make: () => ({ tier: wildTier(G.field.x, G.field.y) }),
+    text: () => 'A cart is standing in the road with its mule dead in the shafts and nobody near. The load is still on it, roped down under a hide.',
+    opts: [
+      { label: () => 'Take what is on it', run: c => { if (chance(0.3) && canFightNow()) return wildFight('The men who left the cart', wildMen(c.tier, Math.max(2, wildCount(c.tier) - 2)), 'camp', 'ambush', { tier: c.tier }); const n = coinFor(18, c.tier); G.denarii += n; return `Oil, in sealed jars. It fetches <b class="gold num">${n}</b> denarii at the next farm, no questions asked.`; } },
+      { label: () => 'Bury the carter, if you can find him', run: () => { fieldParty().forEach(g => evMor(g, 4)); G.fame += 1; return 'He is in the ditch. The men dig, and feel better for having done it. Somebody at the next village will hear whose school it was.'; } },
+      { label: () => 'Leave it', run: () => 'Other people\'s trouble.' },
+    ],
+  },
+  wOldSoldier: {
+    title: 'A man at a milestone', can: () => !!G.field && fieldParty().length > 0, make: () => ({ g: pick(fieldParty()).id }),
+    text: c => `An old man is sitting on a milestone with a soldier's boots on and nothing else of a soldier about him. He watches <b>${gn(c.g)}</b> go by, and says, to nobody: "He drops his shoulder."`,
+    opts: [
+      { label: () => 'Stop and let him show it', run: c => { const g = byId(c.g); aDay(); if (g) addProg(g, 'skl', 2); return `It costs the afternoon. ${gn(c.g)} will not drop that shoulder again.`; } },
+      { label: () => 'Give him bread and march on', run: () => { fieldParty().forEach(g => evMor(g, 2)); return 'He takes the bread without thanks, as a man does who was once fed by an army.'; } },
+    ],
+  },
+  wWedding: {
+    title: 'A wedding in a village', can: () => !!G.field, make: () => ({}),
+    text: () => 'There are garlands across the road and a whole village drunk under them. They will not hear of armed men passing through without eating.',
+    opts: [
+      { label: () => 'Stay for the feast (the rest of the day)', run: () => { aDay(); fieldParty().forEach(g => { evMor(g, 10); g.hp = Math.min(maxHp(g), g.hp + maxHp(g) * 0.1); }); return 'Roast kid, new wine, and a great deal of dancing by men who should be resting. Nobody regrets it.'; } },
+      { label: () => 'Drink the bride\'s health and go', run: () => { fieldParty().forEach(g => evMor(g, 3)); return 'One cup each, standing. They cheer you out of the village.'; } },
+    ],
+  },
+  wSpring: {
+    title: 'Sweet water', can: () => !!G.field, make: () => ({}),
+    text: () => 'A spring comes out of the rock here into a stone basin somebody cut for it long ago. The water is cold enough to hurt the teeth.',
+    opts: [
+      { label: () => 'Fill every skin and let them wash', run: () => { fieldParty().forEach(g => { g.fatigue = clamp(g.fatigue - 12, 0, 100); g.hp = Math.min(maxHp(g), g.hp + maxHp(g) * 0.08); }); return 'An hour well spent. They go on cleaner and quieter.'; } },
+      { label: () => 'No time', run: () => 'You drink from your hands and keep moving.' },
+    ],
+  },
+  wToll: {
+    title: 'A chain across the road', can: () => !!G.field, make: () => ({ toll: 15 + 10 * wildTier(G.field.x, G.field.y), tier: wildTier(G.field.x, G.field.y) }),
+    text: c => `Somebody has put a chain across the road at a bridge, and four men with clubs behind it. They say it is the landowner's toll: <b class="num">${c.toll}</b> denarii for a party of your size.`,
+    opts: [
+      { label: c => `Pay the ${c.toll}`, ok: c => G.denarii >= c.toll, run: c => { G.denarii -= c.toll; return 'They lower the chain and do not meet your eye.'; } },
+      { label: () => 'Ask whose land this is, slowly', run: c => { if (chance(0.6)) { fieldParty().forEach(g => evMor(g, 4)); return 'They look at your men, and at each other, and remember the landowner is away. The chain comes down.'; } return wildFight('The toll-men', wildMen(c.tier, Math.max(2, wildCount(c.tier) - 2)), 'camp', 'ambush', { tier: c.tier }); } },
+    ],
+  },
+};
+for (const id in ROAD_EVENTS) Object.assign(ROAD_EVENTS[id], { auto: true, wild: true });
+Object.assign(EVENTS, ROAD_EVENTS);
+// What stops the column on the road: one of eleven things, and never the same one twice running.
+function roadEventId() {
+  const all = ['wAmbush', 'wAmbush', 'wTraveller', 'wFind'].concat(Object.keys(ROAD_EVENTS)).filter(id => EVENTS[id] && EVENTS[id].can());
+  const seen = G.field.roadSeen || (G.field.roadSeen = []), fresh = all.filter(id => !seen.includes(id));
+  const id = pick(fresh.length ? fresh : all);
+  seen.push(id); if (seen.length > 5) seen.shift();
+  return id;
+}
+
+const TOWN_EVENTS = {
+  wallName: {
+    title: 'Painted on the wall', can: () => G.roster.some(g => g.wins >= 2), make: () => ({ g: pick(G.roster.filter(g => g.wins >= 2)).id }),
+    text: c => `Somebody has painted <b>${gn(c.g)}</b>'s name on the wall by the bakery in letters a foot high, with a drawing that is either a compliment or a libel.`,
+    opts: [
+      { label: () => 'Leave it up', run: c => { evMor(byId(c.g), 8); G.fame += 1; return `${gn(c.g)} walks past it four times that day. Fame +1.`; } },
+      { label: () => 'Have it painted larger (15)', ok: () => G.denarii >= 15, run: c => { G.denarii -= 15; evMor(byId(c.g), 10); G.fame += 3; return 'Now it can be read from the arena gate. Fame +3.'; } },
+      { label: () => 'Scrub it off', run: c => { evMor(byId(c.g), -5); return 'A school has its dignity. He does not see it that way.'; } },
+    ],
+  },
+  gateDog: {
+    title: 'A dog at the gate', can: () => home().length > 0, make: () => ({}),
+    text: () => 'A yellow dog with one ear has been lying across the school gate for three days. The men have been feeding it, which they deny.',
+    opts: [
+      { label: () => 'Let it stay', run: () => { evAllMor(4); return 'It is given a name within the hour and a place by the kitchen fire by night. Morale +4.'; } },
+      { label: () => 'Drive it off', run: () => { evAllMor(-3); return 'It goes. The cook will not speak to you.'; } },
+    ],
+  },
+  lostBet: {
+    title: 'A debt between two men', can: () => home().length >= 2, make: () => { const h = home().slice(), a = h.splice(Math.floor(Math.random() * h.length), 1)[0], b = pick(h); return { a: a.id, b: b.id }; },
+    text: c => `<b>${gn(c.a)}</b> owes <b>${gn(c.b)}</b> eleven denarii from dice, and says the dice were loaded. It has gone past words.`,
+    opts: [
+      { label: () => 'Pay it yourself (11)', ok: () => G.denarii >= 11, run: c => { G.denarii -= 11; evMor(byId(c.a), 4); evMor(byId(c.b), 4); return 'Cheap at the price. Both men think you took their side.'; } },
+      { label: () => 'Let them settle it with wooden swords', run: c => { const a = byId(c.a), b = byId(c.b), w = evPower(a) >= evPower(b) ? a : b, l = w === a ? b : a; addProg(w, 'skl', 1); addProg(l, 'skl', 1); evMor(w, 5); evMor(l, -4); return `${w.name} wins it, bruises and all. Both learned something.`; } },
+      { label: () => 'Forbid dice in the barracks', run: () => { evAllMor(-4); return 'The dice go under the floor. Nobody thanks you.'; } },
+    ],
+  },
+  versifier: {
+    title: 'A poet wants a subject', can: () => G.roster.some(g => g.wins >= 3), make: () => ({ g: G.roster.slice().sort((a, b) => b.wins - a.wins)[0].id, cost: 40 + tier() * 30 }),
+    text: c => `A thin Greek who says he has read at Rome offers to write the deeds of <b>${gn(c.g)}</b> in forty lines, to be recited in the forum. He wants ${c.cost} denarii and a meal.`,
+    opts: [
+      { label: c => `Pay him ${c.cost}`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; G.fame += 4 + tier() * 2; evMor(byId(c.g), 8); return `It scans, mostly. The forum hears it twice. Fame +${4 + tier() * 2}.`; } },
+      { label: () => 'Feed him and send him on', run: () => 'He eats for three and writes nothing.' },
+    ],
+  },
+  ratCatcher: {
+    title: 'Rats in the granary', can: () => true, make: () => ({ cost: 20 + tier() * 10 }),
+    text: c => `The cook has found the meal sacks holed. A man with terriers will clear the place for ${c.cost} denarii.`,
+    opts: [
+      { label: c => `Pay the ${c.cost}`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'A loud afternoon, and forty tails nailed to the door.'; } },
+      { label: () => 'Set the men to it', run: () => { home().forEach(g => { g.fatigue = clamp(g.fatigue + 8, 0, 100); }); evAllMor(2); return 'They make a game of it. Nobody trains, everybody is tired, and the rats are mostly dead.'; } },
+      { label: () => 'Live with it', run: () => { const n = 15 + tier() * 15; G.denarii -= Math.min(G.denarii, n); return `By the month's end they have eaten ${n} denarii of barley.`; } },
+    ],
+  },
+  boyRuns: {
+    title: 'A boy who wants to be a gladiator', can: () => G.roster.some(g => g.wins > 0), make: () => ({ g: pick(G.roster.filter(g => g.wins > 0)).id }),
+    text: c => `A baker's son of about ten has been found in the yard for the third time, with a stick, copying <b>${gn(c.g)}</b>.`,
+    opts: [
+      { label: () => 'Let him watch, mornings', run: c => { evMor(byId(c.g), 6); G.fame += 1; return `${gn(c.g)} pretends not to notice and trains better for an audience. The baker sends bread.`; } },
+      { label: () => 'Send him home with a clip on the ear', run: () => 'He will be back.' },
+    ],
+  },
+  physician: {
+    title: 'A physician passing through', can: () => home().length > 0, make: () => ({ g: home().slice().sort((a, b) => (b.injury - a.injury) || (a.hp / maxHp(a) - b.hp / maxHp(b)))[0].id, cost: 50 + tier() * 30 }),
+    text: c => `A Greek physician on his way to the governor's court will look at <b>${gn(c.g)}</b> for ${c.cost} denarii. He does not stay anywhere two nights.`,
+    opts: [
+      { label: c => `Pay ${c.cost}`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; if (!g) return 'The man he came to see is gone.'; if (g.injury > 0) { g.injury = Math.max(0, Math.ceil(g.injury / 2) - 1); return `He resets what your own man had set badly. ${g.name} will be up in ${g.injury} day${g.injury === 1 ? '' : 's'}.`; } g.hp = maxHp(g); g.fatigue = clamp(g.fatigue - 20, 0, 100); return `He finds nothing broken, prescribes rest, vinegar and less wine, and ${g.name} is the better for all three.`; } },
+      { label: () => 'Trust your own medicus', run: () => 'He looks at the bandaging, raises an eyebrow, and goes on to court.' },
+    ],
+  },
+  hotDay: {
+    title: 'The hottest day of the year', can: () => fit().length > 0, make: () => ({}),
+    text: () => 'By the third hour the sand of the yard is too hot to stand on barefoot, and the doctore is still shouting.',
+    opts: [
+      { label: () => 'Train at dawn and dusk only', run: () => { fit().forEach(g => { g.fatigue = clamp(g.fatigue - 8, 0, 100); evMor(g, 3); }); return 'They sleep through the worst of it in the shade of the barracks wall.'; } },
+      { label: () => 'They will fight in worse', run: () => { fit().forEach(g => { g.fatigue = clamp(g.fatigue + 12, 0, 100); addProg(g, 'str', 1); }); return 'Two faint. The rest are harder for it.'; } },
+    ],
+  },
+  taxMan: {
+    title: 'The assessor', can: () => G.denarii >= 100, make: () => ({ tax: round5(G.denarii * 0.08), bribe: round5(G.denarii * 0.03) + 10 }),
+    text: c => `A man from the treasury has come to count your men, your mules and your amphorae. By his reckoning the school owes <b class="num">${c.tax}</b> denarii.`,
+    opts: [
+      { label: c => `Pay the ${c.tax}`, run: c => { G.denarii -= c.tax; favor('magistrate', 2); return 'He writes it down twice, in two different books.'; } },
+      { label: c => `Find him a reason to count again (${c.bribe})`, ok: c => G.denarii >= c.bribe, run: c => { G.denarii -= c.bribe; if (chance(0.75)) return 'He counts again, and you have fewer mules than he thought.'; G.denarii -= Math.min(G.denarii, c.tax); favor('magistrate', -4); return 'He takes the bribe, and then the tax, and then tells the Magistrate.'; } },
+    ],
+  },
+  songbird: {
+    title: 'A song about the school', can: () => G.tally.wins > 0 || G.roster.some(g => g.wins > 0), make: () => ({}),
+    text: () => 'The children in the street have a new skipping song, and it has your name in it. It is not altogether respectful.',
+    opts: [
+      { label: () => 'Laugh, where they can see', run: () => { G.fame += 2; return 'A lanista who can be sung about is a lanista people come to watch. Fame +2.'; } },
+      { label: () => 'Have the gate-keeper chase them', run: () => { G.fame = Math.max(0, G.fame - 1); return 'Now there is a second verse, about the gate-keeper.'; } },
+    ],
+  },
+  wineGift: {
+    title: 'A cask at the gate', can: () => home().length > 0, make: () => ({ p: pick(Object.keys(G.patrons)) }),
+    text: c => `A cask of good wine has been left at the gate with the compliments of ${PATRONS[c.p].name}. Nobody has said what it is for.`,
+    opts: [
+      { label: () => 'Give it to the men', run: () => { evAllMor(8); home().forEach(g => { g.fatigue = clamp(g.fatigue + 6, 0, 100); }); return 'A good night and a slow morning. Morale +8.'; } },
+      { label: () => 'Send back something better', ok: () => G.denarii >= 40, run: c => { G.denarii -= 40; favor(c.p, 5); return `A gift answered is a door opened. ${PATRONS[c.p].name}: favour +5.`; } },
+      { label: () => 'Sell it', run: () => { G.denarii += 35; return 'Thirty-five denarii, and a patron who will hear what became of his cask.'; } },
+    ],
+  },
+  sleepless: {
+    title: 'He does not sleep', can: () => home().some(g => g.wins > 0), make: () => ({ g: (home().filter(g => g.kills > 0)[0] || pick(home().filter(g => g.wins > 0))).id }),
+    text: c => `<b>${gn(c.g)}</b> has been walking the yard at night since the last games. The others say he talks to somebody who is not there.`,
+    opts: [
+      { label: () => 'Sit up with him', run: c => { evMor(byId(c.g), 10); return 'You do not say much. It seems to be enough that somebody is there.'; } },
+      { label: () => 'An offering at the temple, in the dead man\'s name (20)', ok: () => G.denarii >= 20, run: c => { G.denarii -= 20; evMor(byId(c.g), 14); favor('temple', 2); return 'He comes himself to see it burned. That night he sleeps.'; } },
+      { label: () => 'Work him until he drops', run: c => { const g = byId(c.g); if (g) { g.fatigue = clamp(g.fatigue + 25, 0, 100); evMor(g, -4); addProg(g, 'str', 1); } return 'He sleeps, because he cannot stand. It is not the same thing.'; } },
+    ],
+  },
+  rivalOffer: {
+    title: 'An offer for a man', can: () => G.roster.length > 2 && G.roster.some(g => g.wins >= 3 && !g.away), make: () => { const g = pick(G.roster.filter(x => x.wins >= 3 && !x.away)), H = pick(G.houses); return { g: g.id, h: H.id, pay: round5(value(g) * 1.4) }; },
+    text: c => `${houseDef(c.h).name} has sent a steward with a purse: <b class="gold num">${c.pay}</b> denarii for <b>${gn(c.g)}</b>, today, and no haggling.`,
+    opts: [
+      { label: c => `Sell him (+${c.pay})`, run: c => { const g = byId(c.g); if (!g) return 'He is gone already.'; G.denarii += c.pay; G.roster = G.roster.filter(x => x !== g); evAllMor(-5); return `${g.name} leaves by the side gate with his bundle. The others watch him go and do their sums.`; } },
+      { label: () => 'He is not for sale', run: c => { evMor(byId(c.g), 12); feud(houseOf(c.h), 3); return `${gn(c.g)} hears of it before the steward has reached the corner. He trains like a man with something to prove.`; } },
+    ],
+  },
+  oldArmour: {
+    title: 'A chest in the cellar', can: () => true, make: () => ({}),
+    text: () => 'Clearing the cellar for the new wine, the steward has found a chest nobody remembers, nailed shut and marked with your father\'s seal.',
+    opts: [
+      { label: () => 'Open it', run: () => { if (chance(0.6)) { const it = makeItem(pick(SLOTS.filter(s => s !== 'weapon')), clamp(tier() + rint(1, 2), 1, 5)); G.armoury.push(it); return `Under the straw: ${itemName(it)}, greased and wrapped. It is in your armoury.`; } const n = 30 + tier() * 30; G.denarii += n; return `Old coin, ${n} denarii of it, and a letter you would rather not have read.`; } },
+      { label: () => 'Leave the dead their secrets', run: () => { evAllMor(2); return 'It goes back behind the casks. The household approves.'; } },
+    ],
+  },
+  bathhouse: {
+    title: 'An invitation to the baths', can: () => fit().length > 0, make: () => ({ g: pick(fit()).id }),
+    text: c => `A circle of the town's richer young men want <b>${gn(c.g)}</b> at the public baths this afternoon, to be looked at and asked questions.`,
+    opts: [
+      { label: () => 'Let him go', run: c => { const g = byId(c.g); G.fame += 2; if (g) { g.fatigue = clamp(g.fatigue - 10, 0, 100); evMor(g, 6); } return `${gn(c.g)} comes back oiled, fed, and insufferable. Fame +2.`; } },
+      { label: () => 'He has work to do', run: c => { addProg(byId(c.g), 'skl', 1); return 'They send a second invitation. He trains.'; } },
+    ],
+  },
+  cookQuits: {
+    title: 'The cook is leaving', can: () => home().length > 0 && G.denarii >= 20, make: () => ({ cost: 20 + tier() * 15 }),
+    text: c => `The cook says a man cannot be expected to feed this many on what he is given, and he has an offer from the tavern.`,
+    opts: [
+      { label: c => `Raise his wage (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evAllMor(3); return 'He stays, and that night there is meat.'; } },
+      { label: () => 'Let him go, and let them cook for themselves', run: () => { evAllMor(-8); return 'Three days of burned porridge. He comes back on the fourth for the old wage, which nobody mentions.'; } },
+    ],
+  },
+  omenBirds: {
+    title: 'Birds over the yard', can: () => daysToGames() <= 3 && fit().length > 0, make: () => ({}),
+    text: () => 'Twelve crows have settled on the barracks roof and will not be driven off. The games are close, and the men have noticed.',
+    opts: [
+      { label: () => 'Send for the augur (25)', ok: () => G.denarii >= 25, run: () => { G.denarii -= 25; evAllMor(8); return 'He watches them for an hour and declares that twelve is a number sacred to Mars, facing east. Nobody checks which way they face.'; } },
+      { label: () => 'Tell them crows are crows', run: () => { fit().forEach(g => evMor(g, chance(0.5) ? 3 : -5)); return 'Half of them believe you.'; } },
+    ],
+  },
+  apprentice: {
+    title: 'The smith\'s boy', can: () => fit().length > 0, make: () => ({}),
+    text: () => 'The blacksmith\'s apprentice has turned up at the gate with a bag of tools. His master has beaten him once too often, and he asks for a corner to sleep in. He will work for it.',
+    opts: [
+      { label: () => 'Take him in', run: () => { fit().forEach(g => { evMor(g, 3); addProg(g, 'agi', 1); }); favor('guild', -2); return 'Every strap and buckle in the school is seen to within the week, and the men move easier for it. The smith\'s guild is told where the boy is.'; } },
+      { label: () => 'Send him back with a word to his master', run: () => { favor('guild', 2); return 'The smith is shamed into mending his ways, for a while. The Guild notes who kept the peace.'; } },
+    ],
+  },
+};
+Object.assign(EVENTS, TOWN_EVENTS);

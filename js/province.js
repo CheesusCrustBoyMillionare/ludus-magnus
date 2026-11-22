@@ -916,9 +916,35 @@ function provLand() {
     [4, 'A house fallen in', on(GR), (x, y, P, v) => { const w = 9 + Math.floor(v(1) * 5), wc = v(2) > 0.5 ? '#b8ab94' : '#cdbd94'; P(x + 1, y + 8, w + 2, 2, 'rgba(0,0,0,.2)'); P(x + 2, y + 2 + Math.floor(v(3) * 3), 1, 7, wc); P(x + 1 + w, y + 4 + Math.floor(v(4) * 3), 1, 5, wc); P(x + 2, y + 8, w, 1, wc); for (let q = 0; q < w; q += 2) if (v(5 + q) > 0.35) P(x + 2 + q, y + 2 + Math.floor(v(20 + q) * 4), 2, 6 - Math.floor(v(20 + q) * 4), tint(wc, 0.9)); P(x + 4, y + 6, 2, 3, '#2a1d12'); for (let q = 0; q < 4; q++) P(x + 2 + Math.floor(v(30 + q) * w), y + 3 + Math.floor(v(34 + q) * 4), 2, 2, '#4c7f38'); for (let q = 0; q < 3; q++) P(x + 4 + w + q * 2, y + 8 - (q % 2), 2, 1, '#a39a8a'); if (v(6) > 0.5) { P(x + 3 + (w >> 1), y - 2, 1, 5, '#5a5046'); P(x + 4 + (w >> 1), y - 1, 2, 1, '#5a5046'); } }],
   ];
   DWELL.forEach(([count, name, ok, draw], kn) => { for (let q = 0; q < count; q++) dwell(4000 + kn * 37 + q * 11, ok, name, draw); });
-  { const ax = WILD.TOWN.x - 36, top = WILD.TOWN.y - 30;      // the aqueduct that waters the town: it comes down from the north on its arches
-    for (let q = 0; q < 9; q++) { const py = top - 6 - q * 9, k2 = at(Math.floor(ax / 10), Math.floor(py / 10)); if (k2 !== T_GRASS && k2 !== T_MEADOW && k2 !== T_ROAD) break;
-      feats.push({ y: py + 6, d: () => { R(ax - 1, py + 6, 8, 2, 'rgba(0,0,0,.2)'); R(ax, py - 6, 4, 12, '#c9c2ae'); R(ax, py - 6, 1, 12, '#e4dfcd'); R(ax + 3, py - 6, 1, 12, '#a39a84'); R(ax - 1, py - 9, 6, 3, '#d8d2c0'); R(ax - 1, py - 9, 6, 1, '#f0e8d6'); R(ax + 1, py - 9, 2, 1, '#6fa8c8'); R(ax, py + 5, 4, 1, '#8f8876'); if (q < 8) { R(ax - 1, py - 15, 6, 6, '#d8d2c0'); R(ax + 1, py - 15, 2, 6, '#6fa8c8'); R(ax, py - 12, 4, 3, 'rgba(60,50,40,.45)'); R(ax - 1, py - 15, 1, 6, '#f0e8d6'); } } }); }
+  // The aqueduct that waters the town. It takes its water where the river comes out of the mountains, far to the
+  // north-east, and brings it the whole way on arches: straight across the country, over road and river, through the
+  // woods, to the town's north wall.
+  { const ax = WILD.TOWN.x - 36, top = WILD.TOWN.y - 30;
+    let src = null, bd = 1e9;                    // the nearest place where the river runs between peaks
+    for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {
+      if (at(tx, ty) !== T_WATER) continue;
+      let pk = 0, wt = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const k = at(tx + dx, ty + dy); if (k === T_PEAK) pk++; else if (k === T_WATER) wt++; }
+      const d = Math.hypot(tx * 10 - WILD.TOWN.x, ty * 10 - WILD.TOWN.y);
+      if (pk >= 3 && wt <= 12 && d < bd) { bd = d; src = [tx * 10 + 5, ty * 10 + 5]; }
+    }
+    const pts = [[ax + 2, top - 6], [ax + 2, top - 84]]; if (src) pts.push(src);      // north out of the town, then straight for the source
+    let run = 0;
+    for (let q = 0; q < pts.length - 1; q++) {
+      const [x0, y0] = pts[q], [x1, y1] = pts[q + 1], len = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(len);
+      for (let i2 = 0; i2 < n; i2++, run++) {
+        const px = Math.round(x0 + (x1 - x0) * i2 / n), py = Math.round(y0 + (y1 - y0) * i2 / n), k = at(Math.floor(px / 10), Math.floor(py / 10)), pier = run % 9 === 0, open = k === T_WATER || k === T_ROAD || k === T_BRIDGE, r2 = run;
+        feats.push({ y: py + 6, d: () => {
+          if (pier && !open) { R(px - 2, py + 6, 8, 2, 'rgba(0,0,0,.2)'); R(px - 2, py - 6, 4, 12, '#c9c2ae'); R(px - 2, py - 6, 1, 12, '#e4dfcd'); R(px + 1, py - 6, 1, 12, '#a39a84'); R(px - 2, py + 5, 4, 1, '#8f8876'); }
+          else if (r2 % 3 === 0) R(px - 1, py + 1, 3, 1, 'rgba(0,0,0,.10)');                                                  // the shadow of the channel across the ground
+          R(px - 2, py - 10, 4, 4, '#d8d2c0'); R(px - 2, py - 10, 4, 1, '#f0e8d6'); R(px - 1, py - 9, 2, 1, '#6fa8c8'); R(px - 2, py - 7, 4, 1, '#a39a84');      // the channel, with the water in it
+          if (!pier && r2 % 9 >= 3 && r2 % 9 <= 5) R(px - 2, py - 6, 4, 1, 'rgba(60,50,40,.45)');                              // the head of each arch, in shade
+          if (open && pier) { R(px - 2, py - 6, 4, 3, '#c9c2ae'); }                                                            // a longer span where it crosses a road or the river
+          if (r2 % 61 === 30 && !open) { R(px - 2, py - 3, 1, 5, '#7f8a6a'); R(px - 1, py - 1, 1, 3, '#7f8a6a'); }             // a stain where it leaks
+        } });
+      }
+    }
+    if (src) feats.push({ y: src[1] + 8, d: () => { const [sx, sy] = src; R(sx - 7, sy + 5, 16, 2, 'rgba(0,0,0,.22)'); R(sx - 6, sy - 8, 13, 13, '#d8d2c0'); R(sx - 6, sy - 8, 13, 1, '#f0e8d6'); R(sx - 6, sy - 8, 1, 13, '#e4dfcd'); R(sx + 6, sy - 8, 1, 13, '#a39a84'); R(sx - 4, sy - 6, 9, 6, '#4f86ae'); R(sx - 3, sy - 6, 6, 1, '#b4d6ea'); R(sx - 2, sy + 1, 5, 4, '#3a2a1c'); R(sx - 7, sy - 10, 15, 2, '#b5522e'); R(sx - 7, sy - 10, 15, 1, '#d06a3e'); } });      // the water-house at the source: a tank under a tiled roof, and the sluice
+    prov.aqueduct = src;
   }
   const OUT = [
     (x, y, P, v) => cot(P, v, x + 1, y + 4, { w: 5 + Math.floor(v(1) * 3), h: 4 }),
@@ -1747,7 +1773,8 @@ function provIcon(ctx, s, T, done) {
   // a number from the place's own name, so that two of a kind are still not two of a picture
   const sd = [...String(s.id || s.kind)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7), v = n => ((sd * (n * 2 + 3) * 7919) % 1000) / 1000;
   const pick = (n, list) => list[Math.floor(v(n) * list.length) % list.length];
-  if (k === 'bounty') { tent(-3, 4, '#8a3a2a'); R(4, -8, 1, 12, '#5a4326'); R(5, -8, 5, 4, '#c23b2e'); R(6, -7, 2, 2, '#f1ead8'); R(-8, 2, 3, 2, '#efe8d8'); R(-7, 1, 1, 1, '#efe8d8'); }
+  if (k.startsWith('errand')) { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#e8b545'); R(0, -12 + wv, 6, 1, '#fff0b0'); R(2, -11 + wv, 2, 2, '#a8261c'); R(6, -11 - wv + 1, 2, 2, '#c9952e'); R(-3, 3, 5, 2, '#8f8a80'); }      // a gold pennon set up where somebody's errand lies
+  else if (k === 'bounty') { tent(-3, 4, '#8a3a2a'); R(4, -8, 1, 12, '#5a4326'); R(5, -8, 5, 4, '#c23b2e'); R(6, -7, 2, 2, '#f1ead8'); R(-8, 2, 3, 2, '#efe8d8'); R(-7, 1, 1, 1, '#efe8d8'); }
   else if (k === 'lair') {
     if (tr === 1) { R(-7, -2, 14, 6, '#7a6a4a'); R(-5, -4, 10, 2, '#8a7a56'); R(-2, -1, 5, 5, '#1a1410'); R(-1, -2, 3, 1, '#1a1410'); R(5, 3, 2, 1, '#efe8d8'); R(-7, 3, 1, 1, '#efe8d8'); R(v(1) > 0.5 ? -6 : 3, -5, 3, 1, '#6f8a4a'); }                       // a den dug into a bank
     else if (tr === 2) { R(-8, -1, 16, 6, '#5a4a34'); R(-6, 0, 12, 4, '#3d3426'); R(-3, 1, 6, 2, '#57492f'); R(-9, -4, 1, 4, '#8a9a4a'); R(7, -5, 1, 5, '#8a9a4a'); R(-7, -5, 1, 4, '#9aaa5a'); R(3, 3, 3, 2, '#efe8d8'); R(6, 3, 1, 1, '#efe8d8'); }                 // a wallow, churned to mud
@@ -2143,7 +2170,7 @@ function placesHtml() {
   const all = wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => ({ st, d: Math.hypot(st.x - F.x, st.y - F.y), mark: !!M.marks[st.id] })).sort((a, b) => (b.mark - a.mark) || a.d - b.d);
   const row = (id, nm, sub, dz, gold) => `<div class="lrow place" data-act="wildgo" data-v="${id}"><div class="grow"><span class="t ${gold ? 'gold' : ''}">${nm}</span><small>${sub}</small></div>${dz ? `<span class="skulls">${'<i></i>'.repeat(dz)}</span>` : ''}</div>`;
   const show = F.note && F.note.day === G.day ? 4 : 5;
-  return all.slice(0, show).map(({ st, mark }) => st.kind === 'bounty' ? row(st.id, `Bounty: ${st.name}`, `<b class="gold num">${G.bounty.pay}</b> &middot; ${G.bounty.until - G.day}d left &middot; ${wayTo(st.x, st.y)}`, siteDanger(st), true) : row(st.id, st.name, `${mark ? 'marked &middot; ' : ''}${wayTo(st.x, st.y)}`, siteDanger(st), mark)).join('')
+  return all.slice(0, show).map(({ st, mark }) => st.errand ? (q => row(st.id, `Quest: ${st.name}`, `<b class="gold num">${q.pay}</b> &middot; ${Math.max(0, q.until - G.day)}d left &middot; ${wayTo(st.x, st.y)}`, siteDanger(st), true))(errandById(st.errand)) : st.kind === 'bounty' ? row(st.id, `Bounty: ${st.name}`, `<b class="gold num">${G.bounty.pay}</b> &middot; ${G.bounty.until - G.day}d left &middot; ${wayTo(st.x, st.y)}`, siteDanger(st), true) : row(st.id, st.name, `${mark ? 'marked &middot; ' : ''}${wayTo(st.x, st.y)}`, siteDanger(st), mark)).join('')
     + row('home', 'Home', wayTo(WILD.TOWN.x, WILD.TOWN.y), 0, false)
     + (all.length > show ? `<div class="listnote">and ${all.length - show} more on the whole map</div>` : '');
 }

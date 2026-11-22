@@ -92,6 +92,7 @@ function villagePlace(key) {
 // Sends him to a door on his own feet. `then` runs when he gets there.
 function villageWalkTo(key, then) {
   if (key === 'gate') { vil.then = null; vil.path = vilPath(vil.x, vil.y, 582, 83); return; }
+  if (key === 'fountain') { vil.then = () => { if (typeof villageTalk === 'function') villageTalk(); }; if (Math.hypot(vil.x - 296, vil.y - 142) < 8) { const f = vil.then; vil.then = null; f(); return; } vil.path = vilPath(vil.x, vil.y, 296, 142); return; }
   const p = placeOf(key);
   vil.then = then || null;
   if (vil.at === p.key && Math.hypot(vil.x - p.dx, vil.y - p.dy) < 7) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); return; }
@@ -100,6 +101,7 @@ function villageWalkTo(key, then) {
 // Which building a click landed on ('gate' for the way out of town).
 function villageAt(x, y) {
   if (x > 566 && y > 58 && y < 102) return 'gate';
+  if (typeof asksNow === 'function' && asksNow().length && x > 262 && x < 336 && y > 112 && y < 150) return 'fountain';      // whoever is waiting there with work
   const p = PLACES.find(b => x >= b.x - 3 && x <= b.x + b.w + 3 && y >= b.y - 9 && y <= b.y + b.h + 10);
   return p ? p.key : null;
 }
@@ -530,6 +532,8 @@ function drawVillage(cv, T) {
     } });
   }
   // two men on the gate, with spears
+  // whoever has come to the fountain with something to ask of the school: they stand and wait, with a gold mark over them
+  if (typeof asksNow === 'function') asksNow().slice(0, 2).forEach((q, i) => { const Gv = GIVERS[q.giver.kind], gx = 276 + i * 40, gy = 138 + i * 2; folk.push({ y: gy, draw: () => vilPerson(ctx, gx, gy, { face: i ? 'left' : 'right', walk: 0, moving: false, tunic: Gv.tunic, hair: Gv.hair, skin: Gv.skin }) }); notes.push([gx, gy - 22, '#e8b545']); });
   for (const gy of [72, 106]) folk.push({ y: gy, draw: () => { vilPerson(ctx, 568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
   if (!dark) {
     const m = placeOf('market'), tp = placeOf('patrons');
@@ -683,7 +687,7 @@ function drawVillage(cv, T) {
   sceneVignette(ctx, 590, 190, 0.3);
 
   // what the mouse is resting on: a gold line round it, and a word about it along the foot of the map
-  const hov = vil.hover ? villageAt(vil.hover.x, vil.hover.y) : null, hp = hov && hov !== 'gate' ? placeOf(hov) : null;
+  const hov = vil.hover ? villageAt(vil.hover.x, vil.hover.y) : null, hp = hov && hov !== 'gate' && hov !== 'fountain' ? placeOf(hov) : null;
   if (hp) { ctx.globalAlpha = 0.6 + 0.3 * Math.sin(T * 6); R(hp.x - 2, hp.y - 2, hp.w + 4, 1, '#f5d584'); R(hp.x - 2, hp.y + hp.h + 1, hp.w + 4, 1, '#f5d584'); R(hp.x - 2, hp.y - 2, 1, hp.h + 4, '#f5d584'); R(hp.x + hp.w + 1, hp.y - 2, 1, hp.h + 4, '#f5d584'); ctx.globalAlpha = 1; }
 
   // names over the doors, the open one in gold, and how many things wait inside
@@ -702,7 +706,7 @@ function drawVillage(cv, T) {
     }
   }
   if (vil.hover) {
-    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE  -  STEP ON A DOORSTEP TO GO IN';
+    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hov === 'fountain' ? `${asksNow()[0].giver.name.toUpperCase()} IS WAITING AT THE FOUNTAIN WITH WORK FOR YOU  -  CLICK TO HEAR IT` : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE  -  STEP ON A DOORSTEP TO GO IN';
     const w = Math.ceil(ctx.measureText(say).width) + 10;
     R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185);
   }

@@ -883,7 +883,7 @@ const pc = v => Math.round(v * 100) + '%';
 // What one piece does, as numbers. Used for combat, tooltips and comparisons.
 function itemStats(it) {
   const k = it.r + 1, z = { dmg: 0, armor: 0, dodge: 0, block: 0, speed: 0, stunRes: 0, critRes: 0, bleedRes: 0, hamRes: 0, armRes: 0 };
-  if (it.slot === 'weapon') { z.dmg = WEAPON_DMG[it.r]; if (it.fit && FITS[it.fit]) FITS[it.fit].add(z); return z; }
+  if (it.slot === 'weapon') { z.dmg = WEAPON_DMG[it.r]; if (it.relic) RELICS[it.relic].add(z); if (it.fit && FITS[it.fit]) FITS[it.fit].add(z); return z; }
   z.armor = ARMOR_TOTAL[it.r] * SLOT_INFO[it.slot].share;
   z.dodge = -0.006;                                           // every piece is weight to carry
   if (it.slot === 'head') { z.stunRes = 0.07 * k; z.critRes = 0.01 * k; }
@@ -1790,6 +1790,7 @@ function endDay() {
   }
   G.day++;
   if (G.festival.day < G.day) scheduleFestival();
+  if (typeof rollAsks === 'function') rollAsks();      // somebody new at the fountain, perhaps (wilds.js)
   if (G.festival.day - G.day === 5) log(`Heralds cry it through the town: ${FESTIVALS[G.festival.type].name}, in five days.`, 'gold');
   if (isGamesDay()) {
     for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);

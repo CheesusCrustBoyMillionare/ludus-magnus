@@ -868,7 +868,7 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
   const fame = G.fame, n = G.roster.length;
   EVENTS.promiseDue.opts[0].run(G.pendingEvent.c);
   assert(G.roster.length === n - 1 && G.fame > fame && !G.roster.includes(c), 'keeping your word frees him and earns fame');
-  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || EVENTS[id].field || EVENTS[id].wild || id === 'eagleHome' || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
+  assert(Object.keys(EVENTS).every(id => !EVENTS[id].auto || id === 'promiseDue' || id === 'quest' || id === 'errandOffer' || EVENTS[id].field || EVENTS[id].wild || id === 'eagleHome' || Object.values(QUESTS).some(Q => Q.finale === id)) && !badNumber(G), 'only promises and matters from the road are raised outside the daily roll');
 }));
 
 test('contracts: terms, a name for good work, and asking around', () => game()(function () {
@@ -1361,6 +1361,71 @@ test('the province: a day passes for each day\'s march', () => game()(function (
   const m0 = G.field.march; wildMarched(100, 1.25); const road = G.field.march - m0; wildMarched(100, 0.55); const marsh = G.field.march - m0 - road;
   assert(road < 100 && marsh > 100, 'a road is quicker than open ground, and marsh slower');
   assert(pathCost(0, 0, [{ x: 30, y: 40 }]) > 0, 'a path has a cost');
+}));
+
+test('quests: people at the fountain, landmarks, unique pieces, deadlines, and new things on the road', () => game()(function () {
+  newGame(); G.tally.wins = 1; G.denarii = 500;
+  // every landmark has a place the school can reach, and each a place of its own
+  const spots = landmarkSpots(), L = wildLand();
+  assert(LANDMARKS.length === 40 && LANDMARKS.every(n => spots[n] && L.reach[Math.floor(spots[n].y / 10) * WILD.TW + Math.floor(spots[n].x / 10)]), 'every landmark can be walked to');
+  // every kind of quest can be offered, names a landmark, has a giver who would give it, pays, and puts a place on the map
+  let n = 0;
+  for (const k in ERRANDS) {
+    newGame(); G.tally.wins = 1;
+    const q = errandNew(k), T = ERRANDS[k];
+    assert(q && q.tpl === k && LANDMARKS.includes(q.mark) && T.marks.includes(q.mark) && T.givers.includes(q.giver.kind) && q.tier >= 1 && q.tier <= 5 && q.pay >= 0 && q.fame >= 1 && q.days >= 10, k + ' can be offered: ' + JSON.stringify(q));
+    assert(T.ask(q).length > 40 && T.at(q).length > 10 && T.won(q).length > 10 && T.title(q.mark).length > 5 && !/undefined|NaN/.test(T.ask(q) + T.at(q) + T.won(q) + T.title(q.mark)), k + ' has its words');
+    G.asks = [q];
+    assert(errandTake(q.id) === q && errands().length === 1 && !asksNow().length && q.until === G.day + q.days, k + ' is taken on');
+    const st = wildSites().find(x => x.errand === q.id);
+    assert(st && SITE_EVENT[st.kind] && EVENTS[SITE_EVENT[st.kind]] && siteShown(st) && siteLive(st) && st.x === q.x && st.y === q.y, k + ' is a place on the map');
+    if (T.foes) { const foes = T.foes(q); assert(foes.length >= 1 && foes.every(f => f.hp > 0), k + ' has something to fight'); }
+    const purse = G.denarii, fame = G.fame, arm = G.armoury.length;
+    assert(wildEnter(), 'the school marches out');
+    const lines = errandDone(q, []);
+    assert(G.denarii === purse + q.pay && G.fame === fame + q.fame && !errands().length && !wildSites().some(x => x.errand) && lines.join(' ').length > 30 && !/undefined|NaN/.test(lines.join(' ')), k + ' pays what was promised');
+    if (T.relic) {
+      const it = G.armoury[G.armoury.length - 1];
+      assert(G.armoury.length === arm + 1 && it.relic === T.relic && itemName(it) === RELICS[T.relic].name && wildMap().relics.includes(T.relic), k + ' leaves its piece in the armoury');
+      const plain = makeItem(it.slot, it.r, it.cls), a = itemStats(it), b = itemStats(plain);
+      assert(Object.keys(a).some(key => a[key] > b[key] + 1e-9), RELICS[T.relic].name + ' is better than a plain piece of its grade');
+      assert(!errandNew(k), 'a unique piece is not offered twice');
+    }
+    n++;
+  }
+  assert(n >= 22 && Object.keys(ERRANDS).filter(k => ERRANDS[k].relic).length === 12, 'ten kinds of work and twelve unique pieces: ' + n);
+  // the pieces people send you for are never found by chance in a ruin
+  newGame(); for (let i = 0; i < 12; i++) { const it = wildRelic(); if (it) assert(!RELICS[it.relic].quest, 'a quest piece turned up by chance'); }
+  // a rescue has two places: the second is marked only once somebody has talked
+  newGame(); G.tally.wins = 1;
+  { const q = errandNew('rescue'); errands().push(q); q.until = G.day + q.days;
+    let st = wildSites().find(x => x.errand === q.id);
+    assert(st.kind === 'errand_clue' && st.x === q.x && q.mark2 && q.mark2 !== q.mark, 'first, where he was last seen');
+    q.step = 1; st = wildSites().find(x => x.errand === q.id);
+    assert(st.kind === 'errand_fight' && st.x === q.x2 && st.y === q.y2 && st.name.includes(q.mark2.slice(1)), 'then, where they took him'); }
+  // the difficulty follows the school: a new house is sent near, a great one far
+  { newGame(); G.tally.wins = 1; let lo = 0, hi = 0; const N = 60;
+    for (let i = 0; i < N; i++) { const q = errandNew('wolves'); lo += q.tier; }
+    G.fame = 5000; for (let i = 0; i < N; i++) { const q = errandNew('wolves'); hi += q.tier; }
+    assert(tier() >= 2 && hi / N > lo / N, 'a greater school is sent to worse places: ' + (lo / N).toFixed(2) + ' then ' + (hi / N).toFixed(2)); }
+  // the fountain: nobody before the gate is open; then people come, wait three days, and go
+  newGame();
+  while (G.day < GAMES_EVERY) { G.day++; for (let i = 0; i < 20; i++) rollAsks(); }
+  assert(!gateOpen() && !asksNow().length, 'nobody asks a house that has not yet fought its first games');
+  G.tally.wins = 1; let came = 0, most = 0;
+  for (let i = 0; i < 200; i++) { G.day++; const q = rollAsks(); if (q) came++; most = Math.max(most, asksNow().length); assert(asksNow().every(a => a.leaves >= G.day), 'those who have waited their three days are gone'); }
+  assert(came >= 25 && came <= 110 && most <= 2, 'somebody new on about two days in five, never more than two waiting: ' + came + ', ' + most);
+  // three in hand at most; and one left too long is lost, and talked of
+  newGame(); G.tally.wins = 1; G.fame = 10;
+  for (const k of ['wolves', 'bandits', 'heirloom', 'supplies']) { const q = errandNew(k); G.asks = [q]; errandTake(q.id); }
+  assert(errands().length === 3 && asksNow().length === 1, 'a fourth is not taken while three are in hand');
+  const late = errands()[0]; late.until = G.day - 1; G.day++; rollAsks();
+  assert(errands().length === 2 && !errands().includes(late) && G.fame === 9 && !wildMap().marks['e' + late.id], 'a quest left too long is lost, and costs a little fame');
+  // on the road: eleven things can stop the column, and the same one never twice running
+  newGame(); G.tally.wins = 1; assert(wildEnter(), 'out through the gate');
+  { const seen = new Set(); let last = null, rep = 0; for (let i = 0; i < 300; i++) { const id = roadEventId(); assert(EVENTS[id] && EVENTS[id].wild, id + ' is a matter of the road'); if (id === last) rep++; last = id; seen.add(id); }
+    assert(seen.size === 11 && rep === 0, 'eleven things on the road, none twice running: ' + seen.size + ', ' + rep); }
+  assert(!badNumber(G), 'no bad numbers');
 }));
 
 test('saves: slots, backup, import, and upgrading old saves', () => game()(function () {

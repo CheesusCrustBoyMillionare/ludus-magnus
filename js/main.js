@@ -851,6 +851,16 @@ function contractCard(c) {
   </div>`;
 }
 
+// The quests taken from people at the fountain, and who is waiting there now.
+function questsHtml() {
+  if (typeof errands !== 'function') return '';
+  const mine = errands().map(q => { const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1, left = Math.max(0, q.until - G.day);
+    return prow(`<div class="grow"><span class="t">${T.title(second ? q.mark2 : q.mark)}</span><small>for ${q.giver.name} &middot; ${second ? q.mark2 : q.mark}, ${wildRegion(second ? q.x2 : q.x, second ? q.y2 : q.y)} &middot; danger ${q.tier} of 5 &middot; <span class="${left <= 3 ? 'bad' : ''}">${left} day${left === 1 ? '' : 's'} left</span></small></div>
+      <span class="end">${q.relic ? `<span class="chip gold"${tip(RELICS[q.relic].note)}>${RELICS[q.relic].name}</span> ` : ''}<b class="gold num">${q.pay}</b></span>`); }).join('');
+  const waiting = asksNow().map(q => prow(`<div class="grow"><span class="t">${q.giver.name}</span><small>${GIVERS[q.giver.kind].what}, waiting by the fountain in the square &middot; ${Math.max(1, q.leaves - G.day + 1)} more day${q.leaves - G.day + 1 === 1 ? '' : 's'}</small></div><span class="end"><span class="chip gold">walk to the fountain</span></span>`)).join('');
+  if (!mine && !waiting) return '';
+  return `<h2${tip('People of the town come to the fountain in the square with work of their own. Walk up to them on the town map to hear it. What you take on is marked on the map of the province, out through the east gate; you may have three such matters in hand.')}>Quests <small>${errands().length} of 3 in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small></h2><div class="panel list">${mine}${waiting}</div>`;
+}
 function viewContracts() {
   const c = keepSel('csel', G.contracts), dg = daysToGames(), free = G.roster.filter(canSend).length, gone = G.roster.filter(g => g.away).length, asked = G.contracts.find(x => x.asked);
   const rows = G.contracts.map(x => {
@@ -880,6 +890,7 @@ function viewContracts() {
       <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
+        ${questsHtml()}
         ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about half what the same men would win at the games. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
     <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}</div></div>
   </div>`;
@@ -2059,6 +2070,8 @@ function startWildFight() {
   fight.raf = requestAnimationFrame(fightLoop);
 }
 // The east gate of the village: the way out to the province.
+// Walking up to the fountain when somebody is waiting there: they say what they want.
+function villageTalk() { if (typeof fountainTalk === 'function' && fountainTalk()) { save(); showEvent(); } }
 function villageGate() {
   if (!gateOpen()) { showModal(`<h2>The east gate</h2><p>The gate-captain will not open for a lanista nobody has heard of. Fight your first games, and the road is yours.</p>${okBtn()}`); return; }
   if (!G.roster.some(g => !g.away)) { showModal(`<h2>The east gate</h2><p>You have nobody to march out with.</p>${okBtn()}`); return; }
