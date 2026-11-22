@@ -414,6 +414,7 @@ function provLand() {
   // ---- each part of the country has its own look ----
   const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3;
   prov.boats = [];
+  prov.smokes = [];
   // flocks and herds: each has a home with room to wander, and is drawn live, moving (see drawHerds)
   prov.herds = [];
   const roomFor = (tx, ty, kinds, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (!kinds.includes(at(tx + dx, ty + dy))) return false; return true; };
@@ -533,6 +534,7 @@ function provLand() {
     const tx = tx0 + dx, ty = ty0 + dy, k = at(tx, ty);
     if (k !== T_GRASS && k !== T_MEADOW) return;
     STEADS[n](tx * 10, ty * 10);
+    if (n !== 3) prov.smokes.push({ x: tx * 10 + 3, y: ty * 10 - 5 });
   });
   // what stands up from the ground is gathered first and drawn from the back of the picture to the front, so that
   // each thing overlaps what is behind it. Nothing is stamped: every tree and every mountain is made for its own spot.
@@ -779,6 +781,7 @@ function provLand() {
       if (marks.some(m => Math.hypot(m.x - x, m.y - y) < 78)) continue;
       marks.push({ x, y, r: 12, name, dw: true });
       const flip = wildHash(seed, 3, 1112) > 0.5, P = (px, py, w, hh, c) => R(flip ? 2 * x + 24 - px - w : px, py, w, hh, c), v = q => wildHash(seed, q, 1113);
+      P.at = px => flip ? 2 * x + 24 - px : px;
       feats.push({ y: y + 10, d: () => draw(x, y, P, v) });
       return;
     }
@@ -791,7 +794,7 @@ function provLand() {
     else { P(x - 1, y - rh, w + 2, rh, roof[0]); P(x, y - rh - 1, w, 1, roof[1]); P(x - 1, y - 1, w + 2, 1, tint(roof[0], 0.82)); }
     const dx = x + 1 + Math.floor(v(17) * (w - 3)); P(dx, y + hh - 3, 2, 3, '#3a2416');
     if (w > 8) P(dx > x + w / 2 ? x + 1 : x + w - 3, y + 1, 2, 2, '#3a2a1c');
-    if (o.smoke !== false && v(18) > 0.4) { const ch = x + 1 + Math.floor(v(19) * (w - 3)); P(ch, y - rh - 2, 2, 3, '#8a8478'); P(ch, y - rh - 4, 1, 1, 'rgba(216,212,204,.7)'); P(ch + 1, y - rh - 6, 2, 1, 'rgba(216,212,204,.45)'); }
+    if (o.smoke !== false && v(18) > 0.4) { const ch = x + 1 + Math.floor(v(19) * (w - 3)); P(ch, y - rh - 2, 2, 3, '#8a8478'); if (P.at) prov.smokes.push({ x: P.at(ch + 1), y: y - rh - 3 }); }
     return { w, hh, rh };
   };
   const inReg = (kinds, regs) => (tx, ty) => on(kinds)(tx, ty) && regs.includes(wildRegion(tx * 10 + 5, ty * 10 + 5));
@@ -799,13 +802,13 @@ function provLand() {
   const DWELL = [
     [5, "A shepherd's hut", (tx, ty) => on([T_HILL, T_GRASS])(tx, ty) && at(tx, ty) === T_HILL, (x, y, P, v) => { cot(P, v, x + 1, y + 3, { w: 5 + Math.floor(v(1) * 2), h: 4, roof: 'turf', wall: '#a89c88' }); const pw = 8 + Math.floor(v(2) * 4); P(x + 10, y + 2, pw, 1, '#a8a090'); P(x + 10, y + 9, pw, 1, '#a8a090'); P(x + 10, y + 2, 1, 8, '#c8c2b2'); P(x + 9 + pw, y + 2, 1, 4 + Math.floor(v(3) * 2), '#a8a090'); for (let q = 0; q < 1 + Math.floor(v(4) * 3); q++) { P(x + 12 + q * 2, y + 5 + (q % 2) * 2, 2, 1, '#f1ead8'); P(x + 12 + q * 2, y + 5 + (q % 2) * 2, 1, 1, '#3a2a1c'); } }],
     [5, "A woodcutter's cabin", edgeOfWood, (x, y, P, v) => { const c = cot(P, v, x + 2, y + 3, { wall: '#7a5a34', roof: v(1) > 0.5 ? 'shingle' : 'turf' }); for (let q = 1; q < c.hh; q += 2) P(x + 3, y + 3 + q, c.w - 2, 1, '#5a4326'); const px = x + 5 + c.w; P(px, y + 6, 5 + Math.floor(v(2) * 3), 3, '#8a6a3a'); for (let q = 0; q < 3; q++) P(px + 1 + q * 2, y + 7, 1, 1, '#c9a763'); P(px + 2, y + 10, 2, 2, '#6b4f2c'); P(px + 2, y + 10, 2, 1, '#c9a763'); if (v(3) > 0.5) { P(px + 4, y + 8, 1, 3, '#8a6a3a'); P(px + 4, y + 8, 2, 1, '#b8c0c8'); } }],
-    [3, "A charcoal burner's clamp", (tx, ty) => on(FO)(tx, ty) || edgeOfWood(tx, ty), (x, y, P, v) => { const rw = 5 + Math.floor(v(1) * 2); P(x + 3 - 1, y + 9, rw * 2 + 3, 2, 'rgba(0,0,0,.25)'); for (let i = 0; i < 6; i++) { const w = Math.round(rw * Math.sqrt(1 - (i * i) / 40)); P(x + 3 + rw - w, y + 8 - i, w * 2, 1, i % 3 === 2 ? '#4a4038' : '#3a322c'); } P(x + 3 + rw - 1, y + 8, 2, 1, '#d8742a'); P(x + 2 + rw, y + 1, 1, 1, 'rgba(200,196,188,.8)'); P(x + 3 + rw, y - 1, 2, 1, 'rgba(200,196,188,.55)'); P(x + 2 + rw, y - 3, 2, 1, 'rgba(200,196,188,.3)'); P(x + 6 + rw * 2, y + 6, 6, 3, '#6b4f2c'); P(x + 6 + rw * 2, y + 6, 6, 1, '#8a6a3a'); if (v(2) > 0.4) cot(P, v, x + 14 + rw, y + 1, { w: 5, h: 3, roof: 'turf', wall: '#7a5a34', smoke: false }); }],
+    [3, "A charcoal burner's clamp", (tx, ty) => on(FO)(tx, ty) || edgeOfWood(tx, ty), (x, y, P, v) => { const rw = 5 + Math.floor(v(1) * 2); P(x + 3 - 1, y + 9, rw * 2 + 3, 2, 'rgba(0,0,0,.25)'); for (let i = 0; i < 6; i++) { const w = Math.round(rw * Math.sqrt(1 - (i * i) / 40)); P(x + 3 + rw - w, y + 8 - i, w * 2, 1, i % 3 === 2 ? '#4a4038' : '#3a322c'); } P(x + 3 + rw - 1, y + 8, 2, 1, '#d8742a'); prov.smokes.push({ x: P.at(x + 3 + rw), y: y + 2 }); P(x + 6 + rw * 2, y + 6, 6, 3, '#6b4f2c'); P(x + 6 + rw * 2, y + 6, 6, 1, '#8a6a3a'); if (v(2) > 0.4) cot(P, v, x + 14 + rw, y + 1, { w: 5, h: 3, roof: 'turf', wall: '#7a5a34', smoke: false }); }],
     [4, "A fisherman's hut", (tx, ty) => on([T_SAND, T_GRASS])(tx, ty) && at(tx, ty) === T_SAND, (x, y, P, v) => { const c = cot(P, v, x + 2, y, { w: 6 + Math.floor(v(1) * 2), h: 4, roof: 'reed', wall: '#b89a6a', smoke: false }); P(x + 2, y + 4, 1, 4, '#5a4326'); P(x + 1 + c.w, y + 4, 1, 4, '#5a4326'); P(x + 4, y + 4, 1, 3, '#5a4326'); const nx = x + 5 + c.w; P(nx, y + 2, 1, 7, '#6b4f2c'); P(nx + 7, y + 2, 1, 7, '#6b4f2c'); for (let q = 0; q < 3; q++) P(nx + 1, y + 3 + q * 2, 6, 1, 'rgba(232,226,208,.7)'); for (let q = 0; q < 3; q++) P(nx + 2 + q * 2, y + 3, 1, 5, 'rgba(232,226,208,.5)'); if (v(2) > 0.4) { P(x + 3, y + 10, 8, 2, '#6b4f2c'); P(x + 4, y + 9, 6, 1, '#8a6a3a'); } }],
     [3, 'A mill on the water', (tx, ty) => on(GR)(tx, ty) && wet(at(tx + 3, ty)) && !wet(at(tx + 3, ty - 3)), (x, y, P, v) => { const c = cot(P, v, x + 2, y, { w: 10 + Math.floor(v(1) * 3), h: 7 }); const wx = x + 3 + c.w; P(wx, y, 8, 8, '#5a4326'); P(wx + 1, y + 1, 6, 6, '#6fa8c8'); P(wx + 3, y, 2, 8, '#7a5a34'); P(wx, y + 3, 8, 2, '#7a5a34'); P(wx + 3, y + 3, 2, 2, '#3a2a1c'); P(wx, y + 8, 8, 1, '#e6f3fa'); if (v(2) > 0.5) { P(x - 2, y + 6, 4, 3, '#e8dcc0'); P(x - 2, y + 6, 4, 1, '#f4ecd8'); } }],
     [3, 'A windmill', (tx, ty) => on([T_HILL, T_GRASS])(tx, ty) && [[0, 1], [1, 1], [-1, 0], [3, 0]].some(([dx, dy]) => at(tx + dx, ty + dy) === T_HILL), (x, y, P, v) => { const tw = v(1) > 0.5 ? '#d8cdb6' : '#b8ab94'; P(x + 3, y + 9, 12, 2, 'rgba(0,0,0,.22)'); for (let i = 0; i < 15; i++) { const w = 5 + Math.floor(i / 5); P(x + 9 - w + (w >> 1), y - 6 + i, w, 1, tw); P(x + 9 - w + (w >> 1), y - 6 + i, 1, 1, tint(tw, 1.1)); } P(x + 6, y - 9, 6, 3, v(2) > 0.5 ? '#a8482a' : '#6b4f2c'); P(x + 8, y + 6, 2, 3, '#3a2416'); const hx = x + 8, hy = y - 5, plus = v(3) > 0.5; for (let i = 1; i < 8; i++) { if (plus) { P(hx + i, hy, 1, 1, '#6b4f2c'); P(hx - i, hy, 1, 1, '#6b4f2c'); P(hx, hy + i, 1, 1, '#6b4f2c'); P(hx, hy - i, 1, 1, '#6b4f2c'); if (i > 2) { P(hx + i, hy + 1, 1, 1, '#f1ead8'); P(hx - i, hy - 1, 1, 1, '#f1ead8'); P(hx + 1, hy - i, 1, 1, '#f1ead8'); P(hx - 1, hy + i, 1, 1, '#f1ead8'); } } else { P(hx + i, hy - i, 1, 1, '#6b4f2c'); P(hx - i, hy + i, 1, 1, '#6b4f2c'); P(hx + i, hy + i, 1, 1, '#6b4f2c'); P(hx - i, hy - i, 1, 1, '#6b4f2c'); if (i > 2) { P(hx + i, hy - i + 1, 1, 1, '#f1ead8'); P(hx - i, hy + i - 1, 1, 1, '#f1ead8'); P(hx + i - 1, hy + i, 1, 1, '#f1ead8'); P(hx - i + 1, hy - i, 1, 1, '#f1ead8'); } } } P(hx, hy, 1, 1, '#3a2a1c'); }],
     [4, 'A field barn', inReg(GR, ['The Long Meadows', 'The Home Fields', 'The Barrow Downs']), (x, y, P, v) => { const c = cot(P, v, x + 1, y + 1, { w: 12 + Math.floor(v(1) * 4), h: 6, roof: v(2) > 0.5 ? 'thatch' : 'shingle', wall: v(3) > 0.5 ? '#8a6a3a' : '#b8ab94', smoke: false }); P(x + 4, y + 3, 4, 4, '#3a2416'); P(x + 5, y + 3, 1, 4, '#5a4326'); const rx = x + 4 + c.w; if (v(4) > 0.5) { P(rx, y + 3, 6, 5, '#d9c070'); P(rx + 1, y + 2, 4, 1, '#e6d088'); P(rx, y + 8, 7, 1, 'rgba(0,0,0,.18)'); } else { P(rx, y + 5, 7, 2, '#8a6a3a'); P(rx + 7, y + 6, 3, 1, '#6b4f2c'); P(rx + 1, y + 7, 2, 2, '#3a2a1c'); P(rx + 4, y + 7, 2, 2, '#3a2a1c'); P(rx + 1, y + 3, 5, 2, '#d9c070'); } }],
     [3, "A peat cutter's hut", inReg(MS, ['Blackmere']), (x, y, P, v) => { cot(P, v, x + 1, y + 2, { w: 6, h: 4, roof: 'turf', wall: '#6a5a44' }); const px = x + 10; P(px, y + 6, 9 + Math.floor(v(1) * 4), 3, '#241c16'); P(px + 1, y + 7, 6, 1, '#3d5a52'); for (let q = 0; q < 2 + Math.floor(v(2) * 3); q++) { P(px + q * 4, y + 1, 3, 4, '#3a2e24'); P(px + q * 4, y + 1, 3, 1, '#5a4a3a'); P(px + q * 4, y + 3, 3, 1, '#2a2018'); } }],
-    [3, 'A lime kiln', inReg(HL, ['The Quarry Hills']), (x, y, P, v) => { P(x + 1, y + 9, 12, 2, 'rgba(0,0,0,.22)'); P(x + 2, y - 1, 9, 10, '#b8b0a0'); P(x + 2, y - 1, 2, 10, '#d0c8b8'); P(x + 3, y - 2, 7, 1, '#8f8876'); P(x + 5, y + 5, 3, 4, '#2a1c14'); P(x + 5, y + 7, 3, 2, '#e2702a'); P(x + 6, y + 6, 1, 1, '#f0c040'); P(x + 6, y - 4, 2, 1, 'rgba(240,240,236,.7)'); P(x + 7, y - 6, 2, 1, 'rgba(240,240,236,.45)'); for (let q = 0; q < 2 + Math.floor(v(1) * 3); q++) { P(x + 13 + q * 3, y + 6 - (q % 2) * 2, 3, 3, '#f0ece0'); P(x + 13 + q * 3, y + 8 - (q % 2) * 2, 3, 1, '#c8c2b2'); } if (v(2) > 0.5) cot(P, v, x + 14, y - 4, { w: 6, h: 4, roof: 'slate', wall: '#b8ab94', smoke: false }); }],
+    [3, 'A lime kiln', inReg(HL, ['The Quarry Hills']), (x, y, P, v) => { P(x + 1, y + 9, 12, 2, 'rgba(0,0,0,.22)'); P(x + 2, y - 1, 9, 10, '#b8b0a0'); P(x + 2, y - 1, 2, 10, '#d0c8b8'); P(x + 3, y - 2, 7, 1, '#8f8876'); P(x + 5, y + 5, 3, 4, '#2a1c14'); P(x + 5, y + 7, 3, 2, '#e2702a'); P(x + 6, y + 6, 1, 1, '#f0c040'); prov.smokes.push({ x: P.at(x + 6), y: y - 3 }); for (let q = 0; q < 2 + Math.floor(v(1) * 3); q++) { P(x + 13 + q * 3, y + 6 - (q % 2) * 2, 3, 3, '#f0ece0'); P(x + 13 + q * 3, y + 8 - (q % 2) * 2, 3, 1, '#c8c2b2'); } if (v(2) > 0.5) cot(P, v, x + 14, y - 4, { w: 6, h: 4, roof: 'slate', wall: '#b8ab94', smoke: false }); }],
     [4, 'A wayside inn', (tx, ty) => on(GR)(tx, ty) && byRoad(tx, ty), (x, y, P, v) => { const c = cot(P, v, x + 1, y - 2, { w: 10 + Math.floor(v(1) * 4), h: 9, roof: v(2) > 0.5 ? 'tile' : 'slate' }); P(x + 3, y, 2, 2, '#3a2a1c'); P(x + 7, y, 2, 2, '#e8c060'); const sx = x + 3 + c.w; P(sx, y - 3, 1, 10, '#5a4326'); P(sx, y - 3, 5, 1, '#5a4326'); P(sx + 2, y - 2, 3, 3, ['#c23b2e', '#3a6ea8', '#c9a21e', '#35602b'][Math.floor(v(3) * 4)]); P(sx + 3, y - 1, 1, 1, '#f1ead8'); P(sx + 2, y + 6, 6, 2, '#6b4f2c'); P(sx + 3, y + 6, 4, 1, '#6fa8c8'); if (v(4) > 0.5) { P(sx + 9, y + 3, 5, 3, '#7a5234'); P(sx + 13, y + 1, 2, 3, '#7a5234'); P(sx + 9, y + 6, 1, 2, '#5a3a24'); P(sx + 13, y + 6, 1, 2, '#5a3a24'); } }],
     [2, "A hermit's cell", (tx, ty) => on([T_HILL, T_GRASS])(tx, ty) && [[0, -2], [1, -2], [2, -2], [1, -3]].some(([dx, dy]) => at(tx + dx, ty + dy) === T_PEAK) && ![1, 2, 3, 4].some(dy => [-2, -1, 0, 1, 2, 3, 4].some(dx => at(tx + dx, ty + dy) === T_PEAK)), (x, y, P, v) => { const c = cot(P, v, x + 3, y + 3, { w: 5, h: 4, roof: 'slate', wall: '#a8a090', smoke: false }); P(x + 5, y - 3 - c.rh + 3, 1, 3, '#d8d2c0'); P(x + 4, y - 2 - c.rh + 3, 3, 1, '#d8d2c0'); P(x + 10, y + 5, 6, 4, '#6a5a3a'); for (let q = 0; q < 3; q++) P(x + 11 + q * 2, y + 6 + (q % 2), 1, 2, '#55803a'); P(x + 17, y + 7, 2, 2, '#8a8478'); }],
     [3, "A beekeeper's cottage", (tx, ty) => on([T_MEADOW, T_GRASS])(tx, ty) && at(tx, ty) === T_MEADOW, (x, y, P, v) => { const c = cot(P, v, x + 1, y + 1, { roof: 'thatch' }); const bx = x + 4 + c.w; for (let q = 0; q < 3 + Math.floor(v(1) * 3); q++) { P(bx + q * 4, y + 5, 3, 4, '#c9a763'); P(bx + q * 4 + 1, y + 4, 1, 1, '#c9a763'); P(bx + q * 4, y + 6, 3, 1, '#a8853f'); P(bx + q * 4 + 1, y + 8, 1, 1, '#2a1c14'); } P(bx, y + 9, 16, 1, '#8a6a3a'); for (let q = 0; q < 4; q++) P(bx + Math.floor(v(5 + q) * 14), y + Math.floor(v(9 + q) * 4), 1, 1, '#2a1c14'); }],
@@ -831,6 +834,7 @@ function provLand() {
     const tx = tx0 + dx, ty = ty0 + dy, d = Math.hypot(dx, dy), k = at(tx, ty);
     if (d < 2.6 || d > 5.4 || (k !== T_GRASS && k !== T_MEADOW) || farm(tx, ty) || h(tx, ty, 1150) > 0.62) continue;
     const kind = Math.floor(h(tx, ty, 1151) * OUT.length), x = tx * 10, y = ty * 10, flip = h(tx, ty, 1152) > 0.5, P = (px, py, w, hh, c) => R(flip ? 2 * x + 10 - px - w : px, py, w, hh, c), v = q => h(tx, ty, 1153 + q);
+    P.at = px => flip ? 2 * x + 10 - px : px;
     feats.push({ y: y + 9, d: () => OUT[kind](x, y, P, v) });
   }
   prov.marks = marks;
@@ -1182,6 +1186,33 @@ function drawHerds(ctx, T, R, inView) {
   }
 }
 
+// What passes overhead. The shadows of clouds cross the whole province on the wind, each cloud its own shape, more
+// of them and darker when the sky is heavy. When rain stops there is a rainbow for a while; in heavy rain, lightning.
+function drawSky(ctx, T, camX, camY, sky, wx) {
+  if (sky.night < 0.6) {
+    const N = wx.over > 0.3 ? 11 : 6, alpha = (0.045 + 0.06 * wx.over) * (1 - sky.night);
+    ctx.fillStyle = `rgba(14,20,40,${alpha.toFixed(3)})`;
+    for (let i = 0; i < N; i++) {
+      const cv = q => wildHash(i, q, 1300), sp = 5 + cv(1) * 6, spanX = WILD.W + 700, cx = ((cv(2) * spanX + T * sp) % spanX) - 350, cy = cv(3) * WILD.H + Math.sin(T * 0.02 + i) * 40 + T * sp * 0.12 % 1;
+      const big = 50 + cv(4) * 70;
+      if (cx + big * 2.2 < camX || cx - big * 2.2 > camX + PROV.VW || cy + big * 1.2 < camY || cy - big * 1.2 > camY + PROV.VH) continue;
+      for (let l = 0, n = 3 + Math.floor(cv(5) * 4); l < n; l++) {
+        const ox = (cv(10 + l) - 0.5) * big * 2.2, oy = (cv(20 + l) - 0.5) * big * 0.7, rx = big * (0.45 + cv(30 + l) * 0.5), ry = rx * (0.4 + cv(40 + l) * 0.25);
+        for (let dy = -ry; dy <= ry; dy += 4) { const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy * dy) / (ry * ry))) / 4) * 4; if (w > 0) ctx.fillRect(Math.round((cx + ox - w) / 2) * 2, Math.round((cy + oy + dy) / 4) * 4, w * 2, 4); }
+      }
+    }
+  }
+  if (wx.wet > 0.15 && wx.rain < 0.25 && sky.night < 0.2) {          // the bow, in the quarter of the sky away from the sun
+    const cx = camX + PROV.VW * 0.72, cy = camY + PROV.VH * 0.95, a0 = Math.min(0.3, wx.wet * 0.3), bands = ['220,60,50', '236,150,50', '240,220,80', '90,180,90', '70,130,210', '130,90,190'];
+    bands.forEach((c, bi) => { ctx.fillStyle = `rgba(${c},${a0.toFixed(3)})`; const r = PROV.VH * 0.78 - bi * 2; for (let an = Math.PI * 1.08; an < Math.PI * 1.92; an += 0.012) ctx.fillRect(Math.round(cx + Math.cos(an) * r), Math.round(cy + Math.sin(an) * r), 2, 2); });
+  }
+  if (wx.rain > 0.7) {                                               // lightning: the whole country white for an instant, and the stroke itself
+    const tick = Math.floor(T * 8), hit = wildHash(tick, 3, 1310) > 0.975, after = wildHash(tick - 1, 3, 1310) > 0.975;
+    if (hit || after) { ctx.fillStyle = `rgba(236,240,255,${hit ? 0.22 : 0.08})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
+    if (hit) { const seed = tick; let bx = camX + 30 + wildHash(seed, 4, 1311) * (PROV.VW - 60), by = camY; ctx.fillStyle = '#f4f6ff'; for (let q = 0; q < 26 && by < camY + PROV.VH * (0.35 + wildHash(seed, 5, 1312) * 0.4); q++) { const st = 3 + Math.floor(wildHash(seed, q, 1313) * 5), dx = Math.round((wildHash(q, seed, 1314) - 0.5) * 10); ctx.fillRect(Math.round(Math.min(bx, bx + dx)), Math.round(by), Math.abs(dx) + 1, 1); bx += dx; ctx.fillRect(Math.round(bx), Math.round(by), 1, st); by += st; } }
+  }
+}
+
 // The small life of the country, each kind where it belongs: butterflies over the meadows, mist lying on the mere,
 // fish rising, snow blowing off the high peaks, a bird crossing a wood. After dark, fireflies in the woods and
 // over the marsh. Each has its own spot in the world and stays near it; nothing is remembered.
@@ -1197,6 +1228,21 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
         if (Math.sin(T * 2.1 + ph * 3) > 0.2) { R(fx, fy, 1, 1, '#f8f0a0'); ctx.fillStyle = 'rgba(248,240,160,.25)'; ctx.fillRect(Math.round(fx) - 1, Math.round(fy) - 1, 3, 3); }
       }
       continue;
+    }
+    const reg = wildRegion(x0, y0);
+    if (reg === 'The High Fells' && (k === T_PEAK || k === T_HILL) && b > 0.35) {      // snow in the air over the fells, whatever the weather below
+      for (let q = 0; q < 4; q++) { const p2 = (T * 0.22 + a * 7 + q * 0.27) % 1; ctx.fillStyle = `rgba(246,248,252,${(0.75 * Math.sin(p2 * Math.PI)).toFixed(2)})`; ctx.fillRect(Math.round(x0 + q * 9 - p2 * 14 + Math.sin(T * 1.3 + q) * 2), Math.round(y0 - 20 + p2 * 34), 1, 1); }
+    } else if (reg === 'Greywood' && k === T_FOREST && b > 0.6) {                        // a leaf coming down through the old wood
+      const p2 = (T * 0.16 + a * 9) % 1.6; if (p2 < 1) { ctx.fillStyle = ['#b45f2c', '#d4a43a', '#8f4422'][Math.floor(b * 30) % 3]; ctx.fillRect(Math.round(x0 + Math.sin(p2 * 9) * 4), Math.round(y0 - 16 + p2 * 22), Math.sin(p2 * 18) > 0 ? 2 : 1, 1); }
+    } else if (reg === 'The Long Meadows' && k === T_MEADOW && b > 0.7) {                // seed on the wind
+      for (let q = 0; q < 3; q++) { const p2 = (T * 0.12 + a * 5 + q * 0.33) % 1; ctx.fillStyle = `rgba(250,250,244,${(0.7 * Math.sin(p2 * Math.PI)).toFixed(2)})`; ctx.fillRect(Math.round(x0 + p2 * 40 + q * 6), Math.round(y0 - 4 - p2 * 14 + Math.sin(T * 0.9 + q * 2) * 3), 1, 1); }
+    } else if (reg === 'The Quarry Hills' && k === T_HILL && b > 0.9) {                  // a dust devil crossing the dry hills
+      const cyc = (T * 0.1 + a * 6) % 3; if (cyc < 1) { const dx0 = x0 - 20 + cyc * 40; for (let q = 0; q < 7; q++) { const an = T * 7 + q * 0.9, rr = 1 + q * 0.7; ctx.fillStyle = `rgba(214,200,160,${(0.55 * Math.sin(cyc * Math.PI) * (1 - q / 9)).toFixed(2)})`; ctx.fillRect(Math.round(dx0 + Math.cos(an) * rr), Math.round(y0 - q * 3), 2, 1); } }
+    } else if (reg === 'The Barrow Downs' && (k === T_GRASS || k === T_HILL || k === T_MEADOW) && b > 0.55) {      // fog lying in the hollows of the downs, thick at either end of the day
+      const thick = 0.05 + Math.min(0.12, Math.abs(dayPart() - 0.5) * 0.3), mx = x0 + Math.sin(T * 0.07 + a * 9) * 24, w = 26 + Math.floor(a * 30);
+      ctx.fillStyle = `rgba(232,236,236,${thick.toFixed(3)})`; ctx.fillRect(Math.round(mx - w / 2), Math.round(y0), w, 4); ctx.fillRect(Math.round(mx - w / 2 + 6), Math.round(y0 - 2), w - 12, 2); ctx.fillRect(Math.round(mx - w / 2 + 4), Math.round(y0 + 4), w - 10, 2);
+    } else if (reg === 'The Salt Shore' && k === T_SAND && b > 0.5 && wildTile(x0 - 10, y0) === T_WATER) {      // spray thrown up where the sea comes in
+      const p2 = (T * 0.5 + a * 4) % 1; for (let q = 0; q < 4; q++) { ctx.fillStyle = `rgba(240,248,252,${(0.8 * (1 - p2)).toFixed(2)})`; ctx.fillRect(Math.round(x0 - 6 + q * 2 + p2 * 3), Math.round(y0 + q * 3 - Math.sin(p2 * Math.PI) * (4 + q)), 1, 1); }
     }
     if (k === T_MEADOW && a > 0.45) {                // a butterfly, going from flower to flower
       const ph = a * 30, bx = x0 + Math.sin(T * 0.8 + ph) * 12 + Math.sin(T * 2.7 + ph) * 3, by = y0 + Math.cos(T * 0.6 + ph) * 8 + Math.sin(T * 3.3 + ph) * 2, open = Math.sin(T * 14 + ph) > 0, c = ['#f4f4f0', '#f2d060', '#e8a0c0', '#a8c0f0'][Math.floor(b * 4)];
@@ -1663,6 +1709,7 @@ function drawProvince(cv, T) {
   // smoke from the town's hearths, and from any camp you can see
   const smoke = (sx, sy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(sx + Math.sin(q * 5 + i) * 3 + q * 6, sy - q * 22, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
   if (inView(tx, ty, 60)) { smoke(tx - 9, ty - 10, 4); smoke(tx + 6, ty - 11, 3); }
+  for (const sm of (prov.smokes || [])) if (inView(sm.x, sm.y, 30) && wildSeen(sm.x, sm.y)) smoke(sm.x, sm.y, 3);      // every hearth out in the country
   for (const s of sites) if ((s.kind === 'camp' || s.kind === 'chief' || s.kind === 'slavers' || s.kind === 'hamlet') && inView(s.x, s.y, 40) && wildSeen(s.x, s.y) && siteShown(s) && !siteDone(s)) smoke(s.x, s.y - 4, 3);
   // birds over the country, and the shadows of clouds going by
   for (let i = 0; i < 5; i++) {
@@ -1709,6 +1756,7 @@ function drawProvince(cv, T) {
 
   // the same hour and the same weather as over the town: the colour of the light, a brand in the dark, rain
   const sky = provSky(), wx = yardWeather(sceneClock());
+  drawSky(ctx, T, camX, camY, sky, wx);
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
   if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
   if (sky.night > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
