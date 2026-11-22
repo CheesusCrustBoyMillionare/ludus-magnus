@@ -69,6 +69,44 @@ function provLand() {
       for (let i = 0; i < 11; i++) { const q = Math.floor(h(tx, ty, 20 + n * 5 + i) * 9), inn = Math.floor(h(tx + i, ty + n, 810) * h(tx, ty + i, 811) * 8); R(dx ? x + (dx > 0 ? 8 - inn : inn) : x + q, dy ? y + (dy > 0 ? 8 - inn : inn) : y + q, 2, 2, oc); }
     });
   }
+  // The small things lying about are made, not stamped: a stone is one of eight builds in the rock of its country, a
+  // log one of eight, a bush one of seven, and each takes its size and place from the spot it lies in.
+  const rockPal = reg => reg === 'The Quarry Hills' ? ['#d2cbb6', '#b3ac98', '#8f8876'] : reg === 'The High Fells' ? ['#a2aab4', '#7d8692', '#646c78'] : reg === 'The Barrow Downs' ? ['#b8b4a0', '#8c8676', '#5f5a4c'] : reg === 'Blackmere' ? ['#8a8a7a', '#6a6a5c', '#4a4a40'] : reg === 'The Salt Shore' ? ['#c8c0a8', '#a39a8a', '#7d7668'] : ['#bdb8ac', '#9a958a', '#6b665c'];
+  const rocks = (x, y, tx, ty, reg) => {
+    const v = q => h(tx, ty, 1200 + q), [lt, md, dk] = rockPal(reg), form = Math.floor(v(0) * 8), w = 3 + Math.floor(v(1) * 4), cx = x + 1 + Math.floor(v(2) * (8 - w)), by = y + 6 + Math.floor(v(3) * 3);
+    R(cx - 1, by, w + 2, 1, 'rgba(0,0,0,.18)');
+    if (form === 0) { const hh = Math.max(2, Math.round(w * 0.7)); for (let i = 0; i < hh; i++) { const ww = Math.max(1, Math.round(w * Math.sqrt(1 - Math.pow((hh - 1 - i) / hh, 2)))), ox = cx + ((w - ww) >> 1); R(ox, by - hh + i, ww, 1, i === hh - 1 ? dk : md); R(ox, by - hh + i, Math.max(1, ww >> 1), 1, lt); } }      // a boulder
+    else if (form === 1) { R(cx, by - 2, w + 1, 2, md); R(cx, by - 2, w, 1, lt); R(cx + w, by - 1, 1, 1, dk); }                                                                                              // a flat slab
+    else if (form === 2) { const a2 = Math.max(1, w >> 1); R(cx, by - 3, a2, 3, md); R(cx, by - 3, a2, 1, lt); R(cx + a2 + 1, by - 2, w - a2, 2, md); R(cx + a2 + 1, by - 2, w - a2, 1, lt); R(cx + a2, by - 2, 1, 2, dk); }      // one split by frost
+    else if (form === 3) for (let q = 0; q < 3; q++) { const sx = cx + q * 2, sy = by - 2 - (q % 2); R(sx, sy, 2, 2, q % 2 ? md : dk); R(sx, sy, 1, 1, lt); }                                                // three small ones
+    else if (form === 4) { const hh = 4 + Math.floor(v(4) * 3); R(cx + 1, by - hh, 2, hh, md); R(cx + 1, by - hh, 1, hh, lt); R(cx + 1 + (v(5) > 0.5 ? 1 : 0), by - hh - 1, 1, 1, md); }                      // one standing on end
+    else if (form === 5) { R(cx, by - 3, w, 3, md); R(cx + 1, by - 4, Math.max(1, w - 2), 1, md); R(cx, by - 3, Math.max(1, w >> 1), 1, lt); R(cx + (w >> 1), by - 4, Math.max(1, w >> 1), 2, '#6f8a4a'); R(cx + w - 1, by - 2, 1, 2, dk); }      // under moss
+    else if (form === 6) { R(cx, by - 3, w, 3, md); R(cx + 1, by - 4, Math.max(1, w - 2), 1, lt); R(cx + w - 1, by - 3, 1, 3, dk); for (let q = 0; q < 2; q++) R(cx + 1 + Math.floor(v(6 + q) * (w - 1)), by - 3 + q, 1, 1, q ? '#d8a040' : '#d0d0a8'); }      // spotted with lichen
+    else { R(cx, by - 2, w, 2, md); R(cx, by - 2, w - 1, 1, lt); R(cx + 1, by - 3, 2, 1, md); R(cx + w + 1, by - 1, 1, 1, dk); R(cx - 1, by - 1, 1, 1, md); }                                                 // broken small
+  };
+  const logs = (x, y, tx, ty, pal) => {
+    const v = q => h(tx, ty, 1220 + q), [bk, lt, ct] = pal, form = Math.floor(v(0) * 8), len = 4 + Math.floor(v(1) * 5), lx = x + Math.floor(v(2) * (10 - len)), ly = y + 5 + Math.floor(v(3) * 3), end = v(4) > 0.5 ? len - 1 : 0;
+    if (form === 1) { for (let q = 0; q < len; q++) R(lx + q, ly - Math.floor(q / 2), 1, 2, q % 3 ? bk : lt); R(lx, ly + 2, len, 1, 'rgba(0,0,0,.14)'); return; }                 // lying aslant
+    if (form === 7) { R(lx, ly, len, 2, bk); R(lx, ly, len, 1, lt); for (let q = 0; q < 5; q++) R(lx + 1 + q, ly - 2 + q, 1, 2, q % 2 ? bk : lt); return; }                         // two, one across the other
+    R(lx, ly + 2, len + 1, 1, 'rgba(0,0,0,.16)'); R(lx, ly, len, 2, bk); R(lx, ly, len, 1, lt); R(lx + end, ly, 1, 2, ct);
+    if (form === 2) { R(lx + 2, ly - 2, 1, 2, bk); if (len > 5) R(lx + len - 3, ly - 1, 1, 1, bk); }                                                                                 // the stubs of its boughs still on it
+    else if (form === 3) R(lx + end, ly, 1, 2, '#2a1c14');                                                                                                                             // hollow
+    else if (form === 4) R(lx + 1, ly, Math.max(2, len - 3), 1, '#6f8a4a');                                                                                                           // mossed over
+    else if (form === 5) for (let q = 0; q < 3; q++) R(lx + 1 + q * 2, ly + 1, 1, 1, q % 2 ? '#e8b060' : '#d8742a');                                                               // brackets of fungus along it
+    else if (form === 6) { const sx = lx + len + 3 > x + 10 ? lx - 3 : lx + len + 1; R(sx, ly - 1, 2, 3, bk); R(sx, ly - 1, 2, 1, ct); }                                              // and the stump it came off
+  };
+  const shrub = (x, y, tx, ty) => {
+    const v = q => h(tx, ty, 1240 + q), form = Math.floor(v(0) * 7), w = 3 + Math.floor(v(1) * 4), hh = 2 + Math.floor(v(2) * 3), bx = x + Math.floor(v(3) * (9 - w)), by = y + 8, ci = Math.floor(v(4) * 5);
+    const dk = ['#4c7f38', '#3f6f45', '#5f7f2f', '#4a6a3a', '#3a6a4a'][ci], lt = ['#69a04a', '#58905c', '#7fa040', '#62884c', '#52886a'][ci];
+    R(bx, by, w + 1, 1, 'rgba(0,0,0,.18)');
+    if (form === 5) { R(bx + (w >> 1), by - hh - 1, 1, hh + 1, '#5a4a3a'); for (let q = 0; q < 3; q++) R(bx + q * 2 - (q % 2), by - 1 - q, 2, 1, '#5a4a3a'); return; }                 // a thorn, bare
+    if (form === 6) { R(bx + 1, by - hh - 3, Math.max(2, w - 2), hh + 3, dk); R(bx + 1, by - hh - 3, 1, hh + 2, lt); R(bx + 2, by - hh - 4, 1, 1, dk); return; }                        // a tall one, grown up narrow
+    R(bx, by - hh, w, hh, dk); R(bx + 1, by - hh - 1, Math.max(1, w - 2), 1, lt); R(bx, by - hh, Math.max(1, w >> 1), 1, lt);
+    if (form === 1) for (let q = 0; q < 3; q++) R(bx + Math.floor(v(5 + q) * w), by - 1 - Math.floor(v(8 + q) * hh), 1, 1, '#c23b2e');                                               // in berry
+    else if (form === 2) for (let q = 0; q < 3; q++) R(bx + Math.floor(v(5 + q) * w), by - 1 - Math.floor(v(8 + q) * hh), 1, 1, '#f2e6a0');                                          // broom in flower
+    else if (form === 3) for (let q = 0; q < 4; q++) R(bx + Math.floor(v(5 + q) * w), by - 1 - Math.floor(v(9 + q) * hh), 1, 1, q % 2 ? '#f8f8f4' : '#f4d0d8');                      // in blossom
+    else if (form === 4) { R(bx + w - 1, by - hh + 1, 3, Math.max(1, hh - 1), dk); R(bx + w, by - hh, 2, 1, lt); }                                                                     // two grown together
+  };
   const lone = [];
   const shoreD = new Uint8Array(TW * TH).fill(255);
   { let cur = []; for (let i = 0; i < TW * TH; i++) if (L.t[i] !== T_WATER && L.t[i] !== T_BRIDGE) { shoreD[i] = 0; cur.push(i); }
@@ -179,7 +217,7 @@ function provLand() {
       else if (v > 0.86) for (let q = 0; q < 2 + Math.floor(b * 3); q++) { const gx = x + 1 + Math.floor(h(tx, ty, 332 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 336 + q) * 5); R(gx, gy, 1, 3, '#9aa860'); R(gx + (q % 2 ? 1 : -1), gy - 1, 1, 1, '#aab870'); }      // marram grass
       else if (v > 0.8) { const wy = y + 2 + Math.floor(b * 6); for (let q = 0; q < 10; q += 2) if (h(tx + q, ty, 340) > 0.3) R(x + q, wy + ((q >> 1) % 2), 2, 1, q % 4 ? '#6b6a3a' : '#57562e'); }      // wrack left by the tide
       else if (v > 0.76) for (let q = 0; q < 3; q++) R(x + 1 + Math.floor(h(tx, ty, 341 + q) * 8), y + 1 + Math.floor(h(tx, ty, 344 + q) * 8), 1, 1, q % 2 ? '#f1ead8' : '#f4d0d8');                          // shells
-      else if (v > 0.73) { const lx = x + 1 + Math.floor(b * 4); R(lx, y + 5, 5, 1, '#a89878'); R(lx + 1, y + 4, 2, 1, '#a89878'); R(lx + 5, y + 5, 1, 1, '#8a7a5c'); }                                       // driftwood
+      else if (v > 0.73) logs(x, y, tx, ty, ['#a89878', '#c0b090', '#8a7a5c']);      // driftwood, no two pieces alike
       else if (v > 0.718) { R(x + 4, y + 5, 2, 1, '#c2503a'); R(x + 3, y + 6, 1, 1, '#c2503a'); R(x + 6, y + 6, 1, 1, '#c2503a'); }                                                                             // a crab
       else if (v < 0.04) for (let q = 0; q < 3; q++) R(x + 1 + Math.floor(h(tx, ty, 347 + q) * 7), y + 2 + Math.floor(h(tx, ty, 350 + q) * 6), 2, 1, q % 2 ? '#a39a8a' : '#b5ad9c');                          // shingle
       else if (v < 0.07) { R(x + 4, y + 5, 2, 1, '#f1ead8'); R(x + 5, y + 4, 1, 1, '#f1ead8'); }
@@ -201,7 +239,7 @@ function provLand() {
       if (a > 0.9) { const lean = b > 0.5 ? 1 : -1; for (let q = 0; q < 3; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 415 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 418 + q) * 5); R(gx, gy, 1, 3, '#93b055'); R(gx + lean, gy - 1, 1, 1, '#a8c468'); } }      // long grass
       else if (a > 0.84) { R(x + 1 + Math.floor(b * 5), y + 4, 4, 3, '#6f9a48'); R(x + 2 + Math.floor(b * 5), y + 3, 2, 1, '#6f9a48'); R(x + 2 + Math.floor(b * 5), y + 5, 1, 1, '#f4f4f0'); }      // clover
       else if (a < 0.02) { R(x + 4, y + 3, 1, 1, '#f4f4f0'); R(x + 6, y + 3, 1, 1, '#f4f4f0'); R(x + 5, y + 4, 1, 1, '#2a1c14'); }                                                              // a butterfly
-      else if (a < 0.035) { R(x + 3, y + 5, 4, 2, '#9a958a'); R(x + 3, y + 5, 3, 1, '#bdb8ac'); }
+      else if (a < 0.035) rocks(x, y, tx, ty, wildRegion(x + 5, y + 5));
       else if (!farm(tx, ty)) {
         // A meadow is hay ground mown in swathes, a field of poppies, a stand of tall spires, a lawn of daisies and
         // buttercups, bee pasture, or rough ground gone to teasel.
@@ -245,7 +283,7 @@ function provLand() {
         R(rx0, ry0, 1, hh, q % 2 ? '#8a9a4a' : '#9aaa5a'); if (h(tx, ty, 241 + q) > 0.55) R(rx0, ry0 - 1, 1, 2, '#6b4a2a');
       }
       if (v < 0.01) { R(x + 4, y + 1, 1, 5, '#f1ead8'); R(x + 5, y, 2, 1, '#f1ead8'); R(x + 7, y, 1, 1, '#e3b04a'); R(x + 4, y + 6, 1, 3, '#b89a5a'); R(x + 3, y + 3, 1, 2, '#d8d2c0'); }      // a heron, fishing
-      else if (v < 0.03) { const lx = x + 1 + Math.floor(b * 3); R(lx, y + 6, 6, 2, '#4a4038'); R(lx, y + 6, 6, 1, '#5e5448'); R(lx + 2, y + 4, 1, 2, '#4a4038'); }                             // a trunk going back into the bog
+      else if (v < 0.03) logs(x, y, tx, ty, ['#4a4038', '#5e5448', '#3a3028']);      // a trunk going back into the bog
       }
     }
     else if (k === T_HILL) {
@@ -291,8 +329,7 @@ function provLand() {
         else if (e > 0.82) for (let q = 0; q < 3; q++) R(cx - rx + 2 + q * 2, cy - 1 - q, rx - q * 2, 1, tint(pal[2], t));                              // terraces cut into it
         else if (e < 0.03) { R(cx, cy - ry - 5, 1, 5, '#4a3320'); R(cx - 2, cy - ry - 7, 5, 3, '#3f6a2c'); R(cx - 1, cy - ry - 8, 3, 1, '#57863a'); }  // a lone tree
       } else if (a < 0.1) {                        // bare ground between: stones, a goat track
-        const n = 1 + Math.floor(b * 3);
-        for (let q = 0; q < n; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 127 + q) * 7), sy = y + 2 + Math.floor(h(tx, ty, 130 + q) * 6), sw = 2 + Math.floor(h(tx, ty, 133 + q) * 3); R(sx, sy, sw, 2, '#9a958a'); R(sx, sy, sw, 1, '#bdb8ac'); R(sx, sy + 2, sw + 1, 1, 'rgba(0,0,0,.18)'); }
+        rocks(x, y, tx, ty, reg);
       } else if (a < 0.2) for (let q = 0; q < 5; q++) R(x + q * 2 + Math.floor(b * 2), y + 3 + Math.floor(h(tx + q, ty, 136) * 4), 2, 1, tint(pal[3], t));
       else if (a < 0.3) { const n = 2 + Math.floor(b * 3), gc = tint(pal[2], t); for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 137 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 141 + q) * 5); R(gx, gy, 1, 2, gc); R(gx + 1, gy - 1, 1, 1, gc); } }      // heather and rough grass
       else if (a < 0.34) { R(x + 2 + Math.floor(b * 4), y + 5, 3, 2, '#55703a'); R(x + 3 + Math.floor(b * 4), y + 4, 2, 1, '#6f8a4a'); if (b > 0.5) R(x + 3 + Math.floor(b * 4), y + 5, 1, 1, '#e8d040'); }      // gorse
@@ -323,13 +360,7 @@ function provLand() {
         if (mid && pl > 0.84) { R(x + 4, y + 1, 1, 7, '#6b4f2c'); R(x + 2, y + 3, 5, 1, '#6b4f2c'); R(x + 3, y, 3, 2, '#c9b890'); R(x + 3, y + 3, 3, 3, '#8a4a3a'); }      // a scarecrow
         else if (mid && pl < 0.12) { R(x + 2, y + 3, 6, 4, '#d9c070'); R(x + 3, y + 2, 4, 1, '#e6d088'); R(x + 2, y + 7, 6, 1, '#b89a4a'); R(x + 1, y + 8, 8, 1, 'rgba(0,0,0,.18)'); }      // a rick
       }
-      else if (a > 0.94) {                     // a bush: one of several kinds, never quite the same size
-        const w = 3 + Math.floor(b * 4), hh = 2 + Math.floor(h(tx, ty, 140) * 2), bx = x + Math.floor(h(tx, ty, 141) * (9 - w)), by = y + 4 + Math.floor(h(tx, ty, 142) * 3), kind = Math.floor(h(tx, ty, 143) * 4);
-        const dk = ['#4c7f38', '#3f6f45', '#5f7f2f', '#4a6a3a'][kind], lt = ['#69a04a', '#58905c', '#7fa040', '#62884c'][kind];
-        R(bx, by + hh, w, 1, 'rgba(0,0,0,.18)'); R(bx, by, w, hh, dk); R(bx + 1, by - 1, Math.max(1, w - 2), 1, lt); R(bx, by, Math.max(1, w >> 1), 1, lt);
-        if (kind === 0 && b > 0.5) { R(bx + 1, by, 1, 1, '#c23b2e'); R(bx + w - 2, by + 1, 1, 1, '#c23b2e'); }      // berries
-        if (kind === 2) { R(bx + 1, by, 1, 1, '#f2e6a0'); R(bx + w - 1, by + 1, 1, 1, '#f2e6a0'); }                  // broom in flower
-      }
+      else if (a > 0.94) shrub(x, y, tx, ty);      // a bush, grown to its own shape
       else if (a > 0.86) {                     // long grass, bending one way or the other
         const n = 2 + Math.floor(b * 3), lean = h(tx, ty, 144) > 0.5 ? 1 : -1, gc = b > 0.5 ? '#6b8f3e' : '#93b055';
         for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 145 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 150 + q) * 5); R(gx, gy, 1, 3, gc); R(gx + lean, gy - 1, 1, 1, gc); }
@@ -342,10 +373,9 @@ function provLand() {
         lone.push([tx, ty]);
       }
       else if (a < 0.04) {                     // stones, singly or in a scatter
-        const n = 1 + Math.floor(b * 3);
-        for (let q = 0; q < n; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 172 + q) * 7), sy = y + 3 + Math.floor(h(tx, ty, 175 + q) * 5), sw = 2 + Math.floor(h(tx, ty, 178 + q) * 2); R(sx, sy, sw, 2, q % 2 ? '#8f8a80' : '#9a958a'); R(sx, sy, sw, 1, '#bdb8ac'); }
+        rocks(x, y, tx, ty, wildRegion(x + 5, y + 5));
       }
-      else if (a < 0.05) { const lx = x + 1 + Math.floor(b * 4); R(lx, y + 6, 6, 2, '#6b4f2c'); R(lx, y + 6, 6, 1, '#8a6a3a'); R(lx + 6, y + 6, 1, 2, '#c9a763'); R(lx, y + 8, 7, 1, 'rgba(0,0,0,.16)'); }      // a fallen trunk
+      else if (a < 0.05) logs(x, y, tx, ty, ['#6b4f2c', '#8a6a3a', '#c9a763']);      // a fallen trunk
       else {
         // What is left is plain grass, and plain grass is of many sorts. Each stretch is one of them: a sea of long
         // grass, clover, dry ground, thistle and dock, mole-heaved turf, a damp hollow, or rabbit ground.
@@ -822,7 +852,7 @@ function provLand() {
       if (glade) {                               // a clearing: stumps, a log, toadstools, sun on the grass
         feats.push({ y: y + 5, d: () => {
           if (a > 0.86) { R(x + 3, y + 5, 3, 2, '#6b4f2c'); R(x + 3, y + 5, 3, 1, '#c9a763'); }                                         // a stump
-          else if (a > 0.74) { const lx = x + Math.floor(b * 3); R(lx, y + 6, 6, 2, '#5a4326'); R(lx, y + 6, 6, 1, '#7a5a34'); }          // a log
+          else if (a > 0.74) logs(x, y, tx, ty, ['#5a4326', '#7a5a34', '#c9a763']);          // a log
           else if (a > 0.68) { R(x + 4, y + 6, 1, 2, '#f1ead8'); R(x + 3, y + 5, 3, 1, '#c23b2e'); }                                     // a toadstool
           else if (a > 0.4) for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 78 + q) * 9), y + Math.floor(h(tx, ty, 82 + q) * 9), 1, 1, q % 2 ? '#f2e6a0' : '#f4f4f0');      // flowers in the sun
         } });
