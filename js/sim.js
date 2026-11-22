@@ -322,15 +322,58 @@ function checkRank(g) {
   while (g.rank < RANKS.length - 1 && g.xp >= RANKS[g.rank + 1].xp) { g.rank++; g.perkPending++; up = true; }
   return up;
 }
+// A perk a man can be taught: the common ones, and the craft of his own way of fighting once he is a Veteranus.
+const perkLearnable = t => !!TRAITS[t] && TRAITS[t].good && (!TRAITS[t].special || !!TRAITS[t].cls);
+const classPerk = g => Object.keys(TRAITS).find(t => TRAITS[t].cls === g.cls) || null;
+function perkPool(g) {
+  return Object.keys(TRAITS).filter(t => TRAITS[t].good && !g.traits.includes(t) && (TRAITS[t].cls ? TRAITS[t].cls === g.cls && g.rank >= 2 : !TRAITS[t].special));
+}
 function perkOffer(g) {
   if (!g.perkOffer) {
-    g.perkOffer = Object.keys(TRAITS).filter(t => TRAITS[t].good && !TRAITS[t].special && !g.traits.includes(t)).sort(() => Math.random() - 0.5).slice(0, 3);
+    const pool = perkPool(g).sort(() => Math.random() - 0.5), own = classPerk(g);
+    // a Primus Palus is always shown the craft of his own style, if he has not got it
+    if (g.rank >= 3 && own && pool.includes(own)) { pool.splice(pool.indexOf(own), 1); pool.unshift(own); }
+    g.perkOffer = pool.slice(0, 3);
   }
   return g.perkOffer;
 }
+// Another three, for a price: once for each perk he has to choose.
+const perkRerollCost = g => 30 + 30 * g.rank;
+function perkRerollBlock(g) {
+  if (g.perkPending <= 0) return 'He has nothing to choose.';
+  if (g.perkRerolled) return 'You have asked once already for this choice.';
+  if (perkPool(g).length <= 3) return 'There is nothing else left to teach him.';
+  if (G.denarii < perkRerollCost(g)) return `You are ${perkRerollCost(g) - G.denarii} denarii short.`;
+  return '';
+}
+function rerollPerk(g) {
+  if (perkRerollBlock(g)) return false;
+  const old = perkOffer(g), rest = perkPool(g).filter(t => !old.includes(t)).sort(() => Math.random() - 0.5);
+  G.denarii -= perkRerollCost(g);
+  g.perkOffer = rest.concat(old.slice().sort(() => Math.random() - 0.5)).slice(0, 3);
+  g.perkRerolled = true;
+  return true;
+}
+// Unlearning: a perk he was taught is drilled out of him, and he chooses again. It costs, and once between games is all a man can stand.
+const forgetCost = g => 100 + 50 * g.rank;
+function forgetBlock(g, t) {
+  if (!g.traits.includes(t) || !perkLearnable(t)) return 'That is not something he was taught.';
+  if (G.forgot === dealCycle()) return 'One man has been set to unlearn something since the last games. It is slow work.';
+  if (G.denarii < forgetCost(g)) return `You are ${forgetCost(g) - G.denarii} denarii short.`;
+  return '';
+}
+function forgetPerk(g, t) {
+  if (forgetBlock(g, t)) return false;
+  G.denarii -= forgetCost(g); G.forgot = dealCycle();
+  g.traits = g.traits.filter(x => x !== t); g.perkPending++; g.perkOffer = null; g.perkRerolled = false;
+  g.hp = Math.min(g.hp, maxHp(g));
+  addStory(g, `Unlearned: ${TRAITS[t].name}.`);
+  log(`${g.name} is drilled out of an old habit: ${TRAITS[t].name} is gone, and he may learn something else.`);
+  return true;
+}
 function choosePerk(g, t) {
   if (g.perkPending <= 0 || !perkOffer(g).includes(t)) return;
-  g.traits.push(t); g.perkPending--; g.perkOffer = null;
+  g.traits.push(t); g.perkPending--; g.perkOffer = null; g.perkRerolled = false;
   addStory(g, `Learned: ${TRAITS[t].name}.`);
   log(`${g.name} the ${RANKS[g.rank].name} learns: ${TRAITS[t].name}.`, 'gold');
 }
@@ -1631,7 +1674,7 @@ const teachers = () => G.roster.filter(t => !t.away && t.injury <= 0 && t.activi
 // What a teacher adds to one man's work on one skill: nothing unless he is clearly the better at it. Only the best teacher counts.
 function teachBonus(g, st) {
   let best = 0;
-  for (const t of teachers()) if (t !== g && t.stats[st] >= g.stats[st] + 2) best = Math.max(best, 0.2 + 0.05 * t.rank);
+  for (const t of teachers()) if (t !== g && t.stats[st] >= g.stats[st] + 2) best = Math.max(best, 0.2 + 0.05 * t.rank + (t.traits.includes('teacher') ? 0.15 : 0));
   return best;
 }
 // Sparring is worth more against a better man, and less against the air.
@@ -1665,7 +1708,7 @@ function doctoreRound() {
 // What a day's drilling costs him in fatigue.
 function trainTire(g, spar) { return (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1) * regimen().tire * (1 - 0.06 * staffLvl('unctor')); }
 // What a day's rest gives back: [health, fatigue shed].
-function restGain(g) { return [maxHp(g) * (0.22 + 0.08 * G.fac.infirmary + 0.04 * staffLvl('cook')), 30 + 8 * G.fac.baths + 5 * staffLvl('unctor')]; }
+function restGain(g) { const m = g.traits.includes('mender'); return [maxHp(g) * (0.22 + 0.08 * G.fac.infirmary + 0.04 * staffLvl('cook')) * (m ? 1.3 : 1), (30 + 8 * G.fac.baths + 5 * staffLvl('unctor')) * (m ? 1.2 : 1)]; }
 
 function endDay() {
   const F = G.fac;
@@ -1838,7 +1881,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
   if (win) G.tally.wins++; else G.tally.losses++;
   if (win) {
     purse = boon('laurel') ? Math.round(bout.purse * 1.1 / 5) * 5 : bout.purse;
-    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1) * (1 + streakBonus()) * (titleYours() ? 1.1 : 1) * (1 + trophyBonus()) * ((bout.fest || bout.tourney) && G.festival && G.festival.sponsor && G.festival.day === G.day ? 1.25 : 1));
+    fameGain = Math.round((bout.fame * (0.8 + 0.7 * avgExc) + kills * 2) * (boon('crowd') ? 1.1 : 1) * (G.patrons.magistrate >= 80 ? 1.1 : 1) * (1 + streakBonus()) * (titleYours() ? 1.1 : 1) * (1 + trophyBonus()) * (1 + 0.2 * mine.filter(f => f.g.traits.includes('darling')).length / Math.max(1, mine.length)) * ((bout.fest || bout.tourney) && G.festival && G.festival.sponsor && G.festival.day === G.day ? 1.25 : 1));
     mine.forEach(f => { f.g.fame += Math.round(fameGain / mine.length); });
     if (wager && wagerWon(kind, B, win)) wagerGain = Math.round(wager * pay * (WAGER_KINDS[kind] || WAGER_KINDS.win).mult * (G.patrons.guild >= 80 ? 1.2 : 1));
     log(`Victory over ${bout.house}: ${purse} denarii, +${fameGain} fame.`, 'good');

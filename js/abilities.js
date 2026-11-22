@@ -164,9 +164,10 @@ const masteryUses = (g, id) => (g && g.mast && g.mast[id]) || 0;
 const masteryRank = (g, id) => { const u = masteryUses(g, id); return u >= MAST_AT[2] ? 3 : u >= MAST_AT[1] ? 2 : u >= MAST_AT[0] ? 1 : 0; };
 // What the ability does in this man's hands: its plain effect, scaled by how well he has it.
 function abilityFx(g, ab) {
-  const r = g && !g.beast && ab.cls ? masteryRank(g, ab.id) : 0;
-  if (!r) return ab.fx;
+  const r = g && !g.beast && ab.cls ? masteryRank(g, ab.id) : 0, weighted = !!ab.fx.net && !!g && !g.beast && g.traits.includes('longnet');
+  if (!r && !weighted) return ab.fx;
   const k = 1 + MAST_STEP * r, x = Object.assign({}, ab.fx), r1 = v => Math.round(v * 10) / 10;
+  if (weighted) x.net = x.net * 1.25;
   if (x.mult) x.mult = x.mult * k;
   if (x.stun) x.stun = r1(x.stun * k);
   if (x.net) x.net = r1(x.net * k);
@@ -181,10 +182,12 @@ function practise(g, id) {
   const a = abilityById(id);
   if (!g || g.beast || !a || !a.cls) return 0;
   const before = masteryRank(g, id);
-  g.mast = g.mast || {}; g.mast[id] = (g.mast[id] || 0) + 1;
+  g.mast = g.mast || {}; g.mast[id] = (g.mast[id] || 0) + (g.traits.includes('quickstudy') ? 2 : 1);
   const after = masteryRank(g, id);
   return after > before ? after : 0;
 }
+// How long a net holds this man: a third less if his will is iron.
+const netHold = (o, t) => t * (o.g.traits.includes('ironwill') ? 0.67 : 1);
 // His signature: one of the four he carries, chosen for him. After he uses it his charge starts again at 30, not nothing.
 const SIG_CHARGE = 30;
 const signatureOf = g => { const a = g && !g.beast && g.sig ? abilityById(g.sig) : null; return a && abilitiesOf(g).includes(a) ? a : null; };
@@ -324,7 +327,7 @@ function castNow(B, f, ab) {
   if (x.aoe) { vfx(B, { k: 'ring', under: true, x: t.x, y: t.y, r: x.aoe, r0: 5, col: '#f2e2b8', dur: 0.4, fill: true, w: 3 }); if ((x.mult || 0) >= 0.5) vfx(B, { k: 'cracks', under: true, x: t.x, y: t.y, r: x.aoe, dur: 0.9 }); }
   if (x.net) for (const o of foes) {              // a net swung or hauled, with a blow to follow
     const got = !x.aoe || Math.random() < clamp(0.62 + f.g.stats.skl * 0.012 - o.g.stats.agi * 0.012, 0.25, 0.9);
-    if (got) { o.snare = Math.max(o.snare, x.net); fxText(B, o, 'netted', '#d8c79a'); snd(B, 'net', 1, o); if (o.state === 'windup') { o.state = 'ready'; o.move = null; } }
+    if (got) { o.snare = Math.max(o.snare, netHold(o, x.net)); fxText(B, o, 'netted', '#d8c79a'); snd(B, 'net', 1, o); if (o.state === 'windup') { o.state = 'ready'; o.move = null; } }
     else fxText(B, o, 'net misses', '#cfc6b4');
   }
   const hit = abilityStrike(B, f, foes, x);

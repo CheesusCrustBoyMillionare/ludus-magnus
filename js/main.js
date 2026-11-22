@@ -355,13 +355,19 @@ function fieldDayDone() { render(); showReports(); if (G.pendingEvent) showEvent
 // ---------- help: the keys and the rules of the trade, in one place ----------
 // ---- choosing a perk ----
 // Which perks sit well with which style of fighting: no more than a word of advice.
-const PERK_SUITS = { str: ['brute', 'bloodthirsty', 'lionheart', 'ironhide', 'thickskin', 'killer'], agi: ['quick', 'guarded', 'ironlungs', 'tireless', 'showy'], skl: ['keen', 'killer', 'guarded', 'disciplined', 'steady'] };
-const PERK_KIND = { brute: 'Attack', quick: 'Attack', keen: 'Attack', bloodthirsty: 'Attack', lionheart: 'Attack', killer: 'Attack', ironhide: 'Defence', guarded: 'Defence', thickskin: 'Defence', steady: 'Spirit', showy: 'The crowd', disciplined: 'Training', tireless: 'Training', ironlungs: 'Abilities' };
+const PERK_SUITS = { str: ['brute', 'bloodthirsty', 'lionheart', 'ironhide', 'thickskin', 'killer', 'finisher', 'shieldmate', 'testudo', 'longreach'], agi: ['quick', 'guarded', 'ironlungs', 'tireless', 'showy', 'fleet', 'duelist', 'opener', 'twinfury', 'longnet'], skl: ['keen', 'killer', 'guarded', 'disciplined', 'steady', 'duelist', 'quickstudy', 'undershield', 'ironwill'] };
+const PERK_KIND = { brute: 'Attack', quick: 'Attack', keen: 'Attack', bloodthirsty: 'Attack', lionheart: 'Attack', killer: 'Attack', ironhide: 'Defence', guarded: 'Defence', thickskin: 'Defence', steady: 'Spirit', showy: 'The crowd', disciplined: 'Training', tireless: 'Training', ironlungs: 'Abilities',
+  duelist: 'Attack', shieldmate: 'Attack', finisher: 'Attack', opener: 'Abilities', quickstudy: 'Abilities', fleet: 'Defence', ironwill: 'Defence', mender: 'Training', teacher: 'Training', darling: 'The crowd',
+  testudo: 'His craft', undershield: 'His craft', longnet: 'His craft', longreach: 'His craft', twinfury: 'His craft' };
 // What a perk would change for this man, in his own figures: he is weighed as he would walk onto the sand with and without it.
 function perkEffect(g, t) {
   const rows = [];
   try {
-    const g2 = Object.assign({}, g, { traits: g.traits.concat(t) }), a = makeFighter(g, 0, 0, 1), b = makeFighter(g2, 0, 0, 1);
+    // he is weighed as he is, then with the perk put on him for a moment, so that everything else about him is the same
+    const a = makeFighter(g, 0, 0, 1), a3 = makeFighter(g, 0, 0, 3), r0 = trainRate(g), t0 = trainTire(g, false), h0 = restGain(g)[0];
+    g.traits.push(t);
+    let b, b3, r1, t1, h1;
+    try { b = makeFighter(g, 0, 0, 1); b3 = makeFighter(g, 0, 0, 3); r1 = trainRate(g); t1 = trainTire(g, false); h1 = restGain(g)[0]; } finally { g.traits.pop(); }
     const add = (lab, x, y, fmt, lowGood) => { if (Math.abs(y - x) > 1e-6) rows.push(`<div><span>${lab}</span><b>${fmt(x)}</b><i>&rarr;</i><b class="${(y > x) !== !!lowGood ? 'good' : 'bad'}">${fmt(y)}</b></div>`); };
     const pc = v => Math.round(v * 100) + '%', f1 = v => v.toFixed(1);
     add('Damage a blow', a.dmg, b.dmg, f1);
@@ -373,8 +379,13 @@ function perkEffect(g, t) {
     add('A telling blow hits', a.critMult, b.critMult, v => '&times;' + v.toFixed(1));
     add('The crowd\'s liking', a.show, b.show, pc);
     add('Charge fills at', a.chargeRate, b.chargeRate, pc);
-    add('Training speed', trainRate(g), trainRate(g2), pc);
-    add('Fatigue from a day\'s drill', trainTire(g, false), trainTire(g2, false), f1, true);
+    add('Training speed', r0, r1, pc);
+    add('Fatigue from a day of drill', t0, t1, f1, true);
+    add('Health from a day of rest', h0, h1, v => Math.round(v));
+    add('Speed on the sand', a.speed, b.speed, f1); add('Reach', a.reach, b.reach, v => Math.round(v));
+    add('Stuns shortened by', a.stunRes, b.stunRes, pc); add('Charge at the start', a.charge, b.charge, v => Math.round(v) + '%');
+    if (Math.abs(b.dmg - a.dmg) < 1e-6) add('Damage beside others', a3.dmg, b3.dmg, f1);
+    add('Damage taken beside others', 1 - a3.resist, 1 - b3.resist, pc, true);
   } catch (e) { /* the description alone will have to do */ }
   return rows.join('');
 }
@@ -382,7 +393,7 @@ function perkModal(g) {
   const offer = perkOffer(g), st = styleOf(g), c = CLASSES[g.cls];
   const cards = offer.map((t, i) => {
     const T = TRAITS[t], armed = ui.perkArm === g.id + ':' + t, suits = st && PERK_SUITS[st].includes(t), fx = perkEffect(g, t);
-    return `<button class="perkcard ${armed ? 'armed' : ''}" data-act="pickperk" data-v="${g.id}" data-w="${t}">
+    return `<button class="perkcard ${armed ? 'armed' : ''} ${T.cls ? 'craft' : ''}" data-act="pickperk" data-v="${g.id}" data-w="${t}">
       <span class="k">${i + 1}</span><span class="kind">${PERK_KIND[t] || 'Perk'}</span>
       <b>${T.name}</b>
       <span class="desc">${T.desc}</span>
@@ -396,7 +407,9 @@ function perkModal(g) {
         <div class="has">${g.traits.length ? g.traits.map(t => TRAITS[t] ? `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>` : '').join('') : '<span class="dim">No traits yet.</span>'}</div></div></div>
     <p class="perklead">Choose what the sand has taught him. One of three, and it is his for life.${g.perkPending > 1 ? ` <b>He has ${g.perkPending} to choose</b>: another three follow this.` : ''}</p>
     <div class="perkcards">${cards}</div>
-    <div class="row"><button data-act="close">Decide later</button><span class="dim" style="font-size:12px;margin-left:auto">Keys 1&ndash;${offer.length}, twice to confirm</span></div></div>`;
+    <div class="row"><button data-act="close">Decide later</button>
+      ${(why => `<button data-act="perkreroll" data-v="${g.id}" ${why ? 'disabled' : ''}${tip(`Pay the doctore's old comrades to show him something else: three different perks are offered in place of these. Once for each choice.${why ? '\n' + why : ''}`)}>Another three &mdash; ${perkRerollCost(g)}</button>`)(perkRerollBlock(g))}
+      <span class="dim" style="font-size:12px;margin-left:auto">Keys 1&ndash;${offer.length}, twice to confirm</span></div></div>`;
 }
 
 // The book of the trade: a page to each part of it, opened at the page for wherever you are standing.
@@ -656,8 +669,11 @@ function statRows(g, hide) {
     </div>`).join('');
 }
 function traitList(g) {
+  const mine = G.roster.includes(g);
   return g.traits.length
-    ? g.traits.map(t => `<div class="trait"><b class="${TRAITS[t].good ? 'good' : 'bad'}">${TRAITS[t].name}</b> <span class="dim">${TRAITS[t].desc}</span></div>`).join('')
+    ? g.traits.map(t => {
+      const can = mine && perkLearnable(t), why = can ? forgetBlock(g, t) : '', armed = ui.forgetArm === g.id + ':' + t;
+      return `<div class="trait"><b class="${TRAITS[t].good ? 'good' : 'bad'}">${TRAITS[t].name}</b> <span class="dim">${TRAITS[t].desc}</span>${can ? `<button class="mini unlearn ${armed ? 'primary' : ''}" data-act="forget" data-v="${g.id}" data-w="${t}" ${why ? 'disabled' : ''}${tip(`Drill it out of him for ${forgetCost(g)} denarii: the perk is gone and he chooses again from three. One man between one games and the next.${why ? '\n' + why : ''}`)}>${armed ? `Sure? ${forgetCost(g)}` : 'Unlearn'}</button>` : ''}</div>`; }).join('')
     : '<div class="dim">No notable traits.</div>';
 }
 
@@ -2491,6 +2507,14 @@ const ACTIONS = {
     showModal(perkModal(g)); paintPortraits();
   },
   // A perk is for good, so the first press on one only asks; the second takes it.
+  perkreroll(v) { const g = byId(v); if (g && rerollPerk(g)) { ui.perkArm = null; SFX.ui('coin'); save(); modalQueue[0] = perkModal(g); paintModal(); paintPortraits(); } },
+  forget(v, w) {
+    const g = byId(v); if (!g) return;
+    if (ui.forgetArm !== v + ':' + w) { ui.forgetArm = v + ':' + w; render(); return; }
+    ui.forgetArm = null;
+    if (forgetPerk(g, w)) { SFX.ui('gear'); save(); }
+    render();
+  },
   pickperk(v, w) {
     const g = byId(v); if (!g) { closeModal(); return; }
     if (ui.perkArm !== v + ':' + w) { ui.perkArm = v + ':' + w; modalQueue[0] = perkModal(g); paintModal(); paintPortraits(); return; }

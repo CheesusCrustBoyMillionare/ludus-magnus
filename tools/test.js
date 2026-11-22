@@ -731,7 +731,7 @@ test('ranks and perks', () => game()(function () {
   assert(checkRank(g) && g.rank === RANKS.length - 1 && g.perkPending === RANKS.length - 1, 'enough experience reaches the top rank');
   while (g.perkPending > 0) {
     const offer = perkOffer(g), n = g.traits.length;
-    assert(offer.length === 3 && offer.every(t => TRAITS[t].good && !TRAITS[t].special && !g.traits.includes(t)), 'three new good perks on offer');
+    assert(offer.length === 3 && offer.every(t => TRAITS[t].good && (!TRAITS[t].special || TRAITS[t].cls === g.cls) && !g.traits.includes(t)), 'three new good perks on offer');
     choosePerk(g, offer[0]); assert(g.traits.length === n + 1, 'perk learned');
   }
 }));
@@ -838,6 +838,7 @@ test('fighter stories: bonds, grief, vows and promises', () => game()(function (
   assert(makeBond(a, b, 'friend') && !makeBond(a, b, 'rival') && makeBond(a, c, 'rival') && !makeBond(a, d, 'friend'), 'bonds form once, two per fighter at most');
   assert(bondsOf(a).length === 2 && bondsOf(b)[0].other === a && a.story.some(s => s.t.includes(b.name)), 'bonds are recorded on both men');
   // friends hit harder together; rivals fight worse together
+  a.traits = a.traits.filter(t => t !== 'duelist' && t !== 'shieldmate');      // perks that tell alone from in company would cloud it
   const solo = createBattle([a], [makeGladiator(25)], { noIntro: true }).fighters[0].dmg;
   const B2 = createBattle([a, b], [makeGladiator(25), makeGladiator(25)], { noIntro: true });
   assert(B2.fighters[0].dmg > solo * 1.05, 'a friend at his side makes him hit harder');
@@ -995,6 +996,50 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
   newGame(); raiseEvent('feast', EVENTS.feast.make()); raiseEvent('vigil', EVENTS.vigil.make());
   assert(G.pendingEvent.id === 'feast' && G.eventQueue.length === 1, 'the second waits behind the first');
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
+}));
+
+test('perks: new perks, a craft for each style, another three, and unlearning', () => game()(function () {
+  newGame(); G.denarii = 5000; const g = G.roster[0]; g.traits = []; g.rank = 0;
+  // the pool: the common perks for anyone, the craft of his style only from Veteranus
+  const crafts = Object.keys(TRAITS).filter(t => TRAITS[t].cls), own = classPerk(g);
+  assert(crafts.length === 5 && new Set(crafts.map(t => TRAITS[t].cls)).size === 5 && Object.keys(CLASSES).every(c => crafts.some(t => TRAITS[t].cls === c)), 'a craft for each of the five styles');
+  assert(TRAITS[own].cls === g.cls && !perkPool(g).some(t => TRAITS[t].cls) && perkPool(g).length >= 24, 'a novice is offered only the common perks');
+  g.rank = 2; assert(perkPool(g).filter(t => TRAITS[t].cls).join() === own, 'a Veteranus may be offered his own craft, and nobody else\'s');
+  g.rank = 3; g.perkPending = 1; g.perkOffer = null;
+  assert(perkOffer(g).length === 3 && perkOffer(g)[0] === own, 'a Primus Palus is always shown it');
+  for (const t of ['duelist', 'shieldmate', 'opener', 'finisher', 'fleet', 'ironwill', 'mender', 'quickstudy', 'teacher', 'darling']) assert(perkLearnable(t) && !TRAITS[t].special && perkPool(g).includes(t), t + ' can be learned');
+  assert(!perkLearnable('laureate') && !perkLearnable('lazy') && perkLearnable(own), 'what can and cannot be taught');
+  // another three: paid once, and different
+  const first = perkOffer(g).slice(), d0 = G.denarii;
+  assert(!perkRerollBlock(g) && rerollPerk(g) && G.denarii === d0 - perkRerollCost(g) && perkOffer(g).length === 3 && !perkOffer(g).some(t => first.includes(t)), 'three different perks for the price');
+  assert(perkRerollBlock(g) && !rerollPerk(g), 'once for each choice');
+  const pickd = perkOffer(g)[0]; choosePerk(g, pickd);
+  assert(g.traits.includes(pickd) && g.perkPending === 0 && !g.perkRerolled, 'the choice is made');
+  // unlearning: paid, once between games, and he chooses again
+  const d1 = G.denarii;
+  assert(forgetBlock(g, 'laureate') && !forgetBlock(g, pickd) && forgetPerk(g, pickd) && !g.traits.includes(pickd) && g.perkPending === 1 && G.denarii === d1 - forgetCost(g), 'a taught perk is drilled out, and a choice comes back');
+  choosePerk(g, perkOffer(g)[0]); assert(forgetBlock(g, g.traits[0]) && !forgetPerk(g, g.traits[0]), 'one man between games');
+  // what the new perks do in a fight
+  const fig = (traits, cls, n) => { const m = makeGladiator(30, { cls: cls || 'murmillo' }); m.traits = traits; m.stats = { str: 10, agi: 10, skl: 10 }; m.hp = maxHp(m); m.morale = 60; m.fatigue = 0; return makeFighter(m, 0, 0, n || 1); };
+  const base = fig([]), base3 = fig([], 'murmillo', 3);
+  assert(fig(['opener']).charge === 50 && base.charge === 0, 'first to strike starts half charged');
+  assert(Math.abs(fig(['duelist']).dmg / base.dmg - 1.1) < 1e-9 && fig(['duelist'], 'murmillo', 3).dmg === base3.dmg, 'a duelist is better alone, and no better in company');
+  assert(Math.abs(fig(['shieldmate'], 'murmillo', 3).dmg / base3.dmg - 1.08) < 1e-9 && fig(['shieldmate'], 'murmillo', 3).resist === 0.08 && fig(['shieldmate']).resist === 0, 'shoulder to shoulder works in company only');
+  assert(Math.abs(fig(['fleet']).speed / base.speed - 1.15) < 1e-9 && fig(['fleet']).dodge > base.dodge, 'fleet of foot');
+  assert(Math.abs(fig(['ironwill']).stunRes - base.stunRes - 0.3) < 1e-9 && netHold(fig(['ironwill']), 3) < netHold(base, 3), 'iron will');
+  assert(Math.abs(fig(['testudo']).block - base.block - 0.08) < 1e-9 && fig(['testudo']).armor === base.armor + 1, 'the tortoise');
+  const hop = fig([], 'hoplomachus'), dim = fig([], 'dimachaerus');
+  assert(fig(['longreach'], 'hoplomachus').reach === hop.reach + 3 && fig(['twinfury'], 'dimachaerus').atkTime < dim.atkTime && fig(['twinfury'], 'dimachaerus').crit > dim.crit, 'the long spear and twin fury');
+  // and away from it
+  const net = ABILITIES.retiarius.skl[0], r = makeGladiator(30, { cls: 'retiarius' }); r.traits = ['longnet'];
+  assert(Math.abs(abilityFx(r, net).net - Math.round(net.fx.net * 1.25 * 10) / 10) < 1e-9 && abilityFx(r, net).net > net.fx.net * 1.2 && abilityFx(makeGladiator(30, { cls: 'retiarius' }), net) === net.fx, 'a weighted net holds longer');
+  const q = makeGladiator(30); q.traits = ['quickstudy']; const ab = ABILITIES[q.cls].str[0]; practise(q, ab.id);
+  assert(masteryUses(q, ab.id) === 2, 'a quick study counts each use twice');
+  const m1 = makeGladiator(30), m2 = makeGladiator(30); m1.traits = []; m2.traits = ['mender']; m2.stats = Object.assign({}, m1.stats);
+  assert(Math.abs(restGain(m2)[0] / restGain(m1)[0] - 1.3) < 1e-9 && Math.abs(restGain(m2)[1] / restGain(m1)[1] - 1.2) < 1e-9, 'quick to mend');
+  const [a, b] = G.roster; a.rank = 2; a.activity = 'teach'; a.injury = 0; a.away = false; a.stats.str = 15; b.stats.str = 5; a.traits = [];
+  const t0 = teachBonus(b, 'str'); a.traits = ['teacher']; assert(Math.abs(teachBonus(b, 'str') - t0 - 0.15) < 1e-9, 'a born teacher teaches better');
+  assert(!badNumber(G), 'perks left a bad number');
 }));
 
 test('abilities: mastery grows with use, and a signature comes round sooner', () => game()(function () {

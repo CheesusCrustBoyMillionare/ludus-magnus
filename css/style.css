@@ -1322,3 +1322,10 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 .ab.sigd { box-shadow: inset 0 0 0 1px var(--gold); }
 .pmast { display: block; font-size: 10px; letter-spacing: .06em; color: var(--gold); margin: -1px 0 1px; }
 .ab.on small { margin-right: 15px; }
+
+/* ---- perks: a man's own craft, and unlearning ---- */
+.perkcard.craft { border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(224, 170, 62, .5); }
+.perkcard.craft .kind { color: var(--gold); }
+.trait { position: relative; }
+.trait .unlearn { float: right; padding: 0 6px; font-size: 9.5px; margin-left: 6px; opacity: .55; }
+.trait .unlearn:hover, .trait .unlearn.primary { opacity: 1; }

@@ -53,6 +53,14 @@ function makeFighter(g, team, i, n, fld) {
   if (has('pitfighter') && n === 1) dmg *= 1.08;
   if (has('reaver') && fld.wild) dmg *= 1.1;
   if (has('eaglesworn')) dmg *= 1.05;
+  let reach = c.reach, moveK = 1, resist = 0, stunK = 0, armorK = 0;
+  if (has('duelist') && n === 1) { dmg *= 1.1; dodge += 0.04; }
+  if (has('shieldmate') && n > 1) { dmg *= 1.08; resist = 0.08; }
+  if (has('fleet')) { moveK = 1.15; dodge += 0.03; }
+  if (has('ironwill')) stunK = 0.3;
+  if (has('testudo')) { if (c.shield) block += 0.08; armorK = 1; }
+  if (has('longreach')) { reach += 3; dmg *= 1.06; }
+  if (has('twinfury')) { atk *= 0.92; crit += 0.05; }
   dmg *= 0.94 + g.morale / 1000;
   if (g.whet) dmg *= 1.1;                      // ground and reset between the rounds of a tournament
   return {
@@ -62,11 +70,11 @@ function makeFighter(g, team, i, n, fld) {
     y: (fld.y0 + fld.y1) / 2 + (i - (n - 1) / 2) * Math.min(26, (fld.y1 - fld.y0 - 2) / Math.max(1, n - 1)),
     hp: Math.min(g.hp, mh), maxHp: mh,
     dmg, atkTime: Math.max(0.35, atk), dodge: Math.max(0, dodge), block, acc, crit, show, critMult: has('killer') ? 2.1 : 1.7,
-    armor: c.armor + gs.armor + (has('thickskin') ? 2 : 0), reach: c.reach,
-    stunRes: Math.min(0.7, gs.stunRes), critRes: gs.critRes, bleedRes: gs.bleedRes, hamRes: gs.hamRes, armRes: gs.armRes,
-    speed: 26 * c.speed * (1 + s.agi * 0.011) * gs.speed,
+    armor: c.armor + gs.armor + (has('thickskin') ? 2 : 0) + armorK, reach,
+    resist, stunRes: Math.min(0.8, gs.stunRes + stunK), critRes: gs.critRes, bleedRes: gs.bleedRes, hamRes: gs.hamRes, armRes: gs.armRes,
+    speed: 26 * c.speed * (1 + s.agi * 0.011) * gs.speed * moveK,
     // the charge that fills as he fights: full, it is spent on one of the abilities he carries (abilities.js)
-    charge: 0, chargeRate: (has('ironlungs') ? 1.25 : 1) * (1 - g.fatigue / 250), abl: abilitiesOf(g), casts: 0,
+    charge: has('opener') ? 50 : 0, chargeRate: (has('ironlungs') ? 1.25 : 1) * (1 - g.fatigue / 250), abl: abilitiesOf(g), casts: 0,
     style: styleOf(g), buff: null, weakT: 0, weakAmt: 0,
     tall: g.beast ? BEAST_ART[g.cls].lh + BEAST_ART[g.cls].bh + 9 : 45,
     cd: 0.4 + Math.random() * 0.6, state: 'ready', t: 0, move: null,
@@ -251,18 +259,19 @@ function resolveAttack(B, a, d, o) {
   }
   let dmg = a.dmg * (a.armWound ? 0.8 : 1) * (0.8 + Math.random() * 0.4) * (o.mult || 1);
   dmg *= styleEdge(a.style, d.style);                 // strength beats agility beats skill beats strength
-  dmg *= (1 + (ab.dmg || 0)) * (a.weakT > 0 ? 1 - a.weakAmt : 1) * (1 - (db.dr || 0));
+  dmg *= (1 + (ab.dmg || 0)) * (a.weakT > 0 ? 1 - a.weakAmt : 1) * (1 - (db.dr || 0)) * (1 - (d.resist || 0));
   if (a.riposte) { dmg *= 1.15; a.riposte = false; }
   if (flank && !d.flankSaid) { d.flankSaid = true; feed(B, `${a.g.name} takes ${d.g.name} from behind`, a.team); }
   if (d.snare > 0) dmg *= 1.1;
   if (a.hate === d) dmg *= 1.15;        // a man facing the rival he has sworn to beat
   if (a.g.traits.includes('bloodthirsty') && d.hp < d.maxHp * 0.5) dmg *= 1.15;
+  if (a.g.traits.includes('finisher') && d.hp < d.maxHp / 3) dmg *= 1.25;
   if (a.g.traits.includes('lionheart') && a.hp < a.maxHp * 0.35) dmg *= 1.2;
   if (d.g.beast && a.g.traits.includes('beastslayer')) dmg *= 1.2;
   const crit = !o.nocrit && (o.crit || Math.random() < Math.max(0.01, a.crit - d.critRes));
   if (crit) dmg *= a.critMult;
   let blocked = false;
-  if (!o.unblockable && d.snare <= 0 && Math.random() < (d.block + (db.block || 0)) * wary * (flank ? 0.3 : 1)) { blocked = true; dmg *= 0.25; }
+  if (!o.unblockable && d.snare <= 0 && Math.random() < (d.block + (db.block || 0)) * wary * (flank ? 0.3 : 1) * (a.g.traits.includes('undershield') ? 0.67 : 1)) { blocked = true; dmg *= 0.25; }
   const armor = o.pierce ? 0 : d.armor * (blocked ? 0.5 : 1);
   dmg = Math.max(1, Math.round(dmg - armor));
   d.hp -= dmg;
@@ -573,7 +582,7 @@ function stepBattle(B, dt) {
     if (k >= 1) {
       p.dead = true;
       if (p.hit && !out(p.to)) {
-        p.to.snare = Math.max(p.to.snare, p.snare || 3); fxText(B, p.to, 'netted', '#d8c79a'); B.exc += 0.05 * p.from.show;
+        p.to.snare = Math.max(p.to.snare, netHold(p.to, p.snare || 3)); fxText(B, p.to, 'netted', '#d8c79a'); B.exc += 0.05 * p.from.show;
         if (p.weak) { p.to.weakT = p.weak.t; p.to.weakAmt = p.weak.amt; vfx(B, { k: 'drip', f: p.to, col: '#c9b458', dur: 0.9 }); }
         vfx(B, { k: 'ring', under: true, x: p.to.x, y: p.to.y, r: 12, col: '#e8dcb4', dur: 0.35 });
         if (p.to.state === 'windup') { p.to.state = 'ready'; p.to.move = null; }
