@@ -825,16 +825,24 @@ const houseForm = (H, r) => { (H.form = H.form || []).push(r); if (H.form.length
 // Once between each games you may have one dealing with each house: mend the quarrel with a gift, call their champion
 // out, buy one of their men from under them, or do them harm in the dark.
 const dealCycle = () => Math.floor(G.day / GAMES_EVERY);
+// A house you have no quarrel with will let your men train against theirs for a fee: a day at what that house does
+// best. What each teaches follows its way of fighting.
+const SPAR_FEUD = 25, SPAR_STAT = { butchers: 'str', savage: 'str', quick: 'agi', fanatics: 'skl', wealthy: 'skl' };
+const sparStat = H => SPAR_STAT[houseDef(H.id).trait] || 'skl';
 const houseChampion = H => H.roster.slice().sort((a, b) => statSum(b) - statSum(a))[0] || null;
 function dealCost(kind, g) {
   const t = tier();
-  return kind === 'gift' ? 40 + t * 40 : kind === 'sabotage' ? 60 + t * 50 : kind === 'buy' && g ? Math.round(value(g) * 1.6 / 5) * 5 : 0;
+  return kind === 'gift' ? 40 + t * 40 : kind === 'spar' ? 25 + t * 25 : kind === 'sabotage' ? 60 + t * 50 : kind === 'buy' && g ? Math.round(value(g) * 1.6 / 5) * 5 : 0;
 }
 // Why a dealing cannot be had just now, or nothing if it can.
 function dealBlock(H, kind, g) {
   if (H.dealt === dealCycle()) return 'You have had your dealing with this house since the last games.';
   const cost = dealCost(kind, g);
   if (kind === 'gift' && H.grudge <= 0) return 'There is no quarrel to mend.';
+  if (kind === 'spar') {
+    if (H.grudge >= SPAR_FEUD) return 'There is too much bad blood between you for that.';
+    if (!G.roster.some(x => !x.away && x.injury <= 0)) return 'You have nobody fit to send.';
+  }
   if (kind === 'challenge') {
     if (H.called) return 'You have called them out already: it is on the next card.';
     if (!G.roster.some(x => !x.away && x.injury <= 0)) return 'You have no one fit to stand behind it.';
@@ -874,6 +882,12 @@ function houseDeal(H, kind, gid) {
     G.denarii -= cost; feud(H, -20);
     log(`A gift to ${def.name}: the feud eases.`);
     return { ok: true, text: `Wine and a pair of good hounds go to ${def.lanista}. Nothing is forgiven, but the feud eases.` };
+  }
+  if (kind === 'spar') {
+    const st = sparStat(H), men = G.roster.filter(x => !x.away && x.injury <= 0); G.denarii -= cost;
+    men.forEach(x => { addProg(x, st, 1.5 * x.pot[st]); x.fatigue = clamp(x.fatigue + 15, 0, 100); });
+    log(`Your men train a day against ${def.name}.`);
+    return { ok: true, text: `${def.lanista} opens the yard to you for a day. ${men.length === 1 ? men[0].name + ' comes' : 'Your men come'} home bruised, tired and the better at ${STAT_NAMES[st].toLowerCase()} for it; and each house has had a long look at the other.` };
   }
   if (kind === 'challenge') {
     H.called = true; feud(H, 10);
@@ -922,9 +936,33 @@ function growStats(g, n) {
   while (n > 0 && guard++ < 200) { const k = pick(bag); if (g.stats[k] < 20) { g.stats[k]++; n--; } }
 }
 
+// The other houses have fortunes of their own. Now and then, between one games and the next, one of them does something
+// the town talks about: buys a champion, falls out with another house, wins the Magistrate's ear, or loses a week to
+// fever. It moves their renown, and sometimes the strength of what they put on the sand.
+function houseMove() {
+  if (!chance(0.4) || G.houses.length < 2) return null;
+  const t = tier(), H = pick(G.houses), def = houseDef(H.id), r = Math.random(); let text;
+  if (r < 0.3 && H.roster.length < 5) {
+    const g = makeRival(H, ENEMY_BUDGET[t] * rand(1.05, 1.15), t); g.wins += rint(3, 6); g.rank = Math.max(g.rank || 0, clamp(t, 0, RANKS.length - 1)); H.roster.push(g); H.prestige += 6;
+    text = `has bought a new man out of a school in the south: ${g.name}, a ${CLASSES[g.cls].name} with ${g.wins} victories`;
+  } else if (r < 0.55) {
+    const O = pick(G.houses.filter(x => x !== H)); H.prestige = Math.max(0, H.prestige - 6); O.prestige = Math.max(0, O.prestige - 6);
+    text = `and ${houseDef(O.id).name} came to blows in the forum over a trainer one had hired from under the other. Neither is thought the better of`;
+  } else if (r < 0.8) {
+    H.prestige += 12;
+    text = `gave the Magistrate a dinner the town is still talking about, and stands the higher for it`;
+  } else {
+    H.prestige = Math.max(0, H.prestige - 12); const c0 = houseChampion(H), c = c0 && !isWanted(c0) ? c0 : null; if (c) c.outUntil = dealCycle() + 1;      // a man one of yours has sworn to meet is never kept from the sand by it
+    text = `has fever in its barracks, and lost a week's training to it${c ? `. ${c.name}, their best man, will not fight at the next games` : ''}`;
+  }
+  const move = { d: G.day, h: H.id, text };
+  G.rivalMoves = (G.rivalMoves || []).concat(move).slice(-6);
+  return move;
+}
 // Between games the rival schools train, fight each other and replace their dead.
 function houseTick() {
   const t = tier(), target = ENEMY_BUDGET[t];
+  for (const H of G.houses) H.was = H.prestige;             // where each stood before this games: the table shows who is rising
   // the houses meet each other too: two pairs at each games, and the better champion more often wins
   {
     const order = G.houses.slice().sort(() => Math.random() - 0.5), news = [];
@@ -939,6 +977,7 @@ function houseTick() {
     }
     G.rivalNews = (G.rivalNews || []).concat(news).slice(-8);
   }
+  houseMove();
   for (const H of G.houses) {
     const def = houseDef(H.id);
     H.prestige += Math.round(def.rate * 0.9 * rand(0.6, 1.4));

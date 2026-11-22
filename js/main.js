@@ -1412,7 +1412,7 @@ function viewRivals() {
     : lrow('hsel', r.id, `<span class="rk">${i + 1}</span><div class="grow"><span class="t">${swatch(r.id)}${r.name}</span>
         <small>${r.H.won + r.H.lost ? `${r.H.lost}&ndash;${r.H.won} to you` : 'never met'} &middot; <span class="${r.H.grudge >= 40 ? 'bad' : ''}">${feudWord(r.H.grudge).toLowerCase()}</span>${today.some(b => b.houseId === r.id) ? ' &middot; <span class="gold">on today\'s card</span>' : ''}</small></div>
         <div class="feudbar"${tip(`Feud ${Math.round(r.H.grudge)} of 100.\n${TIPS.feud}`)}><div class="bar hp"><i style="width:${pct(r.H.grudge, 100)}%"></i><u style="left:40%"></u></div></div>
-        <div class="ren"${tip(`Renown ${r.p}. A house gains about ${houseDef(r.id).rate} every games, and more for beating you.`)}>${bar('prog', r.p, top)}</div><span class="end num">${r.p}</span>`)).join('');
+        <div class="ren"${tip(`Renown ${r.p}${r.H.was != null && r.H.was !== r.p ? `, ${r.p > r.H.was ? 'up' : 'down'} ${Math.abs(r.p - r.H.was)} since the games before last` : ''}. A house gains about ${houseDef(r.id).rate} every games, and more for beating you.`)}>${bar('prog', r.p, top)}</div><span class="end num">${r.p}${r.H.was != null && r.H.was !== r.p ? `<small class="trend ${r.p > r.H.was ? 'up' : 'down'}">${r.p > r.H.was ? '&#9650;' : '&#9660;'}${Math.abs(r.p - r.H.was)}</small>` : ''}</span>`)).join('');
   const hot = G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0], call = (G.bouts || []).find(b => b.grudge && !b.done);
   let detail = '';
   if (H) {
@@ -1435,6 +1435,7 @@ function viewRivals() {
     const deal = (kind, label, what) => { const why = dealBlock(H, kind), cost = dealCost(kind), armed = ui.dealArm === H.id + ':' + kind; return `<button class="${armed ? 'primary' : ''}" data-act="hdeal" data-v="${H.id}" data-w="${kind}" ${why ? 'disabled' : ''}${tip(why ? `${what}\n${why}` : what)}>${armed ? 'Sure?' : label}${cost && !armed ? ` &mdash; ${cost}` : ''}</button>`; };
     const said = ui.dealMsg && ui.dealMsg.hid === H.id && ui.dealMsg.day === G.day ? `<div class="dealmsg ${ui.dealMsg.ok ? 'good' : 'bad'}">${ui.dealMsg.text}</div>` : '';
     const deals = `<div class="deals"><span class="lbl"${tip('One dealing with each house between one games and the next.')}>Dealings</span>
+        ${deal('spar', 'Train against them', `A day in their yard for every fit man you have at home: about a day and a half of training in ${STAT_NAMES[sparStat(H)].toLowerCase()}, which is what this house does best, and some fatigue. Only a house you have no real quarrel with (a feud under ${SPAR_FEUD}) will have you.`)}
         ${deal('gift', 'Send a gift', 'Wine and hounds for their lanista: the feud eases by 20.')}
         ${deal('challenge', H.called ? 'Called out' : 'Call them out', 'Their champion against a man of yours at the next games, for a double purse and double fame. The feud deepens by 10; win, and their renown falls. Fail to appear and it costs you fame, favour and your men\'s respect.')}
         ${deal('sabotage', 'Sabotage', 'Two chances in three: their best man misses the next games and their renown falls. Otherwise your man is caught: Magistrate favour -10, fame -5, and the feud deepens by 25.')}</div>${said}`;
@@ -1460,7 +1461,7 @@ function viewRivals() {
         ${call ? `<span class="bad"><b>${call.house} has called you out today.</b> Leave it unanswered and it costs you.</span>` : hot && hot.grudge >= 25 ? `<span class="${hot.grudge >= 40 ? 'bad' : ''}"${tip('feud')}>${feudWord(hot.grudge).toLowerCase()} with ${houseDef(hot.id).name}</span>` : '<span>no feud worth the name</span>'}</div></div>
       <div class="pane" data-pane="houses"><div class="panel list standing">${table}</div>
       <div class="listnote">Killing a house's men, or losing yours to them, deepens the feud. At the mark on the red bar (40) their champion calls you out; answer it and the feud cools, whoever wins.</div>
-      ${(G.rivalNews || []).length ? `<h2>Word from the other schools</h2><div class="panel rnews">${G.rivalNews.slice().reverse().slice(0, 3).map(x => `<div><span class="d">Day ${x.d}</span><span>${swatch(x.w)}<b>${houseDef(x.w).name}</b> beat ${swatch(x.l)}${houseDef(x.l).name} <small>${x.by} carried it</small></span></div>`).join('')}</div>` : ''}</div></div>
+      ${(G.rivalNews || []).length + (G.rivalMoves || []).length ? `<h2>Word from the other schools</h2><div class="panel rnews">${(G.rivalMoves || []).map(x => ({ d: x.d + 0.5, x })).concat((G.rivalNews || []).map(x => ({ d: x.d, x }))).sort((a, b) => b.d - a.d).slice(0, 4).map(({ x }) => x.text ? `<div><span class="d">Day ${x.d}</span><span>${swatch(x.h)}<b>${houseDef(x.h).name}</b> ${x.text}.</span></div>` : `<div><span class="d">Day ${x.d}</span><span>${swatch(x.w)}<b>${houseDef(x.w).name}</b> beat ${swatch(x.l)}${houseDef(x.l).name} <small>${x.by} carried it</small></span></div>`).join('')}</div>` : ''}</div></div>
     <div><h2>${d ? d.name : 'Rival houses'} <small>${H ? H.roster.length + ' fighters' : ''}</small></h2><div class="pane" data-pane="house-${H ? H.id : ''}">${detail}</div></div>
   </div>`;
 }

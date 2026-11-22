@@ -109,6 +109,34 @@ function wildLand() {
     if (spots.some(s => Math.hypot(s.tx - tx, s.ty - ty) < 15)) continue;
     spots.push({ tx, ty }); sites.push({ tx, ty });
   }
+  // The aqueduct: north out of the town, then straight for the place where the river comes out between the peaks. Its
+  // line is settled here, with the land, so that nothing is set down under it.
+  const aqueduct = (() => {
+    const ax = WILD.TOWN.x - 36, top = WILD.TOWN.y - 30; let src = null, bd = 1e9;
+    for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {
+      if (t[ty * TW + tx] !== T_WATER) continue;
+      let pk = 0, wt = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const k = t[(ty + dy) * TW + tx + dx]; if (k === T_PEAK) pk++; else if (k === T_WATER) wt++; }
+      const d = Math.hypot(tx * 10 - WILD.TOWN.x, ty * 10 - WILD.TOWN.y);
+      if (pk >= 3 && wt <= 12 && d < bd) { bd = d; src = [tx * 10 + 5, ty * 10 + 5]; }
+    }
+    const pts = [[ax + 2, top - 6], [ax + 2, top - 84]]; if (src) pts.push(src);
+    return pts;
+  })();
+  const aqDist = (x, y) => { let d = 1e9; for (let i = 0; i + 1 < aqueduct.length; i++) { const a = aqueduct[i], b = aqueduct[i + 1], vx = b[0] - a[0], vy = b[1] - a[1], k = Math.max(0, Math.min(1, ((x - a[0]) * vx + (y - a[1]) * vy) / (vx * vx + vy * vy || 1))); d = Math.min(d, Math.hypot(x - a[0] - vx * k, y - a[1] - vy * k)); } return d; };
+  // A place that fell under the arches is moved out from under them, to the nearest open ground that is clear of
+  // every other place. (Only such a place moves; the rest stand where they always stood.)
+  for (let n = 0; n < sites.length; n++) {
+    const st = sites[n]; if (aqDist(st.tx * 10 + 5, st.ty * 10 + 1) >= 32) continue;
+    const sp = spots.find(q => q.tx === st.tx && q.ty === st.ty); let best = null, bd = 1e9;
+    for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) {
+      const tx = st.tx + dx, ty = st.ty + dy, i = ty * TW + tx, d = Math.hypot(dx, dy);
+      if (tx < 4 || ty < 4 || tx > TW - 5 || ty > TH - 5 || d >= bd || !reach[i] || t[i] >= T_WATER || t[i] === T_ROAD || t[i] === T_BRIDGE) continue;
+      if (aqDist(tx * 10 + 5, ty * 10 + 1) < 46 || Math.hypot(tx * 10 - WILD.TOWN.x, ty * 10 - WILD.TOWN.y) < 150) continue;
+      if (spots.some(q => q !== sp && Math.hypot(q.tx - tx, q.ty - ty) < 11)) continue;
+      best = [tx, ty]; bd = d;
+    }
+    if (best) { st.tx = best[0]; st.ty = best[1]; if (sp) { sp.tx = best[0]; sp.ty = best[1]; } }
+  }
   // Bridges run straight: across the water from west to east, or from north to south, never aslant. A road that came
   // to the water at a slant is turned along the bank to the foot of its bridge. (Done after the places are settled, and
   // keeping clear of them, so that nothing else on the map moves on a bridge's account.)
@@ -299,10 +327,29 @@ function wildLand() {
     glades.push({ tx, ty });
   }
   for (const g of glades) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!(dx && dy) || wildHash(g.tx + dx, g.ty + dy, 772) > 0.5) t[(g.ty + dy) * TW + g.tx + dx] = T_MEADOW;
-  return (wildLandCache = { t, reach, sites, glades, lane });
+  return (wildLandCache = { t, reach, sites, glades, lane, aqueduct });
 }
 const wildTile = (x, y) => { const tx = Math.floor(x / 10), ty = Math.floor(y / 10); return tx < 0 || ty < 0 || tx >= WILD.TW || ty >= WILD.TH ? T_PEAK : wildLand().t[ty * WILD.TW + tx]; };
 const wildWalk = (x, y) => wildTile(x, y) < T_WATER;
+// Which way the river runs past each stretch of it: from the fells in the north-east down to the bay. For every tile of
+// river water (not the sea, not the mere) the direction of the current there, as a unit vector, by the tile's index.
+let wildFlowCache = null;
+function wildFlow() {
+  if (wildFlowCache) return wildFlowCache;
+  const L = wildLand(), { TW, TH } = WILD, flow = new Map();
+  for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) {
+    if (L.t[ty * TW + tx] !== T_WATER) continue;
+    let best = 1e9, dir = null, along = 0;
+    for (let i = 0; i + 1 < WILD_RIVER.length; i++) {
+      const [ax, ay] = WILD_RIVER[i], [bx, by] = WILD_RIVER[i + 1], vx = bx - ax, vy = by - ay, len = Math.hypot(vx, vy);
+      const k = Math.max(0, Math.min(1, ((tx - ax) * vx + (ty - ay) * vy) / (len * len))), d = Math.hypot(tx - ax - vx * k, ty - ay - vy * k);
+      if (d < best) { best = d; dir = [vx / len, vy / len]; along = i + k; }
+    }
+    // the river is two or three tiles wide; and where it comes to the bay the sea begins
+    if (best <= 3.2 && along < WILD_RIVER.length - 1.15) flow.set(ty * TW + tx, dir);
+  }
+  return (wildFlowCache = flow);
+}
 // Clearings in the woods: open grass with the trees close all round. (Where the rainbow comes down.)
 const wildClearings = () => wildLand().glades.map(g => ({ x: g.tx * 10 + 5, y: g.ty * 10 + 5 }));
 const wildPace = (x, y) => { const k = wildTile(x, y); return k === T_ROAD || k === T_BRIDGE ? 1.25 : k === T_FOREST || k === T_HILL ? 0.7 : k === T_MARSH ? 0.55 : 1; };

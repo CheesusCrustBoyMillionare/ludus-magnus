@@ -1396,3 +1396,7 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 #camp .place .t { line-height: 1.2; }
 #camp .place { padding-top: 3px; padding-bottom: 3px; }
 #camp .nowlist b small { font-size: 10px; opacity: .7; font-weight: 400; }
+
+/* rivals: who is rising and who is falling */
+.standing .end .trend { display: block; font-size: 9px; line-height: 1; letter-spacing: 0; }
+.standing .end .trend.up { color: #9fce86; } .standing .end .trend.down { color: #f08a7c; }

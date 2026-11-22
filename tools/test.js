@@ -176,6 +176,21 @@ test('rival houses: dealings, challenges, and the houses fighting each other', (
   const b = G.bouts.find(x => x.called);
   assert(b && b.houseId === H2.id && b.size === 1 && !H2.called, 'the challenge is on the card');
   assert(G.rivalNews && G.rivalNews.length === 2 && G.houses.filter(X => X.form && X.form.length).length === 4, 'the houses fought each other, and it is told');
+  assert(G.houses.every(X => typeof X.was === 'number'), 'and where each stood before is kept, to show who is rising');
+  const G0 = G;                                // what follows is tried in games of its own, and this one is taken up again after
+  // training against a house you have no quarrel with
+  { newGame(); G.denarii = 1000; const X = G.houses[1], st = sparStat(X), g = G.roster[0], p0 = g.prog[st] + g.stats[st] * 1000, f0 = g.fatigue, d1 = G.denarii;
+    X.grudge = SPAR_FEUD; assert(/bad blood/.test(dealBlock(X, 'spar')) && !houseDeal(X, 'spar').ok, 'not with a house you are at odds with');
+    X.grudge = 10; const r = houseDeal(X, 'spar');
+    assert(r.ok && !/undefined|NaN/.test(r.text) && G.denarii === d1 - dealCost('spar') && dealCost('spar') > 0 && g.prog[st] + g.stats[st] * 1000 > p0 && g.fatigue === Math.min(100, f0 + 15) && X.grudge === 10 && dealBlock(X, 'gift'), 'a day in their yard: better at what they do best, tired, and it is the one dealing for these games');
+    assert(Object.keys(SPAR_STAT).length === 5 && HOUSES.every(hh => STATS.includes(SPAR_STAT[hh.trait])), 'every house teaches something'); }
+  // the houses have fortunes of their own
+  { newGame(); G.day = 10; const seen = {}; let n = 0;
+    for (let i = 0; i < 400; i++) { G.houses.forEach(X => { X.prestige = 200; }); const before = G.houses.map(X => X.prestige), m = houseMove(); if (!m) continue; n++;
+      assert(houseOf(m.h) && m.text.length > 30 && !/undefined|NaN/.test(m.text) && m.d === G.day && G.houses.some((X, k) => X.prestige !== before[k]) && G.houses.every(X => X.prestige >= 0 && X.roster.length <= 6), 'a move that is told, and changes something: ' + m.text);
+      seen[/bought/.test(m.text) ? 'star' : /blows/.test(m.text) ? 'quarrel' : /dinner/.test(m.text) ? 'dinner' : 'fever'] = 1; G.houses.forEach(X => { if (X.roster.length > 4) X.roster.pop(); }); }
+    assert(n > 110 && n < 210 && Object.keys(seen).length === 4 && G.rivalMoves.length === 6, 'about two games in five, four kinds of news, and the last six kept: ' + n); }
+  G = G0;
   // buying a man: not the champion, and he comes over whole
   const H3 = G.houses[2], champ = houseChampion(H3), man = H3.roster.find(g => g !== champ && !G.bouts.some(x => x.enemyIds && x.enemyIds.includes(g.id)));
   assert(dealBlock(H3, 'buy', champ), 'a champion is not for sale');
@@ -352,6 +367,7 @@ test('the arena: the championship, novices, wagers, stakes, runs and a clean swe
   assert(!G.title && !G.bouts.some(b => b.title || b.novice), 'the village pits crown no one');
   // from the second arena there is a champion, and a bout for novices
   G.fame = TIERS[1].fame; G.day = 10; genBouts();
+  for (let tries = 0; tries < 20 && !G.bouts.find(b => !b.death && !b.title && !b.novice && b.houseId); tries++) genBouts();      // about one card in 170 has no ordinary bout on it: draw another
   const tb = G.bouts.find(b => b.title), nb = G.bouts.find(b => b.novice);
   assert(tb && G.title && G.title.house !== null && titleHolder() === boutEnemies(tb)[0] && !tb.defence, 'a rival holds the title and can be challenged');
   assert(nb && boutEnemies(nb).length === 1, "a novices' bout is on the card");
@@ -1503,12 +1519,82 @@ test('the province: a place dealt with looks like what was done to it', () => {
   assert(!src.includes("' - DONE'") && src.includes('doneWord(s).toUpperCase()'), 'the label says what was done, not only that it is done');
 });
 
+test('the province: with stables the school rides, and better stables turn the horses out better', () => {
+  const src = read('js/province.js'), from = src.indexOf('const HORSE_COATS'), to = src.indexOf('// ---------- the column on the move ----------');
+  assert(from > 0 && to > from, 'the riders can be found');
+  const calls = []; let people = 0;
+  const ctx2 = { fillStyle: '', fillRect(x, y, w, h) { calls.push([this.fillStyle, x, y, w, h]); }, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {} };
+  const box = { Math, Object, shade: (c, f) => c + '*' + f, vilPerson: () => { people++; } };
+  vm.createContext(box);
+  vm.runInContext(src.slice(from, to) + '; this.provRider = provRider; this.HORSE_COATS = HORSE_COATS;', box);
+  const painted = lvl => { const seen = new Set(); for (const face of ['left', 'right', 'up', 'down']) for (const moving of [true, false]) for (const who of [0, 1, 2, 5]) { calls.length = 0; box.provRider(ctx2, 100, 100, { face, walk: 1.3, moving, tunic: '#c23b2e', hair: '#3a2a1c', skin: '#d9a57c' }, lvl, who);
+      for (const c of calls) { assert(c.slice(1).every(Number.isFinite) && c[3] > 0 && c[4] > 0 && typeof c[0] === 'string' && !/undefined|NaN/.test(c[0]), 'a stroke of the brush that is no stroke: ' + c); seen.add(c[0]); } if (lvl) assert(calls.length >= 7, 'a horse at ' + lvl + ' facing ' + face + ' is ' + calls.length + ' strokes'); } return seen; };
+  const foot = painted(0); assert(foot.size === 0 && people > 0, 'with no stables the school walks');
+  const l1 = painted(1), l2 = painted(2), l3 = painted(3);
+  assert(l1.has('#b8a67c') && !l1.has('#e8b545'), 'at the first a blanket, and no bronze');
+  assert(l2.has('#6b4424') && l2.has('#e8b545') && !l2.has('#c9a23a'), 'at the second a saddle and a bridle with bronze on it');
+  assert(l3.has('#c9a23a') && l3.has('#f5d584') && l3.size > l1.size, 'at the third a face-plate, and gold at the hem');
+  assert(box.HORSE_COATS.length >= 5 && src.includes('const mounts = (G.fac && G.fac.stables) | 0;'), 'every man has a beast of a different coat, and it follows the stables');
+});
+
+test('the province: places make the country round them', () => {
+  const src = read('js/province.js'), wilds = read('js/wilds.js');
+  const from = src.indexOf('const SET_OF = {'), to = src.indexOf('const setting = (x, y, r, name, sd) => {');
+  assert(from > 0 && to > from, 'the list of them can be found');
+  const box = { T_GRASS: 0, T_FOREST: 1, T_HILL: 2, T_MARSH: 3, T_SAND: 4, T_MEADOW: 7 }; vm.createContext(box);
+  vm.runInContext(src.slice(from, to) + '; this.SET_OF = SET_OF; this.SET_GROUND = SET_GROUND;', box);
+  const names = Object.keys(box.SET_OF), kinds = [...new Set(Object.values(box.SET_OF))];
+  assert(names.length >= 28 && kinds.length === 15, names.length + ' places, of ' + kinds.length + ' kinds of country');
+  // each is a real landmark or a real dwelling, and each kind of country is actually painted
+  for (const n of names) assert(wilds.includes("'" + n + "'") || wilds.includes('"' + n + '"') || src.includes(", '" + n + "', ") || src.includes(', "' + n + '", '), n + ' is no place on the map');
+  for (const k of kinds) assert(src.includes("kind === '" + k + "'"), 'nothing is painted for ' + k);
+  for (const k of Object.keys(box.SET_GROUND)) assert(kinds.includes(k), k + ' has ground but no place');
+  assert(box.SET_OF['The wine press'] === 'vines' && box.SET_OF['The great quarry'] === 'quarry' && box.SET_OF['The mill'] === 'corn', 'vines by the press, cut rock by the quarry, corn by the mill');
+  // and it is laid before the place itself, for landmarks and for dwellings both
+  assert(src.split('d: () => setting(x, y, ').length === 3, 'both kinds of place are given their country');
+});
+
 test('the province: an event on the road does not make the column forget where it was going', () => {
   const src = read('js/province.js');
   assert(!src.includes('if (wildVisit(here)) { prov.path = null') && !src.includes('wildWalked(moved)) { prov.path = null') && !src.includes('prov.path = null; villageStill(); startWildFight()'), 'the path is thrown away when something stops the column');
   assert(src.includes('prov.path && !F.fight && !G.pendingEvent'), 'and it does not walk on while the matter is still open');
   assert(src.includes('function provPath(x0, y0, x1, y1) { return wildRoute(x0, y0, x1, y1); }'), 'the map asks the same road-keeping way-finder the rules use');
 });
+
+test('the province: nothing is set down on top of anything else', () => game()(function () {
+  newGame();
+  const L = wildLand(), TW = WILD.TW, S = wildSites().filter(s => !s.errand && !s.journey), AQ = L.aqueduct;
+  assert(AQ && AQ.length === 3 && AQ.every(p => p.length === 2 && p[0] > 0 && p[1] > 0), 'the aqueduct has its line: out of the town, a turn, and the source');
+  const near = (x, y) => { let d = 1e9; for (let i = 0; i + 1 < AQ.length; i++) { const p = AQ[i], q = AQ[i + 1], vx = q[0] - p[0], vy = q[1] - p[1], k = Math.max(0, Math.min(1, ((x - p[0]) * vx + (y - p[1]) * vy) / (vx * vx + vy * vy))); d = Math.min(d, Math.hypot(x - p[0] - vx * k, y - p[1] - vy * k)); } return d; };
+  // no place under the arches
+  for (const s of S) if (!s.fixed) assert(near(s.x, s.y - 4) >= 32, s.name + ' (' + s.id + ') stands under the aqueduct, ' + Math.round(near(s.x, s.y - 4)) + ' from its line');
+  // no two places on top of each other, none in a clearing, none on water, and every one can be walked to
+  for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) assert(Math.hypot(S[i].x - S[j].x, S[i].y - S[j].y) >= 60, S[i].name + ' and ' + S[j].name + ' stand on top of each other');
+  for (const s of S) { const k = Math.floor(s.y / 10) * TW + Math.floor(s.x / 10); assert(L.t[k] < T_WATER && L.reach[k], s.name + ' is in the water, or cut off'); assert(!L.glades.some(g => Math.hypot(g.tx * 10 + 5 - s.x, g.ty * 10 + 5 - s.y) < 30), s.name + ' is in a clearing'); }
+  // no clearing under the arches, and no lane run through a clearing
+  for (const g of L.glades) { assert(near(g.tx * 10 + 5, g.ty * 10 + 5) >= 24, 'a clearing under the aqueduct'); assert(!L.lane[g.ty * TW + g.tx], 'a lane through a clearing'); }
+  // the painter keeps its own things clear of the same line
+  return S.length + ' places';
+}));
+test('the province: landmarks and dwellings are kept out from under the aqueduct too', () => {
+  const src = read('js/province.js');
+  assert(src.includes('if (underAq(tx * 10 + r, ty * 10 - 6, r + 20)) return false;') && src.includes('if (underAq(tx * 10 + 12, ty * 10 - 6, 32)) continue;'), 'a landmark or a dwelling may be set down under the arches');
+  assert(src.includes('L.aqueduct && L.aqueduct.length ? L.aqueduct.map'), 'the painter draws the aqueduct along some other line than the one the land was laid out round');
+});
+
+test('the province: the river runs one way, from the fells to the bay', () => game()(function () {
+  newGame();
+  const L = wildLand(), TW = WILD.TW, F = wildFlow();
+  assert(F.size > 200 && F.size < 1500 && wildFlow() === F, 'the river is a few hundred tiles of water, reckoned once: ' + F.size);
+  let south = 0, n = 0;
+  for (const [k, d] of F) { n++; assert(L.t[k] === T_WATER && Math.abs(Math.hypot(d[0], d[1]) - 1) < 1e-6, 'a current where there is no water, or of no fixed strength'); if (d[1] > 0) south++; }
+  assert(south === n, 'every stretch of it runs down the map, toward the bay');
+  // the sea and the mere have no current
+  assert(!F.has(100 * TW + 5) && !F.has(125 * TW + 165), 'still water stays still');
+  // and it is the river that was laid: every bend of its course has current beside it
+  for (const [x, y] of WILD_RIVER.slice(0, -1)) assert([0, 1, -1, 2, -2].some(dx => F.has(y * TW + x + dx)), 'no current at the bend at ' + x + ',' + y);
+  return n + ' tiles';
+}));
 
 test('the province: clearings in the woods, where a rainbow can come down', () => game()(function () {
   newGame();
