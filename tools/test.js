@@ -737,6 +737,57 @@ test('the arena: a whole card filled without sending a man twice, and the games 
   assert(G.cardLog.length <= 6, 'the record of games grows without end');
 }));
 
+test('stories of the places: every step and every answer of every story runs, and each comes to an end', () => game()(function () {
+  let runs = 0, ends = {};
+  const ids = Object.keys(TALES);
+  assert(ids.length >= 6, 'too few stories');
+  for (const id of ids) {
+    const T = TALES[id];
+    assert(T.steps.length >= 2 && T.steps[0].who, id + ' needs somebody waiting and somewhere to lead');
+    for (const S of T.steps) { assert(LANDMARKS.includes(S.mark), id + ' stands at no landmark: ' + S.mark); assert(S.opts.length === 3, id + ' must offer three answers at ' + S.mark); }
+    for (let i = 1; i < T.steps.length; i++) assert(T.steps[i].mark !== T.steps[i - 1].mark, id + ' has two steps running at one place');
+    // every way through it: at each step each of the three answers in turn
+    const walk = (path, depth) => {
+      newGame(); G.denarii = 5000; G.tally.wins = 1; G.fac.barracks = 2;
+      assert(wildEnter(), 'the school marches out');
+      G.field.packs = [];
+      let guard = 0;
+      for (const pickI of path) {
+        const site = wildSites().find(s => s.tale === id); if (!site) return;
+        assert(site.kind === 'tale' && Number.isFinite(site.x) && Number.isFinite(site.y), 'a place for ' + id);
+        G.pendingEvent = null;
+        assert(wildVisit(site), id + ' can be walked up to');
+        assert(G.pendingEvent.id === 'wTale' && G.pendingEvent.c.tid === id, 'the right story is raised');
+        const E = EVENTS.wTale, c = G.pendingEvent.c;
+        assert(typeof E.title === 'string' && E.title.length > 3, 'a title');
+        const txt = E.text(c); assert(typeof txt === 'string' && txt.length > 60 && !/undefined|NaN/.test(txt), id + ' text: ' + txt);
+        E.opts.forEach(o => { const l = o.label(c); assert(typeof l === 'string' && l.length > 3 && !/undefined|NaN/.test(l), id + ' label: ' + l); });
+        let o = E.opts[pickI]; if (!o.ok(c)) return;
+        const step0 = taleOf(id).step, out = o.run(c); G.pendingEvent = null; runs++;
+        assert(typeof out === 'string' && out.length > 3 && !/undefined|NaN/.test(out), id + ' answer ' + pickI + ' gave: ' + out);
+        if (G.field.fight) {                       // it came to blows: win it
+          const F = G.field.fight; assert(F.win === 'tale' && F.tid === id && F.foes.length > 0, 'a fight that belongs to the story');
+          const lines = WILD_WINS.tale(F); G.field.fight = null;
+          assert(lines.length && lines.every(l => typeof l === 'string' && !/undefined|NaN/.test(l)), id + ' after the fight: ' + lines.join(' | '));
+        }
+        assert(!badNumber(G), id + ' left a bad number');
+        const t = taleOf(id);
+        if (t.done) { assert(typeof t.end === 'string', id + ' ended without saying how'); ends[id + ':' + t.end] = 1; assert(!wildSites().some(s => s.tale === id), 'a story that is over still has a place'); assert(!wildMap().marks['t_' + id], 'and a mark'); return; }
+        if (t.wait) { assert(t.step === 0 && !wildSites().some(s => s.tale === id), 'turned away: they wait, out of sight'); G.day += 7; assert(wildSites().some(s => s.tale === id && s.waiting), 'and are there again in a week'); return; }
+        assert(t.step === step0 + 1 && wildMap().marks['t_' + id], id + ' moves on to a marked place');
+        if (++guard > 6) throw new Error(id + ' does not end');
+      }
+      if (depth < T.steps.length) for (let i = 0; i < 3; i++) walk(path.concat(i), depth + 1);
+    };
+    for (let i = 0; i < 3; i++) walk([i], 1);
+    for (const end in (T.lore || {})) for (const mark in T.lore[end]) assert(LANDMARKS.includes(mark), id + ' lore at no landmark: ' + mark);
+  }
+  // each ending leaves its word on the place
+  newGame(); wildMap().tales = { miller: { step: 2, done: 3, end: 'stayed' } };
+  assert(/miller/.test(taleLore('The hot spring')) && /wife/.test(taleLore('The mill')) && taleLore('The beacon') === '', 'what the places say afterwards');
+  assert(runs > 60 && Object.keys(ends).length >= 14, 'too little was tried: ' + runs + ' answers, ' + Object.keys(ends).length + ' endings');
+}));
+
 test('a bout pays out and updates records', () => game()(function () {
   let wins = 0, losses = 0;
   for (let i = 0; i < 40; i++) {
@@ -1630,7 +1681,7 @@ test('the province: an event on the road does not make the column forget where i
 
 test('the province: nothing is set down on top of anything else', () => game()(function () {
   newGame();
-  const L = wildLand(), TW = WILD.TW, S = wildSites().filter(s => !s.errand && !s.journey), AQ = L.aqueduct;
+  const L = wildLand(), TW = WILD.TW, S = wildSites().filter(s => !s.errand && !s.journey && !s.tale), AQ = L.aqueduct;
   assert(AQ && AQ.length === 3 && AQ.every(p => p.length === 2 && p[0] > 0 && p[1] > 0), 'the aqueduct has its line: out of the town, a turn, and the source');
   const near = (x, y) => { let d = 1e9; for (let i = 0; i + 1 < AQ.length; i++) { const p = AQ[i], q = AQ[i + 1], vx = q[0] - p[0], vy = q[1] - p[1], k = Math.max(0, Math.min(1, ((x - p[0]) * vx + (y - p[1]) * vy) / (vx * vx + vy * vy))); d = Math.min(d, Math.hypot(x - p[0] - vx * k, y - p[1] - vy * k)); } return d; };
   // no place under the arches
@@ -1756,7 +1807,7 @@ test('the province: bounties, foraging, scouting and regions made safe', () => g
 test('the province: land, fog, days in the field, fights, spoils and the eagle', () => game()(function () {
   newGame();
   // the land is the same for every house, and everything in it can be walked to
-  const L = wildLand(), sites = wildSites();
+  const L = wildLand(), sites = wildSites().filter(s => !s.tale);
   assert(L.t.length === WILD.TW * WILD.TH && L.sites.length === 40 && sites.length === 51, 'forty shuffled places and eleven fixed ones, got ' + sites.length);
   assert(sites.every(s => L.reach[Math.floor(s.y / 10) * WILD.TW + Math.floor(s.x / 10)]), 'every place can be reached on foot from the town');
   assert(wildWalk(WILD.TOWN.x, WILD.TOWN.y) && !wildWalk(5, 900) && wildTier(WILD.TOWN.x + 50, WILD.TOWN.y) === 1 && wildTier(2300, 120) === 5, 'town on dry land, sea to the west, danger grows with distance');
@@ -1769,7 +1820,7 @@ test('the province: land, fog, days in the field, fights, spoils and the eagle',
   assert(reach > open * 0.97, 'nearly all open ground can be reached from the town: ' + reach + ' of ' + open);
   const fixedXY = sites.filter(s => s.fixed).map(s => s.x + ',' + s.y).join(';'), kinds1 = sites.map(s => s.kind).join();
   newGame();
-  assert(wildSites().filter(s => s.fixed).map(s => s.x + ',' + s.y).join(';') === fixedXY && wildSites().map(s => s.kind).join() !== kinds1, 'another house finds the same country with its places shuffled');
+  assert(wildSites().filter(s => s.fixed && !s.tale).map(s => s.x + ',' + s.y).join(';') === fixedXY && wildSites().filter(s => !s.tale).map(s => s.kind).join() !== kinds1, 'another house finds the same country with its places shuffled');
   // the gate, and the fog
   assert(!gateOpen() && !wildEnter() && !G.field, 'the gate is shut until the first games');
   G.tally.wins = 1;

@@ -1475,3 +1475,8 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 #camp .panel.list.dense .lrow .grow small.brief i { font-style: normal; }
 #camp .panel.list.dense .lrow .grow .t { flex: 1 1 auto; }
 #camp .panel.list.dense .lrow.hurt .gauges, #camp .panel.list.dense .lrow.perk .gauges { width: 30px; }
+
+/* stories of the places */
+#camp .ptag.story { color: #b4d6ea; border-color: #3a5a8a; }
+.quests .ptag.story { border-color: #3a5a8a; color: #2a4a7a; }
+.quests .qcard.tale { border-left-color: #4a7ab8; }

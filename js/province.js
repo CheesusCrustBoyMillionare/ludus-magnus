@@ -2885,12 +2885,13 @@ const SITE_WHAT = {
   shrine: 'A god keeps this place.', hermit: 'A man who lives alone, and knows the country.', hamlet: 'A few families who want no trouble.', healer: 'She mends what the road has done.',
   merchant: 'He buys and sells, far from any market.', quarry: 'Where men are worked to death.', slavers: 'Men who deal in people. A hard fight.', vow: 'A promise made is kept here.',
   master: 'An old fighter keeps bees here.', deserter: 'He served under the eagle.', battlefield: 'Where the Seventeenth died.', chief: 'The outlaw king\'s own hold. The hardest fight in the province.',
-  barrow: 'A king lies here, and does not lie easy.', cache: 'Something is buried here.', herb: 'It grows nowhere else.', errand_journey: 'One of your own men asked to be brought here.',
+  barrow: 'A king lies here, and does not lie easy.', cache: 'Something is buried here.', herb: 'It grows nowhere else.', errand_journey: 'One of your own men asked to be brought here.', tale: 'Somebody here has a trouble of their own.',
 };
 const SITE_QUIET = ['shrine', 'hermit', 'hamlet', 'healer', 'merchant', 'cache', 'herb', 'deserter', 'quarry', 'vow', 'master'];
 // Skulls of danger: nought for a place where nobody will fight you.
 function siteDanger(s) {
   if (!siteLive(s) || SITE_QUIET.includes(s.kind)) return 0;
+  if (s.kind === 'tale') return s.danger || 0;
   return s.kind === 'chief' || s.kind === 'barrow' ? 5 : s.kind === 'slavers' ? 3 : s.kind === 'battlefield' ? 4 : s.tier;
 }
 const siteKnown = s => (!!wildMap().marks[s.id] && !siteDone(s)) || (!!wildMap().seen[s.id] && siteShown(s));
@@ -2972,10 +2973,13 @@ function provCard(ctx, px, py, lines, skulls, u, W, H) {
   lines.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillText(t, x + 4 * u, y + (8 + i * 8) * u); });
   for (let i = 0; i < skulls; i++) { const sx = x + 4 * u + i * 6 * u, sy = y + (lines.length * 8 + 3) * u; ctx.fillStyle = '#e2695c'; ctx.fillRect(sx, sy, 5 * u, 4 * u); ctx.fillRect(sx + u, sy + 4 * u, 3 * u, 2 * u); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(sx + u, sy + u, u, u); ctx.fillRect(sx + 3 * u, sy + u, u, u); }
 }
+const loreOf = n => taleLore(n) || LORE[n];
 function hoverLines(hv) {
+  if (hv.kind === 'tale') { const T = TALES[hv.tale], t = taleOf(hv.tale), dz = siteDanger(hv);
+    return [[[hv.name.toUpperCase(), '#f5d584'], [hv.waiting ? 'Waiting for anybody who will listen.' : T.name + ': the story leads here.', '#d8c8a8']].concat(dz ? [] : [['No fight is looked for.', '#9fce86']], [[wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO MARCH THERE', '#a8947a']]), dz]; }
   if (hv.home) return [[['HOME', '#f5d584'], ['Walk in at the gate to go home.', '#f2e6cc'], [wayTo(hv.x, hv.y).toUpperCase(), '#a8947a']], 0];
   if (hv.stables) { const l = G.fac.stables | 0; return [[['YOUR STABLES', '#f5d584'], [FACILITIES.stables.effect(l) + '.', '#f2e6cc'], [l < 3 ? 'CLICK TO WALK THERE AND IMPROVE THEM: ' + FAC_COST[l] + ' DENARII' : 'FULLY BUILT', '#a8947a']], 0]; }
-  if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc']].concat(LORE[hv.name] ? [[LORE[hv.name], '#f2e6cc']] : [], [[(hv.dw ? 'It stands in ' : 'A landmark of ') + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']]), 0];
+  if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc']].concat(loreOf(hv.name) ? [[loreOf(hv.name), taleLore(hv.name) ? '#f5d584' : '#f2e6cc']] : [], [[(hv.dw ? 'It stands in ' : 'A landmark of ') + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']]), 0];
   const done = siteDone(hv), mark = wildMap().marks[hv.id] && !done, dz = siteDanger(hv);
   const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
   if (done) lines.push([doneWord(hv) + (wildMap().done[hv.id] > 1 ? ' on day ' + wildMap().done[hv.id] : '') + '.' + (SITE_GONE.includes(hv.kind) ? ' Nothing is left here.' : ' The school has been here; there is nothing more to do.'), SITE_GONE.includes(hv.kind) ? '#a8947a' : '#c9b47e']);
@@ -3009,15 +3013,23 @@ function provIcon(ctx, s, T, done) {
   const tent = (ox, oy, c) => { for (let i = 0; i < 6; i++) { R(ox - i, oy - 6 + i, i * 2 + 1, 1, i % 4 < 2 ? c : shade(c, 0.9)); if (i) R(ox + 1, oy - 6 + i, i, 1, shade(c, 0.76)); } R(ox, oy - 8, 1, 2, '#3a2a1c'); R(ox - 1, oy - 2, 2, 3, '#2a1d12'); R(ox - 2, oy - 2, 1, 3, shade(c, 1.15)); R(ox - 7, oy, 1, 1, '#c9b890'); R(ox + 7, oy, 1, 1, '#c9b890'); };      // the pole through its peak, one side in shade, the flap tied back, and its pegs
   if (!gone) { const kk = s.kind, gc = kk === 'camp' || kk === 'slavers' || kk === 'chief' || kk === 'bounty' ? '120,96,60' : kk === 'lair' ? '70,58,34' : kk === 'ruin' || kk === 'battlefield' || kk === 'shrine' || kk === 'vow' ? '200,192,170' : kk === 'quarry' ? '232,226,208' : '150,126,82';
     const rg0 = wildRegion(s.x, s.y), gc2 = rg0 === 'The Salt Shore' ? '226,208,156' : rg0 === 'The High Fells' ? '226,230,238' : rg0 === 'Blackmere' ? '52,76,66' : rg0 === 'The Quarry Hills' && gc === '150,126,82' ? '206,196,168' : gc;
-    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand')) for (let dy = -6; dy <= 6; dy++) { const w = Math.round(20 * Math.sqrt(1 - (dy * dy) / 43)); R(-w, 3 + dy, w * 2, 1, `rgba(${gc2},.16)`); }
-    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand')) for (let dy = -5; dy <= 5; dy++) { const w = Math.round(17 * Math.sqrt(1 - (dy * dy) / 30)) + (((sd0 >> (dy + 5)) & 1) ? 1 : -1); R(-w, 3 + dy, w * 2, 1, `rgba(${gc},.3)`); }      // the ground about it: trodden, fouled, paved or white with dust
+    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand') && kk !== 'tale') for (let dy = -6; dy <= 6; dy++) { const w = Math.round(20 * Math.sqrt(1 - (dy * dy) / 43)); R(-w, 3 + dy, w * 2, 1, `rgba(${gc2},.16)`); }
+    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand') && kk !== 'tale') for (let dy = -5; dy <= 5; dy++) { const w = Math.round(17 * Math.sqrt(1 - (dy * dy) / 30)) + (((sd0 >> (dy + 5)) & 1) ? 1 : -1); R(-w, 3 + dy, w * 2, 1, `rgba(${gc},.3)`); }      // the ground about it: trodden, fouled, paved or white with dust
     for (let i = 0; i < 5; i++) R(-6 + i * 2, 4 + i, 15, 1, 'rgba(0,0,0,.09)'); }      // and its shadow, lying away to the south-east
   R(-7, 3, 15, 2, 'rgba(0,0,0,.22)');
   const k = s.kind, tr = s.tier || 1;
   // a number from the place's own name, so that two of a kind are still not two of a picture
   const sd = [...String(s.id || s.kind)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7), v = n => ((sd * (n * 2 + 3) * 7919) % 1000) / 1000;
   const pick = (n, list) => list[Math.floor(v(n) * list.length) % list.length];
-  if (k.startsWith('errand')) { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#e8b545'); R(0, -12 + wv, 6, 1, '#fff0b0'); R(2, -11 + wv, 2, 2, '#a8261c'); R(6, -11 - wv + 1, 2, 2, '#c9952e'); R(-3, 3, 5, 2, '#8f8a80'); }      // a gold pennon set up where somebody's errand lies
+  if (k === 'tale') {
+    const wv = Math.sin(T * 5) > 0 ? 1 : 0;
+    if (s.waiting) { const up = Math.sin(T * 3) > 0.2 ? 1 : 0, bob = Math.sin(T * 2) > 0 ? 1 : 0;
+      R(-2, 3, 5, 1, 'rgba(0,0,0,.25)'); R(-1, -3, 3, 5, '#8a6a9a'); R(-1, -6, 3, 3, '#d9a57c'); R(-1, -7, 3, 1, '#5a4326'); R(-1, 2, 1, 2, '#3a2a1c'); R(1, 2, 1, 2, '#3a2a1c');
+      if (up) { R(2, -6, 1, 3, '#d9a57c'); R(2, -7, 1, 1, '#d9a57c'); } else R(2, -3, 1, 3, '#d9a57c');
+      R(-1, -15 - bob, 3, 5, '#f5d584'); R(0, -14 - bob, 1, 2, '#2a1a0c'); R(0, -11 - bob, 1, 1, '#2a1a0c'); R(0, -10 - bob, 1, 1, '#f5d584'); }      // and over their head, the sign that they have something to say
+    else { R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#4a7ab8'); R(0, -12 + wv, 6, 1, '#b4d6ea'); R(2, -11 + wv, 2, 2, '#f1ead8'); R(6, -11 - wv + 1, 2, 2, '#3a5a8a'); R(-3, 3, 5, 2, '#8f8a80'); }
+  }
+  else if (k.startsWith('errand')) { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#e8b545'); R(0, -12 + wv, 6, 1, '#fff0b0'); R(2, -11 + wv, 2, 2, '#a8261c'); R(6, -11 - wv + 1, 2, 2, '#c9952e'); R(-3, 3, 5, 2, '#8f8a80'); }      // a gold pennon set up where somebody's errand lies
   else if (k === 'bounty') { tent(-3, 4, '#8a3a2a'); R(4, -8, 1, 12, '#5a4326'); R(5, -8, 5, 4, '#c23b2e'); R(6, -7, 2, 2, '#f1ead8'); R(-8, 2, 3, 2, '#efe8d8'); R(-7, 1, 1, 1, '#efe8d8'); }
   else if (k === 'lair') {
     if (tr === 1) { R(-7, -2, 14, 6, '#7a6a4a'); R(-5, -4, 10, 2, '#8a7a56'); R(-2, -1, 5, 5, '#1a1410'); R(-1, -2, 3, 1, '#1a1410'); R(5, 3, 2, 1, '#efe8d8'); R(-7, 3, 1, 1, '#efe8d8'); R(v(1) > 0.5 ? -6 : 3, -5, 3, 1, '#6f8a4a'); }                       // a den dug into a bank
@@ -3521,7 +3533,7 @@ function drawProvince(cv, T) {
     for (let i = 0; i < 5; i++) ctx.fillRect(Math.round(px + ux * (w / 2 + 1 + i) - (4 - i) * Math.abs(uy)), Math.round(py + uy * (6 + i) - (4 - i) * Math.abs(ux)), 1 + Math.round((4 - i) * 2 * Math.abs(uy)), 1 + Math.round((4 - i) * 2 * Math.abs(ux)));
     ctx.fillStyle = col; ctx.fillText(label, px, py + 2);
   };
-  for (const s of sites) if (M.marks[s.id] && !siteDone(s) && siteLive(s)) point(s.x, s.y, s.kind === 'cache' ? 'DIG' : s.kind === 'herb' ? 'HERB' : QUEST_SITE[s.kind] || s.journey ? 'JOURNEY' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) ? 'EAGLE' : 'MARKED', '#2a1a0c', '#f5d584');
+  for (const s of sites) if (M.marks[s.id] && !siteDone(s) && siteLive(s)) point(s.x, s.y, s.kind === 'cache' ? 'DIG' : s.kind === 'herb' ? 'HERB' : QUEST_SITE[s.kind] || s.journey ? 'JOURNEY' : s.kind === 'tale' ? 'STORY' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) ? 'EAGLE' : 'MARKED', '#2a1a0c', '#f5d584');
   point(tx, ty, 'HOME', '#2a1a0c', '#f1ead8');
   // whatever the mouse is on says what it is
   const hv = provHover();
@@ -3639,10 +3651,10 @@ function placeRows() {
   const F = G.field, M = wildMap();
   return wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => {
     const man = st.journey || QUEST_SITE[st.kind] ? questAt(st) : null, q = st.errand ? errandById(st.errand) : null;
-    const tag = man ? 'Journey' : q ? 'Quest' : st.kind === 'bounty' ? 'Bounty' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(st.kind) && M.marks[st.id] ? 'Eagle' : M.marks[st.id] ? 'Marked' : '';
+    const tag = man ? 'Journey' : q ? 'Quest' : st.kind === 'tale' ? 'Story' : st.kind === 'bounty' ? 'Bounty' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(st.kind) && M.marks[st.id] ? 'Eagle' : M.marks[st.id] ? 'Marked' : '';
     const sub = q ? `<b class="gold num">${q.pay}</b> &middot; <span class="${q.until - G.day <= 3 ? 'bad' : ''}">${Math.max(0, q.until - G.day)}d left</span>` : st.kind === 'bounty' && G.bounty ? `<b class="gold num">${G.bounty.pay}</b> &middot; <span class="${G.bounty.until - G.day <= 3 ? 'bad' : ''}">${G.bounty.until - G.day}d left</span>` : '';
     return { st, tag, sub, d: Math.hypot(st.x - F.x, st.y - F.y), name: man ? `${man.name}: ${lower(st.name)}` : st.name,
-      what: man ? `${man.name} asked to be brought here, and you gave your word.` : q ? `For ${q.giver.name}. ${SITE_WHAT[st.kind] || 'Somebody in town asked this of you.'}` : SITE_WHAT[st.kind] || '' };
+      what: man ? `${man.name} asked to be brought here, and you gave your word.` : q ? `For ${q.giver.name}. ${SITE_WHAT[st.kind] || 'Somebody in town asked this of you.'}` : st.kind === 'tale' && !st.waiting ? `${TALES[st.tale].name}: the story leads here.` : SITE_WHAT[st.kind] || '' };
   }).sort((x, y) => (!!y.tag - !!x.tag) || x.d - y.d);
 }
 function placesHtml() {
@@ -3726,6 +3738,12 @@ function questsModal() {
       return card('journey', `${g.name}: ${lower(Q.name)}`, questWhere(g), chip(`promised ${dn(waited)} ago`, waited >= 10 ? 'warn' : '') + (st ? chip(far(st.x, st.y, n)) + (siteDanger(st) ? chip(sk(siteDanger(st)), 'plain') : chip('no fight expected')) : chip('the place is not yet found', 'warn')) + chip(`loses heart in ${dn(next)}`, next <= 3 ? 'warn' : '', 'Every fifteen days he is kept waiting costs him 8 morale.') + (g.quest.heard ? chip('he has told you what it is', 'gold', 'Every price at the end of it is a quarter less.') : '') + (g.away ? chip('away on contract', 'bad') : '') + chip('never deserts, once it is done', 'gold'),
         Q.ask(g, g.quest.mark || 'the place'), st && !g.away ? go(id) : '', waited >= 12); });
     if (rows.length) groups.push(['Promised to your men', rows]); }
+  // ---- stories of the places ----
+  { const rows = talesOpen().map(id => { const T = TALES[id], t = taleOf(id), S = T.steps[t.step], st = siteById('t_' + id), n = st ? march(st.x, st.y) : null, dz = st ? siteDanger(st) : 0;
+      return card('tale', T.name, st ? `${S.mark}, ${wildRegion(st.x, st.y)}` : S.mark, (st ? chip(far(st.x, st.y, n)) : '') + (dz ? chip(sk(dz), 'plain') : chip('no fight looked for')) + chip(`part ${t.step + 1} of ${T.steps.length}`) + chip('no time limit'),
+        `It began at ${lower(T.steps[0].mark)}, with ${lower(T.steps[0].who)}.<div class="qnote">The story leads to ${lower(S.mark)}. Walk up to it to see how it goes on.</div>`, st ? go('t_' + id) : ''); });
+    const told = Object.keys(TALES).filter(id => taleOf(id).done).length;
+    if (rows.length) groups.push([`Stories of the province <small>${told} of ${Object.keys(TALES).length} told</small>`, rows]); }
   // ---- the eagle ----
   { const lead = eagleLead(); if (lead) { const st = wildSites().find(s => ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) && siteLive(s) && M.marks[s.id]), n = st ? march(st.x, st.y) : null;
       groups.push(['The lost eagle', [card('eagle', 'The eagle of the Seventeenth', st ? `${st.name}, ${wildRegion(st.x, st.y)}` : 'the trail of a lost legion', (st ? chip(far(st.x, st.y, n)) + (siteDanger(st) ? chip(sk(siteDanger(st)), 'plain') : '') : '') + chip(`step ${Math.min(5, M.story)} of 5`) + chip('no time limit'), lead, st ? go(st.id) : '')]]); } }
@@ -3758,7 +3776,7 @@ function renderWilds() {
   const unseen = men.filter(g => g.quest && QUESTS[g.quest.id] && !wildSites().some(st => (st.journey || QUEST_SITE[st.kind]) && questAt(st) === g && siteKnown(st)));      // a journey whose place is not yet on the list below
   const journeys = unseen.map(g => `<div><b>${g.name}</b>: ${questWhere(g)}.</div>`).join('');
   const lead = eagleLead();
-  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini ${errands().length || owed().length || bountyLive() || G.roster.some(g => g.quest) ? 'primary' : ''}" data-act="quests"${tip('Everything the school has been asked to do: quests from the town, the bounty, journeys promised to your men, and the eagle. Key: Q')}>Quests</button><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out. Key: Esc')}>Menu</button></span></div>
+  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini ${errands().length || owed().length || bountyLive() || talesOpen().length || G.roster.some(g => g.quest) ? 'primary' : ''}" data-act="quests"${tip('Everything the school has been asked to do: quests from the town, the bounty, journeys promised to your men, and the eagle. Key: Q')}>Quests</button><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out. Key: Esc')}>Menu</button></span></div>
       <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day &middot; ${F.days} out</span></div>
       <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>${stipend() - upkeep() >= 0 ? '+' : ''}${stipend() - upkeep()} a day</span></div>
       <div class="stat games"${tip('awaygames')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>${dg === 0 ? 'Games, without you' : 'Games in town'}</span></div></div>`;

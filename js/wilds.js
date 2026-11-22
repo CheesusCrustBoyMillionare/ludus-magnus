@@ -1122,6 +1122,7 @@ function wildVisit(s) {
   const id = SITE_EVENT[s.kind], c = EVENTS[id].make();
   c.sid = s.id;
   if (id === 'wJourney') c.g = questAt(s).id;
+  if (id === 'wTale') c.tid = s.tale;
   raiseEvent(id, c);
   return true;
 }
@@ -1448,7 +1449,7 @@ const errandOf = sid => errandById(+String(sid).slice(1));
 const errandSites = () => errands().map(q => {
   const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1;
   return { id: 'e' + q.id, kind: 'errand_' + (T.type === 'rescue' ? (second ? 'fight' : 'clue') : T.type), x: second ? q.x2 : q.x, y: second ? q.y2 : q.y, tier: q.tier, name: T.title(second ? q.mark2 : q.mark), fixed: true, errand: q.id };
-}).concat(journeySites());      // and the landmarks where your own men's journeys end
+}).concat(journeySites()).concat(taleSites());      // and the landmarks where your own men's journeys end, and where a story of the place stands
 // A new matter for the fountain, of about the right weight for the school as it stands. Null if nothing suits today.
 function errandNew(only, giver) {
   const want = clamp(tier() + 1 + (chance(0.35) ? 1 : 0), 1, 5), taken = asksNow().concat(errands()).map(q => q.tpl), M = wildMap();
@@ -1890,3 +1891,262 @@ const TOWN_EVENTS = {
   },
 };
 Object.assign(EVENTS, TOWN_EVENTS);
+
+// =====================================================================================================
+// STORIES OF THE PLACES
+// The landmarks are not only scenery and somewhere to be sent. At some of them somebody is waiting with a
+// trouble of their own, and it never ends where it starts: the miller's wife wants her husband fetched home
+// from the hot spring, and at the hot spring it turns out why he has not come. Each story is a few steps,
+// each step at a landmark, each with three ways to answer; how it ends is remembered, and the place says so
+// afterwards. wildMap().tales[id] = { step, end, done, wait, ...whatever the story itself keeps }.
+// =====================================================================================================
+const taleBook = () => { const M = wildMap(); return M.tales || (M.tales = {}); };
+const taleOf = id => { const B = taleBook(); return B[id] || (B[id] = { step: 0 }); };
+const taleTier = id => Math.max(1, ...TALES[id].steps.map(S => { const p = landmarkAt(S.mark); return p ? clamp(wildTier(p.x, p.y), 1, 5) : 1; }));
+const taleCoin = (id, base) => { const n = coinFor(base, Math.max(2, taleTier(id))); G.denarii += n; return n; };
+const taleTire = n => fieldParty().forEach(g => { g.fatigue = clamp(g.fatigue + n, 0, 100); });
+const taleCheer = n => G.roster.forEach(g => { if (!g.away) evMor(g, n); });
+const taleLead = () => fieldParty()[0] || G.roster.find(g => !g.away) || G.roster[0] || { name: 'Your man', fatigue: 0, morale: 50, xp: 0 };
+// A man who comes into the school out of a story, not out of the market.
+function taleRecruit(name, budget, cls, how) {
+  const g = makeGladiator(budget, cls ? { cls } : null);
+  g.name = name; g.morale = 60; welcome(g); G.roster.push(g); addStory(g, how);
+  return g;
+}
+
+const TALES = {
+  // ---- the mill, and the hot spring ----
+  miller: { name: "The miller's wife",
+    lore: { stayed: { 'The mill': "The miller's wife runs it alone now, and the flour is better.", 'The hot spring': 'A miller sits in it to his chin, talking to the water.' },
+      dragged: { 'The mill': 'The miller is home. He does not speak of the spring.' }, home: { 'The mill': 'The miller is home. He greases the wheel on the landward side.' } },
+    steps: [
+      { mark: 'The mill', who: "The miller's wife", title: 'The wheel is turning, and nobody is minding it',
+        text: () => `A woman comes out of the mill with flour to the elbows, dragging a sack she plainly cannot lift. "You have backs," says <b>Varia</b>, the miller's wife. "My husband had one, until it began to hurt him, and three weeks ago he went up to the hot spring in the fells to soak it. A day there and a day back, he said. I have ground every sack since with my own hands. Bring Gnaeus home and I will make it worth the walk."`,
+        opts: [
+          { label: () => 'We will bring him home', run: () => 'She tells you the way twice, and what to say to him when you find him, which takes longer.' },
+          { label: () => 'Carry her sacks in first, then go', run: t => { t.kind = true; taleTire(6); return "It is an hour's work for your men and a week's for her. She watches them do it with her arms folded, and says that the price has just gone up, in your favour."; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => '"No," she says. "It is mine." She goes back in to the stones.' },
+        ] },
+      { mark: 'The hot spring', title: 'The miller of the hot spring',
+        text: () => `Gnaeus the miller is in the pool to his chest, as pink as a ham and plainly in no pain at all. He is not alone, or says he is not. "Her name is <b>Thalna</b>," he says, "and she lives in the water, and she has never once asked me when the flour will be ready." Something moves at the far side of the pool, under the steam: grey-green hair, a white shoulder, and below that the water is deeper than it looks. Your men have gone very quiet.`,
+        opts: [
+          { label: () => 'Haul him out and march him home', run: t => { t.end = 'dragged'; taleTire(4); return 'It takes two men to get him out and he weeps the whole way down the first hill. Behind you the pool closes over without a sound.'; } },
+          { label: () => 'Speak to the one in the water', run: (t, id) => { t.end = 'stayed'; const n = taleCoin(id, 34); return `She comes as near as the edge of the steam, and no nearer. She does not speak. She opens her hand under the water, and when you reach in there is a pearl in it the size of a sling-stone, and warm. It is a price, and you have taken it: a jeweller will give <b class="gold num">${n}</b> denarii. Gnaeus waves as you go.`; } },
+          { label: () => "Give him his wife's message, word for word", run: t => {
+            if (chance(0.55)) { t.end = 'home'; return 'It takes some time; Varia was thorough. Somewhere near the end of it he gets out of the water of his own accord and asks where his boots are. He does not look back at the pool. Nothing in the pool looks at him.'; }
+            t.end = 'stayed'; return 'He hears all of it, nodding, and at the end says to tell her the wheel wants greasing on the landward side. Then he slides down to his chin. You carried a message; now you have an answer to carry back.'; } },
+        ] },
+      { mark: 'The mill', title: "What the miller's wife says",
+        text: t => t.end === 'stayed' ? `Varia hears it standing in the mill door. "A woman in the water," she says. "With a tail, I suppose." She looks at the wheel for a while. Then she takes his apron down off its nail, hangs it on the fence for the birds, and ties on her own. "Well. The mill is mine, then, and I owe you for the news."`
+          : t.end === 'dragged' ? `Gnaeus is put down in his own yard like a sack of his own flour. Varia looks him over, finds nothing wrong with him, and has him at the stones before he has his breath back. "Three weeks," she says to you. "I counted."`
+          : `Gnaeus walks into his own yard on his own feet and picks up a sack without being asked. Varia watches him do it. Whatever she had ready to say to him, she keeps.`,
+        opts: [
+          { label: () => 'Take what she offers', go: 'end', run: (t, id) => { const n = taleCoin(id, t.end === 'stayed' ? 22 : 34) + (t.kind ? 15 : 0); if (t.kind) G.denarii += 15; return `She counts it out of a crock from under the hearthstone: <b class="gold num">${n}</b> denarii${t.kind ? ', and something over for the sacks' : ''}.`; } },
+          { label: () => 'Take it in bread', go: 'end', run: () => { taleTire(-15); taleCheer(5); return 'The oven is hot already. The men eat new bread sitting on the mill-race wall with their feet in the water, and march the better for it.'; } },
+          { label: () => 'Take nothing', go: 'end', run: t => { G.fame += t.kind ? 3 : 2; favor('guild', 2); return `She does not argue. But every carter who stops for flour hears who it was that went up into the fells for the miller, and would not be paid. Fame +${t.kind ? 3 : 2}, and the Guild thinks better of you.`; } },
+        ] },
+    ] },
+
+  // ---- the beacon, and the wreck on the strand ----
+  beacon: { name: 'The cold beacon',
+    lore: { lit: { 'The beacon': 'Lit every night. The keeper will tell you who brought the oil.' }, dark: { 'The beacon': 'Dark. The keeper has gone inland.', 'A wreck on the strand': 'There are two hulks on the strand now.' } },
+    steps: [
+      { mark: 'The beacon', who: 'The beacon keeper', title: 'A cold beacon',
+        text: () => `The fire-pan on the beacon is cold, and has been for four nights by the look of the ash. The keeper, <b>old Mettius</b>, has a split lip and a bandaged hand. "They came in a boat and took every jar of oil I had, and left me alive so that I could watch. There is a grain ship due round the point. The men who took my oil are camped in the wreck on the strand, waiting for another to keep it company."`,
+        opts: [
+          { label: () => 'We will get his oil back', run: () => 'He shows you the path down to the strand, and where they post their lookout, and where the lookout sleeps.' },
+          { label: () => 'Leave him the lamp oil out of the baggage (30 denarii)', ok: () => G.denarii >= 30, go: 'end', run: t => { G.denarii -= 30; t.end = 'lit'; favor('guild', 3); return 'It is enough for a week of nights, and in a week the Guild can send more. The men grumble about eating in the dark. Behind you, by evening, the point is lit. The Guild will hear of it: favour +3.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He nods as if he had expected nothing else, and goes back to looking at the sea.' },
+        ] },
+      { mark: 'A wreck on the strand', danger: true, title: 'Wreckers',
+        text: (t, id) => `The oil jars are stacked under the ribs of the hulk, with a sailcloth over them, and round them are the men who took them: wreckers, with boat-hooks and long knives, and a captain who is counting you. <span class="bad">${skulls(taleTier(id))}</span> Your fit men come to strength <b class="num">${yours()}</b>.`,
+        opts: [
+          { label: () => 'Take it back', ok: canFightNow, run: (t, id) => { const tr = taleTier(id); return wildFight('The wreckers on the strand', [questBoss(tr, 'The wreckers\' captain', { tactic: 'aggressive' })].concat(wildMen(tr, Math.max(1, wildCount(tr) - 2))), 'rock', 'tale', { tier: tr, day: true }); },
+            won: () => 'What is left of them goes off down the strand. The jars are roped onto the mule, every one with the keeper\'s mark on its neck.' },
+          { label: (t, id) => `Buy the oil back (${25 * taleTier(id)} denarii)`, ok: (t, id) => G.denarii >= 25 * taleTier(id), run: (t, id) => { G.denarii -= 25 * taleTier(id); t.bought = true; return 'The captain sells you the keeper\'s own oil at twice what the keeper paid for it, and laughs, and has his men help you load it. He can afford to. He thinks there will be other nights.'; } },
+          { label: () => 'Take a share to see nothing', go: 'end', run: (t, id) => { t.end = 'dark'; const n = taleCoin(id, 40); favor('guild', -6); return `<b class="gold num">${n}</b> denarii, in mixed coin from several countries. Three nights later a grain ship out of Ostia opens herself on the point, and the Guild, which owned a third of her, begins asking who was on the strand that week. Guild favour -6.`; } },
+        ] },
+      { mark: 'The beacon', title: 'The light on the point',
+        text: () => `Mettius fills the fire-pan with his own hands, bandage and all, and will not be helped. By dark it can be seen from the strand, and from a good way out beyond it.`,
+        opts: [
+          { label: () => 'The Guild should hear who lit it', go: 'end', run: t => { t.end = 'lit'; favor('guild', 7); G.fame += 2; return 'The keeper writes it in his log, slowly, with the wrong hand: the day, the school, and the number of jars. The Guild reads those logs. Guild favour +7, fame +2.'; } },
+          { label: () => 'The keeper pays what he can', go: 'end', run: (t, id) => { t.end = 'lit'; const n = taleCoin(id, t.bought ? 38 : 28); return `He has his pay from the Guild in a sock, untouched, since there is nothing on the point to spend it on: <b class="gold num">${n}</b> denarii.`; } },
+          { label: () => 'Stay the night by his fire', go: 'end', run: t => { t.end = 'lit'; taleTire(-22); taleCheer(6); fieldParty().forEach(g => { g.hp = Math.min(maxHp(g), g.hp + maxHp(g) * 0.15); }); return 'There is no warmer place on the coast. The men sleep with their backs to the beacon and wake with the sea all gold in front of them, rested.'; } },
+        ] },
+    ] },
+
+  // ---- the great oak, and the sacred grove ----
+  oak: { name: 'The girl and the oak',
+    lore: { stands: { 'The great oak': 'A ribbon is tied round it every spring, by a girl called Senna.' }, felled: { 'The great oak': "It has lost its great south limb to the governor's roof. The grove has not forgiven it." } },
+    steps: [
+      { mark: 'The great oak', who: 'A girl chained to the oak', title: 'The girl and the oak',
+        text: () => `There is a chain round the great oak, and inside the chain a girl of about fifteen, who has plainly been there some days. Four woodmen with a two-man saw sit in the grass, waiting for her to get hungry. Their foreman has a tablet: the Magistrate's clerk has sold the great limbs for the governor's new roof, which will kill the tree. The girl, <b>Senna</b>, says the oak belongs to the sacred grove, and that the priestess there can prove it.`,
+        opts: [
+          { label: () => 'Go to the grove and ask', run: () => 'You leave her your bread. The foreman watches you do it, and says nothing, and moves his men a little further off.' },
+          { label: () => 'Help the woodmen lift her off', go: 'end', run: (t, id) => { t.end = 'felled'; const n = taleCoin(id, 18); favor('temple', -5); favor('magistrate', 2); return `It takes one of your men to hold her and another to cut the chain. The foreman pays <b class="gold num">${n}</b> denarii for the trouble. She does not cry; she looks at each of your men in turn, as if to remember them. The priests will hear of it: temple favour -5.`; } },
+          { label: () => 'Leave them to it', go: 'wait', run: () => 'The girl calls something after you. The woodmen laugh.' },
+        ] },
+      { mark: 'The sacred grove', title: 'The priestess of the grove',
+        text: () => `The priestess is older than seems likely, and is splitting kindling. She knows about the oak already; she seems to know about you. "It was grown from an acorn of this grove the year the first stone of the town was laid. There is a tablet that says so, under a seal older than the Magistrate's office." She fetches it out of a hollow tree. "The grove asks something of those it helps."`,
+        opts: [
+          { label: () => 'Leave silver on the stone (40 denarii)', ok: () => G.denarii >= 40, run: t => { G.denarii -= 40; t.gift = true; return 'She does not look at it. She presses her thumb to the old seal and then to your forehead, and for the rest of the day the men walk a little behind you.'; } },
+          { label: () => "Leave a man to keep the night's vigil", run: t => { t.gift = true; const g = taleLead(); g.fatigue = clamp(g.fatigue + 25, 0, 100); evMor(g, 10); return `<b>${g.name}</b> stands the night under the trees with a bowl of water in his hands, and is not to spill it. He does not. He will not say afterwards what he saw, but he is cheerful about it.`; } },
+          { label: () => 'Take the tablet, with thanks', run: () => 'She gives it to you all the same. "The oak is not the one who will remember," she says.' },
+        ] },
+      { mark: 'The great oak', title: 'The seal and the saw',
+        text: t => `The girl is still in her chain, and thinner. The foreman reads the tablet with his lips moving. ${t.gift ? 'Then he turns it over and sees the seal, and the thumb-print in the wax beside it, still soft, and he stops being sure of himself.' : 'He says one seal is as good as another, and that his is newer.'}`,
+        opts: [
+          { label: () => 'Stand on the seal', go: 'end', run: t => {
+            if (t.gift || chance(0.45)) { t.end = 'stands'; favor('temple', 6); G.fame += 3; return 'He hands it back with two fingers. The saw is shouldered; the woodmen go. Senna cannot get her own chain undone, in the end, and one of your men has to do it for her. Temple favour +6, fame +3.'; }
+            t.end = 'felled'; favor('temple', -2); return 'He is not persuaded, and you have nothing else to persuade him with. They wait until you are over the hill. You hear the saw start from there. Temple favour -2.'; } },
+          { label: () => 'Buy his deed off him (60 denarii)', ok: () => G.denarii >= 60, go: 'end', run: t => { G.denarii -= 60; t.end = 'stands'; favor('temple', 4); G.fame += 2; return 'For sixty denarii the foreman discovers that there are other oaks. He leaves you the tablet, which now makes you the owner of the great limbs of a sacred tree; you give it to the girl. Temple favour +4, fame +2.'; } },
+          { label: () => 'Drive them off', ok: canFightNow, go: 'end', run: () => wildFight('Woodmen at the great oak', wildMen(1, 4), 'forest', 'tale', { tier: 1, day: true }),
+            won: t => { t.end = 'stands'; favor('temple', 4); favor('magistrate', -4); return 'They are woodmen, not fighters, and they leave their saw behind. The clerk who sold the timber will have to explain it to the governor, and will not forget whose doing that was. Temple favour +4, Magistrate -4.'; } },
+        ] },
+    ] },
+
+  // ---- the ferry, and the drowned temple ----
+  ferry: { name: 'The bell under the water',
+    lore: { silent: { 'The ferry': 'It crosses at any hour now.', 'The drowned temple': 'Quiet. A rope hangs in the tower with nothing on the end of it.' },
+      noon: { 'The ferry': 'The ferryman crosses when the bell has rung noon.', 'The drowned temple': 'A bell rings at noon, under the water.' },
+      kept: { 'The ferry': 'The ferryman ties up at dusk, and listens.', 'The drowned temple': 'A bell rings at dusk for the drowned, each by name.' } },
+    steps: [
+      { mark: 'The ferry', who: 'The ferryman', title: 'The bell under the water',
+        text: () => `The ferryman will take you over by day, and not otherwise. "There is a bell," says <b>Charax</b>. "In the drowned temple, out in the marsh. It has started to ring again, at dusk. Twice now a passenger has stood up in my boat in the middle of the river and stepped off, as if somebody had called him by his name. I cannot feed my children on a morning trade. Make it stop."`,
+        opts: [
+          { label: () => 'Go and see what rings it', run: () => 'He draws you the channels through the marsh in the mud with his pole, and which of them have a bottom.' },
+          { label: () => 'Ask him what he is not saying', run: t => { t.knows = true; return 'He looks at the water for a time. The second man who stepped off was his brother. He draws you the channels through the marsh with his pole, and does not look up again.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He shrugs, and holds out his hand for the fare.' },
+        ] },
+      { mark: 'The drowned temple', title: 'Who keeps the hours',
+        text: t => `The temple stands to its knees in black water. On the one dry step sits a very old man with a bell-rope across his lap. He was a boy in this temple when the marsh came up; the others left, and he did not; and every dusk since he has rung the evening office for a god whose name he is the last alive to know. He is nearly blind. He has no notion that anybody can hear it${t.knows ? ', or what it has cost' : ''}.`,
+        opts: [
+          { label: () => 'Cut down the clapper', go: 'end', run: (t, id) => { t.end = 'silent'; const n = taleCoin(id, 26); favor('temple', -4); return `It is old bronze, and heavy: <b class="gold num">${n}</b> denarii to a founder. He hears you do it. He goes on pulling the rope at dusk all the same, you are told afterwards, and listening, and pulling it again. Temple favour -4.`; } },
+          { label: () => 'Ask him to ring it at noon', go: 'end', run: t => { t.end = 'noon'; favor('temple', 5); G.fame += 2; return 'He thinks about it for a long time. The god, he says at last, has never been particular about the hour; it was the old high priest who was. Noon, then. The ferryman, when he hears it across the marsh in broad day, sits down in his boat and laughs until he cannot. Temple favour +5, fame +2.'; } },
+          { label: () => 'Sit with him through the office', go: 'end', run: t => { t.end = 'kept'; taleCheer(8); const g = taleLead(); g.xp = (g.xp || 0) + 3; return `It is long, and in no language any of you knows, and at the end of it the men are quieter than you have seen them. He asks who has died on the river. You tell him${t.knows ? ", the ferryman's brother first" : ''}. From then on he says the names at dusk, before he rings; and nobody else steps out of the boat.`; } },
+        ] },
+    ] },
+
+  // ---- the watchtower, and the burnt village ----
+  watch: { name: 'One man on a two-man watch',
+    lore: { back: { 'The watchtower': 'Two men, a fire, and a long view north. One of them has a grave to visit.', 'A burnt village': 'One grave in the ash has a stone on it.' },
+      gone: { 'The watchtower': 'One man, a fire, and a long view north.' }, oath: { 'The watchtower': 'One man, a fire, and a long view north.', 'A burnt village': 'One grave in the ash has a stone on it.' } },
+    steps: [
+      { mark: 'The watchtower', who: 'A soldier at the watchtower', title: 'One man on a two-man watch',
+        text: () => `"Two men, a fire and a long view," says the soldier on the watchtower, without coming down. "That is the standing order. Tonight it is one man. <b>Rufio</b> went over the wall at the second watch, without his shield. The centurion rides his round in three days, and if he finds one of us he will hang the other when he catches him. He will have gone to the burnt village. He was born there."`,
+        opts: [
+          { label: () => 'We will find him', run: () => 'He throws down a wineskin for the road, which is half his ration, and goes back to watching north for both of them.' },
+          { label: () => 'Ask what it is worth to him', run: t => { t.paid = true; return 'His pay is four months behind. He offers his boots, and then, when you say nothing, his word that the tower will not see your school on any road it watches. That is worth something. You go.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He does not answer. There is nobody to relieve him, so he goes on watching.' },
+        ] },
+      { mark: 'A burnt village', title: 'What Rufio went back for',
+        text: () => `He is not hiding. He is digging, with a legionary's entrenching tool, in the ash of what was a house, and he has been at it since he got here. There is a row of bundles beside him, wrapped in his own cloak, cut up. "My mother," he says, not stopping. "My sisters. Nobody buried anybody here. I asked for leave eleven times."`,
+        opts: [
+          { label: () => 'Dig with him, then walk him back', go: 'end', run: t => { t.end = 'back'; taleTire(10); taleCheer(4); favor('magistrate', t.paid ? 6 : 4); G.fame += 2; return `With your men at it, it is done by dark, and done properly, with a stone. He washes at the well and walks back beside you without being told. The centurion finds two men, a fire, and a long view north. Magistrate favour +${t.paid ? 6 : 4}, fame +2.`; } },
+          { label: () => 'Give him road money and look away (20 denarii)', ok: () => G.denarii >= 20, go: 'end', run: t => { G.denarii -= 20; t.end = 'gone'; taleCheer(6); favor('magistrate', -2); return 'He finishes the last grave first. Then he takes the money, and the north road, and does not thank you, which the men seem to think is right. The tower will have to answer for him. Magistrate favour -2.'; } },
+          { label: () => 'Offer him the oath instead of the rope', ok: () => G.roster.length < capacity(), go: 'end', run: (t, id) => { t.end = 'oath'; const g = taleRecruit('Rufio', 22 + taleTier(id) * 3, 'murmillo', 'A soldier who left his post to bury his dead, and took the oath of the school sooner than hang.'); return `He thinks about it leaning on the spade. A gladiator is a slave, and a deserter is a dead man. "Let me finish here," he says. <b>${g.name}</b> joins the school that night, with a legionary's drill and nothing else at all.`; } },
+        ] },
+    ] },
+
+  // ---- the giant's table, and the ring of stones ----
+  giant: { name: "Supper on the giant's table",
+    lore: { fed: { "The giant's table": 'A supper is set on it every night, and the bowl comes back washed.' }, oath: { "The giant's table": 'A supper is still set on it. The foxes have it now.' }, taken: { "The giant's table": 'Nobody sets a supper on it any more.' } },
+    steps: [
+      { mark: "The giant's table", who: 'An old woman at the stones', title: "Supper on the giant's table",
+        text: () => `An old woman is laying a meal on the capstone of the giant's table: a loaf, a cheese, an onion, a bowl of milk. "For the giant," says <b>old Brica</b>, as if it were plain. "My mother set it, and hers. Nothing ever took it but foxes. Since the spring it is gone every morning to the last crumb, and the bowl is washed. Somebody is eating my giant's supper. I want to know whether to bake more."`,
+        opts: [
+          { label: () => 'Keep watch tonight', run: () => { taleTire(8); return 'Near dawn something very large comes up out of the dark, eats standing, wipes the bowl with a handful of moss and sets it down straight. It is a man, though not by much. It goes off east, and it does not hurry. East is the ring of stones.'; } },
+          { label: () => 'Follow the tracks by daylight', run: () => 'There are footprints in the dew, half as long again as your biggest man\'s, going and coming. They go east, towards the ring of stones, by a path somebody has been using every night for months.' },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'She shakes her head at you and goes on laying the table.' },
+        ] },
+      { mark: 'The ring of stones', danger: true, title: 'The giant',
+        text: () => `He is sitting against the tallest stone of the ring, which does not look tall. He is the biggest man any of you has seen, and down one forearm he has the scars a murmillo gets from his own shield-rim. Your older men know who he is. <b>Buccio the Ox</b> killed his friend in the old arena twelve years ago, when the crowd would not spare him; picked up the body, walked out of the gate with it, and was not seen again. He looks at your men's cropped heads for a long time. "Did Brica send you," he says, "or a lanista?"`,
+        opts: [
+          { label: () => 'Tell him the old woman wants to know how much to bake', go: 'end', run: t => { t.end = 'fed'; taleCheer(8); G.fame += 2; return 'He laughs like a wall falling down. "Tell her twice the bread, and no onion." The men tell this story in the yard for a month, and are the better for having it to tell. Brica bakes twice the bread. Fame +2.'; } },
+          { label: () => 'Offer him a place in the school', ok: () => G.roster.length < capacity(), go: 'end', run: (t, id) => { t.end = 'oath'; const g = taleRecruit('Buccio the Ox', 30 + taleTier(id) * 4, 'murmillo', 'Twelve years in the ring of stones, after the old arena. Came back to the sand of his own will.'); if (!g.traits.includes('ironhide')) g.traits.push('ironhide'); g.hp = maxHp(g); return `He looks at his hands. "I am forty," he says, "and I have eaten an old woman's bread for a year because I could not think what else I was for." <b>${g.name}</b> walks back with the school, and the men give him room.`; } },
+          { label: () => 'There is still a price on a runaway', ok: canFightNow, go: 'end', run: (t, id) => { const tr = taleTier(id); return wildFight('Buccio the Ox', [questBoss(tr, 'Buccio the Ox', { cls: 'murmillo', boost: 6, traits: ['ironhide'], tactic: 'balanced' })], 'rock', 'tale', { tier: tr, day: true }); },
+            won: (t, id) => { t.end = 'taken'; const n = taleCoin(id, 55); favor('magistrate', 3); taleCheer(-5); return `He fought as if he had been waiting twelve years for somebody to make him. The Magistrate pays <b class="gold num">${n}</b> denarii for a runaway of that name. The men do not talk about it, and somebody goes on leaving bread on the giant's table for a while. Magistrate favour +3.`; } },
+        ] },
+    ] },
+
+  // ---- the wine press, and the bee garden ----
+  vintner: { name: 'Drunken bees',
+    lore: { supper: { 'The wine press': 'The vintner is courting the beekeeper, by lawsuit.', 'The bee garden': 'Honey for the governor. The vintner comes to supper.' }, quits: { 'The wine press': 'Its wine tastes of thyme honey, and nobody is to say so.' } },
+    steps: [
+      { mark: 'The wine press', who: 'The vintner', title: 'Drunken bees',
+        text: () => `"Look at them," says the vintner, <b>Sergius</b>, and there are indeed bees all over his pressing floor, walking in circles. "Hers. From the bee garden. They drink my must, they drown in my vats, and I have paid a boy all month to skim them out. I want damages. You are going that way: tell that woman forty denarii, or I go to the Magistrate."`,
+        opts: [
+          { label: () => 'Carry his demand', run: () => 'He makes you say it back to him, to be sure of the forty.' },
+          { label: () => 'Taste the must first', run: t => { t.tasted = true; taleCheer(2); return 'It is the best in the province, by some way, and it tastes of thyme honey. You do not say so. You carry his demand.'; } },
+          { label: () => 'It is no business of ours', go: 'wait', run: () => 'He goes back to shouting at the boy.' },
+        ] },
+      { mark: 'The bee garden', title: "The beekeeper's answer",
+        text: t => `<b>Albia</b> the beekeeper hears the demand without putting down her smoker. "Forty denarii. Tell him his wine was vinegar until my bees found it${t.tasted ? ', as you know, for you have tasted it' : ''}; and that I want forty from him, for the thyme honey his must has been stealing off their legs for six years. Tell him also" - she is veiled, so it is hard to be sure, but she seems to be enjoying herself - "that he might come and say it to me himself. As he did last year. And the year before. He stayed to supper both times."`,
+        opts: [
+          { label: () => 'Carry her answer back, all of it', go: 'end', run: (t, id) => { t.end = 'supper'; const n = taleCoin(id, 16); taleCheer(5); return `Sergius hears it out, goes red by stages, and calls for a clean tunic. For your trouble you are given a jar of the vintage in question and <b class="gold num">${n}</b> denarii not to mention the tunic to anybody. The men mention it to everybody.`; } },
+          { label: () => 'Settle it yourself: each owes the other forty', go: 'end', run: (t, id) => { t.end = 'quits'; const n = taleCoin(id, 20); favor('magistrate', 2); return `It is good law, and both of them are furious. Each pays you half an arbitrator's fee, <b class="gold num">${n}</b> denarii together, to be rid of you; and the Magistrate, spared a hearing about bees, is obliged. Magistrate favour +2.`; } },
+          { label: () => 'Buy wine and honey of both, and leave them to it (30 denarii)', ok: () => G.denarii >= 30, go: 'end', run: t => { G.denarii -= 30; t.end = 'supper'; taleTire(-12); taleCheer(8); return 'Honey on new bread, and the wine that tastes of it. The men have not eaten so well since the last games. When you look back from the road there is smoke from one chimney, and a man in a clean tunic walking towards it with a jar.'; } },
+        ] },
+    ] },
+};
+
+// The places where a story stands just now: somebody waiting, or the next place it leads.
+function taleSites() {
+  if (typeof G === 'undefined' || !G || !G.dynasty) return [];
+  const B = taleBook(), out = [];
+  for (const id in TALES) {
+    const t = B[id] || { step: 0 };
+    if (t.done || (t.wait && t.wait > G.day)) continue;
+    const S = TALES[id].steps[t.step], p = S && landmarkAt(S.mark);
+    if (!p) continue;
+    out.push({ id: 't_' + id, kind: 'tale', x: p.x, y: p.y, tier: clamp(wildTier(p.x, p.y), 1, 5), name: t.step ? S.mark : S.who, fixed: true, tale: id, waiting: !t.step, danger: S.danger ? taleTier(id) : 0 });
+  }
+  return out;
+}
+// The stories in hand: begun, and not ended.
+const talesOpen = () => Object.keys(TALES).filter(id => { const t = taleBook()[id]; return t && t.step > 0 && !t.done; });
+// What a landmark has to say for itself once a story has ended there.
+function taleLore(name) {
+  if (typeof G === 'undefined' || !G || !G.dynasty) return '';
+  const B = taleBook();
+  for (const id in TALES) { const t = B[id], L = t && t.done && TALES[id].lore && TALES[id].lore[t.end]; if (L && L[name]) return L[name]; }
+  return '';
+}
+// Moves a story on: to its next place, to its end, or aside for a few days if the school would not hear it.
+function taleMove(id, go) {
+  const t = taleOf(id), T = TALES[id], sid = 't_' + id, M = wildMap();
+  if (go === 'wait') { t.wait = G.day + 6; delete M.marks[sid]; return ''; }
+  if (go === 'end' || (typeof go !== 'number' && t.step + 1 >= T.steps.length)) {
+    t.done = G.day; delete M.marks[sid]; delete M.seen[sid];
+    log(`${T.name}: the matter is closed.`, 'gold');
+    return '';
+  }
+  t.step = typeof go === 'number' ? go : t.step + 1; delete t.wait;
+  M.seen[sid] = 1; wildMark(sid, 'tale');
+  return ` <span class="gold">${T.steps[t.step].mark} is marked on your map.</span>`;
+}
+const taleCtx = c => { const id = c && TALES[c.tid] ? c.tid : Object.keys(TALES)[0], t = taleOf(id), T = TALES[id]; return { id, t, T, S: T.steps[Math.min(t.step, T.steps.length - 1)] }; };
+let taleTitle = 'A story of the place';
+const TALE_EVENT = {
+  auto: true, wild: true, can: () => !!G.field,
+  make: () => ({ tid: Object.keys(TALES).find(id => !taleOf(id).done) || Object.keys(TALES)[0] }),
+  text: c => { const { id, t, S } = taleCtx(c); return S.text(t, id); },
+  opts: [0, 1, 2].map(i => ({
+    label: c => { const { id, t, S } = taleCtx(c); return S.opts[i].label(t, id); },
+    ok: c => { const { id, t, S } = taleCtx(c), o = S.opts[i]; return !o.ok || !!o.ok(t, id); },
+    run: c => {
+      const { id, t, S } = taleCtx(c), o = S.opts[i]; c.was = S.title; const out = o.run(t, id);
+      if (G.field && G.field.fight && G.field.fight.win === 'tale') { G.field.fight.tid = id; G.field.fight.opt = i; return out; }      // it comes to blows: the story moves on if the school wins
+      return out + taleMove(id, o.go);
+    },
+  })),
+};
+Object.defineProperty(TALE_EVENT, 'title', { enumerable: true, get() { const pe = typeof G !== 'undefined' && G && G.pendingEvent; if (pe && pe.id === 'wTale') taleTitle = pe.c.was || taleCtx(pe.c).S.title; return taleTitle; } });
+EVENTS.wTale = TALE_EVENT;
+SITE_EVENT.tale = 'wTale';
+WILD_WINS.tale = F => {
+  if (!TALES[F.tid]) return ['It is done.'];
+  const t = taleOf(F.tid), o = TALES[F.tid].steps[t.step].opts[F.opt || 0], lines = [o.won ? o.won(t, F.tid) : 'It is done.'], more = taleMove(F.tid, o.go);
+  if (more) lines.push(more.trim());
+  return lines;
+};
