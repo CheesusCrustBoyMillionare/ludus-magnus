@@ -94,7 +94,14 @@ function provLand() {
       else if (v < 0.04) for (let q = 0; q < 3; q++) R(x + 1 + Math.floor(h(tx, ty, 347 + q) * 7), y + 2 + Math.floor(h(tx, ty, 350 + q) * 6), 2, 1, q % 2 ? '#a39a8a' : '#b5ad9c');                          // shingle
       else if (v < 0.07) { R(x + 4, y + 5, 2, 1, '#f1ead8'); R(x + 5, y + 4, 1, 1, '#f1ead8'); }
     }
-    else if (k === T_MEADOW) { R(x + Math.floor(a * 8), y + Math.floor(b * 8), 1, 1, '#f2e6a0'); R(x + Math.floor(b * 8), y + Math.floor(a * 8), 1, 1, a > 0.5 ? '#e8a0a0' : '#f4f4f0'); if (b > 0.6) R(x + 2 + Math.floor(a * 5), y + 7, 1, 1, '#b9a0e0'); }
+    else if (k === T_MEADOW) {
+      const z = wildNoise(tx / 3.5, ty / 3.5, 401), zc = z < 0.32 ? ['#c23b2e', '#e06a5a'] : z < 0.5 ? ['#f2e6a0', '#e8d060'] : z < 0.68 ? ['#f4f4f0', '#f2e6a0'] : ['#b9a0e0', '#e8a0c0'];
+      for (let q = 0, n = 1 + Math.floor(h(tx, ty, 402) * 5); q < n; q++) R(x + Math.floor(h(tx, ty, 403 + q) * 10), y + Math.floor(h(tx, ty, 409 + q) * 10), 1, 1, zc[q % 2]);
+      if (a > 0.9) { const lean = b > 0.5 ? 1 : -1; for (let q = 0; q < 3; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 415 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 418 + q) * 5); R(gx, gy, 1, 3, '#93b055'); R(gx + lean, gy - 1, 1, 1, '#a8c468'); } }      // long grass
+      else if (a > 0.84) { R(x + 1 + Math.floor(b * 5), y + 4, 4, 3, '#6f9a48'); R(x + 2 + Math.floor(b * 5), y + 3, 2, 1, '#6f9a48'); R(x + 2 + Math.floor(b * 5), y + 5, 1, 1, '#f4f4f0'); }      // clover
+      else if (a < 0.02) { R(x + 4, y + 3, 1, 1, '#f4f4f0'); R(x + 6, y + 3, 1, 1, '#f4f4f0'); R(x + 5, y + 4, 1, 1, '#2a1c14'); }                                                              // a butterfly
+      else if (a < 0.035) { R(x + 3, y + 5, 4, 2, '#9a958a'); R(x + 3, y + 5, 3, 1, '#bdb8ac'); }
+    }
     else if (k === T_MARSH) {
       const v = h(tx, ty, 220);
       if (v > 0.5) {                           // standing water: a pool with its own outline
@@ -295,6 +302,162 @@ function provLand() {
     if (nn > 0.6) return r < 0.7 ? 'pine' : 'birch';
     return r < 0.4 ? 'oak' : r < 0.7 ? 'beech' : r < 0.9 ? 'chestnut' : 'birch';
   };
+  // Places there is only one of. Each is set down where it belongs: on ground of the right kind, in its own part of
+  // the country, clear of the town, of the places you can visit, and of each other. They are scenery: nothing is
+  // found at them, and the column walks past.
+  const marks = [];
+  const siteTiles = L.sites.map(q => [q.tx, q.ty]).concat(WILD_FIXED.map(q => [q.tx, q.ty]));
+  const sh2 = (sx, sy, sw) => R(sx, sy, sw, 2, 'rgba(0,0,0,.2)');
+  const on = (kinds, reg) => (tx, ty) => kinds.includes(at(tx, ty)) && kinds.includes(at(tx + 1, ty)) && kinds.includes(at(tx + 2, ty)) && kinds.includes(at(tx + 1, ty - 1)) && (!reg || wildRegion(tx * 10 + 5, ty * 10 + 5) === reg);
+  const byRoad = (tx, ty) => [[0, 1], [0, -1], [1, 0], [-1, 0], [0, 2], [0, -2]].some(([dx, dy]) => at(tx + dx, ty + dy) === T_ROAD);
+  const byWater = (tx, ty) => [[0, 1], [0, -1], [1, 0], [-1, 0], [2, 0], [-2, 0], [0, 2], [0, -2]].some(([dx, dy]) => wet(at(tx + dx, ty + dy)));
+  const setDown = (seed, ok, r, name, draw) => {
+    for (let n = 0; n < 9000; n++) {
+      const tx = 4 + Math.floor(wildHash(n, seed, 700) * (TW - 9)), ty = 4 + Math.floor(wildHash(seed, n, 701) * (TH - 8));
+      if (!ok(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 13) continue;
+      if (siteTiles.some(([sx, sy]) => Math.hypot(sx - tx, sy - ty) < 5)) continue;
+      const x = tx * 10, y = ty * 10;
+      if (marks.some(m => Math.hypot(m.x - x, m.y - y) < 110)) continue;
+      marks.push({ x, y, r, name });
+      feats.push({ y: y + 10, d: () => draw(x, y) });
+      return true;
+    }
+    return false;
+  };
+  const GR = [T_GRASS, T_MEADOW], HL = [T_HILL], SD = [T_SAND], MS = [T_MARSH], FO = [T_FOREST];
+  // -- the Home Fields --
+  setDown(1, on(GR, 'The Home Fields'), 20, 'The great oak', (x, y) => {
+    sh2(x - 1, y + 10, 32); R(x + 13, y - 2, 4, 12, '#4a3320'); R(x + 11, y + 8, 8, 2, '#4a3320'); R(x + 13, y - 2, 1, 12, '#6b4f2c');
+    R(x + 2, y - 22, 26, 16, '#35602b'); R(x + 5, y - 26, 20, 4, '#35602b'); R(x, y - 18, 30, 9, '#35602b'); R(x + 8, y - 28, 12, 2, '#35602b');
+    R(x + 4, y - 24, 11, 7, '#4c7f38'); R(x + 1, y - 18, 9, 5, '#4c7f38'); R(x + 8, y - 27, 7, 2, '#69a04a'); R(x + 5, y - 23, 5, 2, '#69a04a'); R(x + 20, y - 12, 8, 3, '#274a20');
+    R(x + 24, y - 6, 1, 9, '#c9b890'); R(x + 27, y - 6, 1, 9, '#c9b890'); R(x + 24, y + 3, 4, 1, '#6b4f2c');      // a swing
+  });
+  setDown(2, on(GR, 'The Home Fields'), 22, 'A villa in its garden', (x, y) => {
+    sh2(x - 2, y + 10, 42); R(x, y - 6, 38, 16, '#e8dcc0'); R(x, y - 6, 38, 1, '#f8f0dc'); R(x - 2, y - 13, 42, 7, '#b5522e'); R(x - 2, y - 13, 42, 1, '#d06a3e'); for (let q = 0; q < 42; q += 5) R(x - 2 + q, y - 13, 1, 7, '#963f22');
+    R(x + 15, y, 8, 10, '#3a2416'); for (const wx of [4, 28]) { R(x + wx, y - 2, 5, 5, '#3a2a1c'); R(x + wx + 2, y - 2, 1, 5, '#8a6a3a'); }
+    for (const cxx of [12, 24]) { R(x + cxx, y - 3, 2, 13, '#f0e8d6'); R(x + cxx - 1, y - 4, 4, 1, '#d6ccb8'); }
+    tree(x - 6, y + 9, 'cypress', 4, 1); tree(x + 44, y + 9, 'cypress', 5, 1.05); R(x - 10, y + 10, 60, 1, '#b5aa94');
+  });
+  setDown(3, (tx, ty) => on(GR, 'The Home Fields')(tx, ty) && byRoad(tx, ty), 16, 'The old arch', (x, y) => {
+    sh2(x - 1, y + 10, 26); for (const px of [0, 17]) { R(x + px, y - 14, 6, 24, '#d8d2c0'); R(x + px, y - 14, 1, 24, '#f0e8d6'); R(x + px + 5, y - 14, 1, 24, '#b5aa94'); }
+    R(x - 1, y - 21, 25, 7, '#d8d2c0'); R(x - 1, y - 21, 25, 1, '#f0e8d6'); R(x + 3, y - 18, 17, 1, '#8f8876'); R(x + 6, y - 14, 11, 2, '#c9c2ae'); R(x + 9, y - 25, 5, 4, '#b98a34'); R(x + 10, y - 27, 3, 2, '#dcae48');
+  });
+  setDown(4, on(GR, 'The Home Fields'), 16, 'The wine press', (x, y) => {
+    sh2(x, y + 10, 30); R(x + 2, y + 2, 14, 8, '#b8ab94'); R(x + 2, y + 2, 14, 1, '#d8cdb6'); R(x + 4, y + 4, 10, 4, '#7a2a4a'); R(x + 8, y - 8, 2, 12, '#6b4f2c'); R(x - 2, y - 8, 22, 2, '#7a5a34');
+    for (const bx of [20, 26]) { R(x + bx, y + 3, 5, 7, '#7a5a34'); R(x + bx, y + 4, 5, 1, '#3a2a1c'); R(x + bx, y + 8, 5, 1, '#3a2a1c'); } R(x + 32, y + 4, 3, 6, '#b8703c'); R(x + 33, y + 2, 1, 2, '#b8703c');
+  });
+  // -- the Long Meadows --
+  setDown(5, on(GR, 'The Long Meadows'), 22, 'The fallen colossus', (x, y) => {
+    sh2(x - 1, y + 10, 40); R(x, y - 2, 14, 12, '#c9c3ae'); R(x, y - 2, 14, 2, '#e4dfcd'); R(x + 12, y, 3, 8, '#b5af9b'); R(x + 3, y + 2, 2, 1, '#6d6858'); R(x + 3, y + 6, 2, 1, '#6d6858'); R(x + 6, y + 3, 1, 4, '#8f8a78'); R(x + 9, y + 2, 1, 6, '#8f8a78'); R(x - 1, y - 3, 6, 2, '#a8a290');
+    R(x + 20, y + 3, 12, 6, '#c9c3ae'); R(x + 20, y + 3, 12, 1, '#e4dfcd'); for (let q = 0; q < 4; q++) R(x + 32, y + 3 + q * 2 - (q === 0 ? 1 : 0), 4, 1, '#b5af9b'); R(x + 16, y + 8, 3, 2, '#b5af9b');
+    R(x + 2, y + 8, 3, 2, '#6f9a48'); R(x + 24, y + 7, 4, 2, '#6f9a48'); R(x + 10, y - 3, 2, 1, '#6f9a48');      // the grass coming over it
+  });
+  setDown(6, on(GR, 'The Long Meadows'), 22, 'An old battlefield', (x, y) => {
+    R(x - 2, y + 2, 40, 9, 'rgba(90,70,40,.14)');
+    for (const [sx, sy, l] of [[2, 8, 9], [9, 9, 12], [18, 7, 8], [27, 9, 11], [34, 8, 7]]) { for (let q = 0; q < l; q++) R(x + sx + Math.round(q * 0.3), y + sy - q, 1, 1, '#6b4f2c'); R(x + sx + Math.round(l * 0.3), y + sy - l - 1, 1, 2, '#c1c7cc'); }
+    R(x + 5, y + 6, 4, 4, '#8a2a20'); R(x + 6, y + 7, 2, 2, '#c9a21e'); R(x + 22, y + 5, 4, 4, '#2f5a8a'); R(x + 23, y + 6, 2, 2, '#c9c2ae'); R(x + 14, y + 8, 3, 2, '#b98a34'); R(x + 30, y + 7, 4, 1, '#e8e2d2'); R(x + 12, y + 5, 3, 1, '#e8e2d2');
+    R(x + 9, y - 4, 2, 1, '#1c1310'); R(x + 27, y - 3, 2, 1, '#1c1310'); R(x + 20, y + 3, 2, 1, '#1c1310');      // crows
+  });
+  setDown(7, on([T_MEADOW], 'The Long Meadows'), 14, 'The bee garden', (x, y) => {
+    sh2(x, y + 10, 30); R(x, y + 7, 30, 2, '#7a5a34'); for (const px of [1, 13, 27]) R(x + px, y + 9, 2, 2, '#5e4426');
+    for (let q = 0; q < 5; q++) { const hx = x + 1 + q * 6; R(hx, y + 2, 5, 5, '#d9b060'); R(hx + 1, y + 1, 3, 1, '#e6c478'); R(hx, y + 3, 5, 1, '#b89040'); R(hx, y + 5, 5, 1, '#b89040'); R(hx + 2, y + 6, 1, 1, '#2a1c14'); }
+    for (let q = 0; q < 6; q++) R(x + 2 + q * 5, y - 2 - (q % 3), 1, 1, '#2a1c14');
+  });
+  setDown(8, (tx, ty) => on(GR)(tx, ty) && byWater(tx, ty) && !['The Salt Shore', 'Blackmere'].includes(wildRegion(tx * 10, ty * 10)), 18, 'The mill', (x, y) => {
+    sh2(x - 1, y + 10, 32); R(x + 10, y - 6, 18, 16, '#d9c9a0'); R(x + 10, y - 6, 18, 1, '#efe2bc'); R(x + 8, y - 12, 22, 6, '#8a5a32'); R(x + 8, y - 12, 22, 1, '#a8703c'); R(x + 17, y + 2, 5, 8, '#3a2416'); R(x + 23, y - 2, 3, 3, '#3a2a1c');
+    R(x - 2, y - 2, 12, 12, '#5e4426'); R(x, y, 8, 8, '#3d6d92'); R(x + 3, y - 2, 2, 12, '#7a5a34'); R(x - 2, y + 3, 12, 2, '#7a5a34'); R(x + 3, y + 3, 2, 2, '#c9a763'); R(x - 3, y + 10, 14, 1, '#8fc3e0');
+  });
+  // -- the Salt Shore --
+  setDown(9, on(SD, 'The Salt Shore'), 18, 'A wreck on the strand', (x, y) => {
+    sh2(x, y + 9, 32); R(x, y + 6, 30, 2, '#5a4326'); for (let q = 0; q < 8; q++) { const hh = 4 + Math.round(Math.sin(q / 7 * Math.PI) * 7); R(x + 2 + q * 4, y + 6 - hh, 1, hh, '#6b4f2c'); R(x + 3 + q * 4, y + 6 - hh, 1, 1, '#8a6a3a'); }
+    R(x + 4, y + 2, 12, 1, '#7a5a34'); R(x + 14, y - 1, 12, 1, '#7a5a34'); for (let q = 0; q < 12; q++) R(x + 18 + q, y + 5 - q, 1, 2, '#5a4326'); R(x + 28, y - 7, 5, 3, '#c9c0aa');
+  });
+  setDown(10, (tx, ty) => on([T_SAND, T_GRASS], 'The Salt Shore')(tx, ty) && byWater(tx, ty), 14, 'The beacon', (x, y) => {
+    sh2(x, y + 10, 18); R(x + 2, y + 6, 14, 4, '#8f8a80'); R(x + 2, y + 6, 14, 1, '#b5ad9c'); R(x + 4, y - 24, 9, 30, '#e8e2d2'); R(x + 11, y - 24, 2, 30, '#c9c2ae'); R(x + 4, y - 24, 1, 30, '#f8f4ea');
+    R(x + 4, y - 14, 9, 3, '#a8452e'); R(x + 4, y - 4, 9, 3, '#a8452e'); R(x + 7, y + 1, 3, 5, '#3a2416'); R(x + 2, y - 27, 13, 3, '#8a6a3a'); R(x + 6, y - 32, 5, 5, '#f5c04a'); R(x + 7, y - 34, 3, 3, '#fff0b0');
+  });
+  setDown(11, on(SD, 'The Salt Shore'), 16, 'The bones of a whale', (x, y) => {
+    R(x, y + 5, 30, 2, '#e8e2d2'); R(x - 6, y + 1, 8, 6, '#f1ead8'); R(x - 6, y + 1, 8, 1, '#ffffff'); R(x - 4, y + 4, 2, 2, '#b5ad9c');
+    for (let q = 0; q < 6; q++) { const hh = 6 + Math.round(Math.sin((q + 0.5) / 6 * Math.PI) * 6); R(x + 4 + q * 4, y + 5 - hh, 1, hh, '#f1ead8'); R(x + 5 + q * 4, y + 5 - hh, 2, 1, '#f1ead8'); } R(x + 1, y + 7, 28, 1, 'rgba(0,0,0,.16)');
+  });
+  setDown(12, on(SD, 'The Salt Shore'), 16, 'The fishers\' huts', (x, y) => {
+    sh2(x, y + 10, 36); for (const [hx, c] of [[0, '#d9c9a0'], [13, '#cdbd94']]) { R(x + hx, y + 2, 10, 8, c); R(x + hx - 1, y - 3, 12, 5, '#9a7a42'); R(x + hx, y - 4, 10, 1, '#b8964e'); R(x + hx + 4, y + 5, 3, 5, '#3a2416'); }
+    R(x + 26, y + 6, 12, 3, '#7a5a34'); R(x + 26, y + 6, 12, 1, '#f1ead8'); R(x + 27, y + 9, 10, 1, '#5e4426'); R(x + 31, y - 2, 1, 8, '#6b4f2c');
+    for (let q = 0; q < 4; q++) R(x + 24 + q * 2, y - 3 + q, 8 - q * 2, 1, '#a39a84');      // a net hung to dry
+  });
+  // -- Greywood --
+  setDown(13, on(FO, 'Greywood'), 18, 'The charcoal burners', (x, y) => {
+    R(x - 4, y, 34, 11, 'rgba(110,110,80,.5)'); R(x - 1, y - 3, 28, 3, 'rgba(110,110,80,.4)'); sh2(x, y + 10, 26); R(x + 2, y + 2, 16, 8, '#3a342c'); R(x + 4, y, 12, 2, '#3a342c'); R(x + 6, y - 2, 8, 2, '#4a443a'); R(x + 4, y + 4, 12, 1, '#2a2620');
+    for (let q = 0; q < 4; q++) R(x + 9 + q * 2, y - 5 - q * 3, 3 + q, 2, `rgba(200,200,200,${(0.5 - q * 0.1).toFixed(2)})`);
+    R(x + 20, y + 4, 8, 6, '#6b4f2c'); for (let q = 0; q < 3; q++) R(x + 20, y + 4 + q * 2, 8, 1, '#8a6a3a'); R(x + 22, y - 2, 6, 6, '#7a6a4a'); R(x + 21, y - 4, 8, 2, '#5e4c3a');
+  });
+  setDown(14, on(FO, 'Greywood'), 16, 'The hunters\' lodge', (x, y) => {
+    R(x - 4, y, 32, 12, 'rgba(120,140,90,.5)'); R(x - 1, y - 4, 26, 4, 'rgba(120,140,90,.4)'); sh2(x, y + 10, 26); R(x + 2, y - 2, 20, 12, '#7a5a34'); for (let q = 0; q < 12; q += 3) R(x + 2, y - 2 + q, 20, 1, '#5e4426'); R(x, y - 8, 24, 6, '#5a4a3a'); R(x, y - 8, 24, 1, '#7a6a52');
+    R(x + 9, y + 2, 5, 8, '#2a1c14'); R(x + 8, y - 1, 1, 2, '#e8e2d2'); R(x + 14, y - 1, 1, 2, '#e8e2d2'); R(x + 9, y, 5, 1, '#e8e2d2'); R(x + 18, y - 12, 3, 4, '#8f8a84');
+    for (let q = 0; q < 3; q++) R(x + 23 + q, y + 6 - q * 2, 6 - q, 2, '#6b4f2c');
+  });
+  setDown(15, (tx, ty) => on(GR, 'Greywood')(tx, ty), 18, 'A burnt village', (x, y) => {
+    R(x - 3, y - 2, 42, 14, 'rgba(60,56,50,.35)');
+    for (const [hx, hw] of [[0, 9], [13, 11], [28, 8]]) { R(x + hx, y + 3, hw, 7, '#2a241e'); R(x + hx, y + 1, 2, 2, '#2a241e'); R(x + hx + hw - 2, y - 1, 2, 4, '#2a241e'); R(x + hx + 3, y + 6, 3, 4, '#120c0a'); for (let q = 0; q < hw; q += 3) R(x + hx + q, y - 2 + (q % 2) * 2, 1, 5, '#3a322c'); }
+    R(x + 10, y + 9, 2, 1, '#8f8a84'); R(x + 24, y + 8, 3, 1, '#8f8a84');
+  });
+  // -- the Quarry Hills --
+  setDown(16, on(HL, 'The Quarry Hills'), 20, 'The great quarry', (x, y) => {
+    for (let q = 0; q < 4; q++) { R(x + q * 3, y - 6 + q * 4, 34 - q * 6, 4, ['#e8e4d8', '#d8d4c6', '#c4bfae', '#a8a290'][q]); R(x + q * 3, y - 6 + q * 4, 34 - q * 6, 1, '#f8f6ee'); }
+    R(x + 28, y - 22, 2, 20, '#6b4f2c'); for (let q = 0; q < 12; q++) R(x + 28 - q, y - 22 + Math.round(q * 0.5), 1, 2, '#7a5a34'); R(x + 17, y - 16, 1, 10, '#c9b890'); R(x + 15, y - 6, 5, 4, '#f0ece0'); R(x + 15, y - 6, 5, 1, '#ffffff');
+    R(x + 2, y + 6, 4, 3, '#f0ece0'); R(x + 8, y + 7, 3, 2, '#e0dccf');
+  });
+  // -- the High Fells --
+  setDown(17, on(HL, 'The High Fells'), 16, 'The watchtower', (x, y) => {
+    sh2(x + 2, y + 10, 18); R(x + 4, y - 18, 12, 28, '#9a958a'); R(x + 4, y - 18, 2, 28, '#bdb8ac'); R(x + 14, y - 18, 2, 28, '#77736a'); for (let q = 0; q < 28; q += 5) R(x + 6, y - 16 + q, 8, 1, '#85817a');
+    R(x + 4, y - 21, 3, 3, '#9a958a'); R(x + 9, y - 21, 3, 3, '#9a958a'); R(x + 13, y - 20, 3, 2, '#77736a'); R(x + 8, y + 3, 4, 7, '#2a241e'); R(x + 9, y - 10, 2, 3, '#2a241e');
+    R(x - 2, y + 7, 4, 3, '#9a958a'); R(x + 18, y + 8, 3, 2, '#85817a');
+  });
+  setDown(18, on(HL, 'The High Fells'), 14, 'The hot spring', (x, y) => {
+    R(x, y + 2, 22, 8, '#f2efe6'); R(x + 2, y, 18, 2, '#f2efe6'); R(x + 2, y + 3, 18, 6, '#7fd0c8'); R(x + 4, y + 2, 14, 1, '#a8e4dc'); R(x + 6, y + 5, 8, 2, '#5fb8b0'); R(x - 1, y + 10, 24, 1, '#d8d4c8');
+    for (let q = 0; q < 5; q++) R(x + 4 + q * 3, y - 3 - (q % 3) * 3, 2 + (q % 2), 2, `rgba(255,255,255,${(0.5 - (q % 3) * 0.12).toFixed(2)})`);
+  });
+  setDown(19, on(HL, 'The High Fells'), 14, 'The eagle rock', (x, y) => {
+    sh2(x, y + 10, 18); for (let q = 0; q < 30; q++) { const w = 2 + Math.round(q * 0.22 + (wildHash(q, 5, 702) - 0.5) * 2); R(x + 8 - w, y - 20 + q, w, 1, q % 6 === 5 ? '#8a929c' : '#a2aab4'); R(x + 8, y - 20 + q, w + 1, 1, '#646c78'); }
+    R(x + 5, y - 22, 7, 2, '#6b4f2c'); R(x + 6, y - 23, 5, 1, '#8a6a3a'); R(x + 8, y - 26, 2, 3, '#e8e2d2'); R(x + 10, y - 25, 2, 1, '#e3b04a');
+  });
+  // -- the Barrow Downs --
+  setDown(20, on([T_GRASS, T_HILL, T_MEADOW], 'The Barrow Downs'), 20, 'The ring of stones', (x, y) => {
+    const cx = x + 16, cy = y + 3;
+    for (let q = 0; q < 9; q++) { const an = q / 9 * Math.PI * 2 + 0.3, sx = Math.round(cx + Math.cos(an) * 15), sy = Math.round(cy + Math.sin(an) * 7), hh = 6 + (q * 3) % 4; R(sx - 1, sy + 1, 4, 1, 'rgba(0,0,0,.25)'); R(sx - 1, sy - hh, 3, hh + 1, '#a8a290'); R(sx - 1, sy - hh, 1, hh + 1, '#c9c3ae'); }
+    R(cx - 4, cy, 8, 3, '#8f8876'); R(cx - 4, cy, 8, 1, '#b5af9b'); R(cx + 11, cy - 13, 8, 2, '#a8a290');
+  });
+  setDown(21, on([T_GRASS, T_HILL, T_MEADOW], 'The Barrow Downs'), 16, 'The giant\'s table', (x, y) => {
+    sh2(x - 1, y + 10, 26); R(x + 2, y - 6, 5, 16, '#9a9484'); R(x + 2, y - 6, 1, 16, '#bdb8a8'); R(x + 16, y - 5, 5, 15, '#8a8474'); R(x + 9, y - 2, 4, 12, '#857f70');
+    R(x - 2, y - 11, 28, 6, '#a8a290'); R(x - 2, y - 11, 28, 1, '#cfc9b6'); R(x - 1, y - 6, 26, 1, '#6d6858'); R(x + 6, y - 12, 12, 1, '#6f9a48');
+  });
+  setDown(22, on([T_GRASS, T_HILL, T_MEADOW], 'The Barrow Downs'), 12, 'The needle', (x, y) => {
+    sh2(x + 1, y + 10, 10); R(x + 3, y - 22, 5, 32, '#a8a290'); R(x + 3, y - 22, 1, 32, '#cfc9b6'); R(x + 7, y - 22, 1, 32, '#6d6858'); R(x + 4, y - 24, 3, 2, '#a8a290');
+    for (let q = 0; q < 5; q++) { R(x + 4 + (q % 2), y - 18 + q * 5, 2, 1, '#6d6858'); R(x + 5, y - 16 + q * 5, 1, 1, '#6d6858'); } R(x, y + 8, 3, 2, '#b8703c'); R(x + 9, y + 9, 2, 1, '#c23b2e');
+  });
+  // -- Blackmere --
+  setDown(23, on(MS, 'Blackmere'), 18, 'The drowned temple', (x, y) => {
+    R(x - 2, y + 4, 34, 7, '#2e4842'); R(x, y + 3, 30, 1, '#3d5a52');
+    for (const [px, hh] of [[1, 16], [9, 11], [18, 18], [26, 8]]) { R(x + px, y + 6 - hh, 4, hh, '#d8d2c0'); R(x + px, y + 6 - hh, 1, hh, '#f0e8d6'); R(x + px + 3, y + 6 - hh, 1, hh, '#a8a290'); R(x + px - 1, y + 5 - hh, 6, 1, '#c9c2ae'); R(x + px - 1, y + 6, 6, 1, '#587a78'); }
+    R(x + 16, y - 15, 14, 3, '#c9c2ae'); R(x + 16, y - 15, 14, 1, '#e8e2d2'); R(x + 6, y + 8, 6, 2, '#b5aa94'); R(x + 13, y - 2, 1, 5, '#8a9a4a'); R(x + 23, y, 1, 4, '#9aaa5a');
+  });
+  setDown(24, on(MS, 'Blackmere'), 14, 'The causeway', (x, y) => {
+    for (let q = 0; q < 9; q++) { const px = x + q * 4, py = y + 4 + Math.round(Math.sin(q * 0.9) * 2); R(px, py, 3, 3, q % 3 ? '#9a8866' : '#a89878'); R(px, py, 3, 1, '#c4b490'); R(px + 1, py + 3, 1, 4, '#4a4038'); }
+    R(x + 34, y - 6, 1, 12, '#4a4038'); R(x + 33, y - 7, 3, 2, '#c9c0aa'); R(x - 3, y - 4, 1, 10, '#4a4038');
+  });
+  // -- anywhere there is a road, far from the town --
+  setDown(25, (tx, ty) => on(GR)(tx, ty) && byRoad(tx, ty) && Math.hypot(tx - tx0, ty - ty0) > 45, 14, 'The gallows', (x, y) => {
+    sh2(x + 2, y + 10, 18); R(x + 4, y - 18, 2, 28, '#5a4326'); R(x + 4, y - 18, 15, 2, '#5a4326'); for (let q = 0; q < 5; q++) R(x + 6 + q, y - 12 + q, 1, 2, '#6b4f2c'); R(x + 16, y - 16, 1, 7, '#c9b890'); R(x + 15, y - 9, 3, 3, '#c9b890'); R(x + 16, y - 8, 1, 1, '#d9b877');
+    R(x + 8, y - 20, 2, 1, '#1c1310'); R(x + 12, y - 20, 2, 1, '#1c1310'); R(x + 1, y + 8, 8, 2, '#6f8a4a');
+  });
+  setDown(26, (tx, ty) => on(GR)(tx, ty) && !['The Home Fields'].includes(wildRegion(tx * 10, ty * 10)), 22, 'The broken aqueduct', (x, y) => {
+    sh2(x - 1, y + 10, 44); for (const [px, top] of [[0, -16], [12, -16], [24, -16], [36, -4]]) { R(x + px, y + top, 4, 10 - top, '#c9c2ae'); R(x + px, y + top, 1, 10 - top, '#e4dfcd'); R(x + px + 3, y + top, 1, 10 - top, '#a39a84'); }
+    R(x, y - 20, 28, 4, '#d8d2c0'); R(x, y - 20, 28, 1, '#f0e8d6'); R(x, y - 16, 28, 1, '#a39a84'); for (const ax of [4, 16]) { R(x + ax, y - 15, 8, 2, '#c9c2ae'); R(x + ax, y - 13, 1, 2, '#c9c2ae'); R(x + ax + 7, y - 13, 1, 2, '#c9c2ae'); }
+    R(x + 28, y - 19, 3, 2, '#c9c2ae'); R(x + 30, y + 6, 4, 3, '#c9c2ae'); R(x + 40, y + 8, 3, 2, '#b5ad9c'); R(x + 2, y - 21, 3, 1, '#6f9a48'); R(x + 20, y - 21, 4, 1, '#6f9a48'); R(x + 13, y - 6, 2, 4, '#6f9a48');
+  });
+  prov.marks = marks;
+  const nearMark = (cx, cy) => marks.some(m => cx > m.x - 6 && cx < m.x + m.r * 2 + 4 && cy > m.y - m.r * 1.6 && cy < m.y + 16);
+
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 60), b = h(tx, ty, 61);
     if (k === T_FOREST) {
@@ -312,7 +475,7 @@ function provLand() {
       const n = edge ? 1 + (b > 0.6 ? 1 : 0) : 1 + (b > 0.35 ? 1 : 0) + (b > 0.8 ? 1 : 0);
       for (let q = 0; q < n; q++) {
         const cx = x + 1 + Math.floor(h(tx, ty, 63 + q) * 9), cy = y + 2 + Math.floor(h(tx, ty, 66 + q) * 8), kind = species(tx, ty, reg, h(tx, ty, 69 + q)), sz = (edge ? 2 : 3) + Math.floor(h(tx, ty, 72 + q) * (edge ? 2 : 3)), f = 0.86 + h(tx, ty, 75 + q) * 0.26;
-        feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
+        if (!nearMark(cx, cy)) feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
       }
       if (edge && a > 0.7) feats.push({ y: y + 9, d: () => { R(x + 1 + Math.floor(b * 5), y + 7, 4, 2, '#4c7f38'); R(x + 2 + Math.floor(b * 5), y + 6, 2, 1, '#69a04a'); } });      // brush along the wood's edge
     } else if (k === T_PEAK) {
@@ -536,6 +699,10 @@ function provHover() {
   let best = null, bd = reach;
   for (const st of wildSites()) { if (!siteKnown(st)) continue; const d = Math.hypot(st.x - x, st.y - y); if (d < bd) { bd = d; best = st; } }
   if (!best && Math.hypot(WILD.TOWN.x - x, WILD.TOWN.y - y) < reach + 8) return { home: true, x: WILD.TOWN.x, y: WILD.TOWN.y };
+  if (!best && !prov.big) {                     // a landmark, once it has been seen
+    const m = (prov.marks || []).find(q => x > q.x - 4 && x < q.x + q.r * 2 + 4 && y > q.y - q.r * 1.6 && y < q.y + 14 && wildSeen(q.x + q.r, q.y));
+    if (m) return { landmark: true, name: m.name, x: m.x + m.r, y: m.y - 6 };
+  }
   return best;
 }
 // A small card by the mouse. u is the size of one unit of text (1 on the close view, 2 on the whole map).
@@ -550,6 +717,7 @@ function provCard(ctx, px, py, lines, skulls, u, W, H) {
 }
 function hoverLines(hv) {
   if (hv.home) return [[['HOME', '#f5d584'], ['Walk in at the gate to go home.', '#f2e6cc'], [wayTo(hv.x, hv.y).toUpperCase(), '#a8947a']], 0];
+  if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc'], ['A landmark of ' + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']], 0];
   const done = siteDone(hv), mark = wildMap().marks[hv.id] && !done, dz = siteDanger(hv);
   const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
   if (done) lines.push(['Dealt with.', '#a8947a']);
