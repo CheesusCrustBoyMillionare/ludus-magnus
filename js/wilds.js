@@ -229,6 +229,32 @@ function wildLand() {
     reach.fill(0); reach[start] = 1; const q2 = [start];
     for (let k = 0; k < q2.length; k++) { const c = q2[k]; for (const n of [c - 1, c + 1, c - TW, c + TW]) if (!reach[n] && t[n] < T_WATER) { reach[n] = 1; q2.push(n); } }
   }
+  // Lanes: a place that stands within a short walk of a road has a track worn to it. They are road like any other to
+  // march on, only narrower to look at; none crosses water, and none is longer than a dozen tiles. (Laid last of the
+  // roads, from places already settled, so nothing moves on their account.)
+  const lane = new Uint8Array(TW * TH);
+  {
+    const LANE_MAX = 12, spot = (x, y) => spots.some(sp => sp.tx === x && sp.ty === y);
+    for (const sp of spots) {
+      const s0 = sp.ty * TW + sp.tx; if (t[s0] === T_ROAD || t[s0] === T_BRIDGE || !reach[s0]) continue;
+      const from = new Map([[s0, -1]]), q = [s0]; let hit = -1;
+      for (let k = 0; k < q.length && hit < 0; k++) {
+        const cur = q[k], cx = cur % TW, cy = (cur - cx) / TW; let d = 0; for (let p = cur; p !== -1; p = from.get(p)) d++;
+        if (d > LANE_MAX) break;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy, n = ny * TW + nx;
+          if (nx < 2 || ny < 2 || nx > TW - 3 || ny > TH - 3 || from.has(n) || t[n] >= T_WATER || t[n] === T_BRIDGE || spot(nx, ny)) continue;
+          from.set(n, cur);
+          if (t[n] === T_ROAD) { hit = cur; break; }
+          q.push(n);
+        }
+      }
+      if (hit < 0) continue;
+      let steps = 0; for (let p = hit; p !== -1 && p !== s0; p = from.get(p)) steps++;
+      if (steps < 2) continue;                                  // it stands by the road already
+      for (let p = hit; p !== -1 && p !== s0; p = from.get(p)) { t[p] = T_ROAD; lane[p] = 1; }
+    }
+  }
   // glades: here and there, deep in a wood, a patch of open grass with the trees standing all round it. (They are
   // cut after everything else is settled, so that no road, place or landmark moves on their account.)
   const glades = [];
@@ -240,7 +266,7 @@ function wildLand() {
     glades.push({ tx, ty });
   }
   for (const g of glades) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!(dx && dy) || wildHash(g.tx + dx, g.ty + dy, 772) > 0.5) t[(g.ty + dy) * TW + g.tx + dx] = T_MEADOW;
-  return (wildLandCache = { t, reach, sites, glades });
+  return (wildLandCache = { t, reach, sites, glades, lane });
 }
 const wildTile = (x, y) => { const tx = Math.floor(x / 10), ty = Math.floor(y / 10); return tx < 0 || ty < 0 || tx >= WILD.TW || ty >= WILD.TH ? T_PEAK : wildLand().t[ty * WILD.TW + tx]; };
 const wildWalk = (x, y) => wildTile(x, y) < T_WATER;

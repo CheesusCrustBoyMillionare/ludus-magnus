@@ -148,7 +148,7 @@ function provLand() {
     if (rk && sh === 3) { const tw = Math.max(3, Math.min(7, rx >> 1)); R(cx - (tw >> 1), cy - ry - 1, tw, 2, rk[1]); R(cx - (tw >> 1), cy - ry - 1, tw >> 1, 2, rk[0]); R(cx - (tw >> 1) + 1, cy - ry - 3, Math.max(2, tw - 2), 2, rk[1]); R(cx - (tw >> 1) + 1, cy - ry - 3, 1, 2, rk[0]); if (tw > 4) R(cx, cy - ry - 5, 2, 2, rk[0]); }
   };
   const hillDepth = (tx, ty) => { for (let r = 1; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) { const o = at(tx + dx, ty + dy); if (o !== T_HILL && o !== T_PEAK) return r; } return 4; };      // how far into the high ground
-  const lone = [];
+  const lone = [], posts = [];                                // posts: the fingerposts at the meeting of roads, stood up with everything else that stands
   const shoreD = new Uint8Array(TW * TH).fill(255);
   { let cur = []; for (let i = 0; i < TW * TH; i++) if (L.t[i] !== T_WATER && L.t[i] !== T_BRIDGE) { shoreD[i] = 0; cur.push(i); }
     for (let d = 1; d < 10 && cur.length; d++) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (shoreD[j] === 255) { shoreD[j] = d; nx.push(j); } } } cur = nx; } }
@@ -171,18 +171,20 @@ function provLand() {
     if (!held && nb.length >= 2) for (const [dx, dy] of nb) { sx += (tx + dx) * 10 + 5; sy += (ty + dy) * 10 + 5; n++; }      // it stays square to a bridge, in the paved streets, and at its own end
     const c = [Math.round(sx / n), Math.round(sy / n)]; midCache.set(key, c); return c;
   };
-  { const stamp = (px, py, c, wide) => { if (wide) { R(px - 3, py - 4, 6, 8, c); R(px - 4, py - 3, 8, 6, c); } else { R(px - 2, py - 3, 4, 6, c); R(px - 3, py - 2, 6, 4, c); } };
+  const isLane = (tx, ty) => !!(L.lane && L.lane[ty * TW + tx]);
+  { let thin = false; const stamp = (px, py, c, wide) => { if (thin) { if (!wide) { R(px - 1, py - 2, 3, 4, c); R(px - 2, py - 1, 4, 3, c); } } else if (wide) { R(px - 3, py - 4, 6, 8, c); R(px - 4, py - 3, 8, 6, c); } else { R(px - 2, py - 3, 4, 6, c); R(px - 3, py - 2, 6, 4, c); } };
     const run = (ax, ay, bx, by, c1, c2, wide) => { const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1); for (let i = 0; i <= n; i++) stamp(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), i * 2 < n ? c1 : c2, wide); };
     for (const wide of [true, false]) for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
       if (at(tx, ty) !== T_ROAD) continue;
-      const A = roadMid(tx, ty), cA = wide ? tint(roadCol(tx, ty), 0.8) : roadCol(tx, ty); let any = false;
+      const A = roadMid(tx, ty), laneA = isLane(tx, ty), cA = wide ? tint(roadCol(tx, ty), 0.8) : laneA ? tint(roadCol(tx, ty), 0.92) : roadCol(tx, ty); let any = false;
       for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1], [-1, 0], [0, -1], [-1, -1], [1, -1]]) {
         const o = at(tx + dx, ty + dy); if (!isRd(o)) continue; any = true;
         if (o === T_BRIDGE) { if (!dx || !dy) run(A[0], A[1], A[0] + dx * 5, A[1] + dy * 5, cA, cA, wide); continue; }      // to the edge of its own tile, where the bridge takes it up
         if (dx < 0 && dy <= 0 || (dx === 0 && dy < 0) || (dx > 0 && dy < 0)) continue;                                        // each pair once
-        const B = roadMid(tx + dx, ty + dy); run(A[0], A[1], B[0], B[1], cA, wide ? tint(roadCol(tx + dx, ty + dy), 0.8) : roadCol(tx + dx, ty + dy), wide);
+        const B = roadMid(tx + dx, ty + dy), laneB = isLane(tx + dx, ty + dy); thin = laneA || laneB;
+        run(A[0], A[1], B[0], B[1], cA, wide ? tint(roadCol(tx + dx, ty + dy), 0.8) : laneB ? tint(roadCol(tx + dx, ty + dy), 0.92) : roadCol(tx + dx, ty + dy), wide); thin = false;
       }
-      if (!any) stamp(A[0], A[1], cA, wide);
+      if (!any) { thin = laneA; stamp(A[0], A[1], cA, wide); thin = false; }
     }
   }
   const zq = (v, n) => Math.min(n - 1, Math.max(0, Math.floor(((v - 0.5) * 2.4 + 0.5) * n)));      // which of n kinds a stretch of country is
@@ -201,6 +203,12 @@ function provLand() {
         });
       } else {
       { const c = roadMid(tx, ty); x += c[0] - (tx * 10 + 5); y += c[1] - (ty * 10 + 5); }      // the ribbon is laid already (below): what lies on it follows where it runs
+      if (isLane(tx, ty)) { if (a > 0.7) R(x + 4 + Math.floor(b * 2), y + 4, 1, 1, '#8aa652'); if (a < 0.12) R(x + 3, y + 5, 2, 1, tint(road, 0.86)); continue; }      // a track: a tuft in it, a worn place, nothing more
+      if (!paved && dTown >= 9) {
+        const ways = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => isRd(at(tx + dx, ty + dy))).length, lanes = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isLane(tx + dx, ty + dy));
+        if (ways >= 3 && !lanes && h(tx, ty, 1601) > 0.25 && ![[1, 0], [0, 1]].some(([dx, dy]) => isRd(at(tx + dx, ty + dy)) && [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ex, ey]) => isRd(at(tx + dx + ex, ty + dy + ey))).length >= 3))
+          posts.push({ y: ty * 10 + 9, d: () => { const sx = tx * 10 + (h(tx, ty, 1602) > 0.5 ? 9 : -1), sy = ty * 10; R(sx - 1, sy + 8, 4, 1, 'rgba(0,0,0,.2)'); R(sx, sy - 3, 1, 12, '#4a3620'); R(sx - 4, sy - 2, 5, 2, '#b89a64'); R(sx - 5, sy - 1, 1, 1, '#b89a64'); R(sx + 1, sy + 1, 5, 2, '#a88a54'); R(sx + 6, sy + 2, 1, 1, '#a88a54'); R(sx - 3, sy - 2, 3, 1, '#d4b884'); R(sx, sy - 4, 1, 1, '#6b4f2c'); } });      // a fingerpost where the ways part: one board to each
+      }
       }
       if (k === T_BRIDGE) { }
       else if (paved) { R(x + 2 + ((tx + ty) % 2) * 3, y + 2, 1, 6, '#a89f8a'); R(x + 2, y + 4 + ((tx * 3 + ty) % 2), 6, 1, '#a89f8a'); if (a > 0.8) R(x + 3 + Math.floor(b * 3), y + 3, 2, 2, '#d6cfbc'); }      // dressed stone, close to the gate
@@ -641,7 +649,7 @@ function provLand() {
   });
   // what stands up from the ground is gathered first and drawn from the back of the picture to the front, so that
   // each thing overlaps what is behind it. Nothing is stamped: every tree and every mountain is made for its own spot.
-  const feats = [];
+  const feats = posts.slice();
   // ---- the crossings: each is one bridge, laid straight from the road on one bank to the road on the other ----
   for (const B of crossings) {
     const ends = []; for (const [bx, by] of B.tiles) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (at(bx + dx, by + dy) === T_ROAD && !ends.some(e => e[0] === bx + dx && e[1] === by + dy)) ends.push([bx + dx, by + dy]);

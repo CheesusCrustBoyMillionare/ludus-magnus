@@ -1451,6 +1451,10 @@ test('the province: every bridge runs straight, and the roads still meet across 
     const ends = y0 === y1 ? [[x0 - 1, y0], [x1 + 1, y0]] : [[x0, y0 - 1], [x0, y1 + 1]];
     assert(ends.every(([x, y]) => at(x, y) === T_ROAD && L.reach[y * TW + x]) && comp.every(([x, y]) => L.reach[y * TW + x]), 'a bridge at ' + x0 + ',' + y0 + ' does not meet the road at both ends');
   }
+  // lanes: a short track from a place to the road near it, over dry ground, and never over the place itself
+  { let n = 0; const spotsAt = new Set(wildSites().filter(q => !q.errand && !q.journey).map(q => Math.floor(q.y / 10) * TW + Math.floor(q.x / 10)));
+    for (let i = 0; i < TW * TH; i++) if (L.lane[i]) { n++; assert(L.t[i] === T_ROAD && L.reach[i] && !spotsAt.has(i), 'a lane that is not road, or cannot be reached, or lies over a place'); assert([i - 1, i + 1, i - TW, i + TW].some(k => L.t[k] === T_ROAD || spotsAt.has(k)), 'a lane tile joined to nothing'); }
+    assert(n >= 20 && n <= 160, 'a few lanes, not a web of them: ' + n + ' tiles'); }
   // nothing that was a place has been cut off or built over by it
   for (const s of wildSites()) { const k = Math.floor(s.y / 10) * TW + Math.floor(s.x / 10); assert(L.reach[k] && L.t[k] !== T_BRIDGE && L.t[k] < T_WATER, s.name + ' is cut off'); }
   // a column caught standing where a bridge used to be is set down on the nearest bank
