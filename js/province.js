@@ -767,6 +767,26 @@ function provLand() {
     [4, 'A house fallen in', on(GR), (x, y, P, v) => { const w = 9 + Math.floor(v(1) * 5), wc = v(2) > 0.5 ? '#b8ab94' : '#cdbd94'; P(x + 1, y + 8, w + 2, 2, 'rgba(0,0,0,.2)'); P(x + 2, y + 2 + Math.floor(v(3) * 3), 1, 7, wc); P(x + 1 + w, y + 4 + Math.floor(v(4) * 3), 1, 5, wc); P(x + 2, y + 8, w, 1, wc); for (let q = 0; q < w; q += 2) if (v(5 + q) > 0.35) P(x + 2 + q, y + 2 + Math.floor(v(20 + q) * 4), 2, 6 - Math.floor(v(20 + q) * 4), tint(wc, 0.9)); P(x + 4, y + 6, 2, 3, '#2a1d12'); for (let q = 0; q < 4; q++) P(x + 2 + Math.floor(v(30 + q) * w), y + 3 + Math.floor(v(34 + q) * 4), 2, 2, '#4c7f38'); for (let q = 0; q < 3; q++) P(x + 4 + w + q * 2, y + 8 - (q % 2), 2, 1, '#a39a8a'); if (v(6) > 0.5) { P(x + 3 + (w >> 1), y - 2, 1, 5, '#5a5046'); P(x + 4 + (w >> 1), y - 1, 2, 1, '#5a5046'); } }],
   ];
   DWELL.forEach(([count, name, ok, draw], kn) => { for (let q = 0; q < count; q++) dwell(4000 + kn * 37 + q * 11, ok, name, draw); });
+  const OUT = [
+    (x, y, P, v) => cot(P, v, x + 1, y + 4, { w: 5 + Math.floor(v(1) * 3), h: 4 }),
+    (x, y, P, v) => { const c = [['#c23b2e', '#f1ead8'], ['#3a6ea8', '#f1ead8'], ['#c9a21e', '#8a4a2a'], ['#35602b', '#e8d8a0'], ['#8a4a8a', '#f1ead8']][Math.floor(v(1) * 5)]; P(x + 1, y + 9, 9, 1, 'rgba(0,0,0,.2)'); P(x + 1, y + 2, 1, 7, '#5a4326'); P(x + 8, y + 2, 1, 7, '#5a4326'); for (let i = 0; i < 8; i += 2) { P(x + 1 + i, y + 1, 2, 2, c[(i >> 1) % 2]); P(x + 1 + i, y + 3, 2, 1, tint(c[(i >> 1) % 2], 0.8)); } P(x + 1, y + 6, 8, 2, '#8a6a3a'); for (let q = 0; q < 3; q++) P(x + 2 + q * 2, y + 5, 1, 1, ['#d8382a', '#e8c040', '#55803a', '#b5522e'][Math.floor(v(2 + q) * 4)]); },      // a stall under its awning
+    (x, y, P, v) => { const c = ['#e8dcc0', '#c9b890', '#b89a6a', '#d8c4a0'][Math.floor(v(1) * 4)]; P(x, y + 9, 10, 1, 'rgba(0,0,0,.2)'); for (let i = 0; i < 6; i++) P(x + 4 - i, y + 3 + i, i * 2 + 2, 1, i % 3 === 2 ? tint(c, 0.86) : c); P(x + 4, y + 6, 2, 3, '#2a1d12'); P(x + 4, y + 1, 1, 2, '#5a4326'); },      // a tent
+    (x, y, P, v) => { P(x + 1, y + 9, 8, 1, 'rgba(0,0,0,.2)'); for (let i = 0; i < 5; i++) { const w = 2 + Math.min(2, i); P(x + 4 - w, y + 4 + i, w * 2, 1, i % 2 ? '#a8482a' : '#b5522e'); } P(x + 3, y + 7, 2, 2, '#2a1c14'); P(x + 3, y + 8, 2, 1, '#e2702a'); P(x + 4, y + 2, 1, 1, 'rgba(216,212,204,.7)'); for (let q = 0; q < 2 + Math.floor(v(1) * 2); q++) { P(x + 8 + q * 2, y + 7, 1, 2, '#b5522e'); P(x + 8 + q * 2, y + 6, 1, 1, '#8a3a22'); } },      // a potter's kiln, and what came out of it
+    (x, y, P, v) => { P(x + 2, y + 9, 7, 1, 'rgba(0,0,0,.2)'); P(x + 2, y + 6, 6, 3, '#b8ab94'); P(x + 2, y + 6, 6, 1, '#d8cdb6'); P(x + 3, y + 7, 4, 1, '#4f8fb8'); P(x + 2, y + 2, 1, 4, '#6b4f2c'); P(x + 7, y + 2, 1, 4, '#6b4f2c'); P(x + 1, y + 1, 8, 1, v(1) > 0.5 ? '#a8482a' : '#6b4f2c'); P(x + 5, y + 2, 1, 3, '#8a7a5c'); },      // a well
+    (x, y, P, v) => { P(x + 1, y + 9, 9, 1, 'rgba(0,0,0,.2)'); P(x + 1, y + 5, 7, 2, '#8a6a3a'); P(x + 8, y + 6, 3, 1, '#6b4f2c'); P(x + 2, y + 7, 2, 2, '#3a2a1c'); P(x + 5, y + 7, 2, 2, '#3a2a1c'); if (v(1) > 0.5) { P(x + 1, y + 2, 7, 3, '#d9c070'); P(x + 2, y + 1, 5, 1, '#e6d088'); } else for (let q = 0; q < 3; q++) { P(x + 2 + q * 2, y + 2, 1, 3, '#b5522e'); P(x + 2 + q * 2, y + 1, 1, 1, '#8a3a22'); } },      // a cart, loaded
+    (x, y, P, v) => { P(x, y + 3, 10, 1, '#8a6a3a'); P(x, y + 9, 10, 1, '#8a6a3a'); for (let i = 0; i < 10; i += 3) { P(x + i, y + 2, 1, 3, '#6b4f2c'); P(x + i, y + 8, 1, 3, '#6b4f2c'); } P(x, y + 3, 1, 7, '#8a6a3a'); P(x + 9, y + 3, 1, 7, '#8a6a3a'); for (let q = 0; q < 1 + Math.floor(v(1) * 3); q++) { const pg = v(2) > 0.5; P(x + 2 + q * 2, y + 5 + (q % 2) * 2, 3, 2, pg ? '#e0a8a0' : '#f1ead8'); P(x + 2 + q * 2, y + 5 + (q % 2) * 2, 1, 1, pg ? '#c88880' : '#3a2a1c'); } },      // a pen, pigs or goats in it
+    (x, y, P, v) => { P(x + 1, y + 2, 1, 8, '#6b4f2c'); P(x + 9, y + 2, 1, 8, '#6b4f2c'); P(x + 1, y + 3, 9, 1, '#c8c0a8'); for (let q = 0; q < 3; q++) P(x + 2 + q * 2 + Math.floor(v(1) * 2), y + 4, 2, 2 + Math.floor(v(2 + q) * 2), ['#f1ead8', '#c23b2e', '#3a6ea8', '#c9a21e', '#e8d8a0'][Math.floor(v(5 + q) * 5)]); },      // washing out to dry
+    (x, y, P, v) => { P(x + 1, y + 2, 9, 7, '#7a6a48'); for (let r0 = 0; r0 < 3; r0++) for (let q = 0; q < 4; q++) { P(x + 2 + q * 2, y + 3 + r0 * 2, 1, 1, r0 === Math.floor(v(1) * 3) ? '#8fb865' : '#4f7a3a'); } P(x + 1, y + 2, 9, 1, '#6b4f2c'); P(x + 1, y + 2, 1, 7, '#6b4f2c'); if (v(2) > 0.5) P(x + 8, y + 4, 1, 3, '#d8382a'); },      // a kitchen garden
+    (x, y, P, v) => { P(x + 1, y + 9, 9, 1, 'rgba(0,0,0,.2)'); for (let q = 0; q < 3 + Math.floor(v(1) * 3); q++) { const ax = x + 1 + (q % 3) * 3, ay = y + 6 - Math.floor(q / 3) * 3; P(ax, ay, 2, 3, q % 2 ? '#b5522e' : '#a8482a'); P(ax, ay - 1, 2, 1, '#8a3a22'); P(ax, ay + 1, 1, 1, '#c8683e'); } },      // jars stacked for the wine ships
+    (x, y, P, v) => { P(x, y + 9, 10, 1, 'rgba(0,0,0,.2)'); P(x + 1, y + 3, 1, 6, '#5a4326'); P(x + 8, y + 3, 1, 6, '#5a4326'); P(x, y + 2, 10, 2, '#3a322c'); P(x, y + 2, 10, 1, '#5a5046'); P(x + 2, y + 6, 3, 3, '#6e6a62'); P(x + 3, y + 7, 1, 1, '#e2702a'); P(x + 6, y + 7, 2, 1, '#3a3a40'); P(x + 6, y + 8, 1, 1, '#3a3a40'); },      // a smithy under a lean-to
+    (x, y, P, v) => { P(x + 2, y + 9, 6, 1, 'rgba(0,0,0,.2)'); P(x + 3, y + 4, 4, 5, '#e8e2d2'); P(x + 6, y + 4, 1, 5, '#c9c2ae'); P(x + 2, y + 3, 6, 1, '#d8d2c0'); P(x + 2, y + 8, 6, 1, '#d8d2c0'); P(x + 4, y + 2, 2, 1, v(1) > 0.5 ? '#e2702a' : '#5a8a46'); P(x + 4, y + 6, 1, 1, '#c23b2e'); },      // an altar by the way in
+  ];
+  for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+    const tx = tx0 + dx, ty = ty0 + dy, d = Math.hypot(dx, dy), k = at(tx, ty);
+    if (d < 2.6 || d > 5.4 || (k !== T_GRASS && k !== T_MEADOW) || farm(tx, ty) || h(tx, ty, 1150) > 0.62) continue;
+    const kind = Math.floor(h(tx, ty, 1151) * OUT.length), x = tx * 10, y = ty * 10, flip = h(tx, ty, 1152) > 0.5, P = (px, py, w, hh, c) => R(flip ? 2 * x + 10 - px - w : px, py, w, hh, c), v = q => h(tx, ty, 1153 + q);
+    feats.push({ y: y + 9, d: () => OUT[kind](x, y, P, v) });
+  }
   prov.marks = marks;
   // each road, as the run of its own tiles from one end to the other, so that travellers keep to it
   prov.ways = WILD_ROADS.filter(q => q.length >= 3).map(poly => {
@@ -860,7 +880,17 @@ function provLand() {
         const sz = edge ? 2 + Math.floor(h(tx, ty, 72 + q) * 2) : old ? 5 + Math.floor(h(tx, ty, 72 + q) * 3) : young ? 2 + Math.floor(h(tx, ty, 72 + q) * 2) : 3 + Math.floor(h(tx, ty, 72 + q) * 3);
         if (!nearMark(cx, cy)) feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
       }
-      if (edge && a > 0.7) feats.push({ y: y + 9, d: () => { R(x + 1 + Math.floor(b * 5), y + 7, 4, 2, '#4c7f38'); R(x + 2 + Math.floor(b * 5), y + 6, 2, 1, '#69a04a'); } });      // brush along the wood's edge
+      if (edge && a > 0.45) {                    // along the wood's edge: bramble, fern, a felled strip, thorn in blossom, flowers at its foot, or plain brush
+        const ez = zq(wildNoise(tx / 6, ty / 6, 1130), 6), e1 = h(tx, ty, 1131), e2 = h(tx, ty, 1132), bx = x + 1 + Math.floor(b * 5);
+        feats.push({ y: y + 9, d: () => {
+          if (ez === 0) { R(bx - 1, y + 9, 7, 1, 'rgba(0,0,0,.16)'); R(bx - 1, y + 6, 6, 3, '#35542c'); R(bx, y + 5, 4, 1, '#3f6a34'); R(bx - 1, y + 6, 2, 1, '#4c7f38'); for (let q = 0; q < 3; q++) R(bx + Math.floor(h(tx, ty, 1133 + q) * 5), y + 6 + (q % 2), 1, 1, q % 2 ? '#2a1a3a' : '#7a2a4a'); }
+          else if (ez === 1) for (let q = 0; q < 3 + Math.floor(e1 * 3); q++) { const fx = x + Math.floor(h(tx, ty, 1133 + q) * 9), fy = y + 5 + Math.floor(h(tx, ty, 1139 + q) * 4); R(fx, fy, 1, 2, '#4f8a3a'); R(fx - 1, fy - 1, 1, 1, '#6faa4e'); R(fx + 1, fy - 1, 1, 1, '#6faa4e'); }
+          else if (ez === 2) { if (e1 > 0.5) { R(bx, y + 6, 2, 3, '#6b4f2c'); R(bx, y + 6, 2, 1, '#c9a763'); if (e2 > 0.5) { R(bx + 4, y + 7, 2, 2, '#6b4f2c'); R(bx + 4, y + 7, 2, 1, '#c9a763'); } } else { R(bx - 1, y + 7, 7, 2, '#7a5a34'); R(bx, y + 5, 5, 2, '#8a6a3a'); for (let q = 0; q < 3; q++) R(bx + q * 2, y + 7, 1, 1, '#c9a763'); R(bx - 1, y + 9, 8, 1, 'rgba(0,0,0,.16)'); } }
+          else if (ez === 3) { R(bx - 1, y + 9, 6, 1, 'rgba(0,0,0,.16)'); R(bx + 1, y + 6, 1, 3, '#4a3320'); R(bx - 1, y + 3, 5, 4, '#4c7f38'); R(bx, y + 2, 3, 1, '#4c7f38'); for (let q = 0; q < 5; q++) R(bx - 1 + Math.floor(h(tx, ty, 1133 + q) * 5), y + 2 + Math.floor(h(tx, ty, 1139 + q) * 4), 1, 1, e2 > 0.3 ? '#f8f8f4' : '#f4d0d8'); }
+          else if (ez === 4) for (let q = 0; q < 3 + Math.floor(e1 * 4); q++) { const fx = x + Math.floor(h(tx, ty, 1133 + q) * 10), fy = y + 5 + Math.floor(h(tx, ty, 1139 + q) * 4), tall = q % 2 === 0; if (tall) { R(fx, fy, 1, 3, '#4f7a3a'); R(fx, fy - 2, 1, 2, wildNoise(tx / 3, ty / 3, 1145) > 0.5 ? '#b070c0' : '#e07898'); } else R(fx, fy + 1, 1, 1, '#7a8ad8'); }
+          else { R(bx, y + 7, 4, 2, '#4c7f38'); R(bx + 1, y + 6, 2, 1, '#69a04a'); }
+        } });
+      }
     } else if (k === T_PEAK) {
       const d = peakDepth(tx, ty), reg = wildRegion(x + 5, y + 5), r = h(tx, ty, 80);
       const rock = reg === 'The High Fells' ? ['#a2aab4', '#646c78', '#7d8692'] : reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876', '#b3ac98'] : reg === 'The Barrow Downs' ? ['#8c8676', '#4f4a3c', '#6d6858'] : ['#aaa496', '#6b665c', '#8a8478'];
@@ -940,6 +970,23 @@ function provLand() {
     // A road has something beside it for a stretch, then something else: an avenue of trees, a hedge, a wall of
     // field stones, a ditch, a flowering verge, a fence of posts and rails; or nothing.
     const side = at(tx, ty - 1) === T_ROAD ? 'n' : at(tx, ty + 1) === T_ROAD ? 's' : at(tx - 1, ty) === T_ROAD ? 'w' : at(tx + 1, ty) === T_ROAD ? 'e' : '';
+    if (side && Math.hypot(tx - tx0, ty - ty0) < 17) {
+      // No one is buried inside the walls; the tombs stand along the roads, each family's of its own making.
+      const t1 = h(tx, ty, 1140), t2 = h(tx, ty, 1141), t3 = h(tx, ty, 1142), t4 = h(tx, ty, 1143);
+      if (t1 < 0.5) {
+        const st = ['#d8d2c0', '#e8e2d2', '#c9c3ae', '#b8b0a0'][Math.floor(t3 * 4)], sd = tint(st, 0.8), cx = x + (side === 'w' ? 2 : side === 'e' ? 5 : 2 + Math.floor(t4 * 5)), by = y + (side === 'n' ? 6 : side === 's' ? 9 : 5 + Math.floor(t4 * 4));
+        feats.push({ y: by, d: () => {
+          R(cx - 1, by, 6, 1, 'rgba(0,0,0,.2)');
+          if (t2 < 0.24) { const hh = 4 + Math.floor(t4 * 3); R(cx, by - hh, 3, hh, st); R(cx + 2, by - hh, 1, hh, sd); R(cx + 1, by - hh - 1, 1, 1, st); R(cx, by - hh + 2, 2, 1, sd); if (t4 > 0.6) R(cx, by - 1, 1, 1, '#c23b2e'); }                                              // a slab set upright, a wreath left at it
+          else if (t2 < 0.44) { R(cx - 1, by - 3, 6, 3, st); R(cx + 3, by - 3, 2, 3, sd); R(cx - 2, by - 4, 8, 1, tint(st, 1.06)); R(cx, by - 2, 3, 1, sd); if (t4 > 0.5) { R(cx + 1, by - 6, 2, 2, '#b5522e'); R(cx + 1, by - 6, 1, 1, '#d8742a'); } }                                    // a chest tomb, a jar on its lid
+          else if (t2 < 0.6) { R(cx - 2, by - 6, 8, 6, st); R(cx + 4, by - 6, 2, 6, sd); for (let i = 0; i < 3; i++) R(cx - 2 + i, by - 7 - i, 8 - i * 2, 1, tint(st, 1.05)); R(cx + 1, by - 4, 2, 4, '#3a2a1c'); R(cx - 1, by - 6, 1, 6, tint(st, 1.1)); R(cx + 4, by - 6, 1, 6, tint(st, 1.1)); }      // a house for the dead, with its own door
+          else if (t2 < 0.74) { const hh = 7 + Math.floor(t4 * 3); R(cx, by - 1, 4, 1, st); R(cx + 1, by - hh, 2, hh, st); R(cx + 2, by - hh, 1, hh, sd); R(cx, by - hh - 1, 4, 1, st); R(cx + 1, by - hh - 3, 2, 2, t4 > 0.5 ? '#b5522e' : st); }                                         // a column, an urn on it
+          else if (t2 < 0.88) { R(cx + 3, by - 2, 3, 2, st); R(cx + 5, by - 2, 1, 2, sd); tree(cx, by, 'cypress', 2 + Math.floor(t4 * 2), 0.95); }                                                                                                                                  // a plain stone, and a cypress planted by it
+          else { R(cx, by - 3, 2, 3, sd); R(cx + 2, by - 1, 4, 1, st); R(cx + 3, by - 2, 2, 1, st); R(cx, by - 4, 1, 1, '#4c7f38'); R(cx + 1, by - 3, 1, 2, '#4c7f38'); }                                                                                                             // an old one, broken and under ivy
+        } });
+      }
+      continue;
+    }
     if (side) {
       const rz = zq(wildNoise(tx / 9, ty / 9, 1090), 7), r1 = h(tx, ty, 1091), r2 = h(tx, ty, 1092), along = side === 'n' || side === 's';
       const band = (th, d) => { const o = side === 'n' || side === 'w' ? 1 : 9 - th; if (along) d(x, y + o, 10, th); else d(x + o, y, th, 10); };      // a strip along the road's side of the tile
