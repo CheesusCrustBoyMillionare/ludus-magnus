@@ -158,7 +158,7 @@ function wildLand() {
       // from the foot of a bridge to the road on its bank, over dry ground: the way, and which road it came to
       const wayToRoad = ([sx, sy]) => {
         const s0 = sy * TW + sx;
-        if (t[s0] === T_ROAD) return { path: [], lab: lab.get(s0) || 0 };
+        if (t[s0] === T_ROAD) return { path: [], lab: lab.get(s0) || 0, goal: s0 };
         const from = new Map([[s0, -1]]), q = [s0];
         for (let k = 0; k < q.length && k < 1500; k++) {
           const cur = q[k], cx = cur % TW, cy = (cur - cx) / TW;
@@ -166,7 +166,7 @@ function wildLand() {
             const nx = cx + dx, ny = cy + dy, n = ny * TW + nx;
             if (!inMap(nx, ny) || from.has(n) || t[n] >= T_WATER || t[n] === T_BRIDGE || taken(nx, ny)) continue;
             from.set(n, cur);
-            if (t[n] === T_ROAD) { const path = []; for (let p = cur; p !== -1; p = from.get(p)) path.push(p); return path.length > 24 ? null : { path, lab: lab.get(n) || 0 }; }
+            if (t[n] === T_ROAD) { const path = []; for (let p = cur; p !== -1; p = from.get(p)) path.push(p); return path.length > 24 ? null : { path, lab: lab.get(n) || 0, goal: n }; }
             q.push(n);
           }
         }
@@ -185,7 +185,7 @@ function wildLand() {
       // ending at the water with its other half on the far side.
       const mk = n => { const h = []; for (let i = 0; i <= n; i++) h.push(i); return h; }, find = (h, i) => { while (h[i] !== i) i = h[i]; return i; };
       const hl = mk(lands), hr = mk(labels);
-      let landParts = lands, roadParts = labels; const changed = [];
+      let landParts = lands, roadParts = labels; const changed = [], feet = [];
       const put2 = (key, v) => { changed.push([key, t[key]]); t[key] = v; };
       for (const Ln of lines) {
         if (landParts <= 1 && roadParts <= 1) break;
@@ -202,6 +202,7 @@ function wildLand() {
           for (const key of (w ? w.path : [])) { put2(key, T_ROAD); if (l) lab.set(key, l); }
           const ek = e[1] * TW + e[0]; if (t[ek] < T_WATER && t[ek] !== T_ROAD) { put2(ek, T_ROAD); if (l) lab.set(ek, l); }
         }
+        for (const [w, e] of [[w1, Ln.e1], [w2, Ln.e2]]) if (w && w.lab) feet.push({ e, path: w.path.slice(), goal: w.goal, horiz: Ln.horiz });
         if (joinsLand) { hl[find(hl, g1)] = find(hl, g2); landParts--; }
         if (joinsRoad) { hr[find(hr, w1.lab)] = find(hr, w2.lab); roadParts--; }
       }
@@ -221,6 +222,38 @@ function wildLand() {
             t[k] = ground.length ? ground.sort((u, v) => ground.filter(g => g === v).length - ground.filter(g => g === u).length)[0] : T_GRASS; cut++;
           }
           if (!cut) break;
+        }
+        // A road does not run down to the water and then turn along the bank to its bridge: it makes for the bridge
+        // from some way back. So on each bank the last stretch of the old road is taken up, with the piece along the
+        // bank, and laid again in one line from where it left off to the foot of the bridge.
+        const BACK = 9, ground = k => { const kx = k % TW, ky = (k - kx) / TW, seen = []; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const o = t[(ky + dy) * TW + kx + dx]; if ((dx || dy) && o < T_WATER && o !== T_ROAD && o !== T_BRIDGE) seen.push(o); } return seen.length ? seen.sort((u, v) => seen.filter(g => g === v).length - seen.filter(g => g === u).length)[0] : T_GRASS; };
+        for (const F of feet) {
+          const ek = F.e[1] * TW + F.e[0], along = new Set(F.path.concat(ek)), chain = [F.goal], seen = new Set([F.goal]);
+          along.delete(F.goal);                                 // where the foot of the bridge is itself the old road's end
+          for (let step = 0; step < BACK; step++) {
+            const cur = chain[chain.length - 1], cx = cur % TW, cy = (cur - cx) / TW, near = [], far = [];
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const n = (cy + dy) * TW + cx + dx; if (t[n] !== T_ROAD || seen.has(n) || along.has(n)) continue; (dx && dy ? far : near).push(n); }
+            // on along the road, away from the bridge: of the tiles that carry it on, the one furthest from the foot.
+            // (A road climbing a slant lies in steps, so two or three tiles ahead may touch this one; four is a fork.)
+            const cand = near.concat(far), away = k => Math.hypot(k % TW - F.e[0], Math.floor(k / TW) - F.e[1]);
+            const next = cand.length && cand.length <= 3 ? cand.slice().sort((u, v) => away(v) - away(u))[0] : -1;
+            if (next < 0 || taken(next % TW, Math.floor(next / TW))) break;      // the road forks here, or ends, or a place stands on it: no further back
+            for (const n of near.concat(far)) seen.add(n);
+            chain.push(next);
+          }
+          if (chain.length < 4) continue;
+          const A = chain[chain.length - 1], ax = A % TW, ay = (A - ax) / TW, cells = [];
+          line([[ax, ay], [F.e[0], F.e[1]]], (x, y) => { const k = y * TW + x; if (!cells.includes(k)) cells.push(k); });
+          const old = new Set(chain.slice(0, -1).concat(F.path));
+          if (!cells.every(k => inMap(k % TW, Math.floor(k / TW)) && !taken(k % TW, Math.floor(k / TW)) && (t[k] < T_WATER && t[k] !== T_BRIDGE))) continue;      // the straight way is under water, or over a place: it stays as it was
+          for (const k of old) if (k !== ek && !cells.includes(k) && t[k] === T_ROAD) t[k] = ground(k);
+          for (const k of cells) t[k] = T_ROAD;
+          // and any odd tile of the old stretch left standing by itself beside the new one goes too
+          for (let pass = 0; pass < 2; pass++) for (const k of seen) {
+            if (k === A || k === ek || cells.includes(k) || t[k] !== T_ROAD || taken(k % TW, Math.floor(k / TW))) continue;
+            const kx = k % TW, ky = (k - kx) / TW; let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && (t[(ky + dy) * TW + kx + dx] === T_ROAD || t[(ky + dy) * TW + kx + dx] === T_BRIDGE) && !cells.includes((ky + dy) * TW + kx + dx)) n++;
+            if (n <= 1) t[k] = ground(k);
+          }
         }
       }
       if (!done) for (const [key, was] of before) t[key] = was;      // no straight way joins them: that crossing stays as it was

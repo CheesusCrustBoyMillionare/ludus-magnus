@@ -169,22 +169,54 @@ function provLand() {
     let sx = tx * 10 + 5, sy = ty * 10 + 5, n = 1, held = at(tx, ty) !== T_ROAD || Math.hypot(tx - tx0, ty - ty0) < 9;
     const nb = []; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && isRd(at(tx + dx, ty + dy))) { nb.push([dx, dy]); if (at(tx + dx, ty + dy) === T_BRIDGE) held = true; }
     if (!held && nb.length >= 2) for (const [dx, dy] of nb) { sx += (tx + dx) * 10 + 5; sy += (ty + dy) * 10 + 5; n++; }      // it stays square to a bridge, in the paved streets, and at its own end
-    const c = [Math.round(sx / n), Math.round(sy / n)]; midCache.set(key, c); return c;
+    const c = [Math.round(sx / n), Math.round(sy / n), held || nb.length < 2 ? 1 : 0]; midCache.set(key, c); return c;
+  };
+  const mid1 = roadMid, mid2Cache = new Map();
+  // eased once more along the road: each stretch drawn toward where its neighbours have already been drawn to
+  const roadMid2 = (tx, ty) => {
+    const key = ty * TW + tx; if (mid2Cache.has(key)) return mid2Cache.get(key);
+    const c0 = mid1(tx, ty); let sx = c0[0] * 2, sy = c0[1] * 2, n = 2;
+    if (!c0[2]) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && isRd(at(tx + dx, ty + dy))) { const q = mid1(tx + dx, ty + dy); sx += q[0]; sy += q[1]; n++; }
+    const c = [Math.round(sx / n), Math.round(sy / n)]; mid2Cache.set(key, c); return c;
   };
   const isLane = (tx, ty) => !!(L.lane && L.lane[ty * TW + tx]);
-  { let thin = false; const stamp = (px, py, c, wide) => { if (thin) { if (!wide) { R(px - 1, py - 2, 3, 4, c); R(px - 2, py - 1, 4, 3, c); } } else if (wide) { R(px - 3, py - 4, 6, 8, c); R(px - 4, py - 3, 8, 6, c); } else { R(px - 2, py - 3, 4, 6, c); R(px - 3, py - 2, 6, 4, c); } };
-    const run = (ax, ay, bx, by, c1, c2, wide) => { const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1); for (let i = 0; i <= n; i++) stamp(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), i * 2 < n ? c1 : c2, wide); };
-    for (const wide of [true, false]) for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+  { const PW = TW * 10, PH = TH * 10, band = new Uint8Array(PW * PH);      // every pixel the roads cover: 1 a road, 2 a lane
+    let thin = false;
+    const px1 = (x, y, w, hh, c) => { R(x, y, w, hh, c); const v = thin ? 2 : 1; for (let yy = Math.max(0, y); yy < Math.min(PH, y + hh); yy++) for (let xx = Math.max(0, x); xx < Math.min(PW, x + w); xx++) band[yy * PW + xx] = v; };
+    const stamp = (px, py, c) => { if (thin) { px1(px - 1, py - 2, 3, 4, c); px1(px - 2, py - 1, 4, 3, c); } else { px1(px - 2, py - 3, 4, 6, c); px1(px - 3, py - 2, 6, 4, c); } };
+    const run = (ax, ay, bx, by, c1, c2) => { const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1); for (let i = 0; i <= n; i++) stamp(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), i * 2 < n ? c1 : c2); };
+    const shade = (tx, ty) => isLane(tx, ty) ? tint(roadCol(tx, ty), 0.92) : roadCol(tx, ty);
+    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
       if (at(tx, ty) !== T_ROAD) continue;
-      const A = roadMid(tx, ty), laneA = isLane(tx, ty), cA = wide ? tint(roadCol(tx, ty), 0.8) : laneA ? tint(roadCol(tx, ty), 0.92) : roadCol(tx, ty); let any = false;
+      const A = roadMid2(tx, ty), laneA = isLane(tx, ty), cA = shade(tx, ty); let any = false;
       for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1], [-1, 0], [0, -1], [-1, -1], [1, -1]]) {
         const o = at(tx + dx, ty + dy); if (!isRd(o)) continue; any = true;
-        if (o === T_BRIDGE) { if (!dx || !dy) run(A[0], A[1], A[0] + dx * 5, A[1] + dy * 5, cA, cA, wide); continue; }      // to the edge of its own tile, where the bridge takes it up
-        if (dx < 0 && dy <= 0 || (dx === 0 && dy < 0) || (dx > 0 && dy < 0)) continue;                                        // each pair once
-        const B = roadMid(tx + dx, ty + dy), laneB = isLane(tx + dx, ty + dy); thin = laneA || laneB;
-        run(A[0], A[1], B[0], B[1], cA, wide ? tint(roadCol(tx + dx, ty + dy), 0.8) : laneB ? tint(roadCol(tx + dx, ty + dy), 0.92) : roadCol(tx + dx, ty + dy), wide); thin = false;
+        if (o === T_BRIDGE) { if (!dx || !dy) { thin = false; run(A[0], A[1], A[0] + dx * 5, A[1] + dy * 5, cA, cA); } continue; }      // to the edge of its own tile, where the bridge takes it up
+        if (dx < 0 && dy <= 0 || (dx === 0 && dy < 0) || (dx > 0 && dy < 0)) continue;                                               // each pair once
+        const B = roadMid2(tx + dx, ty + dy); thin = laneA || isLane(tx + dx, ty + dy);
+        run(A[0], A[1], B[0], B[1], cA, shade(tx + dx, ty + dy)); thin = false;
       }
-      if (!any) { thin = laneA; stamp(A[0], A[1], cA, wide); thin = false; }
+      if (!any) { thin = laneA; stamp(A[0], A[1], cA); thin = false; }
+    }
+    // The edge. No line is ruled between a road and the country it crosses: here the grass has crept a little way onto
+    // it, there the dust has spread a little way off it, and now and then a tuft stands right at the wheel-mark. Paved
+    // streets by the town keep a clean edge.
+    const tileOf = (x, y) => [Math.floor(x / 10), Math.floor(y / 10)];
+    const groundAt = (x, y) => { const [tx, ty] = tileOf(x, y), k = at(tx, ty); return col(k === T_ROAD || k === T_BRIDGE ? T_GRASS : k, tx, ty); };
+    for (let y = 1; y < PH - 1; y++) for (let x = 1; x < PW - 1; x++) {
+      const i = y * PW + x, v = band[i];
+      if (v) {
+        if (band[i - 1] && band[i + 1] && band[i - PW] && band[i + PW]) continue;      // not on the edge
+        const [tx, ty] = tileOf(x, y); if (Math.hypot(tx - tx0, ty - ty0) < 9 || wet(at(tx, ty)) || at(tx, ty) === T_BRIDGE) continue;
+        const r = h(x, y, 1701);
+        if (r < (v === 2 ? 0.5 : 0.36)) R(x, y, 1, 1, groundAt(x, y));                                   // grass over the edge of it
+        else if (r > 0.93) R(x, y, 1, 1, h(x, y, 1702) > 0.5 ? '#6f9a48' : '#8aa652');                   // a tuft
+        else if (r > 0.8) R(x, y, 1, 1, tint(roadCol(tx, ty), 0.86));                                    // the rut at the edge, darker
+      } else if (band[i - 1] || band[i + 1] || band[i - PW] || band[i + PW]) {
+        const [tx, ty] = tileOf(x, y), k = at(tx, ty); if (wet(k) || k === T_BRIDGE || Math.hypot(tx - tx0, ty - ty0) < 9) continue;
+        const r = h(x, y, 1703), lane2 = (band[i - 1] | band[i + 1] | band[i - PW] | band[i + PW]) === 2;
+        if (r < (lane2 ? 0.16 : 0.3)) { let rx = tx, ry = ty; if (!isRd(k)) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (isRd(at(tx + dx, ty + dy))) { rx = tx + dx; ry = ty + dy; break; } R(x, y, 1, 1, tint(roadCol(rx, ry), r < 0.1 ? 0.9 : 0.97)); }      // dust beyond the edge of it
+      }
     }
   }
   const zq = (v, n) => Math.min(n - 1, Math.max(0, Math.floor(((v - 0.5) * 2.4 + 0.5) * n)));      // which of n kinds a stretch of country is
@@ -202,7 +234,7 @@ function provLand() {
           for (let q = 0; q < 5; q++) { const at0 = q * 2, dep = 1 + Math.floor(h(tx, ty, 1520 + sd * 8 + q) * 3); if (dx) R(dx > 0 ? x + 10 - dep : x, y + at0, dep, 2, q % 3 === 2 ? '#bfae78' : oc); else R(x + at0, dy > 0 ? y + 10 - dep : y, 2, dep, q % 3 === 2 ? '#bfae78' : oc); }
         });
       } else {
-      { const c = roadMid(tx, ty); x += c[0] - (tx * 10 + 5); y += c[1] - (ty * 10 + 5); }      // the ribbon is laid already (below): what lies on it follows where it runs
+      { const c = roadMid2(tx, ty); x += c[0] - (tx * 10 + 5); y += c[1] - (ty * 10 + 5); }      // the ribbon is laid already (below): what lies on it follows where it runs
       if (isLane(tx, ty)) { if (a > 0.7) R(x + 4 + Math.floor(b * 2), y + 4, 1, 1, '#8aa652'); if (a < 0.12) R(x + 3, y + 5, 2, 1, tint(road, 0.86)); continue; }      // a track: a tuft in it, a worn place, nothing more
       if (!paved && dTown >= 9) {
         const ways = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => isRd(at(tx + dx, ty + dy))).length, lanes = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => isLane(tx + dx, ty + dy));
@@ -2677,20 +2709,36 @@ function hoverLines(hv) {
   if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc']].concat(LORE[hv.name] ? [[LORE[hv.name], '#f2e6cc']] : [], [[(hv.dw ? 'It stands in ' : 'A landmark of ') + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']]), 0];
   const done = siteDone(hv), mark = wildMap().marks[hv.id] && !done, dz = siteDanger(hv);
   const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
-  if (done) lines.push(['Dealt with.', '#a8947a']);
+  if (done) lines.push([doneWord(hv) + (wildMap().done[hv.id] > 1 ? ' on day ' + wildMap().done[hv.id] : '') + '.' + (SITE_GONE.includes(hv.kind) ? ' Nothing is left here.' : ' The school has been here; there is nothing more to do.'), SITE_GONE.includes(hv.kind) ? '#a8947a' : '#c9b47e']);
   else { lines.push([SITE_WHAT[hv.kind] || '', '#d8c8a8']); if (mark) lines.push(['Marked: something sent you here.', '#f5d584']); if (!dz) lines.push(['No danger known.', '#9fce86']); }
   lines.push([wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO MARCH THERE', '#a8947a']);
   return [lines, done ? 0 : dz];
 }
 
 // ---------- drawing ----------
+// What becomes of a place once it is dealt with. A camp, a lair or a hold that was fought for is laid waste: burnt,
+// empty, the colour gone out of it. But a hamlet that was only visited is a hamlet still, a shrine is still kept, and
+// a ruin that was searched is the same ruin with one more hole in it: those stay as they were, with a mark to say
+// the school has been there.
+const SITE_GONE = ['camp', 'slavers', 'chief', 'bounty', 'lair', 'battlefield', 'barrow'];
+const DONE_WORD = { camp: 'Burnt out', slavers: 'Burnt out', chief: 'Taken', bounty: 'Taken', lair: 'Cleared', battlefield: 'Cleared', barrow: 'Broken open', ruin: 'Searched', cache: 'Dug up', herb: 'Gathered',
+  hamlet: 'Visited', healer: 'Visited', merchant: 'Visited', hermit: 'Visited', deserter: 'Heard out', shrine: 'Honoured', vow: 'Vow paid', quarry: 'Settled', master: 'Settled' };
+const doneWord = s => DONE_WORD[s.kind] || 'Dealt with';
+// A colour with the life burnt out of it: mostly ash, a little of what it was, darker.
+function ashOf(c, x, y) {
+  if (c[0] !== '#' || c.length < 7) return c;
+  const r = parseInt(c.slice(1, 3), 16), g = parseInt(c.slice(3, 5), 16), b = parseInt(c.slice(5, 7), 16), grey = 0.3 * r + 0.59 * g + 0.11 * b, k = 0.66 + (((x + y) % 3) + 3) % 3 * 0.05;
+  const mix = v => Math.max(0, Math.min(255, Math.round((grey * 0.78 + v * 0.22) * k)));
+  return 'rgb(' + mix(r * 1.04) + ',' + mix(g) + ',' + mix(b * 0.94) + ')';
+}
 function provIcon(ctx, s, T, done) {
+  const gone = done && SITE_GONE.includes(s.kind);
   // each place has a number of its own, from its name: it decides which way the picture faces and how it is tinted
   const sd0 = [...String(s.id || s.kind)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7), flip = !['cache', 'herb', 'bounty'].includes(s.kind) && sd0 % 2 === 1, hue = 0.9 + (sd0 % 9) * 0.025;
-  const R = (x, y, w, h, c) => { ctx.fillStyle = done ? shade('#8a8478', 0.6 + ((x + y) % 3) * 0.12) : c[0] === '#' ? shade(c, hue) : c; ctx.fillRect(Math.round(s.x + (flip ? -x - w : x)), Math.round(s.y + y), w, h); };
+  const R = (x, y, w, h, c) => { ctx.fillStyle = gone ? ashOf(c, x, y) : c[0] === '#' ? shade(c, hue) : c; ctx.fillRect(Math.round(s.x + (flip ? -x - w : x)), Math.round(s.y + y), w, h); };
   const hut = (ox, oy) => { R(ox - 4, oy - 3, 8, 5, '#d9c9a0'); R(ox - 4, oy - 3, 1, 5, '#eadcb6'); R(ox + 2, oy - 3, 2, 5, '#b8a67c'); R(ox - 4, oy + 1, 8, 1, '#b8a67c'); R(ox - 5, oy - 6, 10, 3, '#8a5a32'); R(ox - 4, oy - 7, 8, 1, '#a8703c'); R(ox + 1, oy - 6, 4, 3, '#6f4424'); R(ox - 5, oy - 3, 10, 1, '#5e3a1e'); R(ox - 1, oy - 1, 2, 3, '#3a2416'); R(ox - 1, oy - 2, 2, 1, '#8a6a3a'); R(ox - 3, oy - 1, 1, 1, '#3a2a1c'); R(ox + 2, oy - 9, 2, 3, '#8a8478'); R(ox + 2, oy - 9, 2, 1, '#a39c88'); };      // a wall with a light and a dark end, a roof with a ridge, a door under its lintel, a window, a chimney
   const tent = (ox, oy, c) => { for (let i = 0; i < 6; i++) { R(ox - i, oy - 6 + i, i * 2 + 1, 1, i % 4 < 2 ? c : shade(c, 0.9)); if (i) R(ox + 1, oy - 6 + i, i, 1, shade(c, 0.76)); } R(ox, oy - 8, 1, 2, '#3a2a1c'); R(ox - 1, oy - 2, 2, 3, '#2a1d12'); R(ox - 2, oy - 2, 1, 3, shade(c, 1.15)); R(ox - 7, oy, 1, 1, '#c9b890'); R(ox + 7, oy, 1, 1, '#c9b890'); };      // the pole through its peak, one side in shade, the flap tied back, and its pegs
-  if (!done) { const kk = s.kind, gc = kk === 'camp' || kk === 'slavers' || kk === 'chief' || kk === 'bounty' ? '120,96,60' : kk === 'lair' ? '70,58,34' : kk === 'ruin' || kk === 'battlefield' || kk === 'shrine' || kk === 'vow' ? '200,192,170' : kk === 'quarry' ? '232,226,208' : '150,126,82';
+  if (!gone) { const kk = s.kind, gc = kk === 'camp' || kk === 'slavers' || kk === 'chief' || kk === 'bounty' ? '120,96,60' : kk === 'lair' ? '70,58,34' : kk === 'ruin' || kk === 'battlefield' || kk === 'shrine' || kk === 'vow' ? '200,192,170' : kk === 'quarry' ? '232,226,208' : '150,126,82';
     const rg0 = wildRegion(s.x, s.y), gc2 = rg0 === 'The Salt Shore' ? '226,208,156' : rg0 === 'The High Fells' ? '226,230,238' : rg0 === 'Blackmere' ? '52,76,66' : rg0 === 'The Quarry Hills' && gc === '150,126,82' ? '206,196,168' : gc;
     if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand')) for (let dy = -6; dy <= 6; dy++) { const w = Math.round(20 * Math.sqrt(1 - (dy * dy) / 43)); R(-w, 3 + dy, w * 2, 1, `rgba(${gc2},.16)`); }
     if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand')) for (let dy = -5; dy <= 5; dy++) { const w = Math.round(17 * Math.sqrt(1 - (dy * dy) / 30)) + (((sd0 >> (dy + 5)) & 1) ? 1 : -1); R(-w, 3 + dy, w * 2, 1, `rgba(${gc},.3)`); }      // the ground about it: trodden, fouled, paved or white with dust
@@ -2796,7 +2844,7 @@ function provIcon(ctx, s, T, done) {
     ];
     if (!skip) { const a = Math.floor(v(11) * P.length) % P.length, b = (a + 1 + Math.floor(v(12) * (P.length - 1))) % P.length; P[a](-15, 2); if (v(13) > 0.25) P[b](11, 3); }
   }
-  if (!done) {                                 // ---- what was added to each since: the light and dark of it, what it is made of, and what moves there ----
+  if (!gone) {                                 // ---- what was added to each since: the light and dark of it, what it is made of, and what moves there ----
     const fl = Math.sin(T * 11 + sd) > 0 ? 1 : 0, wv = Math.sin(T * 5 + sd) > 0 ? 1 : 0;
     const puff = (ox, oy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n + sd * 0.01) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(ox + Math.round(Math.sin(q * 5 + i) * 2 + q * 4), oy - Math.round(q * 12), 2 + Math.round(q * 2), 2, '#d8d4cc'); } ctx.globalAlpha = 1; };
     const fire = (ox, oy) => { R(ox - 1, oy, 4, 1, '#3a342c'); R(ox, oy - 1 - fl, 2, 2 + fl, '#e2702a'); R(ox + fl, oy - 2 - fl, 1, 1, '#f5c04a'); };
@@ -2948,8 +2996,23 @@ function provIcon(ctx, s, T, done) {
     else if (k === 'healer') { R(2, -1, 2, 4, 'rgba(0,0,0,.12)'); R(-3, -8, 1, 3, '#7fbf6a'); R(-1, -8, 1, 2, '#c9e8a0'); R(1, -8, 1, 3, '#5f9a4a'); R(-10, 2, 9, 1, '#6b4f2c'); }      // bundles hung under the eaves to dry
     else if (!k.startsWith('errand')) { puff(1, -6, 2); R(2, -1, 2, 4, 'rgba(0,0,0,.12)'); }
   }
-  if (done) {                                  // dealt with: nobody there, the fire cold, and the grass already coming up through it
+  if (done && !gone) {                         // been to, and still standing: a small gold mark beside it, and whatever the visit left behind
+    const P = (ox, oy, w, hh, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(s.x + ox), Math.round(s.y + oy), w, hh); };
+    if (k === 'ruin') { P(-3, 5, 6, 2, '#3a2a1c'); P(-2, 5, 4, 1, '#1c1310'); P(4, 5, 3, 2, '#8a7450'); P(5, 4, 1, 1, '#a08860'); }                          // the hole the men dug, and the spoil beside it
+    else if (k === 'cache') { P(-3, 2, 7, 3, '#3a2a1c'); P(-2, 2, 5, 1, '#1c1310'); P(-6, 3, 3, 2, '#8a7450'); P(4, 3, 3, 2, '#8a7450'); P(1, 0, 1, 3, '#6b4f2c'); }      // dug, the spade left standing
+    else if (k === 'herb') { for (let q = 0; q < 4; q++) P(-4 + q * 3, 2, 1, 2, '#8a9a52'); }                                                             // cut stalks
+    const mx = 12, my = -3;                                                                                                                               // the mark: a gold tick on a dark tablet
+    P(mx - 1, my - 1, 9, 8, 'rgba(18,12,8,.62)'); P(mx - 1, my - 1, 9, 1, 'rgba(232,181,69,.55)');
+    for (const [dx, dy] of [[1, 3], [2, 4], [3, 5], [4, 4], [5, 3], [6, 2]]) { P(mx + dx - 1, my + dy - 1, 1, 2, '#e8b545'); }
+    P(mx + 5, my + 1, 1, 1, '#fff0b0');
+  }
+  if (gone) {                                  // laid waste: nobody there, the fire cold, and the grass already coming up through it
     const G2 = (ox, oy, w, hh, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(s.x + (flip ? -ox - w : ox)), Math.round(s.y + oy), w, hh); };
+    const age = typeof wildMap === 'function' && G && G.dynasty && wildMap().done[s.id] ? G.day - wildMap().done[s.id] : 99;
+    if (age <= 3 && k !== 'lair' && k !== 'battlefield') {                                                                                                 // it smokes for some days after, and glows the first night
+      for (let i = 0; i < 3; i++) { const q = (T * 0.22 + i / 3 + sd * 0.1) % 1, a = (0.34 * (1 - q) * (1 - age / 5)).toFixed(3); G2(-3 + i * 3 + Math.round(Math.sin(T * 0.8 + i * 2) * 2 * q), -3 - Math.round(q * 15), 3 + Math.round(q * 2), 2, 'rgba(74,70,66,' + a + ')'); }
+      if (age <= 1) for (let i = 0; i < 3; i++) if (Math.sin(T * 6 + i * 2.1 + sd) > 0.2) G2(-5 + i * 4, 3 + (i % 2), 1, 1, i % 2 ? '#e2702a' : '#f5c04a');
+    }
     for (let q = 0; q < 7; q++) { const gx = -12 + Math.floor(v(150 + q) * 24), gy = -2 + Math.floor(v(157 + q) * 8); G2(gx, gy, 1, 2, '#6b8f3e'); G2(gx + 1, gy, 1, 1, '#8aa85a'); }
     G2(-9, 4, 2, 1, '#f2e6a0'); G2(7, 3, 1, 1, '#e8a0c0'); G2(1, 3, 3, 1, '#3a342c'); G2(2, 2, 1, 1, '#6a645c');
     const cw = Math.floor(T * 0.4 + sd) % 3; G2(-5 + cw * 4, -8, 2, 1, '#1c1310'); G2(-3 + cw * 4, -8, 1, 1, '#1c1310');
@@ -3145,7 +3208,7 @@ function drawProvince(cv, T) {
     if (mark) { const b = Math.round(Math.sin(T * 5) * 2); ctx.globalAlpha = 0.9; R(s.x - 1, s.y - 26 + b, 3, 7, '#f5d584'); R(s.x - 1, s.y - 17 + b, 3, 2, '#f5d584'); ctx.globalAlpha = 1; if (!seen) for (let i = -3; i <= 3; i++) { R(s.x + i, s.y + i, 2, 2, '#8a2a20'); R(s.x + i, s.y - i, 2, 2, '#8a2a20'); } }
     if (!(seen && siteShown(s)) && !mark) continue;
     const near = Math.hypot(s.x - F.x, s.y - F.y) < 90;
-    if (siteDone(s)) { if (near) tag(s.x, s.y + 16, s.name.toUpperCase() + ' - DONE', '#a8947a'); continue; }
+    if (siteDone(s)) { if (near) tag(s.x, s.y + 16, s.name.toUpperCase() + '  -  ' + doneWord(s).toUpperCase(), SITE_GONE.includes(s.kind) ? '#a8947a' : '#c9b47e'); continue; }
     if (near || mark) tag(s.x, s.y + 16, s.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc', null, siteDanger(s));
   }
   // the regions' names, written across the country in old ink

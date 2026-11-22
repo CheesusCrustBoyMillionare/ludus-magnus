@@ -1485,6 +1485,24 @@ test('the province: the column keeps to the roads, goes round bad ground, and ne
   // quick enough to ask for at every click
   const t0 = Date.now(); for (let i = 0; i < 10; i++) wildRoute(WILD.TOWN.x + 22, WILD.TOWN.y, 2260, 140); assert(Date.now() - t0 < 2500, 'ten ways across the whole province in ' + (Date.now() - t0) + ' ms');
 }));
+test('the province: a place dealt with looks like what was done to it', () => {
+  const src = read('js/province.js'), ctx = { Math, parseInt };
+  vm.createContext(ctx);
+  const from = src.indexOf('const SITE_GONE'), to = src.indexOf('function provIcon(ctx, s, T, done) {');
+  assert(from > 0 && to > from, 'the rules for it can be found');
+  vm.runInContext(src.slice(from, to) + '; this.SITE_GONE = SITE_GONE; this.DONE_WORD = DONE_WORD; this.doneWord = doneWord; this.ashOf = ashOf;', ctx);
+  // what was fought for is laid waste; what was only visited is left standing
+  for (const k of ['camp', 'slavers', 'chief', 'bounty', 'lair', 'battlefield', 'barrow']) assert(ctx.SITE_GONE.includes(k), k + ' should be laid waste');
+  for (const k of ['hamlet', 'healer', 'merchant', 'hermit', 'shrine', 'vow', 'ruin', 'cache', 'herb', 'deserter', 'quarry', 'master']) assert(!ctx.SITE_GONE.includes(k) && ctx.DONE_WORD[k], k + ' should be left standing, with a word for it');
+  assert(ctx.doneWord({ kind: 'hamlet' }) === 'Visited' && ctx.doneWord({ kind: 'camp' }) === 'Burnt out' && ctx.doneWord({ kind: 'ruin' }) === 'Searched' && ctx.doneWord({ kind: 'nosuch' }) === 'Dealt with', 'each kind has its own word');
+  // ash: greyer and darker than what it was, but not one flat grey
+  const lum = c => (c.startsWith('rgb(') ? c.slice(4, -1).split(',').map(Number) : null);
+  const red = lum(ctx.ashOf('#c23b2e', 0, 0)), white = lum(ctx.ashOf('#f2ecd8', 0, 0));
+  assert(red && white && red[0] - red[2] < 40 && red[0] < 0xc2 && white[0] > red[0] + 40, 'a red roof and a white wall burn to different greys: ' + red + ' and ' + white);
+  assert(ctx.ashOf('rgba(0,0,0,.2)', 0, 0) === 'rgba(0,0,0,.2)', 'a shadow stays a shadow');
+  assert(!src.includes("' - DONE'") && src.includes('doneWord(s).toUpperCase()'), 'the label says what was done, not only that it is done');
+});
+
 test('the province: an event on the road does not make the column forget where it was going', () => {
   const src = read('js/province.js');
   assert(!src.includes('if (wildVisit(here)) { prov.path = null') && !src.includes('wildWalked(moved)) { prov.path = null') && !src.includes('prov.path = null; villageStill(); startWildFight()'), 'the path is thrown away when something stops the column');
