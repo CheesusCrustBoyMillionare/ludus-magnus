@@ -7,11 +7,11 @@ const VILLAGE = { W: 590, H: 190, S: 2, CELL: 5, SPEED: 190 };
 // Each place: its screen, its name on the map, and the ground it stands on (x, y, w, h). The door is in the
 // middle of the bottom edge, and the doorstep a little below it.
 const PLACES = [
-  { key: 'facilities', name: 'Household',  x: 14,  y: 14,  w: 78,  h: 46, kind: 'villa' },
-  { key: 'ludus',      name: 'Ludus',      x: 112, y: 12,  w: 98,  h: 48, kind: 'ludus' },
-  { key: 'arena',      name: 'Arena',      x: 232, y: 4,   w: 126, h: 58, kind: 'arena' },
-  { key: 'patrons',    name: 'Patrons',    x: 384, y: 12,  w: 74,  h: 48, kind: 'temple' },
-  { key: 'chronicle',  name: 'Chronicle',  x: 484, y: 16,  w: 76,  h: 44, kind: 'archive' },
+  { key: 'facilities', name: 'Household',  x: 10,  y: 24,  w: 78,  h: 46, kind: 'villa' },
+  { key: 'ludus',      name: 'Ludus',      x: 108, y: 22,  w: 98,  h: 48, kind: 'ludus' },
+  { key: 'arena',      name: 'Arena',      x: 212, y: 0,   w: 168, h: 72, kind: 'arena' },
+  { key: 'patrons',    name: 'Patrons',    x: 388, y: 22,  w: 74,  h: 48, kind: 'temple' },
+  { key: 'chronicle',  name: 'Chronicle',  x: 492, y: 26,  w: 76,  h: 44, kind: 'archive' },
   { key: 'market',     name: 'Market',     x: 38,  y: 104, w: 98,  h: 44, kind: 'market' },
   { key: 'smith',      name: 'Blacksmith', x: 168, y: 102, w: 66,  h: 46, kind: 'forge' },
   { key: 'contracts',  name: 'Contracts',  x: 358, y: 102, w: 100, h: 46, kind: 'forum' },
@@ -19,8 +19,10 @@ const PLACES = [
 ];
 PLACES.forEach(p => { p.dx = Math.round(p.x + p.w / 2); p.dy = p.y + p.h + 6; });
 const placeOf = key => PLACES.find(p => p.key === key) || PLACES[1];
+// The arena's oval: its centre and its two radii, for painting it, for walking round it and for what moves on it.
+const arenaGeom = () => { const p = PLACES.find(q => q.kind === 'arena'); return { p, cx: p.x + p.w / 2, cy: p.y + 35, RX: p.w / 2 - 1, RY: 33 }; };
 // Things in the way that are not buildings: the fountain, trees, the well.
-const VIL_TREES = [[224, 26], [370, 30], [470, 34], [572, 40], [6, 84], [140, 120], [248, 108], [342, 108], [482, 124], [584, 98], [20, 168], [300, 182], [440, 180], [150, 182], [560, 178]];
+const VIL_TREES = [[98, 21], [477, 24], [580, 52], [6, 102], [140, 120], [248, 108], [342, 108], [482, 124], [584, 98], [20, 168], [300, 182], [440, 180], [150, 182], [560, 178]];
 const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 148, y: 158, w: 8, h: 6 }, { x: 366, y: 173, w: 30, h: 9 }].concat(VIL_TREES.map(([x, y]) => ({ x: x - 1, y: y - 2, w: 3, h: 3 })));      // a tree stops you at its trunk, not its shade
 
 const vil = {
@@ -44,9 +46,9 @@ function vilGrid() {
   PLACES.forEach(p => {
     if (p.kind !== 'arena') return block(p);
     // the arena is an oval: only the ground it really stands on is in the way, not the corners of the box round it
-    const cx = p.x + p.w / 2, cy = p.y + 30;
+    const A = arenaGeom(), cx = A.cx, cy = A.cy + 3;
     for (let y = Math.floor(p.y / C); y <= Math.floor((p.y + p.h - 1) / C); y++) for (let x = Math.floor(p.x / C); x <= Math.floor((p.x + p.w - 1) / C); x++) {
-      const dx = (x * C + C / 2 - cx) / 64, dy = (y * C + C / 2 - cy) / 29;
+      const dx = (x * C + C / 2 - cx) / (A.RX + 1), dy = (y * C + C / 2 - cy) / (A.RY + 3);
       if (dx * dx + dy * dy <= 1 && x >= 0 && y >= 0 && x < w && y < h) g[y * w + x] = 1;
     }
   });
@@ -89,7 +91,7 @@ function villagePlace(key) {
 }
 // Sends him to a door on his own feet. `then` runs when he gets there.
 function villageWalkTo(key, then) {
-  if (key === 'gate') { vil.then = null; vil.path = vilPath(vil.x, vil.y, 582, 73); return; }
+  if (key === 'gate') { vil.then = null; vil.path = vilPath(vil.x, vil.y, 582, 83); return; }
   const p = placeOf(key);
   vil.then = then || null;
   if (vil.at === p.key && Math.hypot(vil.x - p.dx, vil.y - p.dy) < 7) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); return; }
@@ -97,7 +99,7 @@ function villageWalkTo(key, then) {
 }
 // Which building a click landed on ('gate' for the way out of town).
 function villageAt(x, y) {
-  if (x > 566 && y > 48 && y < 92) return 'gate';
+  if (x > 566 && y > 58 && y < 102) return 'gate';
   const p = PLACES.find(b => x >= b.x - 3 && x <= b.x + b.w + 3 && y >= b.y - 9 && y <= b.y + b.h + 10);
   return p ? p.key : null;
 }
@@ -149,7 +151,7 @@ function villageStep(dt, frozen) {
   if (here && vil.at !== here.key && !vil.path) { vil.at = here.key; if (typeof villageEnter === 'function') villageEnter(here.key); }
   else if (!here) vil.at = null;
   // the east gate: walk into it and the school marches out, if it is open
-  if (vil.x > 578 && vil.y > 62 && vil.y < 84) { if (!vil.gated) { vil.gated = true; vil.path = null; villageStill(); if (typeof villageGate === 'function') villageGate(); } }
+  if (vil.x > 578 && vil.y > 72 && vil.y < 94) { if (!vil.gated) { vil.gated = true; vil.path = null; villageStill(); if (typeof villageGate === 'function') villageGate(); } }
   else if (vil.x < 570) vil.gated = false;
 
   // townsfolk, going from door to door about their own business
@@ -219,40 +221,39 @@ function villageLayer() {
   // a kitchen garden and an orchard along the south wall
   for (let i = 0; i < 6; i++) { R(40 + i * 13, 176, 10, 9, '#6b5028'); for (let k = 0; k < 3; k++) R(41 + i * 13 + k * 3, 177 + (k % 2), 2, 6, i % 2 ? '#6f9a3a' : '#8ab04a'); }
   // a hedge under the north wall, an orchard and beehives along the south, and the duck pond
-  for (let x = 6; x < 584; x += 5) { const hgt = 3 + Math.round(rnd(x, 2)); R(x, 5, 6, hgt, x % 15 < 5 ? '#3f6a2c' : '#4a7a36'); R(x + 1, 5, 3, 1, '#63903f'); if (rnd(x + 9, 1) > 0.85) R(x + 2, 6, 1, 1, '#e8a0a0'); }
+  for (let x = 6; x < 584; x += 5) { if (x > 206 && x < 384) continue; const hgt = 3 + Math.round(rnd(x, 2)); R(x, 5, 6, hgt, x % 15 < 5 ? '#3f6a2c' : '#4a7a36'); R(x + 1, 5, 3, 1, '#63903f'); if (rnd(x + 9, 1) > 0.85) R(x + 2, 6, 1, 1, '#e8a0a0'); }
   for (let i = 0; i < 5; i++) { const ox = 240 + i * 13, oy = 180; ell(ox + 1, oy + 2, 5, 2, 'rgba(0,0,0,.2)'); R(ox, oy - 2, 1, 4, '#5a3c20'); ell(ox, oy - 5, 5, 4, '#4a7a36'); ell(ox - 1, oy - 6, 3, 2, '#63903f'); R(ox - 2, oy - 4, 1, 1, '#c23b2e'); R(ox + 2, oy - 6, 1, 1, '#c23b2e'); R(ox + 1, oy - 3, 1, 1, '#e3b04a'); }
   for (let i = 0; i < 3; i++) { const bx = 328 + i * 8; R(bx, 177, 5, 6, '#d9c070'); R(bx, 177, 5, 1, '#e6d088'); R(bx, 179, 5, 1, '#b89a4a'); R(bx, 181, 5, 1, '#b89a4a'); R(bx + 2, 182, 1, 1, '#3a2a1c'); }
   ell(381, 178, 16, 5, '#5f7f3f'); ell(381, 177, 15, 4, '#4f8fb8'); ell(379, 176, 11, 2, '#6fa8cc');
   for (const [rx, ry] of [[366, 176], [369, 180], [395, 175], [392, 181]]) { R(rx, ry - 4, 1, 5, '#6f8a3a'); R(rx + 1, ry - 3, 1, 4, '#8aa64a'); R(rx, ry - 5, 1, 1, '#7a5a2a'); }
   // the two streets and the lanes between them
   const road = (x, y, w, h) => { R(x - 1, y - 1, w + 2, h + 2, '#a98a58'); R(x, y, w, h, '#cdae78'); for (let i = 0; i < w * h / 26; i++) R(x + rnd(i + x, w - 2), y + rnd(i + y + 7, h - 1), 2, 1, i % 2 ? '#bf9f6a' : '#d9bd8a'); };
-  road(4, 64, 582, 18); road(4, 152, 582, 16);
-  for (const x of [14, 146, 464, 566]) road(x, 82, 12, 70);
-  for (const lx of [14, 146, 464, 566]) for (let y = 84; y < 150; y += 2) { if (rnd(lx + y, 1) > 0.55) R(lx - 1 + (rnd(y + 3, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx + y + 50, 1) > 0.55) R(lx + 11 - (rnd(y + 9, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx * 3 + y, 1) > 0.9) R(lx + 3 + rnd(y, 5), y, 2, 1, '#b8985f'); }
+  road(4, 74, 582, 18); road(4, 152, 582, 16);
+  for (const x of [14, 146, 464, 566]) road(x, 92, 12, 60);
+  for (const lx of [14, 146, 464, 566]) for (let y = 94; y < 150; y += 2) { if (rnd(lx + y, 1) > 0.55) R(lx - 1 + (rnd(y + 3, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx + y + 50, 1) > 0.55) R(lx + 11 - (rnd(y + 9, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx * 3 + y, 1) > 0.9) R(lx + 3 + rnd(y, 5), y, 2, 1, '#b8985f'); }
   for (let i = 0; i < 26; i++) {                 // bushes and clumps of wild flowers on the open ground, kept off the streets
     const bx = 8 + rnd(i * 17 + 5, 572), by = [14, 40, 58, 92, 110, 128, 146, 174][i % 8] + rnd(i * 3 + 1, 8);
-    if ((by > 60 && by < 86) || (by > 148 && by < 172) || PLACES.some(p => bx > p.x - 6 && bx < p.x + p.w + 6 && by > p.y - 6 && by < p.y + p.h + 8) || (bx > 250 && bx < 350 && by > 78 && by < 156)) continue;
+    if ((by > 70 && by < 96) || (by > 148 && by < 172) || PLACES.some(p => bx > p.x - 6 && bx < p.x + p.w + 6 && by > p.y - 6 && by < p.y + p.h + 8) || (bx > 250 && bx < 350 && by > 88 && by < 156)) continue;
     if (i % 3 === 0) { ell(bx + 1, by + 1, 4, 2, 'rgba(0,0,0,.18)'); ell(bx, by - 1, 4, 3, '#4a7a36'); ell(bx - 1, by - 2, 2, 2, '#63903f'); if (i % 2) R(bx + 1, by - 1, 1, 1, '#e06a8a'); }
     else for (let q = 0; q < 5; q++) R(bx + rnd(i + q * 7, 7), by + rnd(i * 5 + q, 4), 1, 1, [['#f2e6a0', '#f4f4f0'], ['#e8a0a0', '#b9a0e0'], ['#f4f4f0', '#e06a8a']][i % 3][q % 2]);
   }
   // the streets are kerbed with stone and rutted by carts
-  for (const [ry, rh] of [[64, 18], [152, 16]]) {
+  for (const [ry, rh] of [[74, 18], [152, 16]]) {
     for (let x = 6; x < 584; x += 4) { R(x, ry - 1, 3, 1, x % 8 ? '#bdb39c' : '#a39a84'); R(x + 1, ry + rh, 3, 1, x % 8 ? '#a39a84' : '#bdb39c'); }
     for (let x = 6; x < 584; x += 3) { if (rnd(x + ry, 1) > 0.25) { R(x, ry + Math.round(rh * 0.36), 2, 1, 'rgba(120,85,40,.28)'); R(x, ry + Math.round(rh * 0.64), 2, 1, 'rgba(120,85,40,.28)'); } }
   }
   // the square, paved, with the fountain in it
-  R(254, 82, 92, 70, '#b9b29c');
-  for (let y = 82; y < 152; y += 7) for (let x = 254 + ((y / 7) % 2 ? 0 : 5); x < 346; x += 10) { R(x, y, 9, 6, (x + y) % 3 ? '#c9c3ae' : '#d4cfbc'); }
-  R(254, 82, 92, 1, '#8f8872'); R(254, 151, 92, 1, '#8f8872');
+  R(254, 92, 92, 60, '#b9b29c');
+  for (let y = 92; y < 150; y += 7) for (let x = 254 + (((y - 92) / 7) % 2 ? 0 : 5); x < 346; x += 10) { R(x, y, Math.min(9, 346 - x), 6, (x + y) % 3 ? '#c9c3ae' : '#d4cfbc'); }
+  R(254, 92, 92, 1, '#8f8872'); R(254, 151, 92, 1, '#8f8872');
   ell(296, 121, 11, 8, 'rgba(0,0,0,.25)'); ell(296, 119, 11, 8, '#a39d8a'); ell(296, 119, 9, 6, '#5d9ac2'); ell(296, 118, 7, 4, '#7fb6d8'); R(294, 112, 4, 8, '#bdb7a3'); R(293, 111, 6, 2, '#d4cfbc');
   // the square: a statue of some forgotten magistrate, and benches to argue on
-  R(291, 88, 10, 4, '#a39d8a'); R(292, 87, 8, 1, '#d4cfbc'); R(294, 79, 4, 8, '#c9c3ae'); R(294, 76, 4, 3, '#d9d2bd'); R(293, 80, 1, 5, '#b5af9b'); R(298, 81, 2, 1, '#c9c3ae');
-  for (const [bx, by] of [[262, 136], [322, 136], [262, 96], [322, 96]]) { R(bx, by, 12, 3, '#8a6a3a'); R(bx, by, 12, 1, '#a8834a'); R(bx + 1, by + 3, 1, 2, '#5a4326'); R(bx + 10, by + 3, 1, 2, '#5a4326'); }
+  R(291, 104, 10, 4, '#a39d8a'); R(292, 103, 8, 1, '#d4cfbc'); R(294, 95, 4, 8, '#c9c3ae'); R(294, 92, 4, 3, '#d9d2bd'); R(293, 96, 1, 5, '#b5af9b'); R(298, 97, 2, 1, '#c9c3ae');
+  for (const [bx, by] of [[262, 138], [322, 138], [262, 104], [322, 104]]) { R(bx, by, 12, 3, '#8a6a3a'); R(bx, by, 12, 1, '#a8834a'); R(bx + 1, by + 3, 1, 2, '#5a4326'); R(bx + 10, by + 3, 1, 2, '#5a4326'); }
   // flowers by the temple, barrels by the tavern, crates by the market, hay by the school, washing by the forge
-  for (const fx of ((F.shrine | 0) >= 1 ? [460] : [374, 460])) { R(fx, 56, 8, 5, '#5a4326'); for (let k = 0; k < 4; k++) R(fx + k * 2, 56 + (k % 2), 2, 2, ['#e06a8a', '#f2e6a0', '#b9a0e0', '#e8a0a0'][k]); }
+  for (const fx of ((F.shrine | 0) >= 1 ? [] : [468])) { R(fx, 66, 8, 5, '#5a4326'); for (let k = 0; k < 4; k++) R(fx + k * 2, 66 + (k % 2), 2, 2, ['#e06a8a', '#f2e6a0', '#b9a0e0', '#e8a0a0'][k]); }
   for (const bx of [478, 562]) { R(bx, 142, 6, 7, '#7a5a2a'); R(bx, 142, 6, 1, '#3a2a1c'); R(bx, 145, 6, 1, '#3a2a1c'); R(bx + 1, 141, 4, 1, '#a8834a'); }
   R(138, 140, 7, 7, '#a8834a'); R(138, 140, 7, 1, '#c9a25a'); R(141, 135, 6, 6, '#a8834a'); R(141, 135, 6, 1, '#c9a25a');
-  R(213, 52, 12, 8, '#c9a24a'); R(214, 50, 10, 2, '#d9bd6a'); R(213, 59, 12, 1, '#a8853a');
   R(238, 112, 1, 12, '#5a4326'); R(250, 112, 1, 12, '#5a4326'); R(238, 113, 13, 1, '#3a2a1c'); R(240, 114, 3, 4, '#e8e2d0'); R(244, 114, 2, 5, '#b85a48'); R(247, 114, 3, 3, '#8fa8c8');
   // a well, and a cart by the lower street
   R(148, 158, 8, 6, '#8f8872'); R(149, 159, 6, 4, '#2c3f52'); R(147, 154, 1, 5, '#6b4a2a'); R(156, 154, 1, 5, '#6b4a2a'); R(147, 153, 10, 1, '#6b4a2a');
@@ -305,40 +306,41 @@ function villageLayer() {
       // the infirmary: a stretch of the front whitewashed, under a green cross, wider as it is improved, with a door of its own
       if (il >= 1) { const iw = 9 + il * 4; R(x + 2, wy, iw, wh, '#f6f1e4'); R(x + 2, wy, iw, 1, '#cfc8b4'); R(x + 2 + iw, wy, 1, wh, '#b8ab94'); R(x + 2, wy + wh - 2, iw, 2, '#ddd6c2'); const cxx = x + 2 + Math.floor(iw / 2); R(cxx, wy + 2, 1, 5, '#3f8a3a'); R(cxx - 2, wy + 4, 5, 1, '#3f8a3a'); if (il >= 2) { R(cxx - 2, y + 40, 4, 8, '#3a2416'); R(cxx - 3, y + 39, 6, 1, '#5a4326'); } if (il >= 3) { R(x + 1, wy - 2, iw + 2, 2, '#c2552e'); R(x + 1, wy - 2, iw + 2, 1, '#de7652'); } }
       R(x + w - 6, y + 22, 1, 11, '#5a4326'); R(x + w - 5, y + 22, 6, 4, '#a02d22'); R(x + w - 5, y + 22, 6, 1, '#c8483a');
-    } else if (p.kind === 'arena') {          // the amphitheatre, seen from above and a little to the south
-      const cx = x + w / 2, cy = y + 28;
-      // one ring of it: the far half in the light, the near half in its own shade
-      const ring = (rx, ry, far, near) => { for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry)))); ctx.fillStyle = yy < 0 ? far : near; ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
-      const on = (a2, rr) => [cx + Math.cos(a2) * 63 * rr, cy + Math.sin(a2) * 26 * rr];
-      // PASS 5 (still part): a paved forecourt before the gate, and a statue either side of it
-      R(cx - 26, y + h - 3, 52, 7, '#c9c3ae'); for (let q = 0; q < 52; q += 6) R(cx - 26 + q + ((q / 6) % 2 ? 0 : 3), y + h + 1, 5, 2, '#d4cfbc'); R(cx - 26, y + h + 3, 52, 1, '#8f8872');
-      // PASS 1: the drum of the outer wall with its arcade, a cornice, and six tiers of seats with stairs between the blocks
-      ell(cx + 3, cy + 8, 65, 27, 'rgba(0,0,0,.22)');
-      ell(cx, cy + 5, 63, 26, '#8f8264'); ell(cx, cy + 4, 63, 26, '#b4a682'); ell(cx, cy, 63, 26, '#f0e6c8'); ell(cx, cy, 62, 25, '#dccfac');
-      for (let ax = -60; ax <= 60; ax += 5) { const edge = Math.round(26 * Math.sqrt(Math.max(0, 1 - (ax * ax) / (63 * 63)))), yy = cy + edge; if (Math.abs(ax) > 8 && edge > 3) { R(cx + ax - 1, yy + 1, 3, 3, '#4a3e2c'); R(cx + ax - 1, yy, 3, 1, '#efe6cc'); R(cx + ax + 2, yy, 1, 4, '#c9bc98'); } }      // the arches of the arcade, all the way round the front
-      const tiers = [[59, 24, '#d6c9a6', '#bdb08c'], [55, 22, '#e2d6b6', '#c9bc9a'], [51, 20, '#d0c3a0', '#b8ab88'], [47, 18, '#dccfae', '#c4b794'], [43, 16, '#cabd9a', '#b2a582'], [39, 14, '#d6c9a8', '#beb18e']];
-      tiers.forEach(([rx, ry, far, near]) => ring(rx, ry, far, near));
-      for (let q = 0; q < 14; q++) { const a2 = q / 14 * 6.283 + 0.22; for (let rr = 0.6; rr < 0.95; rr += 0.035) { const [sx, sy] = on(a2, rr); R(sx, sy, 1, 1, Math.sin(a2) < 0 ? '#f4ecd4' : '#9c8f6e'); } }      // the stairs, running down between the blocks of seats
-      for (let q = 0; q < 14; q++) { const a2 = q / 14 * 6.283 + 0.22 + 0.224, [sx, sy] = on(a2, 0.8); R(sx - 1, sy, 2, 2, '#3a3020'); R(sx - 1, sy - 1, 2, 1, '#f0e6c8'); }                                        // the mouths of the passages people come up by
-      for (let i2 = 0; i2 < 70; i2++) { const a2 = rnd(i2, 6.283), k = Math.floor(rnd(i2 + 40, 5.99)), rr = 0.62 + k * 0.066; const [sx, sy] = on(a2, rr); R(sx, sy, 1, 1, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few people about on any day
-      // PASS 2: the wall round the sand, the sand itself raked in rings, a gate at either end of it, the posts, and old stains
-      ring(35, 12, '#7a6c4c', '#8f8060'); ring(34, 11, '#f0e6c8', '#d8cca8'); ring(32, 10, '#6e6040', '#8a7c5a');
-      ell(cx, cy, 31, 9, '#e2c98f'); ell(cx, cy - 1, 30, 7, '#e8d29c'); ell(cx, cy, 23, 6, '#e0c68a'); ell(cx, cy, 15, 4, '#e8d29c'); ell(cx, cy, 7, 2, '#e0c68a');
-      for (let i2 = 0; i2 < 40; i2++) { const a2 = rnd(i2 + 200, 6.283), rr = rnd(i2 + 260, 0.95); R(cx + Math.cos(a2) * 29 * rr, cy + Math.sin(a2) * 8 * rr, 2, 1, i2 % 3 ? '#d4ba7e' : '#f0dcaa'); }
-      R(cx - 12, cy + 2, 3, 1, '#b8845a'); R(cx + 8, cy - 3, 2, 1, '#b8845a'); R(cx + 14, cy + 3, 2, 1, '#a8744e');
-      for (const gx of [-32, 30]) { R(cx + gx, cy - 2, 3, 4, '#2a2014'); R(cx + gx, cy - 3, 3, 1, '#f0e6c8'); }
-      for (const px of [-5, 5]) { R(cx + px, cy - 3, 1, 3, '#6b4f2c'); R(cx + px, cy, 2, 1, 'rgba(0,0,0,.25)'); }
-      ell(cx, cy + 9, 30, 2, 'rgba(60,40,10,.22)');                                                                                                                                                          // the near wall's shade lying on the sand
-      // PASS 3: masts round the rim for the awning, the awning itself drawn out over the far seats in panels, and the magistrate's box
-      for (let q = 0; q < 20; q++) { const a2 = q / 20 * 6.283 + 0.157, [mx, my] = on(a2, 0.99); R(mx, my - 3, 1, 4, '#5a4326'); R(mx, my - 4, 1, 1, '#f0e6c8'); }
-      for (let q = 0; q < 7; q++) { const a0 = Math.PI + 0.22 + q * 0.39, stripe = q % 2 ? '#efe6cf' : '#c9a05a';
-        for (let t2 = 0; t2 < 0.3; t2 += 0.02) for (let rr = 0.72; rr < 0.98; rr += 0.045) { const [ax2, ay2] = on(a0 + t2, rr); R(ax2, ay2, 2, 1, Math.floor(t2 / 0.06) % 2 ? stripe : shade(stripe, 0.88)); }
-        const [e1x, e1y] = on(a0, 0.72), [e2x, e2y] = on(a0 + 0.3, 0.72); R(e1x, e1y + 1, Math.max(2, Math.round(e2x - e1x)), 1, 'rgba(40,30,10,.25)'); }
-      R(cx - 8, cy - 21, 16, 6, '#6a2a7a'); R(cx - 8, cy - 21, 16, 1, '#9a5aaa'); R(cx - 8, cy - 16, 16, 1, '#e8b545'); R(cx - 9, cy - 22, 1, 8, '#e8b545'); R(cx + 8, cy - 22, 1, 8, '#e8b545'); R(cx - 6, cy - 19, 12, 2, '#3a1a44'); R(cx - 1, cy - 24, 2, 3, '#e8b545');
-      // the great gate: an arch between pilasters, under a gable, with steps down to the forecourt
-      R(cx - 10, y + h - 15, 20, 15, '#d8cca8'); R(cx - 10, y + h - 15, 2, 15, '#f0e6c8'); R(cx + 8, y + h - 15, 2, 15, '#b4a682'); for (let q = 0; q < 4; q++) R(cx - 10 + q * 2, y + h - 16 - q, 20 - q * 4, 1, q === 3 ? '#e8b545' : '#efe4c4');
-      R(cx - 6, y + h - 11, 12, 11, '#3a2416'); R(cx - 5, y + h - 12, 10, 1, '#3a2416'); R(cx - 6, y + h - 11, 12, 1, '#5a4326'); R(cx - 1, y + h - 11, 1, 11, '#5a3c20'); R(cx - 7, y + h, 14, 2, '#b8a888'); R(cx - 9, y + h + 2, 18, 1, '#a39a84');
-      for (const sx of [-19, 17]) { R(cx + sx, y + h - 2, 4, 3, '#a39d8a'); R(cx + sx, y + h - 3, 4, 1, '#d4cfbc'); R(cx + sx + 1, y + h - 9, 2, 6, '#d9d2bd'); R(cx + sx + 1, y + h - 11, 2, 2, '#e4ddc8'); R(cx + sx, y + h - 8, 1, 3, '#c9c3ae'); R(cx + sx + 3, y + h - 7, 1, 2, '#b5af9b'); }
+    } else if (p.kind === 'arena') {          // the amphitheatre: the greatest thing in the town, built into its north wall
+      const { cx, cy, RX, RY } = arenaGeom(), rd = Math.round;
+      const ring = (rx, ry, far, near) => { for (let yy = -ry; yy <= ry; yy++) { const hw = rd(rx * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry)))); ctx.fillStyle = yy < 0 ? far : near; ctx.fillRect(rd(cx - hw), rd(cy + yy), hw * 2, 1); } };
+      const on = (a2, rr) => [cx + Math.cos(a2) * RX * rr, cy + Math.sin(a2) * RY * rr];
+      // a paved forecourt before the gate
+      R(cx - 36, y + h - 3, 72, 7, '#c9c3ae'); for (let q = 0; q < 72; q += 6) R(cx - 36 + q + ((q / 6) % 2 ? 0 : 3), y + h + 1, 5, 2, '#d4cfbc'); R(cx - 36, y + h + 3, 72, 1, '#8f8872');
+      // the drum of the outer wall, its arcade and cornice
+      ell(cx + 3, cy + 8, RX + 2, RY + 1, 'rgba(0,0,0,.22)');
+      ell(cx, cy + 5, RX, RY, '#8f8264'); ell(cx, cy + 4, RX, RY, '#b4a682'); ell(cx, cy, RX, RY, '#f0e6c8'); ell(cx, cy, RX - 1, RY - 1, '#dccfac');
+      for (let ax = -(RX - 3); ax <= RX - 3; ax += 5) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy + edge; if (Math.abs(ax) > 12 && edge > 4) { R(cx + ax - 1, yy + 1, 3, 3, '#4a3e2c'); R(cx + ax - 1, yy, 3, 1, '#efe6cc'); R(cx + ax + 2, yy, 1, 4, '#c9bc98'); } }
+      for (let ax = -70; ax <= 70; ax += 4) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy - edge; R(cx + ax, yy - 1, 2, 2, '#f8f0d8'); R(cx + ax, yy + 1, 4, 1, '#c9bc98'); }      // battlements along its far wall, where it stands in for the town's
+      // eight tiers of seats, the far half lit and the near half in its own shade
+      for (let k = 0; k < 8; k++) ring(rd(RX * (0.945 - k * 0.047)), rd(RY * (0.93 - k * 0.056)), k % 2 ? '#e2d6b6' : '#d4c7a4', k % 2 ? '#c9bc9a' : '#b9ac88');
+      for (let q = 0; q < 18; q++) { const a2 = q / 18 * 6.283 + 0.17; for (let rr = 0.6; rr < 0.95; rr += 0.026) { const [sx, sy] = on(a2, rr); R(sx, sy, 1, 1, Math.sin(a2) < 0 ? '#f6eed6' : '#9c8f6e'); } }      // stairs between the blocks
+      for (let q = 0; q < 18; q++) { const a2 = q / 18 * 6.283 + 0.17 + 0.175, [sx, sy] = on(a2, 0.79); R(sx - 1, sy, 2, 2, '#3a3020'); R(sx - 1, sy - 1, 2, 1, '#f0e6c8'); }                                        // the passages people come up by
+      for (let i2 = 0; i2 < 120; i2++) { const a2 = rnd(i2, 6.283), k = Math.floor(rnd(i2 + 40, 6.99)), [sx, sy] = on(a2, 0.61 + k * 0.047); R(sx, sy, 1, 1, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few people about on any day
+      // the wall round the sand, the sand raked in rings, a gate at either end, the posts, old stains
+      ring(rd(RX * 0.56), rd(RY * 0.47), '#7a6c4c', '#8f8060'); ring(rd(RX * 0.545), rd(RY * 0.44), '#f0e6c8', '#d8cca8'); ring(rd(RX * 0.515), rd(RY * 0.4), '#6e6040', '#8a7c5a');
+      const SX = rd(RX * 0.5), SY = rd(RY * 0.36);
+      ell(cx, cy, SX, SY, '#e2c98f'); ell(cx, cy - 1, SX - 1, SY - 2, '#e8d29c'); ell(cx, cy, rd(SX * 0.76), rd(SY * 0.7), '#e0c68a'); ell(cx, cy, rd(SX * 0.5), rd(SY * 0.46), '#e8d29c'); ell(cx, cy, rd(SX * 0.24), rd(SY * 0.24), '#e0c68a');
+      for (let i2 = 0; i2 < 70; i2++) { const a2 = rnd(i2 + 200, 6.283), rr = rnd(i2 + 260, 0.95); R(cx + Math.cos(a2) * (SX - 2) * rr, cy + Math.sin(a2) * (SY - 1) * rr, 2, 1, i2 % 3 ? '#d4ba7e' : '#f0dcaa'); }
+      R(cx - 16, cy + 3, 3, 1, '#b8845a'); R(cx + 11, cy - 4, 2, 1, '#b8845a'); R(cx + 20, cy + 4, 2, 1, '#a8744e'); R(cx - 24, cy - 2, 2, 1, '#b8845a');
+      for (const gx of [-SX - 1, SX - 1]) { R(cx + gx, cy - 2, 3, 5, '#2a2014'); R(cx + gx, cy - 3, 3, 1, '#f0e6c8'); }
+      for (const px of [-7, 7]) { R(cx + px, cy - 4, 1, 4, '#6b4f2c'); R(cx + px, cy, 2, 1, 'rgba(0,0,0,.25)'); }
+      ell(cx, cy + SY, SX - 1, 2, 'rgba(60,40,10,.22)');
+      // masts for the awning, the awning drawn out over the far seats in nine panels, and the magistrate's box
+      for (let q = 0; q < 26; q++) { const a2 = q / 26 * 6.283 + 0.12, [mx, my] = on(a2, 0.99); R(mx, my - 3, 1, 4, '#5a4326'); R(mx, my - 4, 1, 1, '#f0e6c8'); }
+      for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305, stripe = q % 2 ? '#efe6cf' : '#c9a05a';
+        for (let t2 = 0; t2 < 0.24; t2 += 0.014) for (let rr = 0.72; rr < 0.98; rr += 0.034) { const [ax2, ay2] = on(a0 + t2, rr); R(ax2, ay2, 2, 1, Math.floor(t2 / 0.048) % 2 ? stripe : shade(stripe, 0.88)); }
+        const [e1x, e1y] = on(a0, 0.72), [e2x] = on(a0 + 0.24, 0.72); R(e1x, e1y + 1, Math.max(2, rd(e2x - e1x)), 1, 'rgba(40,30,10,.25)'); }
+      { const by = rd(cy - RY * 0.8); R(cx - 10, by, 20, 7, '#6a2a7a'); R(cx - 10, by, 20, 1, '#9a5aaa'); R(cx - 10, by + 6, 20, 1, '#e8b545'); R(cx - 11, by - 1, 1, 9, '#e8b545'); R(cx + 10, by - 1, 1, 9, '#e8b545'); R(cx - 8, by + 2, 16, 3, '#3a1a44'); R(cx - 1, by - 3, 2, 3, '#e8b545'); }
+      // the great gate: an arch between pilasters under a gable, steps, and a statue either side
+      R(cx - 12, y + h - 17, 24, 17, '#d8cca8'); R(cx - 12, y + h - 17, 2, 17, '#f0e6c8'); R(cx + 10, y + h - 17, 2, 17, '#b4a682'); for (let q = 0; q < 5; q++) R(cx - 12 + q * 2, y + h - 18 - q, 24 - q * 4, 1, q === 4 ? '#e8b545' : '#efe4c4');
+      R(cx - 7, y + h - 12, 14, 12, '#3a2416'); R(cx - 6, y + h - 13, 12, 1, '#3a2416'); R(cx - 7, y + h - 12, 14, 1, '#5a4326'); R(cx - 1, y + h - 12, 1, 12, '#5a3c20'); R(cx - 8, y + h, 16, 2, '#b8a888'); R(cx - 10, y + h + 2, 20, 1, '#a39a84');
+      for (const sx of [-24, 21]) { R(cx + sx, y + h - 2, 4, 3, '#a39d8a'); R(cx + sx, y + h - 3, 4, 1, '#d4cfbc'); R(cx + sx + 1, y + h - 10, 2, 7, '#d9d2bd'); R(cx + sx + 1, y + h - 12, 2, 2, '#e4ddc8'); R(cx + sx, y + h - 9, 1, 3, '#c9c3ae'); R(cx + sx + 3, y + h - 8, 1, 2, '#b5af9b'); }
     } else if (p.kind === 'temple') {         // marble, a pediment, and columns across the front
       R(x, y, w, 30, '#d9d2bd'); for (let i = 0; i < 15; i++) R(x + 2 + i * 2.4, y + 14 - i, w - 4 - i * 4.8, 1, i % 2 ? '#ebe5d2' : '#e2dbc6'); R(x, y + 15, w, 15, '#cfc8b2'); for (let yy = y + 17; yy < y + 30; yy += 3) R(x, yy, w, 1, '#bdb6a0');
       R(p.dx - 1, y + 1, 2, 3, '#e3b04a'); R(x, y + 29, w, 1, '#9f987f');
@@ -385,7 +387,7 @@ function villageLayer() {
     }
   }
   // your shrine in the temple precinct: an altar, then a little house for the god, then a greater one with gold on it
-  { const l = F.shrine | 0, sx = 362, sy = 60;
+  { const l = F.shrine | 0, sx = 466, sy = 70;
     if (l >= 1) { R(sx, sy, 18, 2, 'rgba(0,0,0,.2)');
       if (l === 1) { R(sx + 5, sy - 7, 7, 7, '#d8d2c0'); R(sx + 4, sy - 8, 9, 1, '#f0ebde'); R(sx + 4, sy - 1, 9, 1, '#b5ad98'); R(sx + 10, sy - 7, 2, 7, '#b5ad98'); R(sx + 7, sy - 10, 3, 2, '#e2702a'); R(sx + 8, sy - 11, 1, 1, '#f5c04a'); }
       else { const w2 = l === 2 ? 12 : 16, h2 = l === 2 ? 10 : 13, x0 = sx + ((18 - w2) >> 1);
@@ -401,7 +403,7 @@ function villageLayer() {
       if (l >= 2) { const cx2 = sx + w2 + 3; R(cx2, sy - 5, 9, 4, '#8a6a3a'); R(cx2, sy - 6, 9, 1, '#a8834a'); R(cx2 + 1, sy - 2, 3, 3, '#3a2a1c'); R(cx2 + 6, sy - 2, 3, 3, '#3a2a1c'); R(cx2 + 9, sy - 4, 4, 1, '#6b4f2c'); if (l >= 3) { R(cx2, sy - 9, 9, 3, '#d9c27a'); R(cx2 + 1, sy - 10, 7, 1, '#e6d088'); } }
       if (l >= 3) { R(sx - 8, sy - 5, 6, 5, '#d9c070'); R(sx - 7, sy - 6, 4, 1, '#e6d088'); R(sx - 8, sy - 3, 6, 1, '#b89a4a'); } } }
   // the granary and garden beside your house: beds and a pig, then a round store, then a great one with more beds
-  { const l = F.stores | 0, gx = 94, gy = 60;
+  { const l = F.stores | 0, gx = 90, gy = 70;
     if (l >= 1) {
       for (let q = 0; q < (l >= 3 ? 3 : 2); q++) { R(gx, gy - 6 - q * 6, 8, 5, '#6b5028'); for (let k = 0; k < 3; k++) R(gx + 1 + k * 2, gy - 5 - q * 6, 2, 3, (q + k) % 2 ? '#6f9a3a' : '#8ab04a'); }
       R(gx + 10, gy - 5, 6, 1, '#7a5a2a'); R(gx + 10, gy - 1, 6, 1, '#7a5a2a'); R(gx + 10, gy - 5, 1, 5, '#7a5a2a'); R(gx + 15, gy - 5, 1, 5, '#7a5a2a'); R(gx + 11, gy - 3, 3, 2, '#e0a8a0'); R(gx + 14, gy - 3, 1, 1, '#c88880');
@@ -409,10 +411,12 @@ function villageLayer() {
       if (l >= 3) { R(gx + 3, gy - 22, 4, 4, '#d9c070'); R(gx + 3, gy - 22, 4, 1, '#e6d088'); R(gx + 3, gy - 20, 4, 1, '#b89a4a'); } } }
   // the town wall, all the way round, with its battlements
   const stone = '#b8ab94', top = '#d8cdb6', dark = '#8f846e';
-  R(0, 0, 590, 3, stone); R(0, 3, 590, 1, dark); R(0, 186, 590, 4, stone); R(0, 186, 590, 1, top);
-  R(0, 0, 3, 190, stone); R(3, 0, 1, 190, dark); R(586, 0, 4, 52, stone); R(586, 94, 4, 96, stone); R(585, 0, 1, 52, dark); R(585, 94, 1, 96, dark);
-  for (let x = 1; x < 590; x += 6) { R(x, 0, 3, 1, top); R(x, 189, 3, 1, dark); }
-  for (let y = 4; y < 190; y += 6) { R(0, y, 1, 3, top); if (y < 50 || y > 96) R(589, y, 1, 3, top); }
+  const AG = arenaGeom(), g0 = Math.round(AG.cx - 40), g1 = Math.round(AG.cx + 40);
+  R(0, 0, g0, 3, stone); R(0, 3, g0, 1, dark); R(g1, 0, 590 - g1, 3, stone); R(g1, 3, 590 - g1, 1, dark); R(0, 186, 590, 4, stone); R(0, 186, 590, 1, top);
+  R(0, 0, 3, 190, stone); R(3, 0, 1, 190, dark); R(586, 0, 4, 62, stone); R(586, 104, 4, 86, stone); R(585, 0, 1, 62, dark); R(585, 104, 1, 86, dark);
+  for (let x = 1; x < 590; x += 6) { if (x < g0 - 2 || x > g1) R(x, 0, 3, 1, top); R(x, 189, 3, 1, dark); }
+  for (const jx of [g0 - 9, g1 - 1]) { R(jx, 0, 10, 13, stone); R(jx, 0, 10, 1, top); R(jx, 0, 1, 13, top); R(jx + 9, 0, 1, 13, dark); R(jx, 12, 10, 1, dark); R(jx + 2, 3, 6, 6, dark); R(jx + 3, 4, 4, 4, '#a39a84'); for (let q = 0; q < 10; q += 3) R(jx + q, 0, 2, 1, '#f0e8d6'); R(jx + 4, 9, 2, 3, '#3a2e24'); }      // a tower where the town wall meets the arena on either side
+  for (let y = 4; y < 190; y += 6) { R(0, y, 1, 3, top); if (y < 60 || y > 106) R(589, y, 1, 3, top); }
   // a tower at each corner of the wall
   for (const [wx0, wy0] of [[0, 0], [580, 0], [0, 180], [580, 180]]) {
     R(wx0, wy0, 10, 10, stone); R(wx0, wy0, 10, 1, top); R(wx0, wy0, 1, 10, top); R(wx0 + 9, wy0, 1, 10, dark); R(wx0, wy0 + 9, 10, 1, dark);
@@ -450,7 +454,7 @@ function drawVillage(cv, T) {
   const sky = typeof yardSky === 'function' ? yardSky(T) : { night: 0, tint: '#ffffff' }, wx = typeof yardWeather === 'function' ? yardWeather(T) : { rain: 0, gust: 0, wet: 0, over: 0 };
   const night = sky.night, dark = night > 0.6, games = typeof isGamesDay === 'function' && isGamesDay();
   if (typeof SFX !== 'undefined') { SFX.ambience(wx.rain, night); SFX.mood({ night: night > 0.6 }); }            // rain on the roofs, crickets after dark
-  if (wx.wet > 0) { R(0, 0, 590, 190, `rgba(40,45,60,${(0.13 * wx.wet).toFixed(3)})`); for (let i = 0; i < 9; i++) { const px = (i * 67 + 20) % 560, py = i % 2 ? 70 + (i * 3) % 8 : 156 + (i * 5) % 8, w = Math.round((8 + (i % 3) * 4) * wx.wet); if (w > 3) { R(px, py, w, 2, 'rgba(160,190,215,.55)'); R(px + 1, py + 2, w - 2, 1, 'rgba(160,190,215,.4)'); } } }
+  if (wx.wet > 0) { R(0, 0, 590, 190, `rgba(40,45,60,${(0.13 * wx.wet).toFixed(3)})`); for (let i = 0; i < 9; i++) { const px = (i * 67 + 20) % 560, py = i % 2 ? 80 + (i * 3) % 8 : 156 + (i * 5) % 8, w = Math.round((8 + (i % 3) * 4) * wx.wet); if (w > 3) { R(px, py, w, 2, 'rgba(160,190,215,.55)'); R(px + 1, py + 2, w - 2, 1, 'rgba(160,190,215,.4)'); } } }
 
   // the pond: two ducks about their business, and a ring where one has just dabbled
   for (let i = 0; i < 2; i++) {
@@ -462,7 +466,7 @@ function drawVillage(cv, T) {
   { const q = (T * 0.25) % 1; ctx.globalAlpha = 0.6 * (1 - q); R(388 - q * 4, 178, 2 + Math.round(q * 8), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
   // what you have built, alive: the flame on your shrine, steam off the bath, the school's flag
   { const F2 = G.fac || {}, lu = placeOf('ludus');
-    if ((F2.shrine | 0) >= 1) { const fl2 = Math.sin(T * 11) > 0 ? 1 : 0; R(370, 51 - fl2 - ((F2.shrine | 0) > 1 ? 2 : -1), 2, 2 + fl2, '#f5c04a'); if (night > 0.3) sceneGlow(ctx, 371, 52, 10, '255,170,80', 0.3 * Math.min(1, (night - 0.3) * 2.5)); }
+    if ((F2.shrine | 0) >= 1) { const fl2 = Math.sin(T * 11) > 0 ? 1 : 0; R(474, 61 - fl2 - ((F2.shrine | 0) > 1 ? 2 : -1), 2, 2 + fl2, '#f5c04a'); if (night > 0.3) sceneGlow(ctx, 475, 62, 10, '255,170,80', 0.3 * Math.min(1, (night - 0.3) * 2.5)); }
     if ((F2.baths | 0) >= 2 && night < 0.7) for (let q = 0; q < 2; q++) { const p2 = (T * 0.3 + q / 2) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(lu.x + lu.w - 26 + q * 4 + Math.sin(p2 * 5) * 2, lu.y + 20 - p2 * 9, 3, 2, '#eef6f8'); } ctx.globalAlpha = 1;
     if ((F2.stables | 0) >= 1 && Math.sin(T * 0.8) > 0.7) R(411, 178, 1, 1, '#6f5a48'); }
   // what moves on the buildings: water, smoke, the forge fire, flags
@@ -473,12 +477,11 @@ function drawVillage(cv, T) {
   for (let i = 0; i < 4; i++) { const p = (T * 0.35 + i * 0.25) % 1; ctx.globalAlpha = 0.5 * (1 - p); R(f.x + f.w - 14 + Math.sin(p * 5 + i) * 3, f.y + 4 - p * 16, 4 + Math.round(p * 3), 3, '#d8d4cc'); }
   ctx.globalAlpha = 1;
   const a = placeOf('arena'), acx = a.x + a.w / 2;
-  for (const [ox, col] of [[-50, '#8a2a20'], [-28, '#c9a21e'], [28, '#2f6db8'], [50, '#8a2a20']]) { const fy = a.y + 28 - Math.round(26 * Math.sqrt(1 - (ox * ox) / (63 * 63))) - 7; R(acx + ox, fy, 1, 8, '#5a4326'); R(acx + ox + 1, fy + (Math.sin(T * 4 + ox) > 0 ? 0 : 1), 5, 3, col); }
 
   const lost = (G.fallen || []).some(x => G.day - x.day <= 2), fest = G.festival && G.festival.day >= G.day && G.festival.day - G.day <= 3;
   if (lost) { const lu = placeOf('ludus'); R(lu.dx + 20, lu.y - 6, 1, 12, '#3a2a1c'); R(lu.dx + 21, lu.y - 6 + (Math.sin(T * 3) > 0 ? 0 : 1), 6, 4, '#16110e'); R(lu.dx + 21, lu.y - 2, 4, 2, '#16110e'); }
   if (fest) for (let i = 0; i <= 14; i++) {             // a festival is near: garlands over the square
-    const bx = 257 + i * 6, by = 78 + Math.round(Math.sin(i / 14 * Math.PI) * 4);
+    const bx = 257 + i * 6, by = 88 + Math.round(Math.sin(i / 14 * Math.PI) * 4);
     R(bx, by, 6, 1, '#4a6a2a'); R(bx + 2, by + 1, 2, 2, ['#e3b04a', '#c23b2e', '#f1ead8'][i % 3]);
   }
   if (games) {                                  // games today: bunting over the arena gate
@@ -499,12 +502,12 @@ function drawVillage(cv, T) {
 
   // the east gate: barred until the school has fought its first games
   const open = typeof gateOpen === 'function' && gateOpen();
-  R(572, 52, 18, 12, '#b8ab94'); R(572, 82, 18, 12, '#b8ab94'); R(572, 52, 18, 2, '#d8cdb6'); R(572, 82, 18, 2, '#d8cdb6'); R(572, 62, 18, 2, '#8f846e'); R(572, 92, 18, 2, '#8f846e');
-  for (let i = 572; i < 590; i += 4) { R(i, 50, 2, 2, '#d8cdb6'); R(i, 80, 2, 2, '#d8cdb6'); }
-  R(576, 64, 12, 2, '#8f846e'); R(576, 80, 12, 2, '#6f6654');
-  if (!open) { R(578, 66, 9, 14, '#5a3c20'); R(578, 66, 9, 1, '#7a5632'); R(582, 66, 1, 14, '#3a2416'); R(578, 72, 9, 2, '#3a2a1c'); }
-  R(585, 44, 1, 8, '#5a4326'); R(586, 44 + (Math.sin(T * 4) > 0 ? 0 : 1), 4, 3, '#a02d22');
-  if (ui.wayTo === 'gate') { const ay = 46 + Math.round(Math.sin(T * 6) * 2); R(579, ay, 3, 6, '#f5d584'); R(577, ay + 6, 7, 1, '#f5d584'); R(578, ay + 7, 5, 1, '#f5d584'); R(579, ay + 8, 3, 1, '#f5d584'); }
+  R(572, 62, 18, 12, '#b8ab94'); R(572, 92, 18, 12, '#b8ab94'); R(572, 62, 18, 2, '#d8cdb6'); R(572, 92, 18, 2, '#d8cdb6'); R(572, 72, 18, 2, '#8f846e'); R(572, 102, 18, 2, '#8f846e');
+  for (let i = 572; i < 590; i += 4) { R(i, 60, 2, 2, '#d8cdb6'); R(i, 90, 2, 2, '#d8cdb6'); }
+  R(576, 74, 12, 2, '#8f846e'); R(576, 90, 12, 2, '#6f6654');
+  if (!open) { R(578, 76, 9, 14, '#5a3c20'); R(578, 76, 9, 1, '#7a5632'); R(582, 76, 1, 14, '#3a2416'); R(578, 82, 9, 2, '#3a2a1c'); }
+  R(585, 54, 1, 8, '#5a4326'); R(586, 54 + (Math.sin(T * 4) > 0 ? 0 : 1), 4, 3, '#a02d22');
+  if (ui.wayTo === 'gate') { const ay = 56 + Math.round(Math.sin(T * 6) * 2); R(579, ay, 3, 6, '#f5d584'); R(577, ay + 6, 7, 1, '#f5d584'); R(578, ay + 7, 5, 1, '#f5d584'); R(579, ay + 8, 3, 1, '#f5d584'); }
   // the doorstep of the screen now open, and of wherever the steward is sending you
   const cur = PLACES.find(p => p.key === ui.tab);
   if (cur) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 4); R(cur.dx - 6, cur.dy - 4, 12, 5, '#f5d584'); ctx.globalAlpha = 1; }
@@ -514,7 +517,7 @@ function drawVillage(cv, T) {
   const still = (x, y, o) => folk.push({ y, draw: () => vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o)) });
   const notes = [];                    // marks over the heads of people who are waiting for you: [x, y, colour]
   if (!dark) {                                   // a carter and his mule, coming along the upper street to the gate, every so often
-    const cx = ((T * 13) % 900) - 60, cy = 75;
+    const cx = ((T * 13) % 900) - 60, cy = 85;
     if (cx > 8 && cx < 560) folk.push({ y: cy, draw: () => {
       const st = Math.sin(T * 9) > 0 ? 1 : 0;
       R(cx - 14, cy + 1, 30, 2, 'rgba(0,0,0,.2)');
@@ -527,7 +530,7 @@ function drawVillage(cv, T) {
     } });
   }
   // two men on the gate, with spears
-  for (const gy of [62, 96]) folk.push({ y: gy, draw: () => { vilPerson(ctx, 568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
+  for (const gy of [72, 106]) folk.push({ y: gy, draw: () => { vilPerson(ctx, 568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
   if (!dark) {
     const m = placeOf('market'), tp = placeOf('patrons');
     [[16, '#b93a2e'], [49, '#2f6db8'], [82, '#c9a21e']].forEach(([ox, c], i) => still(m.x + ox, m.y + 30 + (Math.sin(T * 1.5 + i * 2) > 0.6 ? -1 : 0), { tunic: c, hair: '#2a1c14', skin: i % 2 ? '#c9966c' : '#d9a57c' }));      // the stallholders
@@ -597,7 +600,7 @@ function drawVillage(cv, T) {
       else { R(sx, sy - hop, 2, 2, '#6a5a48'); R(sx + (q ? 2 : -1), sy - hop, 1, 1, '#4a3a2c'); R(sx, sy + 1 - hop, 1, 1, '#c8b898'); } }
   });
   for (let i = 0; i < 4; i++) if (Math.sin(T * 2.6 + i * 1.9) > 0.75) R(372 + i * 6, 176 + (i % 2) * 2, 1, 1, '#ffffff');      // the sun on the pond
-  if (wx.rain > 0.05) for (let i = 0, n = Math.round(26 * wx.rain); i < n; i++) { const k = Math.floor(T * 8) + i * 17, sx = (k * 73) % 580 + 4, sy = (i % 2 ? 66 : 154) + (k * 29) % 14, rp = (T * 8) % 1; ctx.globalAlpha = 0.6 * (1 - rp); R(sx - rp * 2, sy, 2 + Math.round(rp * 4), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
+  if (wx.rain > 0.05) for (let i = 0, n = Math.round(26 * wx.rain); i < n; i++) { const k = Math.floor(T * 8) + i * 17, sx = (k * 73) % 580 + 4, sy = (i % 2 ? 76 : 154) + (k * 29) % 14, rp = (T * 8) % 1; ctx.globalAlpha = 0.6 * (1 - rp); R(sx - rp * 2, sy, 2 + Math.round(rp * 4), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
   // PASS 27. the shadows lengthen and swing with the sun: laid over the ones painted on the map
   if (typeof sceneLow !== 'undefined' && night < 0.6) {
     const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * 14);
@@ -609,37 +612,35 @@ function drawVillage(cv, T) {
   // The arena, alive. On a games day every seat is taken and the crowd rises in a wave that runs round the rings;
   // two men fight on the sand, the magistrate is in his box, and the awning stirs. On other days two men rake the
   // sand. At night torches burn round the rim. Its shadow swings out to one side as the sun gets low.
-  { const ar = PLACES.find(p => p.kind === 'arena'); if (ar) {
-      const cx = ar.x + ar.w / 2, cy = ar.y + 28, on = (a2, rr) => [cx + Math.cos(a2) * 63 * rr, cy + Math.sin(a2) * 26 * rr], hsh = (a2, b2) => { const v = Math.sin(a2 * 127.1 + b2 * 311.7) * 43758.5; return v - Math.floor(v); };
-      if (night < 0.6) {                        // PASS 5 (live): the drum's shadow, thrown to the side away from the sun
-        const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * 16);
-        if (len > 1) { ctx.fillStyle = `rgba(20,14,6,${(0.1 + low * 0.08).toFixed(3)})`; for (let yy = -22; yy <= 30; yy += 1) { const hw = Math.round(63 * Math.sqrt(Math.max(0, 1 - ((yy - 4) * (yy - 4)) / (27 * 27)))); if (hw > 0) ctx.fillRect(dir > 0 ? cx + hw : cx - hw - len, cy + yy, len, 1); } }
-      }
-      if (games) {                              // PASS 4: a full house
-        for (let k = 0; k < 5; k++) { const rr = 0.63 + k * 0.066, n = 46 + k * 9;
-          for (let q = 0; q < n; q++) { const a2 = q / n * 6.283 + k * 0.07; if (hsh(q, k) > 0.88) continue; if (Math.sin(a2) < 0 && rr > 0.74 && Math.floor((a2 - Math.PI - 0.22) / 0.39) >= 0 && ((a2 - Math.PI - 0.22) % 0.39) < 0.3 && a2 < Math.PI + 0.22 + 7 * 0.39) continue;      // not through the awning
-            const [sx, sy] = on(a2, rr), wave = Math.sin(a2 * 2 - T * 2.2) > 0.9, cheer = hsh(q + Math.floor(T * 3), k) > 0.93;
-            R(sx, sy - (wave || cheer ? 1 : 0), 1, 1 + (wave ? 1 : 0), ['#c23b2e', '#3a6ea8', '#f1ead8', '#e8b545', '#7a5a8a', '#3f7a5a'][Math.floor(hsh(q + 7, k + 3) * 6)]); if (wave) R(sx, sy - 2, 1, 1, '#d9a57c'); } }
-        // the bout: they circle, close, and break
-        const ph = (T * 0.35) % 1, close = ph > 0.55 && ph < 0.8, an = T * 0.5, gap = close ? 2 : 6 + Math.sin(T * 1.3) * 2, ax = cx + Math.cos(an) * 5, ay = cy + Math.sin(an) * 2;
-        for (const s2 of [-1, 1]) { const fx = Math.round(ax + s2 * gap * 0.5), fy = Math.round(ay); R(fx - 1, fy + 1, 3, 1, 'rgba(0,0,0,.25)'); R(fx, fy - 3, 1, 1, '#d9a57c'); R(fx, fy - 2, 1, 2, s2 < 0 ? '#a8261c' : '#2f5a8a'); R(fx + (s2 < 0 ? 1 : -1), fy - 2 - (close && Math.sin(T * 14) > 0 ? 1 : 0), 1, 1, '#d8dce0'); R(fx + (s2 < 0 ? -1 : 1), fy - 2, 1, 2, s2 < 0 ? '#c9a21e' : '#8a8478'); }
-        if (close && Math.sin(T * 14) > 0.3) { R(Math.round(ax), Math.round(ay) - 3, 1, 1, '#fff0b0'); R(Math.round(ax) + (Math.sin(T * 30) > 0 ? 1 : -1), Math.round(ay) - 4, 1, 1, '#f5c04a'); }
-        for (let q = 0; q < 3; q++) { const p2 = (T * 0.8 + q / 3) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(ax - 3 + q * 3 + Math.sin(p2 * 5 + q) * 2, ay + 1 - p2 * 3, 2, 1, '#f0dcaa'); } ctx.globalAlpha = 1;
-        // the magistrate, on his feet when they close
-        R(cx - 1, cy - 20 - (close ? 1 : 0), 2, 1, '#d9a57c'); R(cx - 1, cy - 19 - (close ? 1 : 0), 2, 2, '#f1ead8'); R(cx - 4, cy - 19, 1, 2, '#c9a21e'); R(cx + 3, cy - 19, 1, 2, '#c9a21e');
-      } else if (night < 0.5) {                  // no games: two men raking yesterday out of the sand
-        for (let q = 0; q < 2; q++) { const a2 = T * 0.2 + q * 3.1, px = cx + Math.cos(a2) * 20, py = cy + Math.sin(a2) * 6; R(px, py - 3, 1, 1, '#d9a57c'); R(px, py - 2, 1, 2, '#8a6a4a'); R(px + (Math.cos(a2) > 0 ? 1 : -3), py - 1, 3, 1, '#6b4f2c'); R(px - Math.cos(a2) * 4, py + 0, 3, 1, 'rgba(240,220,170,.6)'); }
-      }
-      // the awning lifting in the wind, the flags on the masts
-      for (let q = 0; q < 7; q++) { const a0 = Math.PI + 0.22 + q * 0.39 + 0.15, [ux, uy] = on(a0, 0.85); if (Math.sin(T * (1.4 + wx.gust * 3) + q * 1.1) > 0.3) R(ux - 2, uy, 5, 1, 'rgba(255,250,235,.5)'); }
-      for (const q of [2, 7, 12, 17]) { const [mx, my] = on(q / 20 * 6.283 + 0.157, 0.99), wv = Math.sin(T * 5 + q) > 0 ? 1 : 0; R(mx + 1, my - 6 + wv, 3, 2, games ? '#c23b2e' : '#c9a21e'); R(mx + 3, my - 5 - wv + 1, 1, 1, games ? '#a02d22' : '#a8851a'); }
-      if (night > 0.3) {                         // torches round the rim after dark, and at the gate
-        const la2 = Math.min(1, (night - 0.3) * 2.5), fl2 = Math.sin(T * 11) > 0 ? 1 : 0;
-        for (let q = 0; q < 10; q++) { const [tx2, ty2] = on(q / 10 * 6.283 + 0.3, 0.99); ctx.globalAlpha = la2; R(tx2, ty2 - 5 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, tx2, ty2 - 4, 8, '255,170,80', 0.28 * la2); }
-        for (const gx of [-9, 9]) { ctx.globalAlpha = la2; R(cx + gx, ar.y + ar.h - 12 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, cx + gx, ar.y + ar.h - 10, 10, '255,170,80', 0.32 * la2); }
-        sceneGlow(ctx, cx, cy, 30, '255,190,110', (games ? 0.16 : 0.05) * la2);
-      }
-  } }
+  { const { p: ar, cx, cy, RX, RY } = arenaGeom(), on = (a2, rr) => [cx + Math.cos(a2) * RX * rr, cy + Math.sin(a2) * RY * rr], hsh = (a2, b2) => { const v = Math.sin(a2 * 127.1 + b2 * 311.7) * 43758.5; return v - Math.floor(v); };
+    if (night < 0.6) {
+      const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * 16);
+      if (len > 1) { ctx.fillStyle = `rgba(20,14,6,${(0.1 + low * 0.08).toFixed(3)})`; for (let yy = -RY + 6; yy <= RY + 5; yy += 1) { const hw = Math.round(RX * Math.sqrt(Math.max(0, 1 - ((yy - 4) * (yy - 4)) / ((RY + 1) * (RY + 1))))); if (hw > 0) ctx.fillRect(dir > 0 ? cx + hw : cx - hw - len, cy + yy, len, 1); } }
+    }
+    if (games) {
+      for (let k = 0; k < 7; k++) { const rr = 0.61 + k * 0.047, n = 62 + k * 12;
+        for (let q = 0; q < n; q++) { const a2 = q / n * 6.283 + k * 0.07; if (hsh(q, k) > 0.88) continue;
+          if (rr > 0.72 && a2 > Math.PI + 0.2 && a2 < Math.PI + 0.2 + 9 * 0.305 && ((a2 - Math.PI - 0.2) % 0.305) < 0.24) continue;      // not through the awning
+          const [sx, sy] = on(a2, rr), wave = Math.sin(a2 * 2 - T * 2.2) > 0.9, cheer = hsh(q + Math.floor(T * 3), k) > 0.93;
+          R(sx, sy - (wave || cheer ? 1 : 0), 1, 1 + (wave ? 1 : 0), ['#c23b2e', '#3a6ea8', '#f1ead8', '#e8b545', '#7a5a8a', '#3f7a5a'][Math.floor(hsh(q + 7, k + 3) * 6)]); if (wave) R(sx, sy - 2, 1, 1, '#d9a57c'); } }
+      // the bout: they circle, close, and break
+      const ph = (T * 0.35) % 1, close = ph > 0.55 && ph < 0.8, an = T * 0.5, gap = close ? 3 : 8 + Math.sin(T * 1.3) * 2, ax = cx + Math.cos(an) * 8, ay = cy + Math.sin(an) * 3;
+      for (const s2 of [-1, 1]) { const fx = Math.round(ax + s2 * gap * 0.5), fy = Math.round(ay); R(fx - 1, fy + 1, 4, 1, 'rgba(0,0,0,.25)'); R(fx, fy - 4, 2, 1, '#d9a57c'); R(fx, fy - 3, 2, 3, s2 < 0 ? '#a8261c' : '#2f5a8a'); R(fx + (s2 < 0 ? 2 : -1), fy - 3 - (close && Math.sin(T * 14) > 0 ? 1 : 0), 1, 2, '#d8dce0'); R(fx + (s2 < 0 ? -1 : 2), fy - 3, 1, 3, s2 < 0 ? '#c9a21e' : '#8a8478'); }
+      if (close && Math.sin(T * 14) > 0.3) { R(Math.round(ax), Math.round(ay) - 4, 1, 1, '#fff0b0'); R(Math.round(ax) + (Math.sin(T * 30) > 0 ? 1 : -1), Math.round(ay) - 5, 1, 1, '#f5c04a'); }
+      for (let q = 0; q < 3; q++) { const p2 = (T * 0.8 + q / 3) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(ax - 4 + q * 4 + Math.sin(p2 * 5 + q) * 2, ay + 1 - p2 * 3, 2, 1, '#f0dcaa'); } ctx.globalAlpha = 1;
+      { const by = Math.round(cy - RY * 0.8); R(cx - 1, by + 1 - (close ? 1 : 0), 2, 1, '#d9a57c'); R(cx - 1, by + 2 - (close ? 1 : 0), 2, 3, '#f1ead8'); R(cx - 5, by + 2, 1, 3, '#c9a21e'); R(cx + 4, by + 2, 1, 3, '#c9a21e'); }
+    } else if (night < 0.5) {
+      for (let q = 0; q < 2; q++) { const a2 = T * 0.2 + q * 3.1, px = cx + Math.cos(a2) * RX * 0.34, py = cy + Math.sin(a2) * RY * 0.24; R(px, py - 4, 2, 1, '#d9a57c'); R(px, py - 3, 2, 3, '#8a6a4a'); R(px + (Math.cos(a2) > 0 ? 2 : -3), py - 1, 3, 1, '#6b4f2c'); R(px - Math.cos(a2) * 5, py, 4, 1, 'rgba(240,220,170,.6)'); }
+    }
+    for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305 + 0.12, [ux, uy] = on(a0, 0.85); if (Math.sin(T * (1.4 + wx.gust * 3) + q * 1.1) > 0.3) R(ux - 3, uy, 6, 1, 'rgba(255,250,235,.5)'); }
+    for (const q of [2, 6, 10, 15, 19, 23]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99), wv = Math.sin(T * 5 + q) > 0 ? 1 : 0; R(mx + 1, my - 6 + wv, 4, 2, games ? '#c23b2e' : '#c9a21e'); R(mx + 4, my - 5 - wv + 1, 1, 1, games ? '#a02d22' : '#a8851a'); }
+    if (night > 0.3) {
+      const la2 = Math.min(1, (night - 0.3) * 2.5), fl2 = Math.sin(T * 11) > 0 ? 1 : 0;
+      for (let q = 0; q < 14; q++) { const [tx2, ty2] = on(q / 14 * 6.283 + 0.3, 0.99); ctx.globalAlpha = la2; R(tx2, ty2 - 5 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, tx2, ty2 - 4, 8, '255,170,80', 0.28 * la2); }
+      for (const gx of [-11, 11]) { ctx.globalAlpha = la2; R(cx + gx, ar.y + ar.h - 13 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, cx + gx, ar.y + ar.h - 11, 10, '255,170,80', 0.32 * la2); }
+      sceneGlow(ctx, cx, cy, 40, '255,190,110', (games ? 0.16 : 0.05) * la2);
+    }
+  }
   // PASS 30. men on the north wall, walking their beat, and a flag on each of the lower towers
   for (let i = 0; i < 2; i++) { const u = (T * 0.012 + i * 0.5) % 2, f = u < 1 ? u : 2 - u, gx = 30 + f * 520 * (i ? 1 : 0.5) + (i ? 0 : 260 * 0); R(gx, 0, 1, 1, '#d9a57c'); R(gx, 1, 1, 2, '#a8261c'); R(gx + 1, 0, 1, 3, '#c1c7cc'); }
   for (const tx of [4, 584]) { const wv = Math.sin(T * 5 + tx) > 0 ? 1 : 0; R(tx, 172, 1, 9, '#5a4326'); R(tx + (tx < 295 ? 1 : -4), 172 + wv, 4, 3, '#a02d22'); }
@@ -688,7 +689,7 @@ function drawVillage(cv, T) {
   // names over the doors, the open one in gold, and how many things wait inside
   const marks = typeof villageMarks === 'function' ? villageMarks() : {};
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 96, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#a8947a'; ctx.fillText('GATE', 590 - w / 2 - 1, 102); }
+  { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 106, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#a8947a'; ctx.fillText('GATE', 590 - w / 2 - 1, 112); }
   for (const p of PLACES) {
     const label = p.key === 'arena' && typeof daysToGames === 'function' ? (games ? 'ARENA: GAMES TODAY' : `ARENA: GAMES IN ${daysToGames()} DAY${daysToGames() === 1 ? '' : 'S'}`) : p.name.toUpperCase();
     const on = p.key === ui.tab, w = Math.ceil(ctx.measureText(label).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);

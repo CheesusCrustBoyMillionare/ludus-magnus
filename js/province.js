@@ -1609,7 +1609,7 @@ function provStep(dt) {
 function provHome() {
   prov.path = null; prov.trail = []; villageStill();
   wildLeave();
-  vil.x = 566; vil.y = 73; vil.at = null; vil.path = null; vil.face = 'left';
+  vil.x = 566; vil.y = 83; vil.at = null; vil.path = null; vil.face = 'left';
   SFX.music('ludus');
   render();
   if (G.pendingEvent) showEvent();
