@@ -268,7 +268,7 @@ test('patrons: petitions spend favour, requests are asked and settled', () => ga
 
 test('household: new buildings, new posts and the regimen each do what they say', () => game()(function () {
   newGame();
-  assert(Object.keys(FACILITIES).length === 7 && Object.keys(FACILITIES).every(k => G.fac[k] === 0 || k === 'barracks' || k === 'ground') && Object.keys(STAFF_ROLES).length === 7, 'seven buildings and seven posts');
+  assert(Object.keys(FACILITIES).length === 8 && Object.keys(FACILITIES).every(k => G.fac[k] === 0 || k === 'barracks' || k === 'ground') && Object.keys(STAFF_ROLES).length === 7, 'eight buildings and seven posts');
   const g = G.roster[0];
   // the granary and the dispensator make the house cheaper to run
   const f0 = foodCost(); G.fac.stores = 2; assert(foodCost() < f0 && foodCost() === Math.round(f0 * 0.8), 'the granary cuts the cost of food');
@@ -786,6 +786,127 @@ test('stories of the places: every step and every answer of every story runs, an
   newGame(); wildMap().tales = { miller: { step: 2, done: 3, end: 'stayed' } };
   assert(/miller/.test(taleLore('The hot spring')) && /wife/.test(taleLore('The mill')) && taleLore('The beacon') === '', 'what the places say afterwards');
   assert(runs > 60 && Object.keys(ends).length >= 14, 'too little was tried: ' + runs + ' answers, ' + Object.keys(ends).length + ' endings');
+}));
+
+test('landmarks: every one is good for something, the use can be had and had again, and a story changes it', () => game()(function () {
+  let ran = 0, alts = 0;
+  const fresh = () => { newGame(); G.denarii = 1000; G.tally.wins = 1; G.roster.forEach(g => { g.fatigue = 50; g.hp = maxHp(g) * 0.5; g.morale = 50; }); assert(wildEnter(), 'the school marches out'); G.field.packs = []; };
+  const tryUse = (name, label) => {
+    const st = landUseState(name), u = st.u;
+    assert(typeof u.verb === 'string' && u.verb.length > 3 && typeof u.what === 'string' && u.fx, label + ' has no use set out');
+    const words = landUseWords(u); assert(typeof words === 'string' && !/undefined|NaN/.test(words), label + ' words: ' + words);
+    if (u.off) { assert(typeof u.off === 'string' && st.why === u.off && landUseRun(name) === null, label + ' is closed, and says why'); return; }
+    assert(!st.why, label + ' should be possible: ' + st.why);
+    const p = landmarkAt(name); G.field.x = p.x; G.field.y = p.y; assert(landmarkHere() === name, 'standing at ' + name);
+    const g = G.roster[0], d0 = G.denarii, day0 = G.day, f0 = g.fatigue, h0 = g.hp, m0 = g.morale, x0 = g.xp, fame0 = G.fame, fog0 = wildExplored();
+    const out = landUseRun(name); ran++;
+    assert(typeof out === 'string' && out.length > 10 && !/undefined|NaN/.test(out), label + ' gave: ' + out);
+    assert(!badNumber(G), label + ' left a bad number');
+    assert(G.day === day0 + (u.day ? 1 : 0), label + ' and the day');
+    const f = u.fx;
+    if (!u.day) {                                  // a day spent has its own doings; where none is, the effect can be read off the man
+      assert(G.denarii === d0 - (u.cost || 0) + (f.coin ? G.denarii - d0 + (u.cost || 0) : 0), label + ' cost');
+      if (f.coin) assert(G.denarii - d0 + (u.cost || 0) >= 0, label + ' coin');
+      if (f.rest && !f.tire) assert(g.fatigue === Math.max(0, f0 - f.rest), label + ' rest');
+      if (f.heal) assert(g.hp > h0, label + ' heal');
+      if (f.cheer) assert(g.morale === Math.max(0, Math.min(100, m0 + f.cheer)), label + ' spirits');
+      if (f.fame) assert(G.fame === fame0 + f.fame, label + ' fame');
+      if (f.see) assert(wildExplored() > fog0, label + ' lifts the fog');
+    }
+    if (f.xp && fieldParty().includes(g)) assert(g.xp >= x0 + f.xp, label + ' experience');
+    if (f.bless) assert(G.blessed >= G.day, label + ' blessing');
+    // not twice running; again when its time has come round
+    const again = landUseState(name); assert(again.why && landUseRun(name) === null, label + ' can be had twice running');
+    G.day += (u.cool || 1); G.denarii = 1000; assert(!landUseState(name).why, label + ' never comes round again');
+  };
+  for (const name of LANDMARKS) {
+    assert(LAND_USE[name], name + ' is good for nothing');
+    fresh(); tryUse(name, name);
+    for (const k in (LAND_USE[name].alt || {})) {
+      const [tid, end] = k.split('.');
+      assert(TALES[tid], name + ' answers to no story: ' + k);
+      assert(TALES[tid].steps.some(S => S.opts.some(o => true)) && JSON.stringify(Object.keys(TALES[tid].lore || {})).includes(end) || true, 'ending');
+      fresh(); wildMap().tales = { [tid]: { step: 1, done: 2, end } };
+      const u = landUse(name); assert(u.changed, name + ' is not changed by ' + k);
+      tryUse(name, name + ' after ' + k); alts++;
+    }
+  }
+  for (const name in LAND_USE) assert(LANDMARKS.includes(name), 'a use at no landmark: ' + name);
+  // every ending named by a use is one its story can come to
+  const ends = {};
+  for (const id in TALES) { ends[id] = new Set(Object.keys(TALES[id].lore || {})); }
+  for (const name in LAND_USE) for (const k in (LAND_USE[name].alt || {})) { const [tid, end] = k.split('.'); assert(ends[tid] && ends[tid].has(end), name + ' waits on an ending that never comes: ' + k); }
+  // short of money, it says so; away from any landmark, nothing is offered
+  fresh(); G.denarii = 0; assert(/short/.test(landUseState('The mill').why) && landUseRun('The mill') === null, 'bread on credit');
+  G.field.x = WILD.TOWN.x + 26; G.field.y = WILD.TOWN.y; assert(landmarkHere() === null || landmarkAt(landmarkHere()), 'where the column stands');
+  assert(ran >= LANDMARKS.length && alts > 25, 'too little was tried: ' + ran + ' uses, ' + alts + ' changed by a story');
+}));
+
+test('before a fight in the wild the enemy is counted, and those counted are those met; an eagle sees more', () => game()(function () {
+  const rnd = Math.random;
+  const setup = () => { newGame(); G.denarii = 5000; G.tally.wins = 1; assert(wildEnter(), 'the school marches out'); G.field.packs = []; };
+  // seen: the notice gives their strength, and the fight is against exactly those
+  for (const id of ['wLair', 'wCamp', 'wBounty', 'wBattlefield', 'wChief', 'wBarrow', 'wErrandFight']) {
+    setup(); assert(EVENTS[id] && EVENTS[id].can(), id + ' can be raised');
+    const c = EVENTS[id].make(); G.pendingEvent = { id, c };
+    EVENTS[id].text(c); assert(c._foes && c._foes.length && typeof c._see === 'boolean', id + ' settles who is there');
+    c._see = true; const txt = EVENTS[id].text(c);
+    const th = Math.round(c._foes.reduce((n, e) => n + power(e), 0));
+    assert(txt.includes('>' + th + '<') && txt.includes('>' + yours() + '<') && !/undefined|NaN/.test(txt), id + ' gives both strengths: ' + txt);
+    assert(EVENTS[id].text(c) === txt, id + ' does not change its mind on a second look');
+    const held = c._foes, out = EVENTS[id].opts[0].run(c);
+    assert(G.field.fight && G.field.fight.foes === held, id + ': those counted are those met (' + out + ')');
+    G.field.fight = null; G.pendingEvent = null;
+  }
+  // unseen: only your own strength is given
+  setup(); { const c = EVENTS.wCamp.make(); G.pendingEvent = { id: 'wCamp', c }; EVENTS.wCamp.text(c); c._see = false; const txt = EVENTS.wCamp.text(c);
+    assert(/cannot be told/.test(txt) && txt.includes('>' + yours() + '<'), 'not counted: ' + txt); G.pendingEvent = null; }
+  // a story's fight is counted too
+  setup(); wildMap().tales = { beacon: { step: 1 } }; { const st = wildSites().find(s => s.tale === 'beacon'); assert(wildVisit(st), 'the wreck'); const c = G.pendingEvent.c; EVENTS.wTale.text(c); c._see = true; const txt = EVENTS.wTale.text(c);
+    assert(c._foes && /of strength/.test(txt), 'wreckers counted: ' + txt); const held = c._foes; EVENTS.wTale.opts[0].run(c); assert(G.field.fight.foes === held, 'the wreckers counted are the wreckers met'); G.field.fight = null; G.pendingEvent = null; }
+  // the eagle: bought at the stables, it lifts more fog and counts more often
+  setup(); const o0 = seeOdds(); G.fac.eagle = 0;
+  const lift = () => { const M = wildMap(); M.fog = M.fog.map(() => 0); wildReveal(1200, 900); return wildExplored(); };
+  const f0 = lift(); G.fac.eagle = 3; const f3 = lift(), o3 = seeOdds();
+  assert(f3 > f0 * 1.5, 'an eagle sees further: ' + f0 + ' then ' + f3); assert(o3 > o0 + 0.4 && o3 <= 0.95, 'and counts more often: ' + o0 + ' then ' + o3);
+  assert(FACILITIES.eagle && typeof FACILITIES.eagle.effect(0) === 'string' && /further/.test(FACILITIES.eagle.effect(2)), 'the eagle is something that can be bought');
+  Math.random = rnd;
+}));
+
+test('a man who falls while the fight goes on is judged at once, and a killing is shown as it happens', () => game()(function () {
+  let early = 0, zooms = 0, fatals = 0, deadEarly = 0;
+  for (let i = 0; i < 60; i++) {
+    newGame();
+    const mine = [makeGladiator(26), makeGladiator(26), makeGladiator(26)], foes = [makeEnemy(26, 1), makeEnemy(26, 1), makeEnemy(26, 1)];
+    const B = createBattle(mine, foes, { noIntro: true, mercy: [-0.5, -0.5] });      // a hard crowd: thumbs are turned often
+    B.cutins = true;
+    let n = 0, sawKill = false;
+    while ((!B.over || B.outro <= B.outroEnd) && n++ < 60000) {
+      const judged = B.fighters.filter(f => f.fate).length, wasKill = !!B.kill, clock = B.time;
+      stepBattle(B, 1 / 30);
+      if (B.kill) {                              // the stop before a killing: the man is marked, nothing moves, and he is not yet dead
+        sawKill = true; if (!wasKill) zooms++;
+        assert(B.kill.f.killing && (B.kill.done || !B.kill.f.revealed), 'he is shown dead before the picture has closed on him');
+        if (wasKill) assert(B.time === clock, 'the fight goes on while a killing is being shown');
+      }
+      if (wasKill && !B.kill) { const dead = B.fighters.find(f => f.fate === 'dead' && f.revealed && !f.g.beast); assert(dead, 'the picture closed and nobody died'); assert(B.fatal, 'a killing with no death shown'); fatals++; }
+      if (!B.over) for (const f of B.fighters) {
+        const side = B.fighters.some(o => o !== f && o.team === f.team && !(o.down || o.yielded));
+        if ((f.down || f.yielded) && side && !f.killing) { assert(f.fate === 'spared' || f.fate === 'dead', f.g.name + ' lies unjudged while the fight goes on'); assert(f.revealed, 'and it is said at once'); }
+      }
+      if (!B.over && B.fighters.filter(f => f.fate).length > judged) { early++; if (B.fighters.some(f => f.fate === 'dead')) deadEarly++; }
+    }
+    assert(B.over, 'the fight ends');
+    for (const f of B.fighters) if (f.down || f.yielded) assert(f.fate === 'spared' || f.fate === 'dead', 'everyone out of it has an answer by the end');
+    assert(!B.kill && !B.fighters.some(f => f.killing), 'nobody is left waiting to be killed');
+  }
+  assert(early > 40 && deadEarly > 5 && zooms > 10 && fatals >= zooms - 1, 'too little seen: ' + early + ' judged early, ' + deadEarly + ' of them dead, ' + zooms + ' closings, ' + fatals + ' deaths shown');
+  // with such things turned off nothing stops, and the dead are dead all the same
+  let plain = 0;
+  for (let i = 0; i < 20; i++) { newGame(); const B = createBattle([makeGladiator(26), makeGladiator(26)], [makeEnemy(26, 1), makeEnemy(26, 1)], { noIntro: true, mercy: [-0.5, -0.5] }); B.cutins = false; let n = 0;
+    while ((!B.over || B.outro <= B.outroEnd) && n++ < 60000) { stepBattle(B, 1 / 30); assert(!B.kill && !B.fatal, 'a stop where none was wanted'); }
+    plain += B.fighters.filter(f => f.fate === 'dead').length; }
+  assert(plain > 3, 'nobody died');
 }));
 
 test('a bout pays out and updates records', () => game()(function () {

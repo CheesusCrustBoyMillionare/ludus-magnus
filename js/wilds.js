@@ -522,7 +522,7 @@ function wildMark(id, label) { wildMap().marks[id] = label || 1; }
 
 // Lifts the fog round a spot and notes any place now in sight. Returns true if anything new was uncovered.
 function wildReveal(x, y) {
-  const M = wildMap(), F = WILD.FOG, r = WILD.SEE;
+  const M = wildMap(), F = WILD.FOG, r = WILD.SEE * (1 + 0.2 * facLvl('eagle'));      // an eagle up sees further than a man on a mule
   let changed = false;
   for (let fy = Math.floor((y - r) / F); fy <= Math.floor((y + r) / F); fy++) for (let fx = Math.floor((x - r) / F); fx <= Math.floor((x + r) / F); fx++) {
     if (fx < 0 || fy < 0 || fx >= WILD.FW || fy >= WILD.FH) continue;
@@ -657,7 +657,22 @@ function wildMen(tier, n, boost) {
 }
 const wildCount = tier => [2, 3, 5, 6, 8][tier - 1];
 // Sets a fight waiting; the map screen starts it. `win` names what victory brings (see WILD_WINS).
+// How likely the school is to learn what it faces before it commits: a scout counts heads, and an eagle sees over walls.
+const seeOdds = () => clamp(0.5 + 0.1 * staffLvl('scout') + 0.15 * facLvl('eagle'), 0, 0.95);
+// Whoever is waiting at a place is settled the moment the school looks at it, so that what is counted is what is fought.
+// Says, in a sentence, how the two sides stand; or, if they could not be counted, only how strong the school is.
+function sizeUp(c, make) {
+  c = c || {};
+  if (!c._foes) { c._foes = make(); c._see = chance(seeOdds()); }
+  const mine = yours(), th = Math.round(c._foes.reduce((n, e) => n + power(e), 0)), n = c._foes.length;
+  if (!c._see) return ` Your fit men come to strength <b class="num">${mine}</b>. How strong they are cannot be told from here${facLvl('eagle') ? '' : '; a bird overhead would see more'}.`;
+  const word = th > mine * 1.25 ? 'They are much the stronger' : th > mine * 1.05 ? 'They are the stronger' : th < mine * 0.6 ? 'They are no match for you' : th < mine * 0.9 ? 'You are the stronger' : 'It is an even thing';
+  return ` ${facLvl('eagle') ? 'The eagle has been over them' : 'They can be counted'}: ${n === 1 ? 'one' : n}, of strength <b class="num ${th > mine ? 'bad' : 'good'}">${th}</b> against your <b class="num">${mine}</b>. ${word}.`;
+}
+const chiefFoes = () => { const foes = wildMen(4, 7, 4), boss = makeEnemy(58, 4); boss.name = 'Crixos One-Eye'; boss.gear = null; boss.outlaw = true; boss.traits = ['brute', 'ironhide', 'killer', 'lionheart']; boss.hp = maxHp(boss); return foes.concat(boss); };
+const barrowFoes = () => { const foes = wildMen(5, 6, 6); foes.forEach(f => { f.traits = [...new Set(f.traits.concat('lionheart'))]; }); return foes.concat(wildBeasts(5).slice(0, 3)); };
 function wildFight(title, foes, backdrop, win, o) {
+  { const pe = G.pendingEvent, held = pe && pe.c && pe.c._foes; if (held && held.length) { foes = held; delete pe.c._foes; } }      // those who were counted are those who are met
   G.field.fight = Object.assign({ title, foes, backdrop, win, sid: null, day: false, beasts: foes.every(f => f.beast) }, o || {});
   return 'To arms.';
 }
@@ -853,7 +868,7 @@ const yours = () => Math.round(fieldParty().reduce((n, g) => n + power(g), 0));
 const WILD_EVENTS = {
   wLair: {
     title: 'Tracks, and a smell', can: wildCan('lair'), make: wildMake('lair'),
-    text: c => `<b>${site(c).name}</b> <span class="bad">${skulls(site(c).tier)}</span>. The mules will not go nearer. Whatever lives here has been taking sheep, and lately shepherds. Every fit man you have would go in together; yours come to strength <b class="num">${yours()}</b>. It will take the day.`,
+    text: c => `<b>${site(c).name}</b> <span class="bad">${skulls(site(c).tier)}</span>. The mules will not go nearer. Whatever lives here has been taking sheep, and lately shepherds. Every fit man you have would go in together.${sizeUp(c, () => wildBeasts(site(c).tier))} It will take the day.`,
     opts: [
       { label: () => 'Go in after them', ok: canFightNow, run: c => { const s = site(c); return wildFight(s.name, wildBeasts(s.tier), s.tier >= 3 ? 'rock' : 'forest', 'lair', { sid: s.id, day: true }); } },
       leaveIt,
@@ -861,7 +876,7 @@ const WILD_EVENTS = {
   },
   wCamp: {
     title: 'Smoke over the trees', can: wildCan('camp'), make: wildMake('camp'),
-    text: c => `<b>${site(c).name}</b> <span class="bad">${skulls(site(c).tier)}</span>. About ${['two', 'three', 'five', 'six', 'eight'][site(c).tier - 1]} armed men, a lookout who has already seen you, and no way to talk. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`,
+    text: c => `<b>${site(c).name}</b> <span class="bad">${skulls(site(c).tier)}</span>. About ${['two', 'three', 'five', 'six', 'eight'][site(c).tier - 1]} armed men, a lookout who has already seen you, and no way to talk.${sizeUp(c, () => wildMen(site(c).tier, wildCount(site(c).tier)))} It will take the day.`,
     opts: [
       { label: () => 'Storm it', ok: canFightNow, run: c => { const s = site(c); return wildFight(s.name, wildMen(s.tier, wildCount(s.tier)), 'camp', 'camp', { sid: s.id, day: true }); } },
       leaveIt,
@@ -869,7 +884,7 @@ const WILD_EVENTS = {
   },
   wBounty: {
     title: 'The bounty', can: () => !!G.field, make: () => { if (!bountyLive()) postBounty(true); return {}; },
-    text: () => { const b = G.bounty; return `<b>${b.name}</b> <span class="bad">${skulls(b.tier)}</span>. ${b.kind === 'beast' ? 'The carcasses round its ground are fresh, and not all of them are sheep.' : 'They have seen you, and they know why you have come.'} The Magistrate pays <b class="gold num">${b.pay}</b> denarii for proof. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`; },
+    text: c => { const b = G.bounty; return `<b>${b.name}</b> <span class="bad">${skulls(b.tier)}</span>. ${b.kind === 'beast' ? 'The carcasses round its ground are fresh, and not all of them are sheep.' : 'They have seen you, and they know why you have come.'} The Magistrate pays <b class="gold num">${b.pay}</b> denarii for proof.${sizeUp(c, () => bountyFoes(G.bounty))} It will take the day.`; },
     opts: [
       { label: () => 'Take the bounty', ok: canFightNow, run: () => { const b = G.bounty; return wildFight(b.name, bountyFoes(b), b.kind === 'beast' ? 'forest' : 'camp', 'bounty', { tier: b.tier, day: true }); } },
       leaveIt,
@@ -990,7 +1005,7 @@ const WILD_EVENTS = {
   },
   wBattlefield: {
     title: 'The field of the Seventeenth', can: wildCan('battlefield'), make: wildMake('battlefield'),
-    text: c => `A valley full of long grass and, under the grass, bones. Somebody is still working it for what the dead carried: a band of scavengers, <span class="bad">${skulls(site(c).tier)}</span>, about six, who do not want company. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`,
+    text: c => `A valley full of long grass and, under the grass, bones. Somebody is still working it for what the dead carried: a band of scavengers, <span class="bad">${skulls(site(c).tier)}</span>, about six, who do not want company.${sizeUp(c, () => wildMen(4, 6))} It will take the day.`,
     opts: [
       { label: () => 'Drive them off the dead', ok: canFightNow, run: c => wildFight('The field of the Seventeenth', wildMen(4, 6), 'ruin', 'battlefield', { sid: 'battlefield', day: true }) },
       leaveIt,
@@ -998,7 +1013,7 @@ const WILD_EVENTS = {
   },
   wChief: {
     title: 'One-Eye\'s stockade', can: wildCan('chief'), make: wildMake('chief'),
-    text: () => `A log wall on an island in the mere, a causeway, and on the gate-tower a big man in a centurion's transverse crest, watching you count his men. There are eight of them, and him. <span class="bad">${skulls(5)}</span> Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`,
+    text: c => `A log wall on an island in the mere, a causeway, and on the gate-tower a big man in a centurion's transverse crest, watching you count his men. There are eight of them, and him. <span class="bad">${skulls(5)}</span>${sizeUp(c, chiefFoes)} It will take the day.`,
     opts: [
       { label: () => 'Take the causeway', ok: canFightNow, run: () => {
         const foes = wildMen(4, 7, 4), boss = makeEnemy(58, 4); boss.name = 'Crixos One-Eye'; boss.gear = null; boss.outlaw = true; boss.traits = ['brute', 'ironhide', 'killer', 'lionheart']; boss.hp = maxHp(boss);
@@ -1009,7 +1024,7 @@ const WILD_EVENTS = {
   },
   wBarrow: {
     title: 'The hill-king\'s barrow', can: wildCan('barrow'), make: wildMake('barrow'),
-    text: () => `A green mound the size of a temple at the end of the fell road, ringed with stones, and men among the stones: the hill-king's grandsons, who have guarded this door all their lives, and the beasts they keep for it. Nine in all. <span class="bad">${skulls(5)}</span> Your fit men come to strength <b class="num">${yours()}</b>. Nothing in the province will be harder. It will take the day.`,
+    text: c => `A green mound the size of a temple at the end of the fell road, ringed with stones, and men among the stones: the hill-king's grandsons, who have guarded this door all their lives, and the beasts they keep for it. Nine in all. <span class="bad">${skulls(5)}</span>${sizeUp(c, barrowFoes)} Nothing in the province will be harder. It will take the day.`,
     opts: [
       { label: () => 'Break the ring', ok: canFightNow, run: () => {
         const foes = wildMen(5, 6, 6); foes.forEach(f => { f.traits = [...new Set(f.traits.concat('lionheart'))]; });
@@ -1035,10 +1050,10 @@ const WILD_EVENTS = {
       const g = byId(c.g), k = site(c).kind;
       if (!g) return 'There is nothing here for you now.';
       const Q = questDef(g);
-      if (Q && Q.marks) return Q.at(g) + (Q.foes ? ` <span class="bad">${skulls(site(c).tier)}</span> Your fit men come to strength <b class="num">${yours()}</b>.` : '') + ' It will take the day.';
+      if (Q && Q.marks) return Q.at(g) + (Q.foes ? ` <span class="bad">${skulls(site(c).tier)}</span>${sizeUp(c, () => Q.foes(g, clamp(site(c).tier || g.quest.tier || 1, 1, 5)))}` : '') + ' It will take the day.';
       return {
         quarry: `The quarries: a white wound in the hill, gangs of grey men, overseers with whips. <b>${g.name}</b> has not taken his eyes off the gate since it came in sight. His brother is in there. It will take the day to find out the price.`,
-        slavers: `The camp is where the trail said: a dozen tents, a horse line, and the captain who burned <b>${g.name}</b>'s village grown fat by his fire. There are about five of them under arms <span class="bad">${skulls(3)}</span>. ${g.name} is already loosening his sword. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`,
+        slavers: `The camp is where the trail said: a dozen tents, a horse line, and the captain who burned <b>${g.name}</b>'s village grown fat by his fire. There are about five of them under arms <span class="bad">${skulls(3)}</span>. ${g.name} is already loosening his sword.${sizeUp(c, () => wildMen(3, 5))} It will take the day.`,
         vow: `The shrine of <b>${g.name}</b>'s people, on a headland over the sea, smaller than he had been told. He has carried his offering from the day he first went onto the sand. The vigil will take the day.`,
         master: `Beehives, a patch of beans, and an old man who watches <b>${g.name}</b> walk up the path and says, before anyone has spoken, "Your weight is on the wrong foot." It will take the day to be let in the door.`,
       }[k];
@@ -1566,7 +1581,7 @@ const bestWits = () => Math.max(0, ...fieldParty().map(g => g.stats.skl + g.stat
 const ERRAND_EVENTS = {
   wErrandFight: {
     title: 'What you were sent for', can: () => !!G.field, make: () => errandEnsure('fight'),
-    text: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return `<b>${T.title(T.type === 'rescue' ? q.mark2 : q.mark)}</b> <span class="bad">${skulls(q.tier)}</span>. ${T.type === 'rescue' ? T.at2(q) : T.at(q)}${T.lead && q.boss ? ' ' + T.lead(q) : ''} Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`; },
+    text: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return `<b>${T.title(T.type === 'rescue' ? q.mark2 : q.mark)}</b> <span class="bad">${skulls(q.tier)}</span>. ${T.type === 'rescue' ? T.at2(q) : T.at(q)}${T.lead && q.boss ? ' ' + T.lead(q) : ''}${sizeUp(c, () => T.foes(q))} It will take the day.`; },
     opts: [
       { label: () => 'Do what you came to do', ok: c => canFightNow() && !errandC(c).gone, run: c => { const q = errandC(c), T = ERRANDS[q.tpl]; return wildFight(T.title(T.type === 'rescue' ? q.mark2 : q.mark), T.foes(q), T.bg || 'forest', 'errand', { eid: q.id, tier: q.tier, day: true }); } },
       { label: () => 'Not today', run: () => 'You draw off. It will keep, for as long as they will wait in town.' },
@@ -1649,11 +1664,12 @@ for (const k in ERRANDS) {
 for (const id in ERRAND_EVENTS) Object.assign(ERRAND_EVENTS[id], id === 'errandOffer' || id === 'errandThanks' ? { auto: true } : { auto: true, wild: true });
 Object.assign(EVENTS, ERRAND_EVENTS);
 // What is said first when the lanista walks up to the fountain: the next person waiting.
-function fountainTalk() {
+// i: which of those standing there (as fountainFolk lists them); with none named, whoever is first.
+function fountainTalk(i) {
   if (G.pendingEvent) return false;
-  const o = owed()[0]; if (o) { raiseEvent('errandThanks', { o: o.id }); return true; }
-  const q = asksNow()[0]; if (!q) return false;
-  raiseEvent('errandOffer', { a: q.id }); return true;
+  const f = fountainFolk()[i || 0]; if (!f) return false;
+  if (f.owed) raiseEvent('errandThanks', { o: f.q.id }); else raiseEvent('errandOffer', { a: f.q.id });
+  return true;
 }
 const fountainFolk = () => owed().map(q => ({ q, owed: true })).concat(asksNow().map(q => ({ q, owed: false }))).slice(0, 3);
 
@@ -1959,7 +1975,7 @@ const TALES = {
           { label: () => 'It is no business of ours', go: 'wait', run: () => 'He nods as if he had expected nothing else, and goes back to looking at the sea.' },
         ] },
       { mark: 'A wreck on the strand', danger: true, title: 'Wreckers',
-        text: (t, id) => `The oil jars are stacked under the ribs of the hulk, with a sailcloth over them, and round them are the men who took them: wreckers, with boat-hooks and long knives, and a captain who is counting you. <span class="bad">${skulls(taleTier(id))}</span> Your fit men come to strength <b class="num">${yours()}</b>.`,
+        text: (t, id, c) => `The oil jars are stacked under the ribs of the hulk, with a sailcloth over them, and round them are the men who took them: wreckers, with boat-hooks and long knives, and a captain who is counting you. <span class="bad">${skulls(taleTier(id))}</span>${sizeUp(c, () => { const tr = taleTier(id); return [questBoss(tr, 'The wreckers\' captain', { tactic: 'aggressive' })].concat(wildMen(tr, Math.max(1, wildCount(tr) - 2))); })}`,
         opts: [
           { label: () => 'Take it back', ok: canFightNow, run: (t, id) => { const tr = taleTier(id); return wildFight('The wreckers on the strand', [questBoss(tr, 'The wreckers\' captain', { tactic: 'aggressive' })].concat(wildMen(tr, Math.max(1, wildCount(tr) - 2))), 'rock', 'tale', { tier: tr, day: true }); },
             won: () => 'What is left of them goes off down the strand. The jars are roped onto the mule, every one with the keeper\'s mark on its neck.' },
@@ -2251,7 +2267,7 @@ const TALES = {
           { label: () => 'It is no business of ours', go: 'wait', run: () => 'He is back among his numbers before you have turned round.' },
         ] },
       { mark: 'The great waterfall', danger: true, title: 'Behind the fall',
-        text: (t, id) => `There is a ledge behind the water, and a dry cave, as he said. There is also a fire in it, and bales, and jars with no tax-seal, and the men they belong to: smugglers, who run goods up the river by night and have used this cave since before Strabo could count. The surveyors' mark is on the back wall, behind their stores. <span class="bad">${skulls(taleTier(id))}</span> Your fit men come to strength <b class="num">${yours()}</b>.`,
+        text: (t, id, c) => `There is a ledge behind the water, and a dry cave, as he said. There is also a fire in it, and bales, and jars with no tax-seal, and the men they belong to: smugglers, who run goods up the river by night and have used this cave since before Strabo could count. The surveyors' mark is on the back wall, behind their stores. <span class="bad">${skulls(taleTier(id))}</span>${sizeUp(c, () => { const tr = taleTier(id); return [questBoss(tr, 'The smugglers\' captain', { tactic: 'balanced' })].concat(wildMen(tr, Math.max(1, wildCount(tr) - 2))); })}`,
         opts: [
           { label: () => 'Clear them out', ok: canFightNow, go: 'end', run: (t, id) => { const tr = taleTier(id); return wildFight('Smugglers behind the fall', [questBoss(tr, 'The smugglers\' captain', { tactic: 'balanced' })].concat(wildMen(tr, Math.max(1, wildCount(tr) - 2))), 'rock', 'tale', { tier: tr, day: true }); },
             won: (t, id) => { t.end = 'found'; const n = taleCoin(id, 40); favor('guild', t.paid ? 8 : 6); favor('magistrate', 3); return `The mark is where he said, at the height of a man's eyes: a line, a numeral, and a mason's initials six generations old. What the smugglers leave behind is worth <b class="gold num">${n}</b> denarii. Strabo has his number, the governor his reason, and the Guild a year's work for its masons. Guild favour +${t.paid ? 8 : 6}, Magistrate +3.`; } },
@@ -2324,7 +2340,7 @@ let taleTitle = 'A story of the place';
 const TALE_EVENT = {
   auto: true, wild: true, can: () => !!G.field,
   make: () => ({ tid: Object.keys(TALES).find(id => !taleOf(id).done) || Object.keys(TALES)[0] }),
-  text: c => { const { id, t, S } = taleCtx(c); return S.text(t, id); },
+  text: c => { const { id, t, S } = taleCtx(c); return S.text(t, id, c); },
   opts: [0, 1, 2].map(i => ({
     label: c => { const { id, t, S } = taleCtx(c); return S.opts[i].label(t, id); },
     ok: c => { const { id, t, S } = taleCtx(c), o = S.opts[i]; return !o.ok || !!o.ok(t, id); },
@@ -2344,3 +2360,146 @@ WILD_WINS.tale = F => {
   if (more) lines.push(more.trim());
   return lines;
 };
+
+// =====================================================================================================
+// WHAT A PLACE IS GOOD FOR
+// Every landmark has a use of its own, to be had by walking up to it: bread at the mill, a soak at the hot
+// spring, a day's drill with the garrison at the fort, the long view from the eagle rock. Each can be had
+// again after a while (cool, in days), some cost a few denarii, and some take the rest of the day (day: how
+// the men spend it). How a story ended at a place changes what the place will do for you afterwards:
+// alt['story.ending'] is laid over the use, and off says why there is nothing to be had there any more.
+//   fx: rest (fatigue off), tire (fatigue on), heal (share of health), cheer (spirits), xp (each fit man),
+//       mend (a day off one man's wound), coin [low, high], favor [patron, n], fame, see (how far the fog
+//       lifts), bless (the temple's blessing, until the next games)
+// =====================================================================================================
+const taleEnd = id => { const t = (typeof G !== 'undefined' && G && G.dynasty && wildMap().tales || {})[id]; return t && t.done ? t.end || '' : ''; };
+const LAND_USE = {
+  'The great oak': { verb: 'Rest in its shade', what: 'An hour on your backs under the oldest tree in the province.', fx: { rest: 10, cheer: 2 },
+    alt: { 'oak.stands': { what: 'An hour under the oak. Senna brings water from the spring, and will take nothing for it.', fx: { rest: 14, cheer: 5 } }, 'oak.felled': { what: 'There is less shade than there was, and the men look at the stump of the great limb.', fx: { rest: 6 } } } },
+  'A villa in its garden': { verb: 'Dine in the yard', cost: 15, cool: 2, what: 'The lady does not have gladiators indoors, but her kitchen feeds them in the yard for a price.', fx: { rest: 8, cheer: 6, heal: 0.05 },
+    alt: { 'cook.taken': { what: 'Syrus cooks it, without a word. It is correct in every particular.', fx: { rest: 8, cheer: 2, heal: 0.05 } }, 'cook.free': { cost: 20, what: 'The new cook is no Syrus, and the lady charges more to make up for the fish sauce she has to buy.', fx: { rest: 8, cheer: 4, heal: 0.05 } } } },
+  'The old arch': { verb: 'Read the names cut in it', cool: 5, what: 'Legions, consuls, and under them forty years of gladiators who scratched their own.', fx: { cheer: 4 } },
+  'The wine press': { verb: 'Buy wine for the men', cost: 12, cool: 2, what: 'New wine, from the vat, in whatever will hold it.', fx: { cheer: 8 },
+    alt: { 'vintner.supper': { cost: 8, what: 'Sergius is in a generous temper these days. It tastes of thyme honey.', fx: { cheer: 10 } }, 'vintner.quits': { cost: 14, what: 'Sergius remembers who cost him forty denarii. He sells, at his price.', fx: { cheer: 8 } } } },
+  'The fallen colossus': { verb: 'Train in its shadow', day: 'forage', cool: 6, what: 'A day of drill between the fingers of an emperor. It puts things in proportion.', fx: { xp: 2, tire: 10 } },
+  'An old battlefield': { verb: 'Glean the field', day: 'forage', cool: 8, what: 'A day turning the furrows for what the plough has missed.', fx: { coin: [8, 26], cheer: -2 } },
+  'The bee garden': { verb: 'Buy honey for the wounds', cost: 15, cool: 3, what: 'Nothing closes a cut like it. The keeper is never stung; your men are.', fx: { heal: 0.1, mend: 1 },
+    alt: { 'vintner.supper': { cost: 10, what: 'Albia is in a generous temper these days.', fx: { heal: 0.12, mend: 1 } } } },
+  'The mill': { verb: 'Buy bread', cost: 10, what: 'New bread from the mill oven, eaten on the mill-race wall.', fx: { rest: 12, cheer: 3 },
+    alt: { 'miller.stayed': { cost: 5, what: 'Varia runs it alone now, and the bread is better. Half price, to the school that brought her the news.', fx: { rest: 15, cheer: 4 } },
+      'miller.dragged': { cost: 5, what: 'Gnaeus serves you himself, at half price, and does not meet your eye.', fx: { rest: 12, cheer: 3 } }, 'miller.home': { cost: 5, what: 'Gnaeus serves you himself, at half price, and asks after nobody.', fx: { rest: 12, cheer: 4 } } } },
+  'A wreck on the strand': { verb: 'Pick over the wreck', cool: 6, what: 'The sea brings something in on most tides.', fx: { coin: [3, 12] },
+    alt: { 'beacon.dark': { what: 'There are two hulks now, and the second has hardly been touched.', fx: { coin: [10, 30], cheer: -3 } }, 'beacon.lit': { what: 'With the beacon lit, little comes ashore here any more.', fx: { coin: [1, 5] } } } },
+  'The beacon': { verb: 'Warm yourselves at the keeper\'s fire', what: 'He is glad of anybody to talk to.', fx: { rest: 10 },
+    alt: { 'beacon.lit': { what: 'Mettius will not hear of your passing without sitting down. There is no warmer place on the coast.', fx: { rest: 18, heal: 0.06, cheer: 3 } }, 'beacon.dark': { off: 'The beacon is cold, and the keeper has gone inland.' } } },
+  'The bones of a whale': { verb: 'Take a sliver of bone for luck', cool: 5, what: 'Every fisherman on the coast carries one.', fx: { cheer: 4 },
+    alt: { 'whale.carted': { off: 'There is nothing here now but a hollow in the sand.' }, 'whale.back': { what: 'The fishers have left the first fish of the catch between the ribs. They would want you to have it.', fx: { cheer: 5, heal: 0.04 } } } },
+  "The fishers' huts": { verb: 'Buy fish', cost: 12, what: 'Off the boat, split and grilled on the shingle.', fx: { rest: 8, heal: 0.08 },
+    alt: { 'whale.back': { cost: 6, what: 'The boats are out again, and they know whose doing that was.', fx: { rest: 10, heal: 0.1 } }, 'whale.cast': { cost: 6, what: 'The boats are out again, and they know whose doing that was.', fx: { rest: 10, heal: 0.1 } }, 'whale.carted': { cost: 18, what: 'Half the boats are drawn up for good. What fish there is, is dear.', fx: { rest: 8, heal: 0.06 } } } },
+  'The charcoal burners': { verb: 'Sit at their fire', what: 'Black men, black dogs, and the best-kept fire in the forest.', fx: { rest: 8, cheer: 1 } },
+  "The hunters' lodge": { verb: 'Buy game', cost: 15, cool: 2, what: 'Venison, hung a week. They will not sell the liver.', fx: { heal: 0.1, cheer: 4 } },
+  'A burnt village': { verb: 'Search the ash', cool: 10, what: 'Somebody always buried something under the hearth.', fx: { coin: [4, 16], cheer: -3 },
+    alt: { 'watch.back': { verb: 'Stand a moment at the grave', cool: 4, what: 'One grave in the ash has a stone on it. Your men put it there.', fx: { cheer: 4 } }, 'watch.oath': { verb: 'Stand a moment at the grave', cool: 4, what: 'One grave in the ash has a stone on it.', fx: { cheer: 4 } } } },
+  'The great quarry': { verb: 'Lift stone with the quarrymen', day: 'forage', cool: 6, what: 'A day on the benches, paid by the block. It makes shoulders.', fx: { xp: 1, coin: [8, 18], tire: 16 },
+    alt: { 'kiln.broken': { off: 'The quarrymen will not work beside the men who put the wedge in.' }, 'kiln.round': { what: 'A day on the benches, paid by the block, and the overseer adds something for old times.', fx: { xp: 1, coin: [12, 24], tire: 16 } } } },
+  'The lime kiln': { verb: 'Dry out by the kiln', what: 'It has been alight for nineteen years, and it is warm for forty paces round.', fx: { rest: 10 },
+    alt: { 'kiln.out': { off: 'The kiln is cold. They are waiting on a priest to light it again.' }, 'kiln.round': { what: 'Fuscus clears his own bench for you, and has bread sent for.', fx: { rest: 14, cheer: 3 } } } },
+  'The unfinished columns': { verb: 'Wrestle among the columns', cool: 3, what: 'Flat drums of marble, the right height to throw a man over.', fx: { cheer: 5, tire: 5 } },
+  'The watchtower': { verb: 'Ask what they have seen', cool: 4, what: 'Two men and a long view north: they know what has moved on every road for a week.', fx: { see: 320 },
+    alt: { 'watch.back': { what: 'Rufio comes down the ladder himself, and tells you everything he has seen and a good deal he has guessed.', fx: { see: 460, cheer: 2 } }, 'watch.gone': { what: 'One man cannot watch every way at once. He tells you what he can.', fx: { see: 220 } }, 'watch.oath': { what: 'One man cannot watch every way at once. He tells you what he can.', fx: { see: 220 } } } },
+  'The hot spring': { verb: 'Soak the road out of them', day: 'scout', cool: 3, what: 'The rest of the day in water as hot as a man can bear.', fx: { rest: 30, heal: 0.14, mend: 1 },
+    alt: { 'miller.stayed': { what: 'The rest of the day in the hot water. Gnaeus the miller moves over to make room, and explains at length how happy he is.', fx: { rest: 30, heal: 0.14, mend: 1, cheer: 3 } } } },
+  'The eagle rock': { verb: 'Climb it for the view', cool: 4, what: 'A hard hour up, and half the province laid out at the top.', fx: { see: 440, tire: 8 } },
+  'The ring of stones': { verb: 'Sleep inside the ring', day: 'camp', cool: 4, what: 'Nothing has ever troubled anybody who slept inside it. The men sleep like the dead.', fx: { cheer: 5 },
+    alt: { 'giant.taken': { what: 'The men would as soon not sleep here now. They do, and do not say much.', fx: { cheer: -2 } } } },
+  "The giant's table": { verb: 'Leave something on the table', cost: 5, cool: 3, what: 'Bread, for the giant. Everybody does.', fx: { cheer: 4 },
+    alt: { 'giant.fed': { cost: 0, verb: 'Eat with Brica', what: 'She bakes for three now: herself, the giant, and whoever is passing.', fx: { cheer: 5, heal: 0.05, rest: 6 } }, 'giant.taken': { off: 'Nobody sets a supper on it any more, and Brica will not speak to you.' } } },
+  'The needle': { verb: 'Cut the school\'s mark on it', cool: 40, what: 'It is covered in them, to the height a man can reach. Yours goes higher.', fx: { fame: 1, cheer: 3 } },
+  'The drowned temple': { verb: 'Throw a coin in the water', cost: 5, cool: 4, what: 'For whatever god it was.', fx: { cheer: 3 },
+    alt: { 'ferry.silent': { off: 'The old priest pulls at a rope with nothing on it, and does not answer you.' }, 'ferry.noon': { cost: 0, verb: 'Hear the noon office', what: 'He rings at noon now, and is pleased to have a congregation.', fx: { cheer: 7 } }, 'ferry.kept': { cost: 0, verb: 'Hear the names read', what: 'He reads the names of the drowned at dusk, and yours stand to hear it.', fx: { cheer: 8 } } } },
+  'The causeway': { verb: 'Set eel-lines from the causeway', cool: 2, what: 'The marsh is full of them, and they are better than they look.', fx: { heal: 0.06 } },
+  'The bog oak': { verb: 'Cut peat for the fire', what: 'It burns slow and smells of the year it was laid down.', fx: { rest: 6 },
+    alt: { 'bog.buried': { verb: 'Stand at the grave', cool: 4, what: 'A mound on the dry rise, with a wooden horse on it.', fx: { cheer: 5 } }, 'bog.torc': { off: 'The peat lies open where you dug. The men will not stop here.' } } },
+  'The huts on stilts': { verb: 'Trade for smoked eel', cost: 10, what: 'They will not come out of their boats to do it.', fx: { heal: 0.08 },
+    alt: { 'bog.buried': { cost: 4, what: 'They pole out to meet you now, and the price has come down to nearly nothing.', fx: { heal: 0.1, cheer: 2 } }, 'bog.torc': { off: 'The marsh people have taken up their ladders. Nobody will trade.' } } },
+  'The wolf stone': { verb: 'Leave meat at the stone', cost: 8, cool: 6, what: 'For Mars, whose beast the wolf is. The priests hear who does.', fx: { favor: ['temple', 1], cheer: 2 },
+    alt: { 'whitewolf.left': { what: 'The meat is for Mars. The old white dog on the grave gets it in the end, and nobody minds.', fx: { favor: ['temple', 1], cheer: 5 } }, 'whitewolf.killed': { what: 'The men leave more than they were told to.', fx: { favor: ['temple', 1] } } } },
+  "The shepherds' fold": { verb: 'Buy a sheep for the pot', cost: 18, cool: 2, what: 'Mutton, and broth from the bones.', fx: { heal: 0.1, cheer: 5 },
+    alt: { 'whitewolf.dog': { cost: 10, what: 'The old white dog counts you in at the gate. The shepherds take off nearly half.', fx: { heal: 0.1, cheer: 6 } }, 'whitewolf.left': { cost: 12, what: 'They leave the gate open for the dog at night, and are easier men for it.', fx: { heal: 0.1, cheer: 5 } } } },
+  'The gallows': { verb: 'Read the notices', cool: 5, what: 'Who is wanted, and where they were last seen.', fx: { see: 200 },
+    alt: { 'gallows.hanged': { off: 'Your men will not stop under it.' } } },
+  'The broken aqueduct': { verb: 'Fill the skins at the leak', what: 'Mountain water, forty miles from the mountains.', fx: { rest: 6 },
+    alt: { 'surveyor.found': { what: 'The masons have a cook-fire going under the fourth arch, and room at it for the men who found them the work.', fx: { rest: 12, cheer: 3 } } } },
+  'The great waterfall': { verb: 'Stand under the fall', cool: 2, what: 'Cold enough to stop the breath. It takes a week off a man.', fx: { rest: 15, cheer: 4 } },
+  'The salt pans': { verb: 'Buy salt meat', cost: 15, cool: 2, what: 'It keeps, which is the best that can be said for it.', fx: { heal: 0.06, rest: 8 },
+    alt: { 'cook.free': { what: 'Salt meat, and Syrus throws in a ladle of the best garum in the province.', fx: { heal: 0.08, rest: 8, cheer: 6 } }, 'cook.jar': { what: 'Salt meat, and a man who is not called Syrus throws in a ladle of the best garum in the province.', fx: { heal: 0.08, rest: 8, cheer: 6 } } } },
+  'The sacred grove': { verb: 'Make an offering', cost: 25, cool: 6, what: 'Silver on the stone, and no questions asked of the trees.', fx: { favor: ['temple', 2], cheer: 6 },
+    alt: { 'oak.stands': { cost: 12, what: 'The priestess knows you. She takes less, and thumbs each man on the forehead.', fx: { favor: ['temple', 2], cheer: 8 } }, 'oak.felled': { off: 'The priestess looks through you. The grove does not want your silver.' } } },
+  'The white temple': { verb: 'Have the priests bless the school', cost: 40, cool: 8, what: 'Fire and laurel. Until the next games the crowd will be slower to turn down its thumb on a man of yours.', fx: { bless: true, cheer: 8 } },
+  'The barrow of kings': { verb: 'Pour wine for the kings', cost: 10, cool: 6, what: 'They were here before Rome. It does no harm to be civil.', fx: { cheer: 4 } },
+  'The fort': { verb: 'Drill with the garrison', day: 'forage', cool: 6, what: 'A day on the parade ground under a centurion who does not like gladiators and means to prove why.', fx: { xp: 2, tire: 12 },
+    alt: { 'gallows.freed': { what: 'A day on the parade ground. The men whose pay you found make sure yours are shown everything.', fx: { xp: 3, tire: 10, cheer: 3 } }, 'gallows.hanged': { verb: 'Collect on the quartermaster\'s contract', day: null, cool: 10, what: 'Oil, leather and wine. Sulca pays promptly, in coin out of the pay chest.', fx: { coin: [14, 22], cheer: -3 } } } },
+  'The old arena': { verb: 'Train on the old sand', day: 'forage', cool: 6, what: 'A day of work where better men than yours once died.', fx: { xp: 2, tire: 10 },
+    alt: { 'sweeper.held': { what: 'A day of work on sand swept that morning, with Hirpus in the editor\'s box calling the faults.', fx: { xp: 3, tire: 10, cheer: 3 } }, 'sweeper.quiet': { what: 'A day of work. The grass is coming up through the sand, and nobody sweeps it.', fx: { xp: 2, tire: 10, cheer: -2 } } } },
+  'The ferry': { verb: 'Ask the ferryman for news', cost: 5, cool: 4, what: 'Everybody who crosses the river tells him something.', fx: { see: 300 } },
+};
+// The use of a place as it stands today, with whatever a story has done to it.
+function landUse(name) {
+  const base = LAND_USE[name]; if (!base) return null;
+  if (base.alt) for (const k in base.alt) { const [tid, end] = k.split('.'); if (taleEnd(tid) === end) return Object.assign({ changed: true }, base, base.alt[k], { alt: null }); }
+  return base;
+}
+// Can it be had now? { u, cost, wait, why }: why is empty when it can.
+function landUseState(name) {
+  const u = landUse(name); if (!u) return null;
+  const M = wildMap(), last = (M.used || {})[name], cool = u.cool || 1, wait = last ? Math.max(0, last + cool - G.day) : 0, cost = u.cost || 0;
+  const why = u.off ? u.off : wait ? `Again in ${wait} day${wait === 1 ? '' : 's'}.` : G.denarii < cost ? `You are ${cost - G.denarii} denarii short.` : u.fx.xp && !fieldParty().length ? 'Nobody is fit for it.' : '';
+  return { u, cost, wait, why };
+}
+// What it does, in a few words: before (what it would do) or after (what it did, with the coin counted).
+function landUseWords(u, got) {
+  const f = u.fx || {}, out = [];
+  if (f.rest) out.push(`fatigue -${f.rest}`);
+  if (f.tire) out.push(`fatigue +${f.tire}`);
+  if (f.heal) out.push(`health +${Math.round(f.heal * 100)}%`);
+  if (f.mend) out.push('a day off one wound');
+  if (f.cheer) out.push(`spirits ${f.cheer > 0 ? '+' : ''}${f.cheer}`);
+  if (f.xp) out.push(`+${f.xp} experience for each fit man`);
+  if (f.coin) out.push(got !== undefined ? `+${got} denarii` : 'a little silver');
+  if (f.favor) out.push(`${PATRONS[f.favor[0]].name.replace(/^The /, '')} favour +${f.favor[1]}`);
+  if (f.fame) out.push(`fame +${f.fame}`);
+  if (f.see) out.push('the country round is made known');
+  if (f.bless) out.push('blessed until the next games');
+  if (u.day) out.push('takes the rest of the day');
+  return out.join(', ');
+}
+// Has it. Returns what happened, in words, or null if it could not be had.
+function landUseRun(name) {
+  const st = landUseState(name); if (!st || st.why || !G.field) return null;
+  const { u, cost } = st, f = u.fx || {}, M = wildMap(), men = G.roster.filter(g => !g.away), tier = (() => { const p = landmarkAt(name); return p ? clamp(wildTier(p.x, p.y), 1, 5) : 1; })();
+  G.denarii -= cost; (M.used || (M.used = {}))[name] = G.day;
+  let got;
+  if (u.day) { G.field.march = 0; fieldDay(u.day); if (!G.field) return u.what; M.used[name] = G.day; }      // the day is spent first; what the place gives is had at the end of it
+  const now = G.roster.filter(g => !g.away);
+  if (f.rest) now.forEach(g => { g.fatigue = clamp(g.fatigue - f.rest, 0, 100); });
+  if (f.tire) now.forEach(g => { g.fatigue = clamp(g.fatigue + f.tire, 0, 100); });
+  if (f.heal) now.forEach(g => { g.hp = Math.min(maxHp(g), g.hp + maxHp(g) * f.heal); });
+  if (f.cheer) now.forEach(g => evMor(g, f.cheer));
+  if (f.mend) { const g = now.filter(x => x.injury > 0).sort((a, b) => b.injury - a.injury)[0]; if (g) g.injury = Math.max(0, g.injury - f.mend); }
+  if (f.xp) fieldParty().forEach(g => { g.xp = (g.xp || 0) + f.xp; });
+  if (f.coin) { got = Math.round(rand(f.coin[0], f.coin[1]) * (0.6 + 0.4 * tier)); G.denarii += got; }
+  if (f.favor) favor(f.favor[0], f.favor[1]);
+  if (f.fame) G.fame += f.fame;
+  if (f.see) { const r = f.see; for (let dy = -r; dy <= r; dy += 60) for (let dx = -r; dx <= r; dx += 60) if (Math.hypot(dx, dy) <= r) wildReveal(G.field.x + dx, G.field.y + dy); }
+  if (f.bless) G.blessed = nextGames();
+  const words = landUseWords(u, got);
+  log(`${name}: ${u.verb.toLowerCase()}.`);
+  return `${u.what}${words ? ` <span class="dim">${words.charAt(0).toUpperCase() + words.slice(1)}.</span>` : ''}`;
+}
+// The landmark the column is standing at, if it is at one.
+function landmarkHere() {
+  const F = G.field; if (!F) return null;
+  const S = landmarkSpots(); let best = null, bd = 24;
+  for (const n in S) { const d = Math.hypot(S[n].x - F.x, S[n].y - F.y); if (d < bd) { bd = d; best = n; } }
+  return best;
+}

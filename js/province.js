@@ -2356,7 +2356,7 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
     "The giant's table": (x, y) => { const u = (T * 0.08) % 1; if (u < 0.8) { const hp = Math.floor(T * 0.7) % 4; R(x + 4 + hp * 5, y - 13 - (Math.sin(T * 5) > 0.8 ? 1 : 0), 2, 1, '#1c1310'); R(x + 6 + hp * 5, y - 13, 1, 1, '#1c1310'); } else { const f = (u - 0.8) / 0.2; R(x + 12 + f * 30, y - 14 - f * 22, 3, 1, '#1c1310'); R(x + 13 + f * 30, y - 15 - f * 22 + (Math.sin(T * 14) > 0 ? 1 : 0), 1, 1, '#1c1310'); } if (lit) { glow(x + 11, y + 2, 9, '150,180,255', 0.035 + 0.02 * Math.sin(T * 1.3)); } },      // a crow on the capstone, that goes; and something in the chamber after dark
     'The needle': (x, y) => { const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(x + 8, y - 3, 2 + wv, 1, '#c23b2e'); R(x + 9 + wv, y - 2, 1, 2 + wv, '#c23b2e'); R(x, y - 7 + wv, 2, 1, '#f1ead8'); R(x + 5, y + 4 - fl, 1, 1 + fl, lit ? '#f5c04a' : '#c9a21e'); if (lit) glow(x + 5, y + 5, 8, '255,190,100', 0.05); const pc = pace(x + 14, x + 26, 0.03, 0.8); man(pc.x, y + 14, { face: pc.face, tunic: '#d8c9a0', hair: '#8a8a8a' }); },      // the ribbons in the wind, a lamp at its foot, an old man who has come to ask
     "The shepherds' fold": (x, y) => { for (const [sx, sy, ph] of [[4, 0, 0], [10, 3, 2], [7, 5, 4], [19, 4, 1]]) { const dn = Math.sin(T * 0.9 + ph) > 0.2 ? 1 : 0; R(x + sx + 3, y + sy + dn, 1, 1, '#2a1c14'); } const tw = Math.sin(T * 8) > 0 ? 1 : 0; R(x + 35, y + 5 + tw, 1, 1, '#3a322c'); smoke(x + 31, y - 10, 2); win(x + 30, y - 4, 2, 2); const pc = pace(x + 38, x + 50, 0.03, 0.4); man(pc.x, y + 13, { face: pc.face, tunic: '#8a7a5a', hair: '#c9c2b2' }); R(pc.x + (pc.face === 'right' ? 3 : -3), y + 1, 1, 12, '#8a6a3a'); },      // the sheep with their heads down, the dog, the shepherd with his crook
-    'The beacon': (x, y) => { win(x + 25, y + 3, 2, 2); smoke(x + 26, y - 4, 2); },
+    'The beacon': (x, y) => { if (taleEnd('beacon') === 'dark') return; win(x + 25, y + 3, 2, 2); smoke(x + 26, y - 4, 2); },
     'The fort': (x, y) => { R(x + 23, y - 3 - fl, 2, 1 + fl, '#f5c04a'); smoke(x + 24, y - 5, 2); if (lit) glow(x + 24, y - 2, 12, '255,160,80', 0.07); for (const [hx, ph] of [[52, 0], [59, 2]]) R(x + hx - 1, y + 6 + (Math.sin(T * 3 + ph) > 0.5 ? 1 : 0), 1, 2, '#3a2a1c'); const pc = pace(x - 2, x + 6, 0.08, 0.3); R(pc.x, y - 25, 1, 1, '#d9a57c'); R(pc.x, y - 24, 1, 2, '#a8261c'); R(pc.x + 1, y - 27, 1, 4, '#c1c7cc'); },      // the cook-fire, the horses, a sentry on the corner tower
     'The ferry': (x, y) => { R(x + 38, y - 4 - (lit ? fl : 0), 3, 2 + (lit ? fl : 0), lit ? '#fff0b0' : '#f5c04a'); if (lit) glow(x + 39, y - 3, 12, '255,190,100', 0.07); win(x + 10, y, 3, 3); smoke(x + 12, y - 13, 2); },
     'The watchtower': (x, y) => { if (lit) { R(x + 14, y - 26 - fl, 3, 2 + fl, '#f5c04a'); R(x + 15, y - 27 - fl, 1, 1, '#fff0b0'); glow(x + 15, y - 25, 16, '255,160,80', 0.08); } const tl = Math.sin(T * 3) > 0.5 ? 1 : 0; R(x + 20, y + 6 + tl, 1, 2, '#3a2a1c'); },
@@ -2383,8 +2383,28 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
     'The barrow of kings': (x, y) => { const pc = pace(x + 4, x + 14, 0.02, 0.4); man(pc.x, y + 18, { face: pc.face, tunic: '#5a4a6a', hair: '#c9c2b2' }); },
     'The great oak': (x, y) => { const sw = Math.round(Math.sin(T * 2) * 2); R(x + 25 + sw, y - 1, 2, 2, '#d9a57c'); R(x + 25 + sw, y + 1, 2, 2, '#c23b2e'); R(x + 24 + sw, y + 3, 4, 1, '#6b4f2c'); },      // a child on the swing
   };
+  // What a story left behind it: drawn where the school stood when it ended, a little to one side.
+  const AFTER = {
+    'The hot spring': (sx, sy, m) => { if (taleEnd('miller') !== 'stayed') return; const bob = Math.sin(T * 0.9) > 0 ? 1 : 0, up = (T * 0.06) % 1;
+      R(m.x + 13, m.y + 4 + bob, 2, 2, '#e8a58c'); R(m.x + 13, m.y + 3 + bob, 2, 1, '#f0c0a8');                                        // the miller, to his chin
+      if (up < 0.22) { R(m.x + 17, m.y + 2, 2, 2, '#d8e6da'); R(m.x + 16, m.y + 1, 4, 1, '#6f9a8a'); R(m.x + 16, m.y + 2, 1, 2, '#6f9a8a'); R(m.x + 19, m.y + 2, 1, 3, '#6f9a8a'); } },      // and now and then, somebody else
+    'The mill': (sx, sy) => { if (taleEnd('miller') !== 'stayed') return; R(sx - 13, sy - 4, 1, 7, '#6b4f2c'); R(sx - 12, sy - 3 + (Math.sin(T * 2) > 0.6 ? 1 : 0), 3, 4, '#f1ead8'); R(sx - 12, sy - 3, 3, 1, '#d8d2c0'); },      // his apron on the fence, for the birds
+    'The beacon': (sx, sy, m) => { if (taleEnd('beacon') !== 'lit') return; R(m.x + 25, m.y - 6 - fl, 3, 3 + fl, '#f5a040'); R(m.x + 26, m.y - 7 - fl, 1, 2, '#fff0b0'); glow(m.x + 26, m.y - 5, lit ? 22 : 9, '255,170,80', lit ? 0.1 : 0.05); },
+    'The great oak': (sx, sy) => { if (taleEnd('oak') !== 'stands') return; const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(sx - 12, sy - 1, 4, 1, 'rgba(0,0,0,.2)'); R(sx - 11, sy - 5, 3, 4, '#7a9a5a'); R(sx - 11, sy - 8, 3, 3, '#d9a57c'); R(sx - 11, sy - 9, 3, 1, '#6a4a2a'); R(sx - 8, sy - 6, 2 + wv, 1, '#c23b2e'); R(sx - 7 + wv, sy - 5, 1, 2, '#c23b2e'); },      // Senna, with her ribbon
+    'A burnt village': (sx, sy) => { const e = taleEnd('watch'); if (e !== 'back' && e !== 'oath') return; R(sx + 8, sy, 8, 2, '#5a4a3a'); R(sx + 9, sy - 1, 6, 1, '#6a5a48'); R(sx + 11, sy - 5, 3, 5, '#b8b0a0'); R(sx + 11, sy - 5, 3, 1, '#d8d2c0'); R(sx + 9, sy - 1, 1, 1, '#e8c040'); R(sx + 15, sy, 1, 1, '#f1ead8'); },      // one grave with a stone on it
+    "The giant's table": (sx, sy) => { if (taleEnd('giant') !== 'fed') return; R(sx + 9, sy, 8, 1, 'rgba(0,0,0,.22)'); R(sx + 10, sy - 7, 6, 7, '#8a6a4a'); R(sx + 10, sy - 7, 1, 7, '#a8834a'); R(sx + 11, sy - 11, 4, 4, '#d9a57c'); R(sx + 11, sy - 12, 4, 1, '#6a5a4a'); R(sx + 17, sy - 2, 2, 1, '#f1ead8'); R(sx + 16, sy - 3 - (Math.sin(T * 1.4) > 0.7 ? 1 : 0), 1, 2, '#d9a57c'); },      // Buccio, at his supper
+    'The bog oak': (sx, sy) => { if (taleEnd('bog') !== 'buried') return; R(sx + 8, sy, 9, 2, '#4a3e2c'); R(sx + 9, sy - 1, 7, 1, '#5e5038'); R(sx + 11, sy - 3, 3, 1, '#c9a763'); R(sx + 13, sy - 4, 1, 1, '#c9a763'); R(sx + 11, sy - 2, 1, 1, '#8a6a34'); R(sx + 13, sy - 2, 1, 1, '#8a6a34'); },      // a mound, and a wooden horse
+    'The old arena': (sx, sy) => { if (taleEnd('sweeper') !== 'held') return; const pc = pace(sx - 16, sx + 12, 0.035, 0.2), d = pc.face === 'right' ? 1 : -1; man(pc.x, sy + 5, { face: pc.face, tunic: '#b8b0a0', hair: '#e8e2d2' }); R(pc.x + d * 5, sy - 3, 1, 8, '#6b4f2c'); R(pc.x + d * 4, sy + 4, 3, 1, '#c9a763'); },      // Hirpus, sweeping
+    "The shepherds' fold": (sx, sy) => { if (taleEnd('whitewolf') !== 'dog') return; const pc = pace(sx - 14, sx + 10, 0.05, 0.4); beast(pc.x, sy + 3, '#f1ead8', pc.face === 'right' ? 1 : -1); },
+    'The wolf stone': (sx, sy) => { if (taleEnd('whitewolf') !== 'left') return; R(sx + 7, sy + 1, 9, 1, 'rgba(0,0,0,.2)'); R(sx + 8, sy - 1, 6, 2, '#f1ead8'); R(sx + 13, sy - 2, 2, 2, '#f1ead8'); R(sx + 14, sy - 3 + (Math.sin(T * 0.8) > 0.8 ? 1 : 0), 1, 1, '#d8d2c0'); R(sx + 7, sy - 1, 1, 1, '#d8d2c0'); },      // the old dog, lying on the grave
+    'The broken aqueduct': (sx, sy) => { if (taleEnd('surveyor') !== 'found') return; for (let q = 0; q < 4; q++) { R(sx - 14 + q * 9, sy + 1, 1, 4, '#6b4f2c'); R(sx - 13 + q * 9, sy + 1 + (Math.sin(T * 5 + q) > 0 ? 1 : 0), 2, 1, '#c23b2e'); } },      // the masons' pegs
+    'The salt pans': (sx, sy) => { const e = taleEnd('cook'); if (e !== 'free' && e !== 'jar') return; for (const q of [0, 6]) { R(sx + 8 + q, sy - 2, 5, 4, '#6b4f2c'); R(sx + 8 + q, sy - 2, 5, 1, '#8a5a34'); R(sx + 9 + q, sy - 1, 3, 1, '#5a3a22'); } man(sx + 23, sy + 3, { face: 'left', moving: false, tunic: '#e8e2d2', hair: '#d9a57c' }); R(sx + 20, sy - 6 + (Math.sin(T * 2) > 0 ? 1 : 0), 1, 5, '#8a6a3a'); },      // Syrus, his vats and his ladle
+    'The bee garden': (sx, sy) => { if (taleEnd('vintner') !== 'supper') return; const pc = pace(sx - 18, sx + 6, 0.03, 0.5); man(pc.x, sy + 7, { face: pc.face, tunic: '#f4f0e4', hair: '#5a4326' }); R(pc.x + (pc.face === 'right' ? 4 : -5), sy - 1, 2, 3, '#8a4a3a'); },      // the vintner, in a clean tunic, with a jar
+    'The watchtower': (sx, sy) => { if (taleEnd('watch') !== 'back') return; const pc = pace(sx + 6, sx + 20, 0.05, 0.1); man(pc.x, sy + 3, { face: pc.face, tunic: '#a8261c', hair: '#2a1c14' }); },      // two men again
+  };
   for (const m of (prov.marks || [])) {
     if (!inView(m.x, m.y, 70) || !wildSeen(m.x + m.r, m.y)) continue;
+    if (!m.dw && AFTER[m.name]) AFTER[m.name](m.x + m.r, m.y + 14, m);
     if (m.dw) {                                // somebody about the yard, or the hens, or the dog: each dwelling has its own
       if (m.name === 'A windmill') {             // the sails, going round as fast as the wind over that hill
         const hx = m.fl ? m.x + 15 : m.x + 8, hy = m.y - 5, an0 = T * (0.5 + wildHash(m.x, m.y, 1960) * 0.5);
@@ -2420,7 +2440,9 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
     if (n === 'The beacon') { R(x + 6, y - 33 - fl, 5, 5 + fl, '#f5c04a'); R(x + 7, y - 35 - fl, 3, 3, '#fff0b0'); R(x + 8 - fl, y - 37, 1, 2, '#e2702a'); if (lit) { glow(x + 8, y - 31, 30, '255,190,90', 0.08); const an = T * 0.6; ctx.fillStyle = 'rgba(255,230,160,.10)'; for (let q = 4; q < 60; q += 3) ctx.fillRect(Math.round(x + 8 + Math.cos(an) * q), Math.round(y - 31 + Math.sin(an) * q * 0.5), 3 + (q >> 3), 2 + (q >> 4)); } }
     else if (n === 'The mill') { const ph = Math.floor(T * 3) % 4, cx = x + 4, cy = y + 4; R(x, y, 8, 8, '#3d6d92'); for (let q = 0; q < 4; q++) { const an = (q + ph / 4) * Math.PI / 2 + 0.2; for (let rr = 1; rr < 6; rr++) R(Math.round(cx + Math.cos(an) * rr), Math.round(cy + Math.sin(an) * rr), 1, 1, rr === 5 ? '#c9a763' : '#7a5a34'); } R(cx, cy, 1, 1, '#c9a763'); for (let q = 0; q < 3; q++) { const p2 = (T * 1.5 + q * 0.33) % 1; R(x - 3 + q * 5 + p2 * 3, y + 10 - Math.sin(p2 * Math.PI) * 3, 2, 1, '#e6f3fa'); } if (lit) R(x + 23, y - 2, 3, 3, '#f5c04a'); smoke(x + 26, y - 13, 3); }
     else if (n === 'The hot spring') { for (let q = 0; q < 6; q++) { const p2 = (T * 0.25 + q * 0.17) % 1; ctx.globalAlpha = 0.55 * (1 - p2); R(x + 4 + q * 3 + Math.sin(p2 * 6 + q) * 2, y + 2 - p2 * 16, 2 + Math.round(p2 * 3), 2, '#ffffff'); } ctx.globalAlpha = 1; if (Math.sin(T * 2) > 0.6) R(x + 8 + Math.floor(T) % 5, y + 5, 1, 1, '#d8f4f0'); }
-    else if (n === 'The lime kiln') { R(x + 8, y + 6 - fl, 4, 4 + fl, '#e2702a'); R(x + 9, y + 7, 2, 2, fl ? '#fff0b0' : '#f5c04a'); smoke(x + 10, y - 12, 4); if (lit) glow(x + 10, y + 8, 14, '255,150,70', 0.09); }
+    else if (n === 'The lime kiln') { const ks = kilnState();      // fed, it roars; with no stone coming it is kept in on fence rails, and smokes thin; and out is out
+      if (ks === 'burning') { R(x + 8, y + 6 - fl, 4, 4 + fl, '#e2702a'); R(x + 9, y + 7, 2, 2, fl ? '#fff0b0' : '#f5c04a'); smoke(x + 10, y - 12, 4); if (lit) glow(x + 10, y + 8, 14, '255,150,70', 0.09); }
+      else if (ks === 'low') { R(x + 9, y + 8, 2, 2, fl ? '#e2702a' : '#a8452e'); smoke(x + 10, y - 12, 1); if (lit) glow(x + 10, y + 8, 7, '255,150,70', 0.05); } }
     else if (n === 'The charcoal burners') { smoke(x + 10, y - 3, 4); if (lit) { R(x + 9, y + 9, 2, 1, '#e2702a'); glow(x + 10, y + 6, 12, '255,130,60', 0.06); } const pc = pace(x + 20, x + 30, 0.12, 0.3); man(pc.x, y + 12, { face: pc.face, tunic: '#5a4a3a' }); }
     else if (n === 'The watchtower') { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(x + 10, y - 30, 1, 10, '#5a4326'); R(x + 11, y - 30 + wv, 4, 3, '#a8261c'); R(x + 15, y - 29 - wv + 1, 2, 2, '#8a2018'); if (lit) { R(x + 9, y - 10, 2, 3, '#f5c04a'); R(x + 6, y - 22 - fl, 1, 2 + fl, '#f5c04a'); glow(x + 6, y - 22, 12, '255,180,90', 0.07); } const pc = pace(x + 5, x + 13, 0.1, 0); R(pc.x, y - 22, 1, 1, '#d9a57c'); R(pc.x, y - 21, 1, 2, '#a8261c'); R(pc.x + (pc.face === 'right' ? 1 : -1), y - 24, 1, 4, '#c1c7cc'); }
     else if (n === 'The bee garden') { for (let q = 0; q < 8; q++) { const an = T * (2 + q % 3) + q * 1.7; R(x + 3 + q * 3.4 + Math.cos(an) * 3, y - 1 + Math.sin(an * 1.3) * 3, 1, 1, q % 3 ? '#2a1c14' : '#e8c040'); } const pc = pace(x - 4, x + 32, 0.05, 0.5); man(pc.x, y + 14, { face: pc.face, tunic: '#e8e2d2', hair: '#c9c2b2' }); }
@@ -2733,6 +2755,166 @@ function drawMillCart(ctx, T, R, inView) {
   provUnder(ctx, x, y, 26);
 }
 
+// ---------- vessels under way ----------
+// A course for a vessel: from where she lies, a few legs over open water, each as far as the water runs clear; then
+// the same way home. Worked out once for each. room: how many tiles of water she wants on every side.
+function boatCourse(i, x0, y0, room, reach) {
+  const C = prov.courses || (prov.courses = {}); if (i in C) return C[i];
+  const L = wildLand(), wetT = (tx, ty) => tx >= 0 && ty >= 0 && tx < WILD.TW && ty < WILD.TH && L.t[ty * WILD.TW + tx] === T_WATER;
+  const open = (x, y) => { const tx = Math.floor(x / 10), ty = Math.floor(y / 10); for (let dy = -room; dy <= room; dy++) for (let dx = -room; dx <= room; dx++) if (!wetT(tx + dx, ty + dy)) return false; return true; };
+  const pts = [{ x: x0, y: y0 }]; let cur = pts[0], last = null;
+  for (let k = 0; k < 5; k++) {
+    let best = null;
+    for (let q = 0; q < 10; q++) {               // of ten headings, the one that runs furthest before the shore
+      const an = wildHash(i * 7 + k, q, 2801) * Math.PI * 2; if (last !== null && Math.cos(an - last) < -0.3) continue;      // she does not double straight back
+      let far = 0; for (let r = 8; r <= reach; r += 8) { if (open(cur.x + Math.cos(an) * r, cur.y + Math.sin(an) * r)) far = r; else break; }
+      if (far >= 40 && (!best || far > best.far)) best = { an, far };
+    }
+    if (!best) break;
+    const go = best.far * (0.6 + wildHash(k, i, 2802) * 0.4); cur = { x: cur.x + Math.cos(best.an) * go, y: cur.y + Math.sin(best.an) * go }; pts.push(cur); last = best.an;
+  }
+  if (pts.length < 2) return (C[i] = null);
+  const all = pts.concat(pts.slice(0, -1).reverse()), len = [0];
+  for (let q = 1; q < all.length; q++) len.push(len[q - 1] + Math.hypot(all[q].x - all[q - 1].x, all[q].y - all[q - 1].y));
+  return (C[i] = { pts: all, len, total: len[len.length - 1] });
+}
+// Where she is on it now, and which way she heads.
+function boatAt(W, T, speed, phase) {
+  const d = (T * speed + phase * W.total) % W.total, at = wayAt(W, d), on = wayAt(W, Math.min(W.total, d + 4)), dx = on.x - at.x;
+  return { x: Math.round(at.x), y: Math.round(at.y), d: Math.abs(dx) < 0.3 ? 0 : dx > 0 ? 1 : -1 };
+}
+
+// ---------- the trade of the country ----------
+// The places do business with one another, and it can be seen on the roads between them: stone from the quarry to the
+// lime kiln; fish from the huts to the salt pans, and salt fish from there to the town; the flock out from the fold
+// to the hill in the morning and home at night; and the fishers' boats out with the day and in with the dusk. How a
+// story ended shows here too: a quarry on strike sends no wagon, and a shore that has lost its whale sends one boat.
+const kilnState = () => { const t = (wildMap().tales || {}).kiln; return !t ? 'burning' : t.done ? (t.end === 'out' ? 'out' : 'burning') : t.step >= 1 ? 'low' : 'burning'; };
+function tradeWays() {
+  if (prov.trade) return prov.trade;
+  const L = wildLand(), wetAt = (x, y) => { const tx = Math.floor(x / 10), ty = Math.floor(y / 10); return tx >= 0 && ty >= 0 && tx < WILD.TW && ty < WILD.TH && L.t[ty * WILD.TW + tx] === T_WATER; };
+  const line = (a, b) => {
+    if (!a || !b) return null;
+    const r = wildRoute(a.x, a.y, b.x, b.y); if (!r || !r.length) return null;
+    const pts = [{ x: a.x, y: a.y }].concat(r), len = [0];
+    for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    return len[len.length - 1] > 30 ? { pts, len, total: len[len.length - 1] } : null;
+  };
+  const W = { stone: line(landmarkAt('The great quarry'), landmarkAt('The lime kiln')), fish: line(landmarkAt("The fishers' huts"), landmarkAt('The salt pans')), salt: line(landmarkAt('The salt pans'), { x: WILD.TOWN.x + 30, y: WILD.TOWN.y }) };
+  // the flock: from the fold to the nearest shepherd's hut on the hill, or failing that to the first high ground it can reach
+  const fold = landmarkAt("The shepherds' fold");
+  if (fold) {
+    const huts = (prov.marks || []).filter(m => m.name === "A shepherd's hut").map(m => ({ x: m.x + 14, y: m.y + 18, d: Math.hypot(m.x - fold.x, m.y - fold.y) })).filter(h => h.d > 70 && h.d < 420).sort((a, b) => a.d - b.d);
+    for (const h of huts.slice(0, 3)) { W.flock = line(fold, h); if (W.flock) break; }
+    if (!W.flock) for (let q = 0; q < 12 && !W.flock; q++) { const an = -Math.PI / 2 + (q % 2 ? 1 : -1) * Math.ceil(q / 2) * 0.5; W.flock = line(fold, { x: fold.x + Math.cos(an) * 110, y: fold.y + Math.sin(an) * 110 }); }
+  }
+  // the sea off the fishers' huts: whichever way the open water runs furthest
+  const huts = landmarkAt("The fishers' huts");
+  if (huts) {
+    let best = null;
+    for (let q = 0; q < 24; q++) { const an = q / 24 * Math.PI * 2, dx = Math.cos(an), dy = Math.sin(an); let shore = -1, run = 0;
+      for (let r = 10; r <= 260; r += 10) { const wt = wetAt(huts.x + dx * r, huts.y + dy * r); if (shore < 0) { if (wt) shore = r; else if (r > 70) break; } else if (wt) run++; else break; }
+      if (shore >= 0 && (!best || run > best.run)) best = { dx, dy, shore, run }; }
+    if (best && best.run >= 6) W.sea = { x: huts.x + best.dx * (best.shore + 8), y: huts.y + best.dy * (best.shore + 8), dx: best.dx, dy: best.dy, far: Math.min(150, best.run * 10 - 20) };
+  }
+  return (prov.trade = W);
+}
+// Where along a way, so far from its start.
+function wayAt(W, d) {
+  d = clamp(d, 0, W.total); let i = 1; while (i < W.len.length - 1 && W.len[i] < d) i++;
+  const a = W.pts[i - 1], b = W.pts[i], seg = W.len[i] - W.len[i - 1] || 1, f = clamp((d - W.len[i - 1]) / seg, 0, 1);
+  return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+}
+// Something that goes up a way and down it for ever, standing a while at each end.
+// leg: 0 standing at the near end, 1 going, 2 standing at the far end, 3 coming back.
+function shuttleAt(W, T, speed, wait, phase) {
+  const go = W.total / speed, cyc = (go + wait) * 2, t = (T + (phase || 0) * cyc) % cyc;
+  const leg = t < wait ? 0 : t < wait + go ? 1 : t < wait * 2 + go ? 2 : 3;
+  const d = leg === 0 ? 0 : leg === 1 ? (t - wait) * speed : leg === 2 ? W.total : W.total - (t - wait * 2 - go) * speed, back = leg === 3 || leg === 0;
+  const at = wayAt(W, d), on = wayAt(W, d + (back ? -5 : 5)), dx = on.x - at.x, dy = on.y - at.y;
+  return { x: Math.round(at.x), y: Math.round(at.y), d, leg, moving: leg === 1 || leg === 3, face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), dir: dx >= 0 ? 1 : -1 };
+}
+// How far out the day has taken them: 0 at home at dawn and dusk, 1 through the middle of the day.
+const dayOut = () => { const u = dayPart(); return u < 0.1 ? 0 : u < 0.36 ? (u - 0.1) / 0.26 : u < 0.66 ? 1 : u < 0.92 ? 1 - (u - 0.66) / 0.26 : 0; };
+function drawTrade(ctx, T, R, inView) {
+  const W = tradeWays(), town = (x, y) => x > WILD.TOWN.x - 50 && x < WILD.TOWN.x + 34 && y > WILD.TOWN.y - 32 && y < WILD.TOWN.y + 18;
+  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !town(x, y);
+  const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c' });
+  const beast = (bx, by, c, d, big, step) => { const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
+    R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
+    if (big) { R(d > 0 ? bx + (w >> 1) + 2 : bx - (w >> 1) - 4, by - h - 6, 2, 1, '#f1ead8'); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - h - 6, 2, 1, '#f1ead8'); } };
+  // ---- the stone wagon, quarry to kiln
+  if (W.stone) {
+    const struck = kilnState() !== 'burning', C = struck ? Object.assign(shuttleAt(W.stone, 0, 6, 1e9, 0), { moving: false, leg: 0 }) : shuttleAt(W.stone, T, 6, 12, 0.3);
+    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, wx = C.x - d * 17, loaded = C.leg === 1 || C.leg === 2;
+      R(wx - 9, C.y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, C.y - 6, 17, 5, '#7a5a34'); R(wx - 8, C.y - 7, 17, 1, '#a8834a'); R(wx - 8, C.y - 2, 17, 1, '#5e4426');
+      if (loaded) { R(wx - 6, C.y - 12, 6, 5, '#d6ccb8'); R(wx - 6, C.y - 12, 6, 1, '#f0e8d6'); R(wx + 1, C.y - 11, 6, 4, '#c9c0aa'); R(wx + 1, C.y - 11, 6, 1, '#e4dcc8'); R(wx - 3, C.y - 16, 6, 4, '#d6ccb8'); R(wx - 3, C.y - 16, 6, 1, '#f0e8d6'); }
+      for (const ox of [-6, 3]) { R(wx + ox, C.y - 3, 5, 5, '#3a2a1c'); R(wx + ox + 1, C.y - 2, 3, 3, '#8a6a3a'); R(wx + ox + 2, C.y - 1, 1, 1, '#3a2a1c'); }
+      R(wx + d * 9, C.y - 5, d * 5, 1, '#5e4426');
+      beast(C.x, C.y, '#8a6444', d, true, step);
+      if (!struck) man(C.x + d * 10, C.y + 1, C.face, C.moving, '#8a7a5a'); else { R(C.x + d * 9, C.y - 3, 4, 3, '#8a7a5a'); R(C.x + d * 9, C.y - 6, 3, 3, '#d9a57c'); }      // on strike, the carter sits by his ox
+      provUnder(ctx, C.x, C.y, 28); }
+  }
+  // ---- fish in a handcart, huts to salt pans; fewer loads when half the boats are drawn up
+  if (W.fish) {
+    const C = shuttleAt(W.fish, T, 9, taleEnd('whale') === 'carted' ? 60 : 12, 0.1);
+    if (shown(C.x, C.y)) { const d = C.dir, loaded = C.leg === 1 || C.leg === 2, cx = C.x + d * 7;
+      R(cx - 5, C.y + 1, 11, 2, 'rgba(0,0,0,.22)'); R(cx - 4, C.y - 6, 9, 4, '#8a6a3a'); R(cx - 4, C.y - 7, 9, 1, '#a8834a'); R(cx - 1, C.y - 3, 4, 4, '#3a2a1c'); R(cx, C.y - 2, 2, 2, '#8a6a3a'); R(cx - d * 5, C.y - 6, -d * 4, 1, '#6b4f2c');
+      if (loaded) { R(cx - 3, C.y - 9, 7, 3, '#b8c6d0'); R(cx - 2, C.y - 9, 2, 1, '#e6f0f6'); R(cx + 1, C.y - 8, 2, 1, '#8fa2b0'); if (Math.sin(T * 3) > 0.8) R(cx + 2, C.y - 10, 1, 1, '#ffffff'); }
+      man(C.x - d * 3, C.y + 1, C.face, C.moving, '#4a6a8a');
+      provUnder(ctx, C.x, C.y, 18); }
+  }
+  // ---- salt fish on a mule, salt pans to the town gate
+  if (W.salt) {
+    const C = shuttleAt(W.salt, T, 11, 16, 0.55);
+    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+      beast(mx, C.y, '#9a8a72', d, false, step);
+      if (loaded) { R(mx - 3, C.y - 9, 7, 4, '#e8e2d2'); R(mx - 3, C.y - 9, 7, 1, '#fbf6ea'); R(mx - 3, C.y - 6, 7, 1, '#b8b0a0'); R(mx, C.y - 9, 1, 4, '#6b4f2c'); } else { R(mx - 2, C.y - 7, 5, 1, '#6b4f2c'); }
+      man(C.x, C.y, C.face, C.moving, '#b8b0a0', '#5a4326');
+      provUnder(ctx, C.x, C.y, 18); }
+  }
+  // ---- the flock, out to the hill with the morning and home with the evening, the dog behind
+  if (W.flock) {
+    const out = dayOut(), u = dayPart(), going = u < 0.5, moving = out > 0 && out < 1, d0 = out * W.flock.total, sgn = going ? 1 : -1;
+    if (out > 0) {
+      const lead = wayAt(W.flock, d0), white = taleEnd('whitewolf') === 'dog';
+      if (shown(lead.x, lead.y)) {
+        const ahead = wayAt(W.flock, d0 + sgn * 6), dir = (ahead.x - lead.x) * 1 >= 0 ? 1 : -1, face = dir > 0 ? 'right' : 'left';
+        for (let i = 0; i < 8; i++) {               // the sheep: strung out behind on the way, spread about when they are let graze
+          const h1 = wildHash(i, 3, 2710), h2 = wildHash(3, i, 2711);
+          let sx, sy;
+          if (moving) { const at = wayAt(W.flock, d0 - sgn * (9 + i * 5)); sx = at.x + (h1 - 0.5) * 10; sy = at.y + (h2 - 0.5) * 8 + 2; }
+          else { sx = lead.x + (h1 - 0.5) * 46 + Math.sin(T * 0.11 + i * 2) * 4; sy = lead.y + (h2 - 0.5) * 26 + 4; }
+          sx = Math.round(sx); sy = Math.round(sy);
+          const bob = moving && Math.sin(T * 7 + i) > 0 ? 1 : 0, graze = !moving && Math.sin(T * 0.8 + i * 1.7) > 0.2 ? 1 : 0, sd = moving ? dir : (h1 > 0.5 ? 1 : -1);
+          R(sx - 2, sy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(sx - 2, sy - 3 - bob, 5, 3, i === 5 ? '#8a7a66' : '#f1ead8'); R(sx - 1, sy - 4 - bob, 3, 1, i === 5 ? '#9a8a76' : '#fbf6ea');
+          R(sd > 0 ? sx + 3 : sx - 4, sy - 3 - bob + graze, 2, 2, '#3a322c'); R(sx - 1, sy, 1, 1, '#3a322c'); R(sx + 1, sy, 1, 1, '#3a322c');
+        }
+        const sh = moving ? wayAt(W.flock, d0 + sgn * 9) : { x: lead.x + 26, y: lead.y - 6 };      // the shepherd goes in front, and stands off on his crook while they graze
+        man(Math.round(sh.x), Math.round(sh.y), face, moving, '#8a6a4a', '#8a8a8a'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 15, 1, 15, '#6b4f2c'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 16, 2, 1, '#6b4f2c');
+        { const at = moving ? wayAt(W.flock, d0 - sgn * 54) : { x: lead.x - 28, y: lead.y + 8 }, wv = moving ? Math.sin(T * 2.2) * 8 : 0, gx = Math.round(at.x + wv * 0.4), gy = Math.round(at.y + wv), c = white ? '#f1ead8' : '#8a6a4a', run = moving && Math.sin(T * 9) > 0 ? 1 : 0, wag = Math.sin(T * 8) > 0 ? 1 : 0;      // the dog behind, working from side to side
+          R(gx - 3, gy + 1, 7, 1, 'rgba(0,0,0,.2)'); R(gx - 3, gy - 3, 6 + (white ? 1 : 0), white ? 3 : 2, c); R(dir > 0 ? gx + 3 : gx - 5, gy - 5, 2, 3, c); R(dir > 0 ? gx - 4 : gx + 3, gy - 4 - wag, 1, 2, c);
+          R(gx - 2 + run, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - run, gy - 1, 1, 2, shade(c, 0.7)); if (!moving) R(dir > 0 ? gx + 4 : gx - 5, gy - 4, 1, 1, '#1c1310'); }
+        provUnder(ctx, lead.x, lead.y, 30);
+      }
+    }
+  }
+  // ---- the fishers' boats: out with the day, in with the dusk
+  if (W.sea) {
+    const S = W.sea, out = dayOut(), n = taleEnd('whale') === 'carted' ? 1 : 3;
+    for (let i = 0; i < n; i++) {
+      const an = (i - (n - 1) / 2) * 0.34, ca = Math.cos(an), sa = Math.sin(an), dx = S.dx * ca - S.dy * sa, dy = S.dx * sa + S.dy * ca, far = 6 + i * 9 + out * (S.far * (0.55 + i * 0.2));
+      const bx = Math.round(S.x + dx * far + Math.sin(T * 0.09 + i * 2) * 3), by = Math.round(S.y + dy * far + Math.sin(T * 1.5 + i) * 1);
+      if (!inView(bx, by, 30) || !wildSeen(bx, by)) continue;
+      const hull = ['#6b4f2c', '#4a5a6a', '#7a4a3a'][i], sail = out > 0.05 && out < 1, tilt = Math.sin(T * 1.2 + i) > 0 ? 1 : 0;
+      R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); R(bx - 5, by - 2, 10, 3, hull); R(bx - 4, by + 1, 8, 1, shade(hull, 0.7)); R(bx - 5, by - 2, 10, 1, shade(hull, 1.25));
+      R(bx - 2, by - 4, 2, 2, '#d9a57c'); R(bx - 2, by - 3, 2, 2, '#4a6a8a');
+      R(bx + 1, by - 10, 1, 8, '#3a2a1c'); if (sail) { R(bx + 2, by - 9 + tilt, 5, 6, '#e8dcc0'); R(bx + 2, by - 9 + tilt, 5, 1, '#fbf6ea'); } else R(bx + 1, by - 9, 2, 5, '#c9bfa8');      // sail set on the way out and home; furled at the nets and at the mooring
+      if (out >= 1) for (let q = 0; q < 5; q++) R(bx - 8 - q * 3, by + 1 + (q % 2), 1, 1, '#d8d2c0');      // the floats of the net, astern
+    }
+  }
+}
+
 // ---------- the column, mounted ----------
 // With no stables the school goes on foot. With stables it rides, and the horses show what the stables are:
 //   1  a plain beast with a blanket over its back and a rope halter
@@ -2979,7 +3161,7 @@ function hoverLines(hv) {
     return [[[hv.name.toUpperCase(), '#f5d584'], [hv.waiting ? 'Waiting for anybody who will listen.' : T.name + ': the story leads here.', '#d8c8a8']].concat(dz ? [] : [['No fight is looked for.', '#9fce86']], [[wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO MARCH THERE', '#a8947a']]), dz]; }
   if (hv.home) return [[['HOME', '#f5d584'], ['Walk in at the gate to go home.', '#f2e6cc'], [wayTo(hv.x, hv.y).toUpperCase(), '#a8947a']], 0];
   if (hv.stables) { const l = G.fac.stables | 0; return [[['YOUR STABLES', '#f5d584'], [FACILITIES.stables.effect(l) + '.', '#f2e6cc'], [l < 3 ? 'CLICK TO WALK THERE AND IMPROVE THEM: ' + FAC_COST[l] + ' DENARII' : 'FULLY BUILT', '#a8947a']], 0]; }
-  if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc']].concat(loreOf(hv.name) ? [[loreOf(hv.name), taleLore(hv.name) ? '#f5d584' : '#f2e6cc']] : [], [[(hv.dw ? 'It stands in ' : 'A landmark of ') + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']]), 0];
+  if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc']].concat(loreOf(hv.name) ? [[loreOf(hv.name), taleLore(hv.name) ? '#f5d584' : '#f2e6cc']] : [], [[(hv.dw ? 'It stands in ' : 'A landmark of ') + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']], !hv.dw && landUse(hv.name) && !landUse(hv.name).off ? [['Here: ' + landUse(hv.name).verb.toLowerCase() + (landUse(hv.name).cost ? ' (' + landUse(hv.name).cost + ' denarii)' : '') + '.', '#c9b47e']] : []), 0];
   const done = siteDone(hv), mark = wildMap().marks[hv.id] && !done, dz = siteDanger(hv);
   const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
   if (done) lines.push([doneWord(hv) + (wildMap().done[hv.id] > 1 ? ' on day ' + wildMap().done[hv.id] : '') + '.' + (SITE_GONE.includes(hv.kind) ? ' Nothing is left here.' : ' The school has been here; there is nothing more to do.'), SITE_GONE.includes(hv.kind) ? '#a8947a' : '#c9b47e']);
@@ -3314,12 +3496,17 @@ function drawProvince(cv, T) {
   const M = wildMap();
 
   // boats off the Salt Shore, riding the swell: each its own hull and sail, some under oars, one or two with a net out
-  for (const [bx0, by0, bk] of (prov.boats || [])) {
-    if (!inView(bx0, by0, 60) || !wildSeen(bx0, by0)) continue;
+  (prov.boats || []).forEach(([hx, hy, bk], bi) => {
+    // some lie at their nets; the ships, and most of the fishing boats, are under way
+    const ship = bk === 'galley' || bk === 'warship', sails = ship || (!bk && wildHash(hx, hy, 662) > 0.35);
+    const way = sails ? boatCourse(bi, hx, hy, ship ? 2 : 1, ship ? 420 : 260) : null, U = way ? boatAt(way, T, bk === 'warship' ? 8 : ship ? 6.5 : 4.5, wildHash(hy, hx, 663)) : null;
+    if (U && U.d) (prov.heads || (prov.heads = {}))[bi] = U.d;
+    const bx0 = U ? U.x : hx, by0 = U ? U.y : hy, hd = (prov.heads && prov.heads[bi]) || 1;
+    if (!inView(bx0, by0, 60) || !wildSeen(bx0, by0)) return;
     if (bk) {
-      const sd = wildHash(bx0, by0, 660), s2 = wildHash(by0, bx0, 661), bob = Math.sin(T * 1.4 + bx0) > 0 ? 1 : 0;
+      const sd = wildHash(hx, hy, 660), s2 = wildHash(hy, hx, 661), bob = Math.sin(T * 1.4 + hx) > 0 ? 1 : 0;
       if (bk === 'galley' || bk === 'warship') {            // a ship under oar and sail, beating up and down the coast
-        const war = bk === 'warship', ph = T * 0.05 + sd * 9, bx = bx0 + Math.round(Math.sin(ph * 0.7) * 8), by = by0 + Math.round(Math.sin(ph) * 30) + bob, d = Math.cos(ph) > 0 ? 1 : -1, len = war ? 26 : 20 + Math.floor(s2 * 5), half = len >> 1;
+        const war = bk === 'warship', ph = T * 0.05 + sd * 9, bx = U ? bx0 : bx0 + Math.round(Math.sin(ph * 0.7) * 8), by = U ? by0 + bob : by0 + Math.round(Math.sin(ph) * 30) + bob, d = U ? hd : Math.cos(ph) > 0 ? 1 : -1, len = war ? 26 : 20 + Math.floor(s2 * 5), half = len >> 1;
         const hull = war ? '#3a2a22' : ['#6b4f2c', '#5a3a2a', '#7a5a34'][Math.floor(sd * 3)], sail = war ? '#a8261c' : ['#e8dcc0', '#d8b860', '#b85a48', '#e8dcc0'][Math.floor(s2 * 4)], F = (px, py, w, hh, c) => R(d > 0 ? px : 2 * bx - px - w, py, w, hh, c);
         F(bx - half, by + 2, len + 2, 1, 'rgba(20,40,60,.3)'); F(bx - half, by - 3, len, 4, hull); F(bx - half + 1, by + 1, len - 2, 1, shade(hull, 0.7)); F(bx - half, by - 3, len, 1, shade(hull, 1.3));
         F(bx - half - 1, by - 6, 2, 4, hull); F(bx - half - 2, by - 7, 2, 1, hull); F(bx + half, by - 4, 2, 3, hull);                                   // the stern curling up, and the stem
@@ -3335,19 +3522,21 @@ function drawProvince(cv, T) {
         else if (bk === 'raft') { R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); for (let q = 0; q < 5; q++) R(bx - 5 + q * 2, by - 1, 2, 2, q % 2 ? '#7a5a34' : '#8a6a3a'); R(bx - 5, by - 1, 10, 1, '#a8834a'); R(bx - 1, by - 7, 2, 3, '#d9a57c'); R(bx - 1, by - 4, 2, 3, tun); R(bx + 2, by - 4, 3, 3, s2 > 0.5 ? '#8a5a34' : '#c9b890'); R(bx - 4, by - 8, 1, 8, '#6b4f2c'); if (sd > 0.5) R(bx - 3, by - 8, 3, 2, ['#c23b2e', '#e8dcc0'][Math.floor(s2 * 2)]); }      // a raft of logs, a load on it
         else { R(bx - 3, by + 1, 6, 1, 'rgba(20,40,60,.3)'); R(bx - 2, by - 1, 5, 2, '#3a2e24'); R(bx - 3, by - 1, 1, 1, '#3a2e24'); R(bx + 3, by - 1, 1, 1, '#3a2e24'); R(bx - 2, by - 1, 5, 1, '#5a4a3a'); R(bx, by - 6, 2, 3, '#d9a57c'); R(bx, by - 3, 2, 2, tun); const side = Math.sin(T * 1.6 + sd * 5) > 0 ? 1 : -1; R(bx + side * 3, by - 3, 1, 5, '#8a7a5c'); R(bx + side * 3, by + 1, 2, 1, '#8a7a5c'); }      // a coracle of hide, paddled from one side then the other
       }
-      continue;
+      return;
     }
-    const sd = wildHash(bx0, by0, 660), s2 = wildHash(by0, bx0, 661), bx = bx0 + Math.round(Math.sin(T * 0.07 + sd * 9) * 5), by = by0 + Math.round(Math.sin(T * 1.6 + bx0) * 1), tilt = Math.sin(T * 1.6 + bx0) > 0 ? 1 : 0;
+    const sd = wildHash(hx, hy, 660), s2 = wildHash(hy, hx, 661), bx = U ? bx0 : bx0 + Math.round(Math.sin(T * 0.07 + sd * 9) * 5), by = by0 + Math.round(Math.sin(T * 1.6 + hx) * 1), tilt = Math.sin(T * 1.6 + hx) > 0 ? 1 : 0;
     const hull = ['#6b4f2c', '#5a3a2a', '#4a5a6a', '#7a6a4a'][Math.floor(sd * 4)], len = 8 + Math.floor(s2 * 5), half = len >> 1;
     R(bx - half, by + 1, len + 1, 1, 'rgba(20,40,60,.3)'); R(bx - half, by - 2, len, 3, hull); R(bx - half + 1, by + 1, len - 2, 1, shade(hull, 0.7)); R(bx - half, by - 2, len, 1, shade(hull, 1.25)); R(bx + half, by - 3, 1, 2, hull);
     R(bx - 2, by - 4, 2, 2, '#d9a57c'); R(bx - 2, by - 3, 2, 2, ['#8a4a3a', '#4a6a8a', '#7a7a3a'][Math.floor(s2 * 3)]);      // the man in it
     if (sd > 0.3) { const sail = ['#e8dcc0', '#b85a48', '#d8b860', '#e8dcc0'][Math.floor(s2 * 4)]; R(bx, by - 10, 1, 8, '#3a2a1c'); R(bx + 1, by - 9 + tilt, 5, 6, sail); R(bx + 1, by - 9 + tilt, 5, 1, shade(sail, 1.2)); R(bx + 5, by - 7 + tilt, 1, 3, shade(sail, 0.8)); if (s2 > 0.6) R(bx + 2, by - 6 + tilt, 3, 1, shade(sail, 0.75)); }
     else { const pull = Math.sin(T * 2.2 + sd * 6) > 0 ? 1 : 0; R(bx - 4 - pull, by, 3, 1, '#c9b890'); R(bx + 2 + pull, by, 3, 1, '#c9b890'); }      // under oars
     if (s2 < 0.3) for (let q = 0; q < 4; q++) R(bx - half - 2 - q * 2, by + 1 + (q % 2), 1, 1, '#d8d2c0');                                              // the floats of a net astern
-  }
+    if (U) for (let q = 0; q < 2; q++) { const wq = (T * 0.9 + q * 0.5) % 1; ctx.globalAlpha = 0.45 * (1 - wq); R(bx - hd * (half + 2 + wq * 7) - (hd > 0 ? 2 : 0), by + 1 + q, 2, 1, '#e6f3fa'); } ctx.globalAlpha = 1;      // a boat under sail leaves a wake
+  });
   drawHerds(ctx, T, R, inView);
   drawTraffic(ctx, T, R, inView);
   drawMillCart(ctx, T, R, inView);
+  drawTrade(ctx, T, R, inView);
   drawAmbient(ctx, T, R, camX, camY, false);
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
@@ -3535,6 +3724,15 @@ function drawProvince(cv, T) {
   };
   for (const s of sites) if (M.marks[s.id] && !siteDone(s) && siteLive(s)) point(s.x, s.y, s.kind === 'cache' ? 'DIG' : s.kind === 'herb' ? 'HERB' : QUEST_SITE[s.kind] || s.journey ? 'JOURNEY' : s.kind === 'tale' ? 'STORY' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) ? 'EAGLE' : 'MARKED', '#2a1a0c', '#f5d584');
   point(tx, ty, 'HOME', '#2a1a0c', '#f1ead8');
+  // the eagle, turning over the column: wider and higher the better it is trained, its shadow going over the ground beneath
+  { const el = facLvl('eagle'); if (el > 0 && !prov.big) {
+      const an = T * (0.55 - el * 0.05), rr = 22 + el * 9, ex = Math.round(F.x - camX + Math.cos(an) * rr), ey = Math.round(F.y - camY - 30 - el * 4 + Math.sin(an) * rr * 0.45), flap = Math.sin(T * 2.2) > 0.75 ? 1 : 0, wspan = 3 + el, bank = Math.cos(an) > 0 ? 1 : -1;
+      const P = (x, y, ww, hh, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, ww, hh); };
+      P(ex - wspan + 6, ey + 34 + el * 4, wspan * 2 + 1, 1, 'rgba(0,0,0,.16)'); P(ex + 5, ey + 35 + el * 4, 3, 1, 'rgba(0,0,0,.12)');
+      P(ex - wspan, ey - flap, wspan, 1, '#4a3a2a'); P(ex + 1, ey - flap, wspan, 1, '#4a3a2a'); P(ex - wspan - 1, ey - flap - 1, 2, 1, '#3a2c20'); P(ex + wspan, ey - flap - 1, 2, 1, '#3a2c20');
+      P(ex - 1, ey, 3, 2, '#5a4632'); P(ex + bank, ey - 1, 1, 1, '#f1ead8'); P(ex + bank * 2, ey - 1, 1, 1, '#e8b545'); P(ex - bank, ey + 2, 1, 1, '#3a2c20');
+      if (el >= 3) { P(ex, ey + 2, 1, 2, '#c23b2e'); }      // jesses in the house's red
+  } }
   // whatever the mouse is on says what it is
   const hv = provHover();
   if (hv) {
@@ -3657,12 +3855,18 @@ function placeRows() {
       what: man ? `${man.name} asked to be brought here, and you gave your word.` : q ? `For ${q.giver.name}. ${SITE_WHAT[st.kind] || 'Somebody in town asked this of you.'}` : st.kind === 'tale' && !st.waiting ? `${TALES[st.tale].name}: the story leads here.` : SITE_WHAT[st.kind] || '' };
   }).sort((x, y) => (!!y.tag - !!x.tag) || x.d - y.d);
 }
+// A little compass for a place: the needle lies the way it is from where the column stands, and the figure is the days' march.
+function compassHtml(x, y) {
+  const F = G.field, d = Math.hypot(x - F.x, y - F.y), n = marchDays(d), near = d < 40, deg = Math.round((Math.atan2(y - F.y, x - F.x) * 180 / Math.PI + 90) / 5) * 5;
+  return `<span class="pcomp ${near ? 'here' : ''}"${tip(near ? 'You are standing at it.' : wayTo(x, y).replace(/^./, c => c.toUpperCase()) + '.')}><span class="ring">${near ? '' : `<i style="transform:rotate(${deg}deg)"></i>`}</span><b class="num">${near ? '&middot;' : n === 0 ? '&lt;1' : n}</b><small>${near ? 'here' : n <= 1 ? 'day' : 'days'}</small></span>`;
+}
 function placesHtml() {
   const all = placeRows(), show = PLACE_ROWS;
   if (!all.length) return '<div class="listnote">No place is known yet. Walk on, or spend a day scouting from high ground.</div>';
   return all.slice(0, show).map(({ st, tag, sub, name, what }) => { const dz = siteDanger(st);
     return `<div class="lrow place" data-act="wildgo" data-v="${st.id}"${tip(`${what ? what + '\n' : ''}${dz ? 'Danger ' + dz + ' of 5. ' : 'No danger known. '}Click to set out for it.`)}>
-      <div class="grow"><span class="t ${tag ? 'gold' : ''}">${tag ? `<span class="ptag ${tag.toLowerCase()}">${tag}</span>` : ''}${name}</span><small>${sub ? sub + ' &middot; ' : ''}${wayTo(st.x, st.y)}</small></div>
+      ${compassHtml(st.x, st.y)}
+      <div class="grow"><span class="t ${tag ? 'gold' : ''}">${tag ? `<span class="ptag ${tag.toLowerCase()}">${tag}</span>` : ''}${name}</span><small>${sub ? sub + ' &middot; ' : ''}${wildRegion(st.x, st.y)}</small></div>
       ${dz ? `<span class="pdanger"><span class="skulls">${'<i></i>'.repeat(dz)}</span><small>${TIER_WORD[dz - 1]}</small></span>` : '<span class="pdanger"><small class="safe">no fight known</small></span>'}</div>`; }).join('')
     + (all.length > show ? `<div class="listnote">and ${all.length - show} more on the whole map</div>` : '');
 }
@@ -3674,6 +3878,15 @@ function campNowHtml() {
     <div${tip('How dangerous this ground is: what walks it, and how hard the places in it are. One by the town, five in the far corners.')}><span>${wildRegion(F.x, F.y)}</span><b><span class="skulls">${'<i></i>'.repeat(t)}</span> <small>${TIER_WORD[t - 1] || 'no'} danger</small></b></div>
     <div${tip('How much of today\'s march is left before the day ends where you stand. Roads go further; forest, hill and marsh less far.')}><span>Day's march</span><b class="num ${left < 0.2 ? 'bad' : ''}">${Math.round(left * 100)}% left</b><i class="marchbar ${left < 0.2 ? 'low' : ''}"><i style="width:${Math.round(left * 100)}%"></i></i></div>
     <div${tip('The way back to the town gate from here.')}><span>Home</span><b>${wayTo(WILD.TOWN.x, WILD.TOWN.y)}</b></div>`;
+}
+
+// The landmark the column has walked up to: what it is, what a story has made of it, and what can be had there.
+function hereHtml() {
+  const n = landmarkHere(), st = n && landUseState(n); if (!st) return '';
+  const { u, cost, why } = st, words = landUseWords(u), told = taleLore(n);
+  return `<div class="here ${u.changed ? 'changed' : ''}"><div class="hhead"><b>${n}</b><small>${told || LORE[n] || ''}</small></div>
+    <div class="hbody"><span>${u.off ? u.off : u.what}${!u.off && words ? ` <i>${words.charAt(0).toUpperCase() + words.slice(1)}.</i>` : ''}</span>
+    ${u.off ? '' : `<button class="mini ${why ? '' : 'primary'}" data-act="landuse" ${why ? 'disabled' : ''}${tip(why || (u.cool > 1 ? `It can be had again after ${u.cool} days.` : 'It can be had once a day.'))}>${u.verb}${cost ? ` &middot; ${cost}` : ''}<span class="key">F</span></button>`}</div>${why && !u.off ? `<small class="hwhy">${why}</small>` : ''}</div>`;
 }
 
 function provFrame(ts) {
@@ -3693,6 +3906,7 @@ function provFrame(ts) {
           SFX.mood({ danger: wildTier(G.field.x, G.field.y) });
           if (!busy && G.tut && G.tut.hints && !G.tut.on && document.getElementById('tutor').hidden) renderTutor();
           const cn = document.getElementById('campNow'); if (cn) { const h = campNowHtml(); if (cn.dataset.h !== h) { cn.innerHTML = h; cn.dataset.h = h; } }
+          const ch = document.getElementById('campHere'); if (ch) { const h = hereHtml(); if (ch.dataset.h !== h) { ch.innerHTML = h; ch.dataset.h = h; } }
           const pl = document.getElementById('placeList'); if (pl) { const h = placesHtml(); if (pl.dataset.h !== h) { pl.innerHTML = h; pl.dataset.h = h; } }
         }
         if (ts - prov.saved > 6000 && !busy) { prov.saved = ts; save(); }
@@ -3776,7 +3990,7 @@ function renderWilds() {
   const unseen = men.filter(g => g.quest && QUESTS[g.quest.id] && !wildSites().some(st => (st.journey || QUEST_SITE[st.kind]) && questAt(st) === g && siteKnown(st)));      // a journey whose place is not yet on the list below
   const journeys = unseen.map(g => `<div><b>${g.name}</b>: ${questWhere(g)}.</div>`).join('');
   const lead = eagleLead();
-  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini ${errands().length || owed().length || bountyLive() || talesOpen().length || G.roster.some(g => g.quest) ? 'primary' : ''}" data-act="quests"${tip('Everything the school has been asked to do: quests from the town, the bounty, journeys promised to your men, and the eagle. Key: Q')}>Quests</button><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out. Key: Esc')}>Menu</button></span></div>
+  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini ${errands().length || owed().length || bountyLive() || talesOpen().length || G.roster.some(g => g.quest) ? 'primary' : ''}" data-act="quests"${tip('Everything the school has been asked to do: quests from the town, the bounty, journeys promised to your men, and the eagle. Key: Q')}>Quests</button><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out.' + (typeof escFree === 'function' && !escFree() ? '' : ' Key: Esc'))}>Menu</button></span></div>
       <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day &middot; ${F.days} out</span></div>
       <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>${stipend() - upkeep() >= 0 ? '+' : ''}${stipend() - upkeep()} a day</span></div>
       <div class="stat games"${tip('awaygames')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>${dg === 0 ? 'Games, without you' : 'Games in town'}</span></div></div>`;
@@ -3789,6 +4003,7 @@ function renderWilds() {
       ${F.note && F.note.day === G.day ? `<div class="dealmsg ${F.note.ok ? '' : 'bad'}" style="margin:0 0 6px">${F.note.text}</div>` : ''}
       ${lead && M.story < 6 ? `<div class="lead"${tip('eagle')}><b class="gold">The eagle.</b> ${lead}</div>` : ''}
       ${journeys ? `<div class="lead"${tip('A journey you gave your word on, whose place you have not yet found on the map.')}><b class="gold">Promised.</b>${journeys}</div>` : ''}
+      <div id="campHere">${hereHtml()}</div>
       <div class="pane" data-pane="camp"><h2>Places known <small>click to go</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>
       <h2>The school <small>${fieldParty().length} of ${men.length} fit${men.some(g => g.injury > 0) ? ` &middot; <span class="bad">${men.filter(g => g.injury > 0).length} hurt</span>` : ''}${men.some(g => g.perkPending > 0) ? ` &middot; <span class="gold">${men.filter(g => g.perkPending > 0).length === 1 ? 'perk: ' + men.find(g => g.perkPending > 0).name : men.filter(g => g.perkPending > 0).length + ' perks to choose'}</span>` : ''}</small></h2>
       <div class="panel list ${men.length > 5 ? 'twoup dense' : ''}">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>

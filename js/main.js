@@ -503,7 +503,7 @@ function helpModal() {
       <div class="hsec"><h3>In a fight</h3><div class="marks">${[['bleed', 'Bleeding: loses health as he fights'], ['ham', 'Hamstrung: slowed, dodges half as well'], ['arm', 'Arm wounded: hits softer'], ['net', 'Netted: cannot dodge or block'], ['stun', 'Stunned: cannot act'], ['weak', 'Weakened: hits softer for a time'], ['open', 'Exposed: every blow on him lands harder'], ['buff', 'Roused: guarding, hasty or in a fury']].map(([k, t]) => `<span><canvas width="14" height="14" data-hmark="${k}"></canvas>${t}</span>`).join('')}</div></div>
       <div class="hsec"><h3>On a fighter\'s card</h3><p><span class="chip red">Injured 2d</span> out until healed &nbsp; <span class="chip red">Exhausted</span> must rest &nbsp; <span class="chip gold">Perk to choose</span> a rank gained &nbsp; <span class="chip gold">Away</span> on a contract</p></div>
       <div class="hsec"><h3>On the province map</h3><p>Skulls beside a place: how dangerous it is, one to five. A gold name: a place you have marked, or that someone has asked to be taken to.</p></div>`,
-    keys: () => keys('Everywhere', [['H', 'this book'], ['Esc', 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
+    keys: () => keys('Everywhere', [['H', 'this book'], [typeof escFree === 'function' && !escFree() ? 'Esc' : 'Esc', typeof escFree === 'function' && !escFree() ? 'leave full screen (the browser keeps this key)' : 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
       + keys('At the ludus and in town', [['W A S D', 'walk the lanista about the town'], ['E', 'end the day'], ['G', 'run the days to the next games'], ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand']])
       + keys('In a fight', [['1 to 4', 'choose the ability'], ['A', 'let him choose this once'], ['Space', 'pause'], ['.', 'step a tenth of a second'], ['[ and ]', 'slower and faster'], ['L', 'the log of the fight'], ['C, twice', 'throw in the cloth'], ['click the sand', 'cut short an entrance, an announcement, a death or the ending']])
       + keys('In the province', [['W A S D', 'march the column'], ['click', 'march to that place'], ['E', 'make camp'], ['M', 'the whole map'], ['R', 'set out for home']]),
@@ -570,7 +570,7 @@ function renderTop() {
     <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
     <button data-act="skipdays"${tip('skip')} ${dg > 1 ? '' : 'disabled'}>To the games<span class="key">G</span></button>`;
   const sw = (act, label, on, key) => `<button class="${on ? '' : 'off'}" data-act="${act}"${tip(key)}>${label}</button>`;
-  $('#sidefoot').innerHTML = `<button class="wide" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out.')}>Menu <span class="key">Esc</span></button>${canFull() ? `<button class="wide" data-act="fullscreen"${tip('Fills the whole screen with the game, or gives the screen back. Esc also leaves it.')}>${isFull() ? 'Leave full screen' : 'Full screen'}</button>` : ''}<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>
+  $('#sidefoot').innerHTML = `<button class="wide" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out.')}>Menu${typeof escFree === 'function' && !escFree() ? '' : ' <span class="key">Esc</span>'}</button>${canFull() ? `<button class="wide" data-act="fullscreen"${tip('Fills the whole screen with the game, or gives the screen back. Esc also leaves it.')}>${isFull() ? 'Leave full screen' : 'Full screen'}</button>` : ''}<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>
     ${sw('yardtoggle', 'Yard', !ui.noyard, 'yardbtn')}${sw('mute', 'Sound', !SFX.muted, 'sound')}${sw('musictoggle', 'Music', SFX.musicOn, 'music')}`;
 }
 
@@ -904,7 +904,7 @@ function questsHtml() {
   const waiting = asksNow().map(q => prow(`<div class="grow"><span class="t">${q.giver.name}</span><small>${GIVERS[q.giver.kind].what}, waiting by the fountain in the square &middot; ${Math.max(1, q.leaves - G.day + 1)} more day${q.leaves - G.day + 1 === 1 ? '' : 's'}</small></div><span class="end"><span class="chip gold">walk to the fountain</span></span>`)).join('');
   const paying = owed().map(q => prow(`<div class="grow"><span class="t good">${q.giver.name} is waiting to pay you</span><small>${ERRANDS[q.tpl].title(q.mark)}: done &middot; at the fountain in the square${ERRANDS[q.tpl].next ? ' &middot; and has more to say' : ''}</small></div><span class="end"><b class="gold num">${q.owedPay}</b></span>`)).join('');
   if (!mine && !waiting && !paying) return '';
-  return `<h2${tip('People of the town come to the fountain in the square with work of their own. Walk up to them on the town map to hear it. What you take on is marked on the map of the province, out through the east gate; you may have three such matters in hand.')}>Quests <small>${errands().length} of 3 in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small> <button class="mini" data-act="quests" style="vertical-align:middle;margin-left:6px">Open the quests window</button></h2><div class="panel list">${paying}${mine}${waiting}</div>`;
+  return `<h2${tip('People of the town come to the fountain in the square with work of their own. Click any one of them on the town map to hear what they want. What you take on is marked on the map of the province, out through the east gate; you may have three such matters in hand.')}>Quests <small>${errands().length} of 3 in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small> <button class="mini" data-act="quests" style="vertical-align:middle;margin-left:6px">Open the quests window</button></h2><div class="panel list">${paying}${mine}${waiting}</div>`;
 }
 function viewContracts() {
   const c = keepSel('csel', G.contracts), dg = daysToGames(), free = G.roster.filter(canSend).length, gone = G.roster.filter(g => g.away).length, asked = G.contracts.find(x => x.asked);
@@ -1212,7 +1212,7 @@ function facTile(k) {
       ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < cost ? 'disabled' : ''}>Improve &mdash; ${cost}</button>` : '<span class="done">Fully built</span>'}</div>`;
 }
 // Buildings that stand somewhere else in town, and the post that goes with the forge.
-const ELSEWHERE_FACS = { shrine: 'Patrons', stables: 'Stables' }, SMITH_POSTS = ['faber'];
+const ELSEWHERE_FACS = { shrine: 'Patrons', stables: 'Stables', eagle: 'Stables' }, SMITH_POSTS = ['faber'];
 function facButton(k) {
   const f = FACILITIES[k], l = G.fac[k] || 0, cost = FAC_COST[l], short = l < 3 && G.denarii < cost;
   return `<button class="mini facbtn" data-act="build" data-v="${k}" ${l >= 3 || short ? 'disabled' : ''}${tip(`${f.name}: ${f.desc}\nNow: ${f.effect(l)}.${l < 3 ? `\nNext, for ${cost} denarii: ${f.effect(l + 1)}.${short ? `\nYou are ${cost - G.denarii} denarii short.` : ''}` : '\nFully built.'}`)}>${f.name.split(' ')[0]} ${grade(l)}${l < 3 ? ` &mdash; ${cost}` : ''}</button>`;
@@ -2148,14 +2148,17 @@ function startWildFight() {
 // The stables stand outside the east wall, on the map of the province: walking up to them is how they are improved.
 function stablesModal() {
   const f = FACILITIES.stables, l = G.fac.stables || 0, cost = FAC_COST[l], short = l < 3 && G.denarii < cost;
+  const fe = FACILITIES.eagle, el = G.fac.eagle || 0, ecost = FAC_COST[el], eshort = el < 3 && G.denarii < ecost;
   const what = ['A paddock and a trough, and nothing in it. The school marches on its own feet.', 'A shed, a mule, and a boy who knows the roads.', 'Stalls for four, and a cart to carry what the men would otherwise carry.', 'A tiled range, a wagon and a team: the column travels like a legion\'s baggage.'][l];
   if (modalQueue.length) closeModal();
   showModal(`<h2>The stables <small>${grade(l)}</small></h2><p>${what}</p>
     <p style="color:#5a4326">${f.effect(l)}.${l < 3 ? ` Improved, for <b class="gold num">${cost}</b> denarii: ${lower(f.effect(l + 1))}.` : ' There is nothing more to build here.'}</p>
-    <div class="row">${l < 3 ? `<button class="primary" data-act="stablebuild" ${short ? 'disabled' : ''}${short ? tip(`You are ${cost - G.denarii} denarii short.`) : ''}>Improve &mdash; ${cost}</button>` : ''}<button data-act="close">${l < 3 ? 'Not now' : 'Continue'}</button></div>`);
+    <h3 style="margin:12px 0 4px">The eagle <small>${grade(el)}</small></h3><p>${['There is no mews. A falconer in the town has an eaglet he would part with, if there were somewhere to keep it.', 'A young eagle on a block in the yard, hooded, and a boy with a glove too big for him. It goes up when the column marches, and comes back.', 'A trained bird. It ranges a mile ahead and stoops over whatever is waiting there.', 'A hunting eagle the governor has asked after twice. Nothing in the country moves that it has not been over first.'][el]}</p>
+    <p style="color:#5a4326">${fe.effect(el)}.${el < 3 ? (l < 1 ? ' It needs stables to be kept in.' : ` ${el ? 'Better trained' : 'Bought'}, for <b class="gold num">${ecost}</b> denarii: ${lower(fe.effect(el + 1))}.`) : ' It cannot be made better.'}</p>
+    <div class="row">${l < 3 ? `<button class="primary" data-act="stablebuild" ${short ? 'disabled' : ''}${short ? tip(`You are ${cost - G.denarii} denarii short.`) : ''}>Improve the stables &mdash; ${cost}</button>` : ''}${el < 3 ? `<button class="${l >= 3 ? 'primary' : ''}" data-act="eaglebuild" ${l < 1 || eshort ? 'disabled' : ''}${l < 1 ? tip('Build the stables first: a bird needs a mews.') : eshort ? tip(`You are ${ecost - G.denarii} denarii short.`) : ''}>${el ? 'Train the eagle' : 'Buy the eagle'} &mdash; ${ecost}</button>` : ''}<button data-act="close">${l < 3 || el < 3 ? 'Not now' : 'Continue'}</button></div>`);
 }
 // Walking up to the fountain when somebody is waiting there: they say what they want.
-function villageTalk() { if (typeof fountainTalk === 'function' && fountainTalk()) { save(); showEvent(); } }
+function villageTalk(i) { if (typeof fountainTalk === 'function' && fountainTalk(i)) { save(); showEvent(); } }
 function villageGate() {
   if (!gateOpen()) { showModal(`<h2>The east gate</h2><p>The gate-captain will not open for a lanista nobody has heard of. Fight your first games, and the road is yours.</p>${okBtn()}`); return; }
   if (!G.roster.some(g => !g.away)) { showModal(`<h2>The east gate</h2><p>You have nobody to march out with.</p>${okBtn()}`); return; }
@@ -2397,6 +2400,7 @@ const ACTIONS = {
   yard(v, w, el, e) {                       // click a fighter to open his dossier, a building to go to its screen
     const h = typeof yardPick === 'function' ? yardPick(el, e) : null;
     if (!h) return;
+    if (h.offer) { ui.csel = h.offer; SFX.ui('scroll'); render(); const row = document.querySelector('#view .lrow.sel'); if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' }); return; }      // a tablet on the board of work: that offer is the one read
     if (h.fighter) { ui.sel = h.fighter; ui.school = false; ui.schoolNext = false; villageWalkTo('ludus'); }
     else if (h.school) { if (ui.tab === 'ludus') ui.school = true; else ui.schoolNext = true; villageWalkTo('ludus'); }      // the school's own walls are seen to at the school
     else villageWalkTo(h.tab);       // he walks there; nothing opens until he arrives
@@ -2562,10 +2566,11 @@ const ACTIONS = {
   },
   school() { ui.school = !ui.school; render(); },
   stablebuild() { ACTIONS.build('stables'); SFX.ui('gate'); stablesModal(); },
+  eaglebuild() { if ((G.fac.stables || 0) < 1) return; ACTIONS.build('eagle'); SFX.ui('discover'); stablesModal(); },
   build(v) {
-    const l = G.fac[v];
+    const l = G.fac[v] || 0;
     if (l >= 3 || G.denarii < FAC_COST[l]) return;
-    G.denarii -= FAC_COST[l]; G.fac[v]++;
+    G.denarii -= FAC_COST[l]; G.fac[v] = l + 1;
     log(`${FACILITIES[v].name} improved to level ${G.fac[v]}.`, 'gold');
     save(); render();
   },
@@ -2803,6 +2808,15 @@ const ACTIONS = {
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
   scout() { if (!G.field) return; prov.big = false; prov.night = performance.now(); campScout(); SFX.ui('discover'); fieldDayDone(); },
   makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); G.field.march = 0; fieldDay('camp'); SFX.ui('camp'); fieldDayDone(); },      // a rested column starts tomorrow with a whole day's march
+  landuse() {
+    if (!G.field || G.pendingEvent) return;
+    const n = landmarkHere(), st = n && landUseState(n); if (!st || st.why) return;
+    const day = !!st.u.day; if (day) { prov.big = false; prov.night = performance.now(); }
+    const out = landUseRun(n); if (!out) return;
+    if (G.field) G.field.note = { day: G.day, ok: true, text: `<b>${n}.</b> ${out}` };
+    SFX.ui(day ? 'camp' : 'coin'); save();
+    if (day) fieldDayDone(); else render();
+  },
   campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
   campback() { ui.campSel = null; render(); },
   askreset() {
@@ -2829,7 +2843,7 @@ const CLICK_SOUND = {
   tab: 'tick', village: '', sel: 'tick', rowsel: 'tick', dtab: 'tick', dossier: 'tick', pick: 'tick', cpick: 'tick', tpick: 'tick', activity: 'tick', yard: 'tick', speed: 'tick',
   buy: 'coin', smithbuy: 'coin', smithgive: 'coin', smithsell: 'coin', smithup: 'coin', hire: 'coin', build: 'coin', gift: 'coin', sell: 'coin', tenter: 'coin',
   equip: 'gear', unequip: 'gear', pickperk: 'chime', free: 'chime', csend: 'gate',
-  endday: '', forceend: '', makecamp: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', bfill: 'tick', bclear: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', cutins: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
+  endday: '', forceend: '', makecamp: '', landuse: '', wildclick: '', bigmap: 'scroll', wildgo: 'tick', campsel: 'tick', campback: 'tick', skipdays: '', fight: '', tfight: '', order: '', pause: 'tick', actall: 'click', rsort: 'tick', help: 'scroll', tactic: 'tick', bbest: 'tick', bfill: 'tick', bclear: 'tick', wagerset: 'tick', lfilter: 'tick', cbest: 'tick', msell: 'warn', fire: 'warn', slotdel: 'warn', slotcopy: 'tick', slotrestore: 'warn', slotload: 'chime', abpick: '', abauto: 'click', cutins: 'click', abil: 'tick', mute: '', musictoggle: 'click', fightgo: '', tutnext: 'tick', tutback: 'tick', hintok: 'tick', evopt: 'scroll', skip: '', leavearena: 'tick',
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -3027,7 +3041,7 @@ document.addEventListener('keydown', e => {
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
   if (k === 'h' || k === 'F1') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.help(); return; }
-  if (G.field) { if (k === 'q') { e.preventDefault(); ACTIONS.quests(); } else if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'r') { e.preventDefault(); SFX.ui('tick'); ACTIONS.wildgo('home'); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
+  if (G.field) { if (k === 'q') { e.preventDefault(); ACTIONS.quests(); } else if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'f') press($('#camp [data-act=landuse]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'r') { e.preventDefault(); SFX.ui('tick'); ACTIONS.wildgo('home'); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
   if (k === 'ArrowUp' || k === 'ArrowDown') {
@@ -3066,6 +3080,9 @@ document.addEventListener('keydown', e => {
 const DESKTOP = location.hostname === 'ludus.game';          // inside the exe, which answers for that name
 const canFull = () => !DESKTOP && !!(document.documentElement.requestFullscreen && document.fullscreenEnabled);
 const isFull = () => !!document.fullscreenElement;
+// In a browser's full screen Escape belongs to the browser: it leaves full screen, and never reaches the game.
+const escFree = () => DESKTOP || !isFull();
+function escHints() { document.querySelectorAll('[data-key="Esc"], [data-nokey="Esc"]').forEach(b => { if (escFree()) { b.dataset.key = 'Esc'; delete b.dataset.nokey; } else { b.dataset.nokey = 'Esc'; delete b.dataset.key; } }); }
 const menuOpen = () => modalQueue.length > 0 && modalQueue[0].startsWith('<div class="menu">');
 function menuStats() {
   const rows = [], add = (a, b) => rows.push([a, b]), num = n => (+n || 0).toLocaleString('en');
@@ -3103,7 +3120,7 @@ function menuModal() {
   if (page === 'stats') return `<div class="menu"><h2>The house in figures</h2>${menuStats()}<div class="mlist">${back}</div></div>`;
   const info = slotInfo(slot);
   return `<div class="menu"><h2>Ludus Magnus</h2><div class="mlist">
-    ${item('close', 'Back to the game', 'Esc')}
+    ${item('close', 'Back to the game', escFree() ? 'Esc' : '')}
     ${item('menusave', 'Save now', inFight ? 'not while a fight is on' : ui.menuMsg || `slot ${slot}${info && info.label ? ', ' + esc(info.label) : ''}: kept at every step`, { off: inFight })}
     ${item('menusaves', 'Saves', inFight ? 'not while a fight is on' : 'load, copy, or begin another campaign', { off: inFight })}
     ${item('menupage', 'Settings', 'sound, music, how fights are shown', { v: 'settings' })}
@@ -3142,7 +3159,7 @@ Object.assign(ACTIONS, {
     if (p && p.catch) p.catch(() => { /* refused by the browser: nothing to do */ });
   },
 });
-document.addEventListener('fullscreenchange', () => { if (G) renderTop(); repaintMenu(); });
+document.addEventListener('fullscreenchange', () => { if (G) { renderTop(); if (G.field && typeof renderWilds === 'function') renderWilds(); } repaintMenu(); escHints(); });
 // Esc opens it when nothing else is open. (When something is, Esc shuts that: see the keys below.)
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G) return;

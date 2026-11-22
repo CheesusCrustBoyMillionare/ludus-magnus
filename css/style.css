@@ -393,7 +393,7 @@ h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
 
 /* Everything is enlarged together to fill a big window (--z, --vw and --vh are set by fitScreen in main.js;
    --vw and --vh are the window's size measured in enlarged pixels). */
-#app, #arena, #modalBox, #tutor, #tip, #dev, #updatebar { zoom: var(--z, 1); }
+#app, #arena, #modal, #tutor, #tip, #dev, #updatebar { zoom: var(--z, 1); }      /* the whole veil is enlarged, not the box in it: a box enlarged inside a centring veil is centred as if it were still small, and lands to the right */
 #app { height: var(--vh, 100vh); }
 #arenaCanvas { width: min(100%, calc((var(--vh, 100vh) - 130px) * 16 / 9)); max-width: none; }
 #modalBox { max-height: calc(var(--vh, 100vh) * .9); }
@@ -1480,3 +1480,28 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 #camp .ptag.story { color: #b4d6ea; border-color: #3a5a8a; }
 .quests .ptag.story { border-color: #3a5a8a; color: #2a4a7a; }
 .quests .qcard.tale { border-left-color: #4a7ab8; }
+
+/* the landmark the column stands at, and what it is good for */
+#camp .here { margin: 0 0 6px; padding: 5px 8px 6px; background: #1c140f; border: 1px solid var(--bronze-d); border-left: 3px solid var(--bronze); font-size: 12px; line-height: 1.35; }
+#camp .here.changed { border-left-color: #4a7ab8; }
+#camp .here .hhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 3px; }
+#camp .here .hhead b { color: var(--gold); font-family: var(--display); letter-spacing: .04em; }
+#camp .here .hhead small { color: var(--dim); font-size: 11px; font-style: italic; }
+#camp .here .hbody { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+#camp .here .hbody > span { min-width: 0; }
+#camp .here .hbody i { color: var(--dim); font-style: normal; }
+#camp .here .hbody button { align-self: flex-start; white-space: nowrap; }
+#camp .here .hwhy { display: block; margin-top: 2px; color: #f08a7c; font-size: 11px; }
+#modal { inset: auto; left: 0; top: 0; width: var(--vw, 100vw); height: var(--vh, 100vh); box-sizing: border-box; }      /* measured in enlarged pixels, like the rest */
+#modal { display: block; padding: 0; }
+#modalBox { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(100% - 32px); }      /* centred on itself, whatever the enlargement */
+
+/* the compass on each place: which way, and how many days */
+#camp .pcomp { flex: none; display: grid; grid-template-columns: 20px auto; grid-template-rows: auto auto; column-gap: 4px; align-items: center; min-width: 46px; }
+#camp .pcomp .ring { grid-row: 1 / 3; position: relative; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--bronze); background: radial-gradient(circle at 50% 50%, #2a1e15 0 55%, #1c140f 56%); box-shadow: inset 0 0 0 1px #0e0906; }
+#camp .pcomp .ring::after { content: ''; position: absolute; left: 50%; top: 50%; width: 2px; height: 2px; margin: -1px 0 0 -1px; background: var(--gold); border-radius: 50%; }
+#camp .pcomp .ring i { position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin: -9px 0 0 -3px; border-left: 3px solid transparent; border-right: 3px solid transparent; border-bottom: 9px solid #e2695c; transform-origin: 3px 9px; }
+#camp .pcomp .ring i::after { content: ''; position: absolute; left: -2px; top: 9px; border-left: 2px solid transparent; border-right: 2px solid transparent; border-top: 6px solid #8f8876; }
+#camp .pcomp b { font-size: 13px; line-height: 1; color: var(--text); align-self: end; }
+#camp .pcomp small { font-size: 8.5px !important; line-height: 1; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; align-self: start; }
+#camp .pcomp.here .ring { border-color: var(--gold); }

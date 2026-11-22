@@ -147,6 +147,7 @@ const FACILITIES = {
   baths:     { name: 'Baths',           desc: 'Hot water does what the whip cannot.', effect: l => `A day's rest sheds ${30 + 8 * l} fatigue and lifts morale by ${2 + 2 * l}` },
   shrine:    { name: 'Shrine', desc: 'An altar of your own in the Temple precinct, for the gods of the house, and for Nemesis.', effect: l => l ? `Morale settles ${3 * l} higher, and the fallen are ${2 * l}% likelier to live` : 'No shrine: the men pray where they can' },
   stores:    { name: 'Granary & garden', desc: 'Dry storage, a kitchen garden, a pig.', effect: l => l ? `Food costs ${10 * l}% less` : 'Everything is bought at the gate, at the gate\'s price' },
+  eagle:     { name: 'Eagle', desc: 'A hunting eagle, kept in a mews at the stables and flown over the column on the march.', effect: l => l ? `In the province you see ${20 * l}% further, and are likelier by ${15 * l} in the hundred to learn how strong an enemy is before you fight` : 'No bird: the school sees what a man on foot sees' },
   stables:   { name: 'Stables & carts', desc: 'Mules, a wagon, and a boy who knows the roads.', effect: l => l ? `In the province the column goes ${12 * l}% further in a day` : 'The school marches on its own feet' },
 };
 // How hard the men are worked. rate: how fast they learn. tire: what a day's drill costs them. morale: where spirits settle.

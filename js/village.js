@@ -90,7 +90,16 @@ function villagePlace(key) {
   vil.x = p.dx; vil.y = p.dy; vil.at = p.key; vil.path = null; vil.then = null; vil.face = 'down'; vil.moving = false;
 }
 // Sends him to a door on his own feet. `then` runs when he gets there.
+// Where those who have come with work stand in the square, and where the lanista stops to hear each of them.
+const GIVER_AT = [[276, 138], [316, 140], [296, 146]], GIVER_STAND = [[286, 141], [306, 143], [296, 153]];
+const giverOf = key => typeof key === 'string' && key.startsWith('giver') ? +key.slice(5) : -1;
 function villageWalkTo(key, then) {
+  if (giverOf(key) >= 0) {
+    const i = giverOf(key), [sx, sy] = GIVER_STAND[i], talk = () => { vil.face = i === 2 ? 'up' : i === 1 ? 'right' : 'left'; if (typeof villageTalk === 'function') villageTalk(i); };
+    if (Math.hypot(vil.x - sx, vil.y - sy) < 8) { vil.then = null; talk(); return; }
+    vil.then = talk; vil.path = vilPath(vil.x, vil.y, sx, sy) || vilPath(vil.x, vil.y, 296, 142);
+    return;
+  }
   if (key === 'gate') { vil.then = null; vil.path = vilPath(vil.x, vil.y, 582, 83); return; }
   if (key === 'fountain') { vil.then = () => { if (typeof villageTalk === 'function') villageTalk(); }; if (Math.hypot(vil.x - 296, vil.y - 142) < 8) { const f = vil.then; vil.then = null; f(); return; } vil.path = vilPath(vil.x, vil.y, 296, 142); return; }
   const p = placeOf(key);
@@ -101,7 +110,8 @@ function villageWalkTo(key, then) {
 // Which building a click landed on ('gate' for the way out of town).
 function villageAt(x, y) {
   if (x > 566 && y > 58 && y < 102) return 'gate';
-  if (typeof fountainFolk === 'function' && fountainFolk().length && x > 258 && x < 340 && y > 112 && y < 152) return 'fountain';      // whoever is waiting there with work
+  if (typeof fountainFolk === 'function') { const n = fountainFolk().length;      // whoever is waiting in the square with work: each can be picked out, the nearest to the eye first
+    for (const i of [2, 1, 0]) if (i < n && Math.abs(x - GIVER_AT[i][0]) <= 7 && y >= GIVER_AT[i][1] - 25 && y <= GIVER_AT[i][1] + 4) return 'giver' + i; }
   const p = PLACES.find(b => x >= b.x - 3 && x <= b.x + b.w + 3 && y >= b.y - 9 && y <= b.y + b.h + 10);
   return p ? p.key : null;
 }
@@ -304,7 +314,18 @@ function villageLayer() {
       wall(x + 2, wy, w - 4, wh, bl >= 2 ? '#e6d6ae' : '#dccba0');
       for (let cx = x + 8; cx < x + w - 8; cx += 11) { if (Math.abs(cx + 1 - p.dx) > 9) win(cx, y + 37); if (bl >= 2) win(cx, y + 29); }
       door(p, 10, 12, '#4a2c18'); R(p.dx - 7, y + 33, 14, 2, '#7e241c');
-      if (bl >= 3) { for (let cx = x + 4; cx < x + w - 4; cx += 12) if (Math.abs(cx + 1 - p.dx) > 7) { R(cx, wy + 1, 2, wh - 1, '#f8f2e2'); R(cx + 1, wy + 1, 1, wh - 1, '#d8d0bc'); R(cx - 1, wy, 4, 1, '#fbf6ea'); } R(x + 2, wy - 1, w - 4, 1, '#f0e8d6'); for (let q = 0; q < 4; q++) R(p.dx - 8 + q * 2, wy - 2 - q, 16 - q * 4, 1, q === 3 ? '#e8b545' : '#f0e8d6'); }
+      if (bl >= 3) {
+        // a colonnade stood out in front of the wall: the wall behind it lies in the shade of the roof it carries, deepest
+        // under the beam; each column is lit down its left side, throws its own shadow on the wall, and stands on a step
+        R(x + 2, wy + 1, w - 4, wh - 1, 'rgba(46,28,14,.3)'); R(x + 2, wy + 1, w - 4, 2, 'rgba(20,12,6,.3)'); R(x + 2, wy + 3, w - 4, 1, 'rgba(20,12,6,.14)');
+        R(x + 1, y + 46, w - 2, 2, '#e4dcc8'); R(x + 1, y + 46, w - 2, 1, '#f6f0e0'); R(x + 2, y + 45, w - 4, 1, 'rgba(20,12,6,.3)');
+        for (let cx = x + 4; cx < x + w - 5; cx += 12) if (Math.abs(cx + 1 - p.dx) > 7) {
+          R(cx + 3, wy + 2, 2, wh - 4, 'rgba(20,12,6,.3)');                                             // its shadow, on the wall behind
+          R(cx, wy + 1, 3, wh - 2, '#f4eedc'); R(cx, wy + 1, 1, wh - 2, '#fffaf0'); R(cx + 2, wy + 1, 1, wh - 2, '#cfc6b0');
+          R(cx - 1, wy, 5, 2, '#fbf6ea'); R(cx - 1, wy + 1, 5, 1, '#ddd4be');                           // capital
+          R(cx - 1, y + 45, 5, 2, '#fbf6ea'); R(cx - 1, y + 46, 5, 1, '#d6ccb6');                       // base
+        }
+        R(x + 1, wy - 1, w - 2, 1, '#f0e8d6'); for (let q = 0; q < 4; q++) R(p.dx - 8 + q * 2, wy - 2 - q, 16 - q * 4, 1, q === 3 ? '#e8b545' : '#f0e8d6'); }
       // the infirmary: a stretch of the front whitewashed, under a green cross, wider as it is improved, with a door of its own
       if (il >= 1) { const iw = 9 + il * 4; R(x + 2, wy, iw, wh, '#f6f1e4'); R(x + 2, wy, iw, 1, '#cfc8b4'); R(x + 2 + iw, wy, 1, wh, '#b8ab94'); R(x + 2, wy + wh - 2, iw, 2, '#ddd6c2'); const cxx = x + 2 + Math.floor(iw / 2); R(cxx, wy + 2, 1, 5, '#3f8a3a'); R(cxx - 2, wy + 4, 5, 1, '#3f8a3a'); if (il >= 2) { R(cxx - 2, y + 40, 4, 8, '#3a2416'); R(cxx - 3, y + 39, 6, 1, '#5a4326'); } if (il >= 3) { R(x + 1, wy - 2, iw + 2, 2, '#c2552e'); R(x + 1, wy - 2, iw + 2, 1, '#de7652'); } }
       R(x + w - 6, y + 22, 1, 11, '#5a4326'); R(x + w - 5, y + 22, 6, 4, '#a02d22'); R(x + w - 5, y + 22, 6, 1, '#c8483a');
@@ -687,7 +708,8 @@ function drawVillage(cv, T) {
   sceneVignette(ctx, 590, 190, 0.3);
 
   // what the mouse is resting on: a gold line round it, and a word about it along the foot of the map
-  const hov = vil.hover ? villageAt(vil.hover.x, vil.hover.y) : null, hp = hov && hov !== 'gate' && hov !== 'fountain' ? placeOf(hov) : null;
+  const hov = vil.hover ? villageAt(vil.hover.x, vil.hover.y) : null, hg = giverOf(hov), hp = hov && hov !== 'gate' && hov !== 'fountain' && hg < 0 ? placeOf(hov) : null;
+  if (hg >= 0) { const [gx, gy] = GIVER_AT[hg]; ctx.globalAlpha = 0.6 + 0.3 * Math.sin(T * 6); R(gx - 7, gy - 19, 14, 1, '#f5d584'); R(gx - 7, gy + 3, 14, 1, '#f5d584'); R(gx - 7, gy - 19, 1, 23, '#f5d584'); R(gx + 6, gy - 19, 1, 23, '#f5d584'); ctx.globalAlpha = 1; }
   if (hp) { ctx.globalAlpha = 0.6 + 0.3 * Math.sin(T * 6); R(hp.x - 2, hp.y - 2, hp.w + 4, 1, '#f5d584'); R(hp.x - 2, hp.y + hp.h + 1, hp.w + 4, 1, '#f5d584'); R(hp.x - 2, hp.y - 2, 1, hp.h + 4, '#f5d584'); R(hp.x + hp.w + 1, hp.y - 2, 1, hp.h + 4, '#f5d584'); ctx.globalAlpha = 1; }
 
   // names over the doors, the open one in gold, and how many things wait inside
@@ -706,7 +728,7 @@ function drawVillage(cv, T) {
     }
   }
   if (vil.hover) {
-    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hov === 'fountain' && fountainFolk().length ? (fountainFolk()[0].owed ? `${fountainFolk()[0].q.giver.name.toUpperCase()} IS WAITING AT THE FOUNTAIN TO PAY WHAT IS OWED  -  CLICK TO GO OVER` : `${fountainFolk()[0].q.giver.name.toUpperCase()} IS WAITING AT THE FOUNTAIN WITH WORK FOR YOU  -  CLICK TO HEAR IT`) : hov === 'fountain' ? 'THE FOUNTAIN' : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE  -  STEP ON A DOORSTEP TO GO IN';
+    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hg >= 0 && fountainFolk()[hg] ? (fountainFolk()[hg].owed ? `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS COME TO PAY WHAT IS OWED  -  CLICK TO GO OVER` : `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS WORK FOR YOU  -  CLICK TO HEAR IT`) : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : (fountainFolk().length ? 'CLICK ANYONE WAITING BY THE FOUNTAIN TO HEAR THEM  -  ' : '') + 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE';
     const w = Math.ceil(ctx.measureText(say).width) + 10;
     R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185);
   }

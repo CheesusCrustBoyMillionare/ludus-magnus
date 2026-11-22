@@ -377,7 +377,10 @@ const PLACE_SCENES = {
     // the board: a tablet for every offer, gold for one that asks for you by name
     R(196, 70, 150, 54, '#6b4f2c'); R(200, 74, 142, 46, '#8a6a3a'); R(192, 68, 158, 3, '#4a3520');
     const offers = (G.contracts || []).slice(0, 8);
-    offers.forEach((c, i) => { const x = 208 + (i % 4) * 34, y = 79 + Math.floor(i / 4) * 21; R(x, y, 26, 16, c.asked ? '#e8b545' : '#f1ead8'); R(x, y, 26, 1, c.asked ? '#fff0b0' : '#ffffff'); for (let k = 0; k < 3; k++) R(x + 3, y + 4 + k * 4, 14 + ((i + k) % 3) * 3, 1, '#6b573c'); R(x + 12, y - 2, 2, 3, '#a02d22'); });
+    offers.forEach((c, i) => { const x = 208 + (i % 4) * 34, y = 79 + Math.floor(i / 4) * 21;
+      yardHits.push({ x0: x - 2, y0: y - 3, x1: x + 28, y1: y + 18, offer: c.id });
+      if (typeof ui !== 'undefined' && ui.csel === c.id) { R(x - 2, y - 2, 30, 20, '#e8b545'); R(x - 1, y - 1, 28, 18, '#6b4f2c'); }
+       R(x, y, 26, 16, c.asked ? '#e8b545' : '#f1ead8'); R(x, y, 26, 1, c.asked ? '#fff0b0' : '#ffffff'); for (let k = 0; k < 3; k++) R(x + 3, y + 4 + k * 4, 14 + ((i + k) % 3) * 3, 1, '#6b573c'); R(x + 12, y - 2, 2, 3, '#a02d22'); });
     E.sign(271, 64, offers.length ? `${offers.length} OFFER${offers.length === 1 ? '' : 'S'} OF WORK` : 'NO WORK POSTED', offers.some(c => c.asked));
     const asked = offers.find(c => c.asked);
     if (asked) E.P(362, 150, -1, { tunic: asked.patron === 'temple' ? '#f1ead8' : asked.patron === 'guild' ? '#c9a21e' : '#7a2a8a', hair: '#2a1c14', item: 'scroll' });      // a patron's man, waiting on you

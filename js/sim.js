@@ -584,7 +584,7 @@ function newGame(dynasty, carried) {
   G = {
     v: 1, day: 1, denarii: 250 + 50 * lv('purse'), fame: 25 * lv('name'), nextId: 0, debtDays: 0,
     roster: [], market: [], bouts: null, log: [],
-    fac: { barracks: lv('cells'), ground: lv('yard'), infirmary: 0, baths: 0, shrine: 0, stores: 0, stables: 0 }, regimen: 1,
+    fac: { barracks: lv('cells'), ground: lv('yard'), infirmary: 0, baths: 0, shrine: 0, stores: 0, stables: 0, eagle: 0 }, regimen: 1,
     ration: 1, pendingEvent: null, won: false, over: false, fallen: [],
     staff: {}, hires: [], autoRest: true, fix: null, tourney: null, festival: null, tut: { step: 0, on: false }, bonds: [],
     armoury: [], smith: { level: lv('forge'), stock: [] }, contracts: [], jobs: [], reports: [], eventQueue: [],

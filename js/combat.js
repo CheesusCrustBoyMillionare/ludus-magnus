@@ -190,6 +190,45 @@ function fatal(B, d, by) {
   B.fatal.kind = fatalKind(B.fatal.by);
   snd(B, 'cutin', 0.8, d);
 }
+// What becomes of a man who is out of it: the crowd's thumb in the arena, the handlers' speed in a hunt, his friends'
+// in the wild. Decided once, the moment it is asked.
+function fateOf(B, f) {
+  if (f.g.beast || (f.down && B.death)) return 'dead';
+  const avg = B.time > 0 ? B.excSum / B.time : 0;
+  const p = B.hunt ? clamp((B.wild && f.team === 0 ? 0.65 : 0.5) + B.mercy[f.team], 0, 0.9)
+    : clamp((f.yielded ? 0.88 : 0.72) + 0.25 * avg + B.mercy[f.team] + Math.min(0.1, f.dmgDealt / 300) + (f.g.traits.includes('blessed') ? 0.1 : 0), 0, 0.98);
+  return Math.random() < p ? 'spared' : 'dead';
+}
+// A man is spared: said at once.
+function spare(B, f) {
+  f.fate = 'spared'; f.revealed = true;
+  fxText(B, f, B.wild ? 'LIVES' : B.hunt ? 'DRAGGED CLEAR' : 'MISSIO', '#ffffff', true); snd(B, 'spared', 1, f);
+  feed(B, B.wild ? `${f.g.name} is still breathing` : B.hunt ? `${f.g.name} is dragged clear by the handlers` : `The crowd spares ${f.g.name}`, f.team);
+}
+// A man is killed: the blow, the blood, and (where such things are shown) the death itself.
+function slay(B, f) {
+  f.fate = 'dead'; f.revealed = true; f.killing = false;
+  fxText(B, f, B.wild ? 'DEAD' : B.hunt ? 'MAULED' : 'IUGULA!', '#ff5a4a', true); snd(B, 'killed', 1, f); f.fallT = 0.3;
+  feed(B, B.wild ? `${f.g.name} does not get up` : B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
+  f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
+  fxBlood(B, f, 14, -f.facing);
+  for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
+  fatal(B, f, f.downedBy);
+}
+// The killing of a man is not left for the end of the fight, nor sprung on the eye: everything stops, the picture closes
+// on him and on whoever stands over him (B.kill, see the camera in drawBattle), and then it is done and shown.
+const KILL_ZOOM = 0.75;
+function kill(B, f, done) {
+  if (!B.cutins || f.g.beast || B.kill) { if (!done) slay(B, f); else fatal(B, f, f.downedBy); return; }
+  f.killing = true;
+  B.kill = { f, by: f.downedBy && f.downedBy !== f ? f.downedBy : null, t: 0, done: !!done };
+}
+// Out of it while his side fights on: he does not lie there unjudged until the last of them is down.
+function verdictNow(B, f) {
+  if (B.over || f.fate || f.killing || B.death) return;
+  if (!B.fighters.some(o => o !== f && o.team === f.team && !out(o))) return;      // the last of his side: that is the end of the fight, and its own moment
+  if (fateOf(B, f) === 'spared') spare(B, f); else kill(B, f);
+}
 function knockDown(B, d, a, how) {
   d.hp = 0; d.down = true; d.downedBy = a || d.downedBy; d.state = 'ready'; d.bleed = 0; B.lastDown = d;
   d.fallT = 0.35; snd(B, 'down', 1, d);
@@ -199,7 +238,8 @@ function knockDown(B, d, a, how) {
   fxDust(B, d.x, d.y, 8);
   for (let i = 0; i < 10; i++) B.stains.push({ x: d.x + rand(-7, 7), y: d.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
   feed(B, how || `${d.g.name} is struck down${a ? ' by ' + a.g.name : ''}`, d.team);
-  if (B.death) fatal(B, d, a || d.downedBy);          // in a bout to the death, down is dead
+  if (B.death) kill(B, d, true);          // in a bout to the death, down is dead
+  else verdictNow(B, d);
 }
 
 function tryYield(B, d, a) {
@@ -212,6 +252,7 @@ function tryYield(B, d, a) {
   B.exc += 0.08; snd(B, 'yield');
   fxText(B, d, 'yields', '#ffffff', true);
   feed(B, `${d.g.name} raises a finger and yields`, d.team);
+  verdictNow(B, d);
 }
 
 // ---------- the cloth ----------
@@ -230,6 +271,7 @@ function giveOrder(B, kind) {
   if (B.pick === f) B.pick = null;
   fxText(B, f, 'yields', '#ffffff', true); snd(B, 'yield');
   feed(B, `You throw in the cloth for ${f.g.name}`, 0);
+  verdictNow(B, f);
   return true;
 }
 
@@ -492,16 +534,11 @@ function stepFx(B, dt) {
 }
 
 function decideVerdicts(B) {
-  const avg = B.time > 0 ? B.excSum / B.time : 0;
   let i = 0;
   for (const f of B.fighters) {
-    if (!out(f)) continue;
+    if (!out(f) || f.fate) continue;             // whoever fell while it was still being fought has had his answer
     if (f.g.beast || (f.down && B.death)) { f.fate = 'dead'; continue; }
-    // in a hunt there is no appeal to the crowd: the handlers reach a fallen man in time, or they do not
-    // in the wild your own are better placed to reach a fallen friend than arena handlers are
-    const p = B.hunt ? clamp((B.wild && f.team === 0 ? 0.65 : 0.5) + B.mercy[f.team], 0, 0.9)
-      : clamp((f.yielded ? 0.88 : 0.72) + 0.25 * avg + B.mercy[f.team] + Math.min(0.1, f.dmgDealt / 300) + (f.g.traits.includes('blessed') ? 0.1 : 0), 0, 0.98);
-    f.fate = Math.random() < p ? 'spared' : 'dead';
+    f.fate = fateOf(B, f);
     f.revealAt = 1.2 + i * 0.9; i++;
   }
   B.outroEnd = 1.8 + i * 0.9 + (i ? 0.9 : 0);
@@ -514,19 +551,8 @@ function stepOutro(B, dt) {
   if (was < 0.55 && B.outro >= 0.55) { B.shake = 2.5; B.flashT = B.winner === 0 ? 0.12 : 0; snd(B, 'verdict', 1, null, B.winner === 0 ? 'won' : 'lost'); }      // the word of it lands
   for (const f of B.fighters) {
     f.flash = Math.max(0, f.flash - dt);
-    if (!f.revealAt || f.revealed || B.outro < f.revealAt) continue;
-    f.revealed = true;
-    if (f.fate === 'spared') {
-      fxText(B, f, B.wild ? 'LIVES' : B.hunt ? 'DRAGGED CLEAR' : 'MISSIO', '#ffffff', true); snd(B, 'spared', 1, f);
-      feed(B, B.wild ? `${f.g.name} is still breathing` : B.hunt ? `${f.g.name} is dragged clear by the handlers` : `The crowd spares ${f.g.name}`, f.team);
-    } else {
-      fxText(B, f, B.wild ? 'DEAD' : B.hunt ? 'MAULED' : 'IUGULA!', '#ff5a4a', true); snd(B, 'killed', 1, f); f.fallT = 0.3;
-      feed(B, B.wild ? `${f.g.name} does not get up` : B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
-      f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
-      fxBlood(B, f, 14, -f.facing);
-      for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
-      fatal(B, f, f.downedBy);
-    }
+    if (!f.revealAt || f.revealed || f.killing || B.outro < f.revealAt) continue;
+    if (f.fate === 'spared') spare(B, f); else { kill(B, f); if (B.kill) return; }
   }
 }
 
@@ -556,6 +582,12 @@ function stepIntro(B, dt) {
 }
 
 function stepBattle(B, dt) {
+  if (B.kill) {                               // the picture is closing on a man about to die: nothing moves until it has
+    B.kill.t += dt;
+    if (B.kill.t < KILL_ZOOM && B.cutins) { B.clock += dt; return; }
+    const k = B.kill; B.kill = null;
+    if (k.done) { k.f.killing = false; fatal(B, k.f, k.by); } else slay(B, k.f);
+  }
   if (B.fatal) {                              // a death is being shown: nothing else moves until it has been
     const was = B.fatal.t; B.fatal.t += dt;
     if (was < 0.55 && B.fatal.t >= 0.55) snd(B, 'fatal', 1, B.fatal.f, B.fatal.kind);
@@ -2126,8 +2158,9 @@ function drawBattle(ctx, B) {
   cam.t = now;
   const picking = B.pick && !out(B.pick) ? B.pick : null, finish = B.over && B.finish && B.outro < 0.55;
   let want = finish ? 1.5 : picking ? 1.18 : 1, slow = false;
-  const focus = finish ? B.finish : picking;
-  if (focus) { cam.tx = focus.x * 2; cam.ty = focus.y * 2 - 16; cam.lv = 1; }
+  const focus = finish ? B.finish : picking, kz = B.kill;
+  if (kz) { want = 1.7; cam.tx = (kz.by ? (kz.f.x + kz.by.x) / 2 : kz.f.x) * 2; cam.ty = (kz.by ? (kz.f.y + kz.by.y) / 2 : kz.f.y) * 2 - 16; cam.lv = 1; }      // the slain and the slayer, close, the moment before
+  else if (focus) { cam.tx = focus.x * 2; cam.ty = focus.y * 2 - 16; cam.lv = 1; }
   else if (!B.fixedCam && B.intro <= 0 && !B.over) {
     const live = B.fighters.filter(f => !out(f));
     if (live.length) {
@@ -2140,7 +2173,7 @@ function drawBattle(ctx, B) {
     }
   } else cam.lv = 1;
   if (cam.z === 1 && cam.tx != null) { cam.x = cam.tx; cam.y = cam.ty; }
-  const ck = 1 - Math.pow(slow ? 0.1 : 0.004, cdt);
+  const ck = 1 - Math.pow(kz ? 0.0006 : slow ? 0.1 : 0.004, cdt);
   cam.z += (want - cam.z) * ck; if (Math.abs(cam.z - want) < 0.004) cam.z = want;
   if (cam.tx != null) { cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; }
   const cz = cam.z + (B.fixedCam || finish ? 0 : Math.min(0.05, B.flashT * 0.45)), CW = 1280, CH = 720;      // and it starts forward at a heavy blow
