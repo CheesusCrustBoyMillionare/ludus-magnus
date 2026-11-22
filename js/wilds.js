@@ -109,10 +109,23 @@ function wildLand() {
     if (spots.some(s => Math.hypot(s.tx - tx, s.ty - ty) < 15)) continue;
     spots.push({ tx, ty }); sites.push({ tx, ty });
   }
-  return (wildLandCache = { t, reach, sites });
+  // glades: here and there, deep in a wood, a patch of open grass with the trees standing all round it. (They are
+  // cut after everything else is settled, so that no road, place or landmark moves on their account.)
+  const glades = [];
+  for (let ty = 5; ty < TH - 5; ty++) for (let tx = 5; tx < TW - 5; tx++) {
+    if (glades.some(g => Math.hypot(g.tx - tx, g.ty - ty) < 14) || wildHash(tx, ty, 771) > 0.35) continue;
+    let deep = true;
+    for (let dy = -3; dy <= 3 && deep; dy++) for (let dx = -3; dx <= 3; dx++) if (t[(ty + dy) * TW + tx + dx] !== T_FOREST) { deep = false; break; }
+    if (!deep || !reach[ty * TW + tx] || spots.some(sp => Math.hypot(sp.tx - tx, sp.ty - ty) < 6)) continue;
+    glades.push({ tx, ty });
+  }
+  for (const g of glades) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!(dx && dy) || wildHash(g.tx + dx, g.ty + dy, 772) > 0.5) t[(g.ty + dy) * TW + g.tx + dx] = T_MEADOW;
+  return (wildLandCache = { t, reach, sites, glades });
 }
 const wildTile = (x, y) => { const tx = Math.floor(x / 10), ty = Math.floor(y / 10); return tx < 0 || ty < 0 || tx >= WILD.TW || ty >= WILD.TH ? T_PEAK : wildLand().t[ty * WILD.TW + tx]; };
 const wildWalk = (x, y) => wildTile(x, y) < T_WATER;
+// Clearings in the woods: open grass with the trees close all round. (Where the rainbow comes down.)
+const wildClearings = () => wildLand().glades.map(g => ({ x: g.tx * 10 + 5, y: g.ty * 10 + 5 }));
 const wildPace = (x, y) => { const k = wildTile(x, y); return k === T_ROAD || k === T_BRIDGE ? 1.25 : k === T_FOREST || k === T_HILL ? 0.7 : k === T_MARSH ? 0.55 : 1; };
 // How dangerous the country is here: one skull by the town, five in the far corners.
 function wildTier(x, y) { const d = Math.hypot(x - WILD.TOWN.x, y - WILD.TOWN.y); return d < 330 ? 1 : d < 600 ? 2 : d < 900 ? 3 : d < 1250 ? 4 : 5; }
@@ -432,7 +445,10 @@ const WILD_WINS = {
     delete M.marks.bounty; G.bounty = null;
     return lines;
   },
-  pack(F) { const c = coinFor(8, F.tier), lines = [F.beasts ? `Pelts worth <b class="gold num">${c}</b> denarii.` : `Their purses hold <b class="gold num">${c}</b> denarii.`]; G.denarii += c; G.fame += F.tier; return lines; },
+  // men who stopped the column and lost by it: what they carried is yours. (Two things on the road name their fight
+  // this way; with no answer for it here, winning one stopped the game dead on the last screen of the fight.)
+  ambush(F) { return WILD_WINS.pack(F); },
+  pack(F) { const c = coinFor(8, F.tier || 1), lines = [F.beasts ? `Pelts worth <b class="gold num">${c}</b> denarii.` : `Their purses hold <b class="gold num">${c}</b> denarii.`]; G.denarii += c; G.fame += F.tier || 1; return lines; },
   slavers(F) {
     const g = byId(F.g); siteFinish('slavers');
     if (g && g.quest) raiseEvent('questVillage', { g: g.id, cost: journeyCost(g) });
@@ -506,7 +522,7 @@ function applyWildResult(B) {
   for (const f of mine) if (G.roster.includes(f.g) && checkRank(f.g)) { addStory(f.g, `Rose to the rank of ${RANKS[f.g.rank].name}.`); lines.push(`<span class="gold"><b>${f.g.name}</b> rises to the rank of ${RANKS[f.g.rank].name} and may learn a perk.</span>`); }
   if (win) {
     F.res = { time: B.time, down: mine.filter(f => f.fate).length, n: mine.length };      // how it went: some things are paid for by how well they were done
-    lines.push(...WILD_WINS[F.win](F));
+    lines.push(...(WILD_WINS[F.win] || WILD_WINS.pack)(F));      // a fight is never left without an ending, whatever it was called
     // a beaten outlaw who lived may be worth keeping
     const live = foes.find(f => f.fate === 'spared' && f.g.outlaw);
     if (live && F.win === 'camp' && G.roster.length < capacity()) raiseEvent('wCaptive', { g: live.g });

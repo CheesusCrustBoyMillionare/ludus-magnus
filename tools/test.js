@@ -1315,6 +1315,64 @@ test('the annals: deeds, records, the years, and those who left', () => game()(f
   assert(!badNumber(G), 'the annals left a bad number');
 }));
 
+test('the province: every fight that can be started has an ending when it is won', () => game()(function () {
+  newGame(); G.tally.wins = 1; assert(wildEnter(), 'out');
+  // every name a fight is started under, anywhere in the game, is one that victory knows what to do with
+  const names = new Set(); let src = '';
+  for (const id in EVENTS) for (const o of EVENTS[id].opts) src += o.run.toString() + ' ; ';
+  src.replace(new RegExp("wildFight\\((?:[^;]*?), '(\\w+)', \\{", 'g'), (m, w) => { names.add(w); return m; });
+  assert(names.size >= 12 && names.has('ambush') && names.has('errand') && names.has('journey'), 'the fights were found: ' + [...names]);
+  for (const w of names) assert(typeof WILD_WINS[w] === 'function', 'a fight is started as "' + w + '", and winning it has no ending');
+  // the two that froze: won, they pay like any other brush on the road
+  for (const title of ['The toll-men', 'The men who left the cart']) {
+    G.field.fight = null; wildFight(title, wildMen(2, 3), 'camp', 'ambush', { tier: 2 });
+    const F = G.field.fight, coin = G.denarii, fame = G.fame, lines = WILD_WINS[F.win](F);
+    assert(lines.length && !/undefined|NaN/.test(lines.join(' ')) && G.denarii > coin && G.fame === fame + 2 && !badNumber(G), title + ' is won, and pays');
+  }
+  // and a fight under a name nobody knows still ends
+  { G.field.fight = null; wildFight('Somebody', wildMen(1, 2), 'camp', 'nosuchthing', {});
+    G.fac.barracks = 3; while (G.roster.length < 6) G.roster.push(welcome(makeGladiator(40)));
+    G.roster.forEach(x => { STATS.forEach(k => { x.stats[k] = 20; }); x.hp = maxHp(x); });
+    let B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0.3, 0] }), guard = 0;
+    while (B.winner !== 0 && guard++ < 20) { G.roster.forEach(x => { x.hp = maxHp(x); x.injury = 0; }); B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0.3, 0] }); }
+    const r = applyWildResult(B); assert(r.win && !G.field.fight && !badNumber(G), 'it ends, and the school marches on'); }
+}));
+
+test('the province: clearings in the woods, where a rainbow can come down', () => game()(function () {
+  newGame();
+  const C = wildClearings(), L = wildLand();
+  assert(C.length >= 6, 'the woods have clearings: ' + C.length);
+  for (const c of C) {
+    const tx = Math.floor(c.x / 10), ty = Math.floor(c.y / 10), k = L.t[ty * WILD.TW + tx];
+    assert(k === T_MEADOW && L.reach[ty * WILD.TW + tx] && wildWalk(c.x, c.y), 'a clearing is open grass that can be reached');
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const q = L.t[(ty + dy) * WILD.TW + tx + dx]; assert(Math.max(Math.abs(dx), Math.abs(dy)) <= 1 ? q === T_MEADOW || q === T_FOREST : q === T_FOREST, 'and the wood stands all round it'); }
+    assert(C.every(o => o === c || Math.hypot(o.x - c.x, o.y - c.y) >= 140), 'no two are close together');
+  }
+  for (const s of wildSites()) assert(!C.some(c => Math.hypot(c.x - s.x, c.y - s.y) < 25), 'none is cut where a place stands: ' + s.name);
+  return C.length + ' clearings';
+}));
+test('the province: the rainbow stands still, and the one at the end of it runs for the trees', () => {
+  const src = read('js/province.js');
+  assert(src.includes('prov.bow || (prov.bow = bowPlace(camX, camY))') && src.includes('} else prov.bow = null;'), 'the bow is placed once when it shows, and forgotten when it has gone');
+  assert(!src.includes('const cx = camX + PROV.VW * 0.72, cy = camY'), 'the bow is no longer drawn from the corner of the view every frame');
+  // his wits, tried without a screen: he sits, he runs from a man who comes near, he runs when the bow fades, and he is gone
+  const ctx = { Math, console };
+  vm.createContext(ctx);
+  const from = src.indexOf('const LEP_SHY'), to = src.indexOf('function drawLeprechaun');
+  assert(from > 0 && to > from, 'his wits can be found');
+  vm.runInContext('const T_FOREST = 1; let G = { field: { x: 0, y: 0 } }; const wood = (x, y) => x > 130; const wildTile = (x, y) => wood(x, y) ? 1 : 0;\n' + src.slice(from, to) + '\nthis.lepStep = lepStep; this.setField = (x, y) => { G.field.x = x; G.field.y = y; }; this.LEP_SHY = LEP_SHY;', ctx);
+  const mk = () => ({ x: 100, y: 100, hx: 100, hy: 100, state: 'sit', t: 0, a: 1, last: 0 });
+  let lep = mk(); ctx.setField(100 - ctx.LEP_SHY - 20, 100);
+  for (let i = 0; i < 100; i++) ctx.lepStep(lep, 0.05, false);
+  assert(lep.state === 'sit' && lep.x === 100, 'left alone under a bright bow, he sits');
+  ctx.setField(100 - ctx.LEP_SHY + 5, 100); ctx.lepStep(lep, 0.05, false);
+  assert(lep.state === 'run' && lep.tx > 130, 'a man comes near: he is up, and it is the trees he makes for, away from the man');
+  let steps = 0; while (lep.state === 'run' && steps++ < 400) ctx.lepStep(lep, 0.05, false);
+  assert(lep.state === 'gone' && lep.x > 130 && steps < 200, 'and the wood takes him: ' + steps);
+  lep = mk(); ctx.setField(-900, -900); ctx.lepStep(lep, 0.05, true);
+  assert(lep.state === 'run', 'the bow fades: he goes whether anyone is near or not');
+});
+
 test('the province: bounties, foraging, scouting and regions made safe', () => game()(function () {
   newGame(); G.tally.wins = 1; G.day = 6; while (G.roster.length < 4) G.roster.push(makeGladiator(30));
   const base = wildSites().length;

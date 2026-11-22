@@ -2329,7 +2329,15 @@ function finishFight() {
   const standing = [`${mine.filter(x => !out(x)).length} of ${mine.length}`, mine.some(x => x.fate === 'dead') ? `${mine.filter(x => x.fate === 'dead').length} dead` : 'none lost', mine.some(x => x.fate === 'dead') ? 'bad' : ''];
   const then = lines => lines.length ? `<div class="resthen${lines.length > 4 ? ' pair' : ''}"><div class="lbl">What followed</div><ul>${lines.map(l => `<li>${l}</li>`).join('')}</ul></div>` : '';
   if (f.wild) {
-    const w = applyWildResult(B);
+    // Whatever goes wrong in the reckoning, the player is never left looking at the last frame of a fight with no way on.
+    let w;
+    try { w = applyWildResult(B); }
+    catch (err) {
+      console.error(err);
+      if (G.field) G.field.fight = null;
+      w = { win: B.winner === 0, lines: ['<span class="dim">Something went wrong in the reckoning of this fight, and what it should have brought was not counted. The school marches on.</span>'] };
+      try { save(); } catch (e2) { /* nothing more to be done */ }
+    }
     SFX.play(w.win ? 'victory' : 'defeat'); SFX.music(null);
     showModal(`<div class="res">${resultHead(B, w.win, w.win ? 'The field is yours' : 'Driven off', [
         ['Yours standing', standing[0], standing[1], standing[2]],

@@ -2217,6 +2217,74 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
   }
 }
 
+// ---- the rainbow, and who is at the end of it ----
+const BOW_R = PROV.VH * 0.78, BOW_A0 = Math.PI * 1.08, BOW_A1 = Math.PI * 1.92;
+// Where a bow that is just showing stands, for a view whose corner is here. By default it is in the quarter of the sky
+// away from the sun, as it was; but if a clearing in a wood is anywhere about, one foot of it comes down there.
+function bowPlace(camX, camY) {
+  const fx = Math.cos(BOW_A1) * BOW_R, fy = Math.sin(BOW_A1) * BOW_R;          // from its centre to its right foot
+  const midX = camX + PROV.VW / 2, midY = camY + PROV.VH / 2, F = G && G.field;
+  const near = (typeof wildClearings === 'function' ? wildClearings() : [])
+    .filter(c => Math.abs(c.x - midX) < PROV.VW * 0.9 && Math.abs(c.y - midY) < PROV.VH * 0.9 && (!F || Math.hypot(c.x - F.x, c.y - F.y) > LEP_SHY + 30))
+    .sort((a, b) => Math.hypot(a.x - midX, a.y - midY) - Math.hypot(b.x - midX, b.y - midY));
+  if (!near.length) return { cx: camX + PROV.VW * 0.72, cy: camY + PROV.VH * 0.95, lep: null };
+  const c = near[0], right = c.x >= midX;                                       // the foot nearer that side of the view lands on it
+  return { cx: c.x - (right ? fx : -fx), cy: c.y - fy, lep: { x: c.x, y: c.y, hx: c.x, hy: c.y, state: 'sit', t: 0, a: 1, last: 0 } };
+}
+// He sits by his pot until somebody comes near or the bow begins to go; then he is up, the pot under his arm, and into
+// the trees by the shortest way that is not toward you. Nobody has ever caught one.
+const LEP_SHY = 46, LEP_SPEED = 70;
+function lepStep(lep, dt, fading) {
+  const F = G && G.field;
+  if (lep.state === 'sit') {
+    if (fading || (F && Math.hypot(F.x - lep.x, F.y - lep.y) < LEP_SHY)) {
+      // the nearest trees, counting it against a way that it leads toward whoever is coming
+      let best = null, bs = 1e9;
+      for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+        const x = lep.x + dx * 10, y = lep.y + dy * 10;
+        if (wildTile(x, y) !== T_FOREST) continue;
+        const d = Math.hypot(dx, dy) * 10, toward = F ? Math.max(0, 60 - Math.hypot(x - F.x, y - F.y)) * 3 : 0, s = d + toward + (d < 18 ? 40 : 0);
+        if (s < bs) { bs = s; best = { x, y }; }
+      }
+      lep.tx = best ? best.x : lep.x + 60; lep.ty = best ? best.y : lep.y; lep.state = 'run'; lep.t = 0;
+    }
+    return;
+  }
+  if (lep.state !== 'run') return;
+  lep.t += dt;
+  if (lep.t < 0.25) return;                                // a moment to snatch up the pot
+  const dx = lep.tx - lep.x, dy = lep.ty - lep.y, d = Math.hypot(dx, dy), step = LEP_SPEED * dt;
+  if (d > step) { lep.x += dx / d * step; lep.y += dy / d * step; lep.face = dx < 0 ? -1 : 1; }
+  if (d <= step || wildTile(lep.x, lep.y) === T_FOREST) lep.a = Math.max(0, lep.a - dt * 3);      // the wood takes him, a little at a time
+  if (lep.a <= 0) lep.state = 'gone';
+}
+function drawLeprechaun(ctx, T, lep, fading, camX, camY) {
+  const dt = lep.last ? Math.min(0.1, Math.max(0, T - lep.last)) : 0; lep.last = T;
+  lepStep(lep, dt, fading);
+  if (lep.state === 'gone' || !wildSeen(lep.hx, lep.hy)) return;
+  if (lep.x < camX - 12 || lep.y < camY - 16 || lep.x > camX + PROV.VW + 12 || lep.y > camY + PROV.VH + 12) return;
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const run = lep.state === 'run' && lep.t >= 0.25, f = lep.face || 1, x = Math.round(lep.x), y = Math.round(lep.y);
+  const pot = (px, py) => {                                // black iron, three stub legs, and more gold than it should hold
+    R(px - 3, py - 4, 7, 4, '#1c1a1c'); R(px - 4, py - 5, 9, 1, '#2e2a2e'); R(px - 3, py, 1, 1, '#1c1a1c'); R(px + 3, py, 1, 1, '#1c1a1c'); R(px - 3, py - 4, 1, 3, '#3a363a');
+    R(px - 3, py - 6, 7, 1, '#e8b545'); R(px - 2, py - 7, 5, 1, '#f5d584'); R(px, py - 8, 2, 1, '#e8b545');
+    if (Math.sin(T * 5 + px) > 0.6) R(px - 1 + Math.round(Math.sin(T * 3) * 2), py - 8, 1, 1, '#fffbe0');      // a glint off it
+  };
+  ctx.globalAlpha = lep.a;
+  if (!run) { R(x - 5, y + 1, 13, 1, 'rgba(0,0,0,.2)'); pot(x + 6, y); }
+  else R(x - 3, y + 1, 7, 1, 'rgba(0,0,0,.2)');
+  const bob = run ? (Math.sin(T * 22) > 0 ? 1 : 0) : 0, by = y - bob;
+  // legs: striding when he runs
+  if (run) { const s = Math.sin(T * 22) > 0 ? 1 : -1; R(x - 1 + s, by - 2, 1, 2, '#2a4a22'); R(x + 1 - s, by - 2, 1, 2, '#2a4a22'); R(x - 1 + s * 2, by, 1, 1, '#1c1310'); R(x + 1 - s * 2, by, 1, 1, '#1c1310'); }
+  else { R(x - 1, by - 2, 1, 2, '#2a4a22'); R(x + 1, by - 2, 1, 2, '#2a4a22'); R(x - 2, by, 2, 1, '#1c1310'); R(x + 1, by, 2, 1, '#1c1310'); }
+  R(x - 2, by - 6, 5, 4, '#3f8f3a'); R(x - 2, by - 6, 1, 4, '#2f6f2c'); R(x - 2, by - 3, 5, 1, '#1c1310'); R(x, by - 3, 1, 1, '#e8b545');      // the green coat, its belt and buckle
+  R(x - 1, by - 9, 3, 3, '#e3b48f'); R(x - 1, by - 7, 3, 2, '#c8551e'); R(x + (f > 0 ? 1 : -1), by - 8, 1, 1, '#1c1310');                          // face, and the red beard
+  R(x - 3, by - 10, 7, 1, '#2f6f2c'); R(x - 2, by - 13, 5, 3, '#3f8f3a'); R(x - 2, by - 11, 5, 1, '#1c1310'); R(x, by - 11, 1, 1, '#e8b545');     // the hat
+  if (run) pot(x + f * 5, by - 3);                                                                                                                // the pot goes with him
+  else if (Math.sin(T * 0.7) > 0.4) R(x + 3, by - 5, 2, 1, '#e3b48f');                                                                              // counting it, now and then
+  ctx.globalAlpha = 1;
+}
+
 // What passes overhead. The shadows of clouds cross the whole province on the wind, each cloud its own shape, more
 // of them and darker when the sky is heavy. When rain stops there is a rainbow for a while; in heavy rain, lightning.
 function drawSky(ctx, T, camX, camY, sky, wx) {
@@ -2233,10 +2301,16 @@ function drawSky(ctx, T, camX, camY, sky, wx) {
       }
     }
   }
-  if (wx.wet > 0.15 && wx.rain < 0.25 && sky.night < 0.2) {          // the bow, in the quarter of the sky away from the sun
-    const cx = camX + PROV.VW * 0.72, cy = camY + PROV.VH * 0.95, a0 = Math.min(0.3, wx.wet * 0.3), bands = ['220,60,50', '236,150,50', '240,220,80', '90,180,90', '70,130,210', '130,90,190'];
-    bands.forEach((c, bi) => { ctx.fillStyle = `rgba(${c},${a0.toFixed(3)})`; const r = PROV.VH * 0.78 - bi * 2; for (let an = Math.PI * 1.08; an < Math.PI * 1.92; an += 0.012) ctx.fillRect(Math.round(cx + Math.cos(an) * r), Math.round(cy + Math.sin(an) * r), 2, 2); });
-  }
+  // The bow. It stands over one piece of country from the moment it shows until it has faded: the school can march
+  // toward it, under it and past it. If there is a clearing in a wood near by, that is where it comes down, and
+  // somebody is sitting there with what is always said to be at the end of one.
+  if (wx.wet > 0.15 && wx.rain < 0.25 && sky.night < 0.2) {
+    const bow = prov.bow || (prov.bow = bowPlace(camX, camY));
+    const a0 = Math.min(0.3, wx.wet * 0.3), bands = ['220,60,50', '236,150,50', '240,220,80', '90,180,90', '70,130,210', '130,90,190'];
+    if (bow.cx + BOW_R + 4 > camX && bow.cx - BOW_R - 4 < camX + PROV.VW && bow.cy - BOW_R - 4 < camY + PROV.VH && bow.cy > camY - 4)
+      bands.forEach((c, bi) => { ctx.fillStyle = `rgba(${c},${a0.toFixed(3)})`; const r = BOW_R - bi * 2; for (let an = BOW_A0; an < BOW_A1; an += 0.012) ctx.fillRect(Math.round(bow.cx + Math.cos(an) * r), Math.round(bow.cy + Math.sin(an) * r), 2, 2); });
+    if (bow.lep) drawLeprechaun(ctx, T, bow.lep, wx.wet < 0.3, camX, camY);      // the bow is going: so is he
+  } else prov.bow = null;
   if (wx.rain > 0.7) {                                               // lightning: the whole country white for an instant, and the stroke itself
     const tick = Math.floor(T * 8), hit = wildHash(tick, 3, 1310) > 0.975, after = wildHash(tick - 1, 3, 1310) > 0.975;
     if (hit || after) { ctx.fillStyle = `rgba(236,240,255,${hit ? 0.22 : 0.08})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
