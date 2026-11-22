@@ -245,6 +245,14 @@ function provLand() {
   // ---- each part of the country has its own look ----
   const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3;
   prov.boats = [];
+  // flocks and herds: each has a home with room to wander, and is drawn live, moving (see drawHerds)
+  prov.herds = [];
+  const roomFor = (tx, ty, kinds, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (!kinds.includes(at(tx + dx, ty + dy))) return false; return true; };
+  const herd = (kind, tx, ty, n, kinds, far, room) => {
+    const x = tx * 10 + 5, y = ty * 10 + 5;
+    if (!roomFor(tx, ty, kinds, room || 3) || Math.hypot(tx - tx0, ty - ty0) < 12 || prov.herds.some(q => Math.hypot(q.x - x, q.y - y) < far)) return;
+    prov.herds.push({ kind, x, y, n, seed: tx * 977 + ty * 131 });
+  };
   for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 90), b = h(tx, ty, 91), reg = wildRegion(x + 5, y + 5);
     const sh = (sx, sy, sw) => R(sx, sy, sw, 1, 'rgba(0,0,0,.2)');
@@ -294,12 +302,8 @@ function provLand() {
       else if (a > 0.81) { R(x + 1, y + 2, 1, 7, '#6b4f2c'); R(x + 8, y + 2, 1, 7, '#6b4f2c'); for (let q = 0; q < 4; q++) R(x + 2, y + 3 + q, 6, 1, q % 2 ? '#a39a84' : 'rgba(163,154,132,.5)'); }      // a net between two poles
     } else if (reg === 'The Long Meadows' && (k === T_MEADOW || k === T_GRASS) && !farmland(tx, ty)) {
       if (a > 0.972) { const w = 4 + Math.floor(b * 3), hh = 3 + Math.floor(v1 * 3), hx = x + 2; sh(hx - 1, y + 8, w + 2); R(hx, y + 8 - hh, w, hh, '#d9c070'); R(hx + 1, y + 7 - hh, w - 2, 1, '#e6d088'); R(hx, y + 7, w, 1, '#b89a4a'); if (v2 > 0.6) R(hx + (w >> 1), y + 5 - hh, 1, 3, '#6b4f2c'); }      // a haycock, some round a pole
-      else if (a > 0.94) {                     // a flock: one sheep or five, a black one among them, some lying down
-        for (let q = 0, n = 1 + Math.floor(v1 * 5); q < n; q++) { const sx = x + Math.floor(h(tx, ty, 465 + q) * 8), sy = y + 1 + Math.floor(h(tx, ty, 470 + q) * 7), black = h(tx, ty, 475 + q) > 0.88, lying = h(tx, ty, 480 + q) > 0.7, left = h(tx, ty, 485 + q) > 0.5;
-          R(sx, sy, 3, 2, black ? '#3a322c' : '#f1ead8'); R(left ? sx - 1 : sx + 3, sy, 1, 1, '#2a1c14'); if (!lying) { R(sx, sy + 2, 1, 1, '#2a1c14'); R(sx + 2, sy + 2, 1, 1, '#2a1c14'); } }
-        if (v2 > 0.9) { R(x + 8, y + 2, 2, 4, '#8a6a4a'); R(x + 8, y + 1, 2, 1, '#d9a57c'); R(x + 10, y, 1, 6, '#6b4f2c'); }      // and now and then the shepherd
-      }
-      else if (a > 0.925) for (let q = 0, n = 1 + Math.floor(v1 * 2); q < n; q++) { const cx = x + Math.floor(h(tx, ty, 490 + q) * 5), cy = y + 2 + q * 4, c = h(tx, ty, 492 + q) > 0.5 ? '#8a5a32' : '#e8e2d2'; R(cx, cy, 5, 3, c); R(cx + 1, cy, 2, 1, c === '#8a5a32' ? '#e8e2d2' : '#3a2a1c'); R(cx + 5, cy, 2, 2, c); R(cx, cy + 3, 1, 1, '#2a1c14'); R(cx + 4, cy + 3, 1, 1, '#2a1c14'); }      // cattle
+      else if (a > 0.94) herd('sheep', tx, ty, 3 + Math.floor(v1 * 5), [T_GRASS, T_MEADOW], 70);                       // a flock of sheep makes its home here
+      else if (a > 0.925) herd('cattle', tx, ty, 2 + Math.floor(v1 * 3), [T_GRASS, T_MEADOW], 90);                     // or a few head of cattle
     } else if (reg === 'The High Fells' && k === T_HILL) {
       if (a > 0.9) { for (let q = 0, n = 2 + Math.floor(v1 * 2); q < n; q++) { const sw = 3 + Math.floor(h(tx, ty, 494 + q) * 5), sx = x + Math.floor(h(tx, ty, 497 + q) * (10 - sw)), sy = y + 2 + q * 2; R(sx, sy, sw, 2, '#f2efe6'); R(sx + 1, sy + 2, Math.max(1, sw - 2), 1, '#d8d4c8'); } }       // snow lying in the hollows
       else if (a > 0.84) { const bw = 3 + Math.floor(b * 4), bh = 2 + Math.floor(v1 * 3), bx = x + 1 + Math.floor(v2 * (8 - bw)); sh(bx, y + 8, bw + 1); R(bx, y + 8 - bh, bw, bh, '#8a8478'); R(bx + 1, y + 7 - bh, Math.max(1, bw - 2), 1, '#a39c88'); R(bx, y + 8 - bh, Math.max(1, bw >> 1), 1, '#bdb8ac'); if (v3 > 0.7) R(bx + 1, y + 6 - bh, 2, 1, '#6f8a5a'); }      // a boulder, some with moss
@@ -320,6 +324,9 @@ function provLand() {
         }
       }
     }
+    if (reg === 'The Home Fields' && k === T_GRASS && !farmland(tx, ty) && a > 0.985) herd('sheep', tx, ty, 3 + Math.floor(v1 * 3), [T_GRASS, T_MEADOW], 110);
+    else if ((reg === 'The High Fells' || reg === 'The Quarry Hills') && k === T_HILL && a < 0.012) herd('goats', tx, ty, 2 + Math.floor(v1 * 4), [T_HILL, T_GRASS], 110);
+    else if ((reg === 'Greywood' || reg === 'The Barrow Downs' || reg === 'The Long Meadows') && (k === T_GRASS || k === T_MEADOW) && a < 0.05 && [3, 4].some(q => at(tx - q, ty) === T_FOREST || at(tx + q, ty) === T_FOREST || at(tx, ty - q) === T_FOREST || at(tx, ty + q) === T_FOREST)) herd('deer', tx, ty, 2 + Math.floor(v1 * 3), [T_GRASS, T_MEADOW], 150, 2);
     // poplars along the roads near the town: a tall one, a short one, sometimes two together
     if (k === T_GRASS && !farmland(tx, ty) && b > 0.86 && Math.hypot(tx - tx0, ty - ty0) < 30 && (at(tx, ty + 1) === T_ROAD || at(tx, ty - 1) === T_ROAD || at(tx + 1, ty) === T_ROAD || at(tx - 1, ty) === T_ROAD)) {
       const poplar = (px, hh, c1, c2) => { sh(px - 1, y + 9, 5); R(px, y + 6, 1, 3, '#4a3320'); for (let q = 0; q < hh; q++) { const w2 = q < 2 || q > hh - 3 ? 1 : 2; R(px - (w2 >> 1), y + 6 - hh + q, w2 + 1, 1, q % 3 ? c1 : c2); } };
@@ -575,6 +582,14 @@ function provLand() {
     R(x + 28, y - 19, 3, 2, '#c9c2ae'); R(x + 30, y + 6, 4, 3, '#c9c2ae'); R(x + 40, y + 8, 3, 2, '#b5ad9c'); R(x + 2, y - 21, 3, 1, '#6f9a48'); R(x + 20, y - 21, 4, 1, '#6f9a48'); R(x + 13, y - 6, 2, 4, '#6f9a48');
   });
   prov.marks = marks;
+  prov.birds = [];
+  for (const m of marks) {
+    if (m.name === 'An old battlefield' || m.name === 'The gallows') prov.birds.push({ x: m.x + m.r, y: m.y - 14, kind: 'crow', n: 3, r: 16 });
+    else if (m.name === 'The eagle rock') prov.birds.push({ x: m.x + 8, y: m.y - 30, kind: 'eagle', n: 1, r: 34 });
+    else if (m.name === 'The beacon' || m.name === 'A wreck on the strand' || m.name === 'The fishers\' huts') prov.birds.push({ x: m.x + m.r, y: m.y - 18, kind: 'gull', n: 3, r: 20 });
+    else if (m.name === 'The drowned temple' || m.name === 'The bog oak') prov.birds.push({ x: m.x + m.r, y: m.y - 16, kind: 'crow', n: 2, r: 12 });
+  }
+  prov.boats.slice(0, 5).forEach(([bx, by]) => prov.birds.push({ x: bx, y: by - 16, kind: 'gull', n: 2, r: 14 }));
   const nearMark = (cx, cy) => marks.some(m => cx > m.x - 6 && cx < m.x + m.r * 2 + 4 && cy > m.y - m.r * 1.6 && cy < m.y + 16);
 
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
@@ -643,6 +658,74 @@ function provLand() {
   for (const ft of feats) ft.d();
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) if (at(tx, ty) === T_FOREST && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood') R(tx * 10, ty * 10 - 4, 10, 12, 'rgba(128,132,136,.16)');      // an old wood, gone grey
   return (prov.land = cv);
+}
+
+// ---------- flocks, herds and birds: alive on the map ----------
+// A herd wanders round its home, slowly, by a path that is the same for everyone and for every time it is looked at:
+// where it stands is worked out from the clock, not remembered. Sheep graze and drift, with a shepherd and his dog
+// to some of them; cattle hardly move; goats keep to the hills; deer run from the column.
+function drawHerds(ctx, T, R, inView) {
+  const F = G.field;
+  for (const H of (prov.herds || [])) {
+    if (!inView(H.x, H.y, 60) || !wildSeen(H.x, H.y)) continue;
+    const hv = n => wildHash(H.seed, n, 670), K = H.kind, roam = K === 'cattle' ? 12 : K === 'deer' ? 22 : 28, pace = K === 'cattle' ? 0.8 : K === 'goats' ? 2.4 : K === 'deer' ? 1.6 : 2.4;
+    const w1 = (0.035 + hv(1) * 0.02) * pace, w2 = (0.061 + hv(2) * 0.03) * pace, p1 = hv(3) * 9, p2 = hv(4) * 9;
+    let cx = H.x + roam * (Math.sin(T * w1 + p1) * 0.65 + Math.sin(T * w2 + p2) * 0.35), cy = H.y + roam * 0.7 * (Math.cos(T * w1 * 0.9 + p2) * 0.65 + Math.cos(T * w2 * 1.1 + p1) * 0.35);
+    const vx = roam * (Math.cos(T * w1 + p1) * 0.65 * w1 + Math.cos(T * w2 + p2) * 0.35 * w2);      // which way the herd as a whole is drifting
+    let bolt = 0;
+    if (K === 'deer' && F) { const d = Math.hypot(F.x - cx, F.y - cy); if (d < 70) { bolt = (70 - d) / 70; cx += (cx - F.x) / (d || 1) * bolt * 46; cy += (cy - F.y) / (d || 1) * bolt * 46; } }
+    const beasts = [];
+    for (let i = 0; i < H.n; i++) {
+      const b1 = hv(10 + i), b2 = hv(30 + i), b3 = hv(50 + i), spread = K === 'cattle' ? 12 : 9;
+      const x = cx + (b1 - 0.5) * 2 * spread + Math.sin(T * (0.22 + b3 * 0.16) + b1 * 20) * 5, y = cy + (b2 - 0.5) * 2 * spread * 0.7 + Math.cos(T * (0.19 + b1 * 0.14) + b2 * 20) * 3.5;
+      const own = Math.cos(T * (0.22 + b3 * 0.16) + b1 * 20), moving = bolt > 0.1 || Math.abs(vx) > 1.1 || Math.abs(own) > 0.6;
+      const right = bolt > 0.1 ? (F ? cx > F.x : true) : Math.abs(vx) > 1.1 ? vx > 0 : own > 0;
+      const graze = !moving && Math.sin(T * 0.45 + b2 * 30) > 0.1, step = moving && Math.sin(T * 9 + i * 2) > 0 ? 1 : 0;
+      beasts.push({ x: Math.round(x), y: Math.round(y), right, graze, step, moving, b1, b2, b3, i });
+    }
+    beasts.sort((p, q) => p.y - q.y);
+    for (const B of beasts) {
+      const { x, y, right, graze, step, moving } = B, d = right ? 1 : -1;
+      if (K === 'sheep') {
+        const black = B.b3 > 0.88, lamb = B.b3 < 0.16, wool = black ? '#3a322c' : B.b1 > 0.5 ? '#f1ead8' : '#e6dcc4', w = lamb ? 3 : 5, hh = lamb ? 2 : 3, lying = !moving && B.b2 > 0.82;
+        R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - hh, w, hh, wool); R(x - (w >> 1) + 1, y - hh - 1, w - 2, 1, wool);
+        R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - hh + (graze ? 2 : 0), 2, 2, black ? '#1c1614' : '#2a1c14');
+        if (!lying) { R(x - (w >> 1) + (step && !lamb ? 1 : 0), y, 1, 1, '#2a1c14'); R(x + (w >> 1) - (step ? 1 : 0), y, 1, 1, '#2a1c14'); }
+      } else if (K === 'cattle') {
+        const c = B.b1 > 0.6 ? '#8a5a32' : B.b1 > 0.3 ? '#e8e2d2' : '#3a2a22', patch = c === '#e8e2d2' ? '#3a2a22' : '#e8e2d2';
+        R(x - 4, y + 1, 9, 1, 'rgba(0,0,0,.22)'); R(x - 4, y - 5, 8, 4, c); R(x - 2 + (B.b2 > 0.5 ? 2 : 0), y - 5, 2, 2, patch); R(x - 3, y - 2, 2, 1, patch);
+        R(right ? x + 4 : x - 6, y - 5 + (graze ? 2 : 0), 2, 3, c); R(right ? x + 4 : x - 6, y - 6 + (graze ? 2 : 0), 1, 1, '#e8e2d2'); R(right ? x + 5 : x - 5, y - 6 + (graze ? 2 : 0), 1, 1, '#e8e2d2');
+        R(x - 3 + step, y - 1, 1, 2, '#2a1c14'); R(x + 2 - step, y - 1, 1, 2, '#2a1c14'); R(right ? x - 5 : x + 4, y - 4, 1, 3, shade(c, 0.8));
+      } else if (K === 'goats') {
+        const c = B.b1 > 0.5 ? '#c9c2ae' : B.b1 > 0.25 ? '#8a7a66' : '#e8e2d2', hop = moving && Math.sin(T * 6 + B.i) > 0.6 ? 1 : 0;
+        R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 3 - hop, 4, 2, c); R(right ? x + 2 : x - 3, y - 4 - hop + (graze ? 1 : 0), 2, 2, c); R(right ? x + 2 : x - 2, y - 5 - hop + (graze ? 1 : 0), 1, 1, '#5a4a3a'); R(right ? x + 3 : x - 4, y - 3 - hop + (graze ? 1 : 0), 1, 1, c);
+        R(x - 2 + step, y - 1 - hop, 1, 2, '#3a2a22'); R(x + 1 - step, y - 1 - hop, 1, 2, '#3a2a22');
+      } else {                                   // deer
+        const stag = B.i === 0, c = B.b1 > 0.5 ? '#a8764a' : '#96683e', up = !graze || bolt > 0.1, leap = bolt > 0.1 && Math.sin(T * 10 + B.i) > 0 ? 2 : 0;
+        R(x - 3, y + 1, 7, 1, 'rgba(0,0,0,.2)'); R(x - 3, y - 5 - leap, 6, 3, c); R(right ? x - 4 : x + 3, y - 5 - leap, 1, 2, '#f1ead8');
+        R(right ? x + 3 : x - 4, y - (up ? 8 : 4) - leap, 1, up ? 3 : 2, c); R(right ? x + 3 : x - 5, y - (up ? 9 : 3) - leap, 2, 2, c);
+        if (stag && up) { R(right ? x + 3 : x - 5, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 5 : x - 3, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 2 : x - 6, y - 11 - leap, 1, 1, '#d8c9a2'); R(right ? x + 6 : x - 2, y - 11 - leap, 1, 1, '#d8c9a2'); }
+        R(x - 2 + step, y - 2 - leap, 1, 3, '#5a3f26'); R(x + 1 - step, y - 2 - leap, 1, 3, '#5a3f26');
+      }
+    }
+    // the shepherd and his dog, with the larger flocks
+    if (K === 'sheep' && hv(5) > 0.45 && H.n >= 4) {
+      const sx = Math.round(cx - (vx >= 0 ? 16 : -16)), sy = Math.round(cy + 6), mv = Math.abs(vx) > 0.9;
+      vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', walk: T * 6, moving: mv, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14' });
+      R(sx + (vx >= 0 ? 5 : -5), sy - 16, 1, 16, '#6b4f2c'); R(sx + (vx >= 0 ? 5 : -6), sy - 17, 2, 1, '#6b4f2c');      // his crook
+      if (hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
+    }
+  }
+  // birds on the wing over the places that draw them
+  for (const Bd of (prov.birds || [])) {
+    if (!inView(Bd.x, Bd.y, 60) || !wildSeen(Bd.x, Bd.y)) continue;
+    for (let i = 0; i < Bd.n; i++) {
+      const sp = Bd.kind === 'eagle' ? 0.25 : Bd.kind === 'gull' ? 0.6 : 0.8, an = T * sp * (i % 2 ? -1 : 1) + i * 2.1 + Bd.x, r = Bd.r * (0.7 + (i % 3) * 0.2);
+      const x = Math.round(Bd.x + Math.cos(an) * r), y = Math.round(Bd.y + Math.sin(an) * r * 0.5), flap = Math.sin(T * (Bd.kind === 'eagle' ? 2 : 7) + i) > 0 ? 1 : 0, c = Bd.kind === 'gull' ? '#f4f4f0' : Bd.kind === 'eagle' ? '#4a3a2a' : '#1c1614', w = Bd.kind === 'eagle' ? 4 : 2;
+      R(x - w, y - flap, w, 1, c); R(x + 1, y - flap, w, 1, c); R(x, y, 1, 1, c); if (Bd.kind === 'eagle') { R(x - w - 1, y - flap - 1, 1, 1, c); R(x + w + 1, y - flap - 1, 1, 1, c); R(x, y - 1, 1, 1, '#e8e2d2'); }
+      R(x - 1, y + 14, 3, 1, 'rgba(0,0,0,.12)');
+    }
+  }
 }
 
 // ---------- the column on the move ----------
@@ -917,13 +1000,18 @@ function drawProvince(cv, T) {
   const inView = (x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
   const M = wildMap();
 
-  // boats off the Salt Shore, riding the swell
-  for (const [bx, by0] of (prov.boats || [])) {
-    if (!inView(bx, by0, 20) || !wildSeen(bx, by0)) continue;
-    const by = by0 + Math.round(Math.sin(T * 1.6 + bx) * 1), tilt = Math.sin(T * 1.6 + bx) > 0 ? 1 : 0;
-    R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); R(bx - 5, by - 2, 10, 3, '#6b4f2c'); R(bx - 4, by + 1, 8, 1, '#4a3620'); R(bx - 5, by - 2, 10, 1, '#8a6a3a');
-    R(bx, by - 10, 1, 8, '#3a2a1c'); R(bx + 1, by - 9 + tilt, 5, 6, '#e8dcc0'); R(bx + 1, by - 9 + tilt, 5, 1, '#f8f0dc'); R(bx + 5, by - 7 + tilt, 1, 3, '#c9bfa6');
+  // boats off the Salt Shore, riding the swell: each its own hull and sail, some under oars, one or two with a net out
+  for (const [bx0, by0] of (prov.boats || [])) {
+    if (!inView(bx0, by0, 30) || !wildSeen(bx0, by0)) continue;
+    const sd = wildHash(bx0, by0, 660), s2 = wildHash(by0, bx0, 661), bx = bx0 + Math.round(Math.sin(T * 0.07 + sd * 9) * 5), by = by0 + Math.round(Math.sin(T * 1.6 + bx0) * 1), tilt = Math.sin(T * 1.6 + bx0) > 0 ? 1 : 0;
+    const hull = ['#6b4f2c', '#5a3a2a', '#4a5a6a', '#7a6a4a'][Math.floor(sd * 4)], len = 8 + Math.floor(s2 * 5), half = len >> 1;
+    R(bx - half, by + 1, len + 1, 1, 'rgba(20,40,60,.3)'); R(bx - half, by - 2, len, 3, hull); R(bx - half + 1, by + 1, len - 2, 1, shade(hull, 0.7)); R(bx - half, by - 2, len, 1, shade(hull, 1.25)); R(bx + half, by - 3, 1, 2, hull);
+    R(bx - 2, by - 4, 2, 2, '#d9a57c'); R(bx - 2, by - 3, 2, 2, ['#8a4a3a', '#4a6a8a', '#7a7a3a'][Math.floor(s2 * 3)]);      // the man in it
+    if (sd > 0.3) { const sail = ['#e8dcc0', '#b85a48', '#d8b860', '#e8dcc0'][Math.floor(s2 * 4)]; R(bx, by - 10, 1, 8, '#3a2a1c'); R(bx + 1, by - 9 + tilt, 5, 6, sail); R(bx + 1, by - 9 + tilt, 5, 1, shade(sail, 1.2)); R(bx + 5, by - 7 + tilt, 1, 3, shade(sail, 0.8)); if (s2 > 0.6) R(bx + 2, by - 6 + tilt, 3, 1, shade(sail, 0.75)); }
+    else { const pull = Math.sin(T * 2.2 + sd * 6) > 0 ? 1 : 0; R(bx - 4 - pull, by, 3, 1, '#c9b890'); R(bx + 2 + pull, by, 3, 1, '#c9b890'); }      // under oars
+    if (s2 < 0.3) for (let q = 0; q < 4; q++) R(bx - half - 2 - q * 2, by + 1 + (q % 2), 1, 1, '#d8d2c0');                                              // the floats of a net astern
   }
+  drawHerds(ctx, T, R, inView);
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
     const wx2 = camX + ((i * 71 + T * 26) % (PROV.VW + 40)) - 20, wy2 = camY + (i * 47 + Math.floor(T * 0.5 + i) * 13) % PROV.VH, kk = wildTile(wx2, wy2);
