@@ -1077,6 +1077,44 @@ function provLand() {
       } },
   };
 
+  // ---- the ones that were still slight for what they are, made greater: more of the same thing behind and about
+  // the first of it, so that a crag is a crag and a ring of stones a ring you could lose a cart in ----
+  const lmRock = (cx, top, base, w0, grow, lit, dark, mid, sd) => { for (let i = 0; i < base - top; i++) { const w = Math.max(1, Math.round(w0 + i * grow + (lmV(i, sd) - 0.5) * 3)), sh = Math.round((lmV(i >> 2, sd + 1) - 0.5) * 2); R(cx - w + sh, top + i, w, 1, i % 6 === 5 ? mid : lit); R(cx + sh, top + i, w + 1, 1, i % 5 === 3 ? tint(dark, 0.86) : dark); if (lmV(i, sd + 2) > 0.7) R(cx - w + sh + 1, top + i, 2, 1, tint(lit, 1.12)); } };
+  const GREATER = {
+    'The eagle rock': {
+      u: (x, y) => { R(x - 14, y + 10, 46, 2, 'rgba(0,0,0,.2)'); lmRock(x + 16, y - 16, y + 11, 3, 0.42, '#a2aab4', '#646c78', '#8a929c', 70); lmRock(x - 5, y - 6, y + 11, 2, 0.5, '#a2aab4', '#646c78', '#8a929c', 73); lmRock(x + 8, y - 12, y + 11, 6, 0.4, '#98a0aa', '#5a626e', '#8a929c', 76); },      // the whole outcrop the pinnacle stands on
+      o: (x, y) => { for (const [gx, gy, gw] of [[-8, 0, 4], [18, -9, 5], [10, 5, 4], [22, 3, 3]]) { R(x + gx, y + gy, gw, 1, '#7c9462'); R(x + gx + 1, y + gy - 1, gw - 2, 1, '#96ae78'); } R(x + 19, y - 15, 4, 1, '#f4f6fa'); R(x - 6, y - 5, 3, 1, '#f4f6fa'); R(x - 10, y + 9, 6, 2, '#7d8692'); R(x - 10, y + 9, 6, 1, '#a2aab4'); R(x + 26, y + 8, 5, 3, '#7d8692'); R(x + 26, y + 8, 5, 1, '#a2aab4'); },      // turf on its ledges, a little snow, and what has fallen from it
+    },
+    'The ring of stones': {
+      u: (x, y) => { const cx = x + 16, cy = y + 3; lmSoft(cx, cy + 1, 26, 12, 'rgba(90,120,60,.18)', 79);
+        for (let q = 0; q < 14; q++) { const an = q / 14 * Math.PI * 2 + 0.1; if (Math.sin(an) >= 0.15) continue; const sx = Math.round(cx + Math.cos(an) * 24), sy = Math.round(cy + Math.sin(an) * 11), hh = 10 + (q * 5) % 4; R(sx - 2, sy + 1, 6, 1, 'rgba(0,0,0,.25)'); R(sx - 2, sy - hh, 4, hh + 1, '#a8a290'); R(sx - 2, sy - hh, 1, hh + 1, '#c9c3ae'); R(sx + 1, sy - hh + 1, 1, hh, '#8a8474'); if (q % 3 === 0) R(sx - 2, sy - hh, 3, 1, '#8aa04a'); }
+        const a1 = 10 / 14 * Math.PI * 2 + 0.1, a2 = 11 / 14 * Math.PI * 2 + 0.1; R(Math.round(cx + Math.cos(a1) * 24) - 3, Math.round(cy + Math.sin(a1) * 11) - 15, Math.round(Math.cos(a2) * 24 - Math.cos(a1) * 24) + 6, 3, '#b8b2a0'); R(Math.round(cx + Math.cos(a1) * 24) - 3, Math.round(cy + Math.sin(a1) * 11) - 15, Math.round(Math.cos(a2) * 24 - Math.cos(a1) * 24) + 6, 1, '#d8d2c0'); },      // an outer ring of greater stones, the far half of it, and one lintel still up
+      o: (x, y) => { const cx = x + 16, cy = y + 3; for (let q = 0; q < 14; q++) { const an = q / 14 * Math.PI * 2 + 0.1; if (Math.sin(an) < 0.15) continue; if (q === 2) continue; const sx = Math.round(cx + Math.cos(an) * 24), sy = Math.round(cy + Math.sin(an) * 11), hh = 9 + (q * 5) % 4; for (let i = 0; i < 5; i++) R(sx + 2 + i, sy + 1 + Math.round(i * 0.4), 3, 1, 'rgba(0,0,0,.10)'); R(sx - 2, sy - hh, 4, hh + 1, '#b0aa98'); R(sx - 2, sy - hh, 1, hh + 1, '#d0cab6'); R(sx + 1, sy - hh + 1, 1, hh, '#8a8474'); R(sx - 1, sy - hh + 3, 1, 2, '#8f8876'); if (q % 2) R(sx - 2, sy - hh, 2, 1, '#8aa04a'); } },      // and the near half, in front of everything
+    },
+    'The barrow of kings': {
+      u: (x, y) => { R(x - 12, y + 9, 72, 3, 'rgba(0,0,0,.18)'); for (let dy = -24; dy <= 0; dy++) { const w = Math.round(34 * Math.sqrt(1 - (dy * dy) / 590)); R(x + 24 - w, y + 9 + dy, w * 2, 1, dy % 4 === 0 ? '#648a40' : '#6c9246'); if (dy < -6) R(x + 24 - w + 2, y + 9 + dy, Math.round(w * 0.8), 1, '#86ac58'); R(x + 24 + w - Math.max(1, Math.round(w * 0.3)), y + 9 + dy, Math.max(1, Math.round(w * 0.3)), 1, '#4f7434'); } lmDab(x - 4, y - 12, 56, 18, 16, ['#98bc68', '#4f7434', '#f4f4f0', '#f2e6a0'], 82); },      // the whole hill of it, of which the chamber is only the door
+      o: (x, y) => { for (let q = -2; q < 15; q++) if (q < 0 || q > 12) { R(x + q * 4, y + 8, 3, 2, q % 2 ? '#a8a290' : '#b8b2a0'); R(x + q * 4, y + 8, 3, 1, '#cfc9b6'); } R(x + 22, y - 18, 5, 8, '#a8a290'); R(x + 22, y - 18, 1, 8, '#cfc9b6'); R(x + 26, y - 17, 1, 7, '#6d6858'); R(x + 23, y - 19, 3, 1, '#8aa04a'); },
+    },
+    'The wolf stone': {
+      u: (x, y) => { R(x + 14, y - 3, 9, 13, '#8a8a86'); R(x + 14, y - 3, 9, 1, '#a8a8a2'); R(x + 21, y - 1, 2, 11, '#66665f'); R(x + 23, y + 2, 4, 8, '#7a7a76'); R(x + 23, y + 2, 4, 1, '#a8a8a2'); R(x + 26, y + 4, 1, 6, '#66665f'); R(x + 27, y + 6, 4, 2, '#7a7a76'); R(x + 30, y + 4, 1, 3, '#7a7a76'); R(x, y + 10, 32, 2, 'rgba(0,0,0,.2)'); },      // the body of the beast behind its head: back, haunch and tail
+      o: (x, y) => { R(x - 1, y - 2, 4, 5, '#8a8a86'); R(x - 1, y - 2, 4, 1, '#a8a8a2'); R(x - 2, y, 1, 2, '#2a241e'); R(x - 1, y + 3, 4, 1, '#66665f'); R(x, y + 2, 1, 1, '#efe8d8'); R(x + 2, y + 2, 1, 1, '#efe8d8'); R(x + 8, y + 4, 1, 6, '#66665f'); R(x + 4, y + 9, 4, 1, '#a8a8a2'); R(x + 9, y + 9, 4, 1, '#a8a8a2'); for (let q = 0; q < 4; q++) R(x + 16 + q * 2, y - 2 + (q % 2), 1, 2, '#66665f'); },      // the muzzle thrust out, the forelegs, and hackles cut along the back
+    },
+    'The old arena': {
+      u: (x, y) => { const cx = x + 22, cy = y; for (let an = Math.PI * 1.02; an < Math.PI * 1.98; an += 0.05) { if (wildHash(Math.floor(an * 3), 6, 1346) < 0.42) continue; const ex = Math.round(cx + Math.cos(an) * 24), ey = Math.round(cy + Math.sin(an) * 11), hh = 11 + Math.floor(wildHash(Math.floor(an * 7), 7, 1347) * 5); R(ex - 1, ey - hh, 3, hh + 1, '#cfc8b4'); R(ex - 1, ey - hh, 1, hh + 1, '#ece6d4'); R(ex - 1, ey - hh, 3, 1, '#f0e8d6'); if (Math.floor(an * 20) % 3 === 0) { R(ex, ey - hh + 2, 1, 3, '#3a342c'); R(ex, ey - hh + 7, 1, 3, '#3a342c'); } } R(x - 6, y + 11, 58, 2, 'rgba(0,0,0,.16)'); },      // the outer wall, two storeys of arches where it has not come down
+      o: (x, y) => { const cx = x + 22, cy = y; for (const [bx, by, bw] of [[-10, 6, 5], [-13, 9, 4], [48, 2, 5], [51, 6, 4], [20, -16, 4]]) { R(x + bx, y + by, bw, 3, '#cfc8b4'); R(x + bx, y + by, bw, 1, '#ece6d4'); R(x + bx + bw - 1, y + by + 1, 1, 2, '#a39a84'); } R(cx - 9, cy - 3, 18, 1, 'rgba(120,100,60,.25)'); R(cx - 12, cy + 1, 24, 1, 'rgba(120,100,60,.2)'); R(x + 8, y - 13, 1, 5, '#5f8f3a'); R(x + 34, y - 15, 2, 4, '#5f8f3a'); },
+    },
+    'An old battlefield': {
+      u: (x, y) => { for (let dy = -9; dy <= 0; dy++) { const w = Math.round(17 * Math.sqrt(1 - (dy * dy) / 86)); R(x + 20 - w, y - 4 + dy, w * 2, 1, dy % 3 === 0 ? '#6a9a44' : '#74a44c'); if (dy < -3) R(x + 20 - w + 2, y - 4 + dy, Math.round(w * 0.8), 1, '#8aba5c'); R(x + 20 + w - Math.max(1, Math.round(w * 0.3)), y - 4 + dy, Math.max(1, Math.round(w * 0.3)), 1, '#557f38'); } R(x + 3, y - 4, 36, 1, 'rgba(0,0,0,.2)'); },      // the mound they were all put under
+      o: (x, y) => { for (let q = 0; q < 5; q++) R(x + 16 + q * 2 - (q > 2 ? 1 : 0), y - 15 + (q % 2), 3, 3, q % 2 ? '#a8a290' : '#b8b2a0'); R(x + 19, y - 22, 2, 8, '#a8a290'); R(x + 19, y - 22, 1, 8, '#cfc9b6'); R(x + 17, y - 20, 6, 1, '#a8a290'); lmDab(x + 6, y - 11, 28, 6, 8, ['#c23b2e', '#f4f4f0', '#8aba5c'], 85); R(x - 12, y + 6, 8, 3, '#6b4f2c'); R(x - 12, y + 6, 8, 1, '#8a6a3a'); R(x - 9, y + 4, 2, 2, '#b98a34'); R(x + 44, y - 2, 1, 10, '#6b4f2c'); R(x + 44, y - 3, 1, 2, '#c1c7cc'); },      // a cairn and a marker on it, a broken shield wall, one spear still upright
+    },
+    "The giant's table": {
+      u: (x, y) => { R(x + 1, y - 17, 22, 5, '#8a8474'); R(x + 1, y - 17, 22, 1, '#b8b2a0'); R(x + 20, y - 16, 3, 4, '#6d6858'); R(x + 4, y - 12, 3, 6, '#857f70'); R(x + 17, y - 12, 3, 6, '#77716a'); R(x - 6, y + 10, 38, 2, 'rgba(0,0,0,.18)'); },      // a second chamber behind the first, its capstone still on
+      o: (x, y) => { for (const [ux, uy, uh] of [[-5, 1, 9], [24, 2, 8], [-1, 5, 5], [21, 6, 4]]) { R(x + ux, y + uy, 4, uh, '#9a9484'); R(x + ux, y + uy, 1, uh, '#bdb8a8'); R(x + ux + 3, y + uy + 1, 1, uh - 1, '#6d6858'); R(x + ux, y + uy, 4, 1, '#cfc9b6'); } R(x + 8, y + 9, 7, 1, '#b8b2a0'); R(x + 8, y + 10, 7, 1, '#8a8474'); },      // the uprights of the passage that led in to it, and its threshold
+    },
+    'The causeway': {
+      u: (x, y) => { lmSoft(x + 16, y + 9, 40, 5, '#2e4842', 88); for (const q of [-5, -4, -3, -2, -1, 9, 10, 11, 12, 13]) { const px = x + q * 4, py = y + 4 + Math.round(Math.sin(q * 0.9) * 2); R(px, py + 4, 3, 1, 'rgba(0,0,0,.25)'); R(px, py, 3, 3, q % 3 ? '#9a8866' : '#a89878'); R(px, py, 3, 1, '#c4b490'); R(px + 1, py + 3, 1, 4, '#4a4038'); if (q % 2) { R(px + 1, py - 5, 1, 5, '#4a4038'); } } R(x - 26, y + 4, 6, 6, '#6a8a52'); R(x - 26, y + 4, 6, 1, '#84a468'); R(x + 56, y + 3, 6, 6, '#6a8a52'); R(x + 56, y + 3, 6, 1, '#84a468'); },      // it runs on, bank to bank
+    },
+  };
   const setDown = (seed, ok, r, name, draw) => {
     const tryAt = (tx, ty) => {
       if (!ok(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 13) return false;
@@ -1085,7 +1123,7 @@ function provLand() {
       if (marks.some(m => Math.hypot(m.x - x, m.y - y) < 110)) return false;
       marks.push({ x, y, r, name });
       feats.push({ y: y - 60, d: () => apron(x, y, r, name, tx, ty) });
-      const dr = DRESS[name] || {}, whole = () => { if (dr.u) dr.u(x, y); draw(x, y); if (dr.o) dr.o(x, y); };      // what lies under it, the thing itself, and what was added to it since
+      const dr = DRESS[name] || {}, d2 = GREATER[name] || {}, whole = () => { if (d2.u) d2.u(x, y); if (dr.u) dr.u(x, y); draw(x, y); if (dr.o) dr.o(x, y); if (d2.o) d2.o(x, y); };      // what lies under it, the thing itself, and what was added to it since
       feats.push({ y: y + 10, d: whole });
       if (TALL.includes(name)) overs.push({ x0: x - 12, x1: x + 56, y0: y - 34, base: y + 10, d: whole });
       return true;
@@ -1687,6 +1725,23 @@ function provLand() {
       } });
     }
   }
+  // ---- the trees of the woods, out over the whole country: the same kinds that make each region's forest, standing
+  // singly and in twos and threes on open ground, thicker in some stretches than others and nowhere thick ----
+  for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {
+    const k = at(tx, ty);
+    if (k !== T_GRASS && k !== T_MEADOW && k !== T_HILL) continue;
+    const x = tx * 10, y = ty * 10, r0 = h(tx, ty, 1601), drift = wildNoise(tx / 8, ty / 8, 1600), want = k === T_HILL ? 0.02 + Math.max(0, drift - 0.45) * 0.14 : 0.03 + Math.max(0, drift - 0.45) * 0.22;
+    if (r0 > want) continue;
+    if (farm(tx, ty) || grove(tx, ty) || inTown(tx, ty, 6) || nearMark(x + 5, y + 7) || siteTiles.some(([sx, sy]) => Math.hypot(sx - tx, sy - ty) < 3)) continue;
+    if (Math.abs(x + 5 - STABLES.x) < 30 && Math.abs(y + 5 - STABLES.y) < 20) continue;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const o = at(tx + dx, ty + dy); return o === T_ROAD || o === T_BRIDGE; })) continue;      // not on the verge of a road
+    const reg = wildRegion(x + 5, y + 5), n = h(tx, ty, 1602) > 0.72 ? 2 : 1;
+    for (let q = 0; q < n; q++) {
+      let kind = species(tx, ty, reg, h(tx, ty, 1603 + q)); if (kind === 'dead' && h(tx, ty, 1606 + q) > 0.25) kind = reg === 'Blackmere' ? 'willow' : 'oak';
+      const sz = (k === T_HILL ? 2 : 3) + Math.floor(h(tx, ty, 1609 + q) * 3), f = 0.88 + h(tx, ty, 1612 + q) * 0.24, cx = x + 2 + Math.floor(h(tx, ty, 1615 + q) * 6) + q * 5, cy = y + 6 + Math.floor(h(tx, ty, 1618 + q) * 3) - q * 2;
+      feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
+    }
+  }
   for (const [tx, ty] of lone) {
     const x = tx * 10, y = ty * 10, reg = wildRegion(x + 5, y + 5), kind = species(tx, ty, reg, h(tx, ty, 101)), sz = 2 + Math.floor(h(tx, ty, 102) * 3), f = 0.88 + h(tx, ty, 103) * 0.24, cx = x + 2 + Math.floor(h(tx, ty, 104) * 6), cy = y + 7;
     feats.push({ y: cy, d: () => tree(cx, cy, kind === 'dead' && h(tx, ty, 105) > 0.3 ? 'oak' : kind, sz, f) });
@@ -1961,9 +2016,34 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
   const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(${c},${a})`; for (let q = 0; q < 3; q++) { const rr = r - q * (r / 3.5); ctx.fillRect(Math.round(gx - rr), Math.round(gy - rr * 0.7), Math.round(rr * 2), Math.round(rr * 1.4)); } ctx.globalCompositeOperation = 'source-over'; };
   const man = (mx, my, o) => vilPerson(ctx, mx, my, Object.assign({ face: 'right', walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c' }, o));
   const pace = (x0, x1, sp, ph) => { const u = (T * sp + ph) % 2, f = u < 1 ? u : 2 - u; return { x: Math.round(x0 + (x1 - x0) * f), face: (u < 1) === (x1 > x0) ? 'right' : 'left' }; };
+  // more that moves, and what is lit after dark, for the landmarks that had little of either
+  const beast = (bx, by, c, d) => { R(bx - 1, by + 3, 6, 1, 'rgba(0,0,0,.2)'); R(bx, by, 5, 3, c); R(d > 0 ? bx + 4 : bx - 2, by - 1 + (Math.sin(T * 1.7 + bx) > 0.3 ? 2 : 0), 3, 2, c); R(bx + 1, by + 3, 1, 1, '#2a1c14'); R(bx + 3, by + 3, 1, 1, '#2a1c14'); };
+  const win = (wx, wy, w, hh) => { if (!lit) return; R(wx, wy, w, hh, '#f5c04a'); glow(wx + 1, wy + 1, 9, '255,180,90', 0.06); };
+  const MORE = {
+    'The fallen colossus': (x, y) => { const pc = pace(x + 8, x + 34, 0.03, 0.2); beast(pc.x, y + 13, '#f1ead8', pc.face === 'right' ? 1 : -1); beast(x + 44, y + 12, '#e8e0cc', -1); const dz = Math.floor(T * 0.4) % 3; R(x + 3 + dz * 4, y - 3, 2, 1, '#5f8f3a'); R(x + 5 + dz * 4, y - 3, 1, 1, '#7aa84a'); for (let q = 0; q < 2; q++) { const an = T * 1.6 + q * 3; R(x + 24 + Math.cos(an) * 6, y + Math.sin(an * 1.4) * 4, 1, 1, q ? '#f4f4f0' : '#e8c040'); } },      // sheep grazing round it, a lizard on its brow, butterflies
+    'The bones of a whale': (x, y) => { const rib = Math.floor(T * 0.35) % 6, hh = 6 + Math.round(Math.sin((rib + 0.5) / 6 * Math.PI) * 6), hop = Math.sin(T * 6) > 0.7 ? 1 : 0; R(x + 4 + rib * 4, y + 3 - hh - hop, 2, 2, '#f4f4f0'); R(x + 6 + rib * 4, y + 3 - hh - hop, 1, 1, '#e3b04a'); const pc = pace(x + 2, x + 30, 0.06, 0.4); R(pc.x, y + 9, 2, 1, '#c23b2e'); R(pc.x - 1, y + 9 + (Math.floor(T * 8) % 2), 1, 1, '#c23b2e'); R(pc.x + 2, y + 9 + (Math.floor(T * 8 + 1) % 2), 1, 1, '#c23b2e'); },      // a gull going from rib to rib, and a crab
+    "The fishers' huts": (x, y) => { smoke(x + 5, y - 5, 3); const sw = Math.sin(T * 1.2) > 0 ? 1 : 0; R(x + 24 + sw, y + 2, 6, 1, '#b5ad9c'); const pc = pace(x + 26, x + 38, 0.05, 0.1); man(pc.x, y + 15, { face: pc.face, tunic: '#4a6a8a' }); win(x + 1, y + 4, 2, 2); win(x + 14, y + 4, 2, 2); for (let q = 0; q < 2; q++) { const an = T * 0.5 + q * 3; R(x + 30 + Math.cos(an) * 16, y - 14 + Math.sin(an) * 5, 3, 1, '#f4f4f0'); } },      // smoke, a net stirring, a man at his boat, gulls over it
+    "The hunters' lodge": (x, y) => { smoke(x + 19, y - 13, 3); const tw = Math.sin(T * 7) > 0 ? 1 : 0; R(x + 2 - tw, y + 8, 1, 1, '#7a6a52'); const sg = Math.round(Math.sin(T * 0.9) * 1); R(x + 33 + sg, y, 2, 1, '#5e4426'); win(x + 16, y + 1, 4, 4); const pc = pace(x + 26, x + 40, 0.04, 0.6); man(pc.x, y + 14, { face: pc.face, tunic: '#5a6a3a' }); },      // smoke, the dog's tail, a hunter about the yard
+    'The unfinished columns': (x, y) => { const hit = Math.sin(T * 4.4) > 0.3; man(x + 46, y + 12, { face: 'left', moving: false, tunic: '#7a6a4a' }); R(x + 41, y + (hit ? 5 : 2), 3, 1, '#6b4f2c'); R(x + 40, y + (hit ? 4 : 1), 2, 2, '#8f8a84'); if (hit) { R(x + 38, y + 3, 1, 1, '#ffffff'); R(x + 36, y + 5, 1, 1, '#f0ece0'); } for (let q = 0; q < 2; q++) { const p2 = (T * 0.2 + q / 2) % 1; ctx.globalAlpha = 0.3 * (1 - p2); R(x + 34 + q * 4 + Math.sin(p2 * 4) * 2, y + 4 - p2 * 8, 3, 2, '#f4f0e4'); } ctx.globalAlpha = 1; },      // one mason still at it
+    "The giant's table": (x, y) => { const u = (T * 0.08) % 1; if (u < 0.8) { const hp = Math.floor(T * 0.7) % 4; R(x + 4 + hp * 5, y - 13 - (Math.sin(T * 5) > 0.8 ? 1 : 0), 2, 1, '#1c1310'); R(x + 6 + hp * 5, y - 13, 1, 1, '#1c1310'); } else { const f = (u - 0.8) / 0.2; R(x + 12 + f * 30, y - 14 - f * 22, 3, 1, '#1c1310'); R(x + 13 + f * 30, y - 15 - f * 22 + (Math.sin(T * 14) > 0 ? 1 : 0), 1, 1, '#1c1310'); } if (lit) { glow(x + 11, y + 2, 9, '150,180,255', 0.035 + 0.02 * Math.sin(T * 1.3)); } },      // a crow on the capstone, that goes; and something in the chamber after dark
+    'The needle': (x, y) => { const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(x + 8, y - 3, 2 + wv, 1, '#c23b2e'); R(x + 9 + wv, y - 2, 1, 2 + wv, '#c23b2e'); R(x, y - 7 + wv, 2, 1, '#f1ead8'); R(x + 5, y + 4 - fl, 1, 1 + fl, lit ? '#f5c04a' : '#c9a21e'); if (lit) glow(x + 5, y + 5, 8, '255,190,100', 0.05); const pc = pace(x + 14, x + 26, 0.03, 0.8); man(pc.x, y + 14, { face: pc.face, tunic: '#d8c9a0', hair: '#8a8a8a' }); },      // the ribbons in the wind, a lamp at its foot, an old man who has come to ask
+    "The shepherds' fold": (x, y) => { for (const [sx, sy, ph] of [[4, 0, 0], [10, 3, 2], [7, 5, 4], [19, 4, 1]]) { const dn = Math.sin(T * 0.9 + ph) > 0.2 ? 1 : 0; R(x + sx + 3, y + sy + dn, 1, 1, '#2a1c14'); } const tw = Math.sin(T * 8) > 0 ? 1 : 0; R(x + 35, y + 5 + tw, 1, 1, '#3a322c'); smoke(x + 31, y - 10, 2); win(x + 30, y - 4, 2, 2); const pc = pace(x + 38, x + 50, 0.03, 0.4); man(pc.x, y + 13, { face: pc.face, tunic: '#8a7a5a', hair: '#c9c2b2' }); R(pc.x + (pc.face === 'right' ? 3 : -3), y + 1, 1, 12, '#8a6a3a'); },      // the sheep with their heads down, the dog, the shepherd with his crook
+    'The beacon': (x, y) => { win(x + 25, y + 3, 2, 2); smoke(x + 26, y - 4, 2); },
+    'The fort': (x, y) => { R(x + 23, y - 3 - fl, 2, 1 + fl, '#f5c04a'); smoke(x + 24, y - 5, 2); if (lit) glow(x + 24, y - 2, 12, '255,160,80', 0.07); for (const [hx, ph] of [[52, 0], [59, 2]]) R(x + hx - 1, y + 6 + (Math.sin(T * 3 + ph) > 0.5 ? 1 : 0), 1, 2, '#3a2a1c'); const pc = pace(x - 2, x + 6, 0.08, 0.3); R(pc.x, y - 25, 1, 1, '#d9a57c'); R(pc.x, y - 24, 1, 2, '#a8261c'); R(pc.x + 1, y - 27, 1, 4, '#c1c7cc'); },      // the cook-fire, the horses, a sentry on the corner tower
+    'The ferry': (x, y) => { R(x + 38, y - 4 - (lit ? fl : 0), 3, 2 + (lit ? fl : 0), lit ? '#fff0b0' : '#f5c04a'); if (lit) glow(x + 39, y - 3, 12, '255,190,100', 0.07); win(x + 10, y, 3, 3); smoke(x + 12, y - 13, 2); },
+    'The watchtower': (x, y) => { if (lit) { R(x + 14, y - 26 - fl, 3, 2 + fl, '#f5c04a'); R(x + 15, y - 27 - fl, 1, 1, '#fff0b0'); glow(x + 15, y - 25, 16, '255,160,80', 0.08); } const tl = Math.sin(T * 3) > 0.5 ? 1 : 0; R(x + 20, y + 6 + tl, 1, 2, '#3a2a1c'); },
+    'The salt pans': (x, y) => { const ph = Math.floor(T * 2) % 2; R(x - 7, y - 7, 5, 5, '#3a6a80'); if (ph) { R(x - 5, y - 8, 1, 7, '#8a6a3a'); R(x - 8, y - 5, 7, 1, '#8a6a3a'); } else { for (let q = 0; q < 6; q++) { R(x - 8 + q, y - 8 + q, 1, 1, '#8a6a3a'); R(x - 3 - q + 1, y - 8 + q, 1, 1, '#8a6a3a'); } } const p2 = (T * 1.2) % 1; R(x - 2, y - 2 + p2 * 3, 1, 1, '#e6f3fa'); win(x + 49, y - 6, 2, 2); },      // the wheel turning, and water falling from it
+    'The drowned temple': (x, y) => { const dip = Math.sin(T * 0.6) > 0.85 ? 2 : 0; R(x + 34, y - 4 + dip, 1, 4 - dip, '#f4f4f0'); R(x + 35, y - 5 + dip, 2, 1, '#f4f4f0'); R(x + 37, y - 5 + dip, 1, 1, '#e3b04a'); for (let q = 0; q < 2; q++) { const rp = (T * 0.4 + q * 0.5) % 1; ctx.globalAlpha = 0.4 * (1 - rp); R(x + 10 + q * 12 - rp * 4, y + 9 + q * 2, 3 + Math.round(rp * 8), 1, '#9ab8b4'); } ctx.globalAlpha = 1; },      // the heron striking, and rings going out on the water
+    'The white temple': (x, y) => { const pc = pace(x + 4, x + 32, 0.03, 0.7); man(pc.x, y + 16, { face: pc.face, tunic: '#f1ead8', hair: '#8a8a8a' }); if (lit) glow(x + 18, y + 6, 18, '255,200,120', 0.05); },
+    'The lime kiln': (x, y) => { const pc = pace(x + 22, x + 34, 0.06, 0.2); man(pc.x, y + 14, { face: pc.face, tunic: '#d8d4c6' }); },
+    'A villa in its garden': (x, y) => { win(x + 5, y - 1, 3, 3); win(x + 29, y - 1, 3, 3); smoke(x + 34, y - 18, 2); },
+    'The bee garden': (x, y) => { win(x + 38, y + 1, 2, 2); },
+    'The great oak': (x, y) => { const sq = (T * 0.15) % 1, up = sq < 0.5; R(x + 17, y + 6 - Math.round((up ? sq : 1 - sq) * 20), 2, 1, '#a8703c'); R(x + 18, y + 5 - Math.round((up ? sq : 1 - sq) * 20), 1, 1, '#a8703c'); },      // a squirrel, up the trunk and down again
+  };
   for (const m of (prov.marks || [])) {
     if (m.dw || !inView(m.x, m.y, 70) || !wildSeen(m.x + m.r, m.y)) continue;
     const x = m.x, y = m.y, n = m.name;
+    if (MORE[n]) MORE[n](x, y);
     if (n === 'The beacon') { R(x + 6, y - 33 - fl, 5, 5 + fl, '#f5c04a'); R(x + 7, y - 35 - fl, 3, 3, '#fff0b0'); R(x + 8 - fl, y - 37, 1, 2, '#e2702a'); if (lit) { glow(x + 8, y - 31, 30, '255,190,90', 0.08); const an = T * 0.6; ctx.fillStyle = 'rgba(255,230,160,.10)'; for (let q = 4; q < 60; q += 3) ctx.fillRect(Math.round(x + 8 + Math.cos(an) * q), Math.round(y - 31 + Math.sin(an) * q * 0.5), 3 + (q >> 3), 2 + (q >> 4)); } }
     else if (n === 'The mill') { const ph = Math.floor(T * 3) % 4, cx = x + 4, cy = y + 4; R(x, y, 8, 8, '#3d6d92'); for (let q = 0; q < 4; q++) { const an = (q + ph / 4) * Math.PI / 2 + 0.2; for (let rr = 1; rr < 6; rr++) R(Math.round(cx + Math.cos(an) * rr), Math.round(cy + Math.sin(an) * rr), 1, 1, rr === 5 ? '#c9a763' : '#7a5a34'); } R(cx, cy, 1, 1, '#c9a763'); for (let q = 0; q < 3; q++) { const p2 = (T * 1.5 + q * 0.33) % 1; R(x - 3 + q * 5 + p2 * 3, y + 10 - Math.sin(p2 * Math.PI) * 3, 2, 1, '#e6f3fa'); } if (lit) R(x + 23, y - 2, 3, 3, '#f5c04a'); smoke(x + 26, y - 13, 3); }
     else if (n === 'The hot spring') { for (let q = 0; q < 6; q++) { const p2 = (T * 0.25 + q * 0.17) % 1; ctx.globalAlpha = 0.55 * (1 - p2); R(x + 4 + q * 3 + Math.sin(p2 * 6 + q) * 2, y + 2 - p2 * 16, 2 + Math.round(p2 * 3), 2, '#ffffff'); } ctx.globalAlpha = 1; if (Math.sin(T * 2) > 0.6) R(x + 8 + Math.floor(T) % 5, y + 5, 1, 1, '#d8f4f0'); }
@@ -2852,7 +2932,6 @@ function renderWilds() {
   if (sel) body = `<div class="row" style="margin:6px 0"><button data-act="campback">&laquo; Back to the camp</button></div>${gladDetail(sel)}`;
   else body = `<canvas id="wildMini" width="240" height="180" data-act="bigmap"${tip('minimap')} style="cursor:pointer"></canvas>
       <div class="row camprow" style="margin:8px 0 4px"><button class="primary" data-act="makecamp"${tip('makecamp')} style="flex:1.3">Make camp<span class="key">E</span></button>
-        <button data-act="forage" style="flex:1"${tip(`Spend the day hunting and gathering instead of resting: about ${round5((6 + 3 * fieldParty().length) * wildTier(F.x, F.y))} denarii here, more in wilder country and with more fit men. The men get little rest, and far from home somebody may be hurt.`)}>Forage</button>
         <button data-act="scout" style="flex:1"${tip(`Spend the day on the high ground: the fog lifts for a long way round${staffLvl('scout') ? ', further for your scout' : '; a scout would see further'}. The men get some rest.`)}>Scout</button></div>
       <div class="row camprow" style="margin:0 0 8px"><button data-act="wildgo" data-v="home" style="flex:1"${tip('Sets the column on the road back to the town gate, by the shortest way it can walk. It goes in when it gets there. You can still steer away, or click elsewhere, to change your mind.')}>Go home<span class="key">R</span></button><button data-act="bigmap"${tip('bigmap')}>${prov.big ? 'Close map' : 'Whole map'}<span class="key">M</span></button><button data-act="help" style="padding-left:9px;padding-right:9px"${tip('The keys, and the rules of the trade in a page. Key: H')}>?</button></div>
       ${F.note && F.note.day === G.day ? `<div class="dealmsg ${F.note.ok ? '' : 'bad'}" style="margin:0 0 6px">${F.note.text}</div>` : ''}

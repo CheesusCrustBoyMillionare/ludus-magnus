@@ -70,7 +70,7 @@ const TIPS = {
   awaygames: 'Games are held in town every fifth day whether you are there or not. Out here you miss them: no purse, no fame, and a challenge left unanswered still costs you.',
   bigmap: 'Lays the whole province out at once: everything you have walked and everything marked. Click anywhere on it to set out for that spot. Key: M',
   minimap: 'Click for the whole map. The whole province. Coloured where you have walked, parchment where you have not. White is the town, purple is you, gold is a place a clue has marked, red is a place you have seen and not dealt with.',
-  makecamp: 'Ends the day where you stand. The men rest: fatigue falls and wounds mend, though slower than at home. Forage and Scout spend the day the same way, for coin or for a wider map, with less rest. Key: E',
+  makecamp: 'Ends the day where you stand. The men rest: fatigue falls and wounds mend, though slower than at home. Scout spends the day the same way, for a wider map, with less rest. Key: E',
   fieldrules: 'Marching takes time: a day passes for each day\'s march, further by road and less through forest, hill and marsh. Going into a place takes a day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. Every fit man fights when it comes to it. Walk back into the town to go home.',
   eagle: 'The hunt for the lost eagle of the Seventeenth Legion. Each clue marks the next place on the map.',
   sound: 'Turns every sound in the game on or off, music included.',
@@ -2699,7 +2699,6 @@ const ACTIONS = {
     if (path) { prov.path = path; prov.dest = v === 'home' ? 'Home' : st.name; if (prov.big) { prov.big = false; render(); } } else prov.hint = performance.now() + 1600;
   },
   bigmap() { if (!G.field) return; prov.big = !prov.big; prov.path = prov.big ? prov.path : prov.path; render(); },
-  forage() { if (!G.field) return; prov.big = false; prov.night = performance.now(); campForage(); SFX.ui('camp'); fieldDayDone(); },
   scout() { if (!G.field) return; prov.big = false; prov.night = performance.now(); campScout(); SFX.ui('discover'); fieldDayDone(); },
   makecamp() { if (!G.field) return; prov.big = false; prov.night = performance.now(); G.field.march = 0; fieldDay('camp'); SFX.ui('camp'); fieldDayDone(); },      // a rested column starts tomorrow with a whole day's march
   campsel(v) { ui.campSel = +v; ui.dtab = 'gear'; render(); },
