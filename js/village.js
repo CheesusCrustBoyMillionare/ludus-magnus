@@ -479,7 +479,7 @@ function drawVillage(cv, T) {
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(0, 0, 590, 190); ctx.globalCompositeOperation = 'source-over'; }
   if (night > 0.25) {
     const la = Math.min(1, (night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
-    const glow = (gx, gy, r) => { ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(255,170,80,${(0.07 * la).toFixed(3)})`; ctx.fillRect(Math.round(gx - r + i * r / 4), Math.round(gy - r * 0.7 + i * r / 6), Math.round((r - i * r / 4) * 2), Math.round((r * 0.7 - i * r / 6) * 2)); } ctx.globalCompositeOperation = 'source-over'; };
+    const glow = (gx, gy, r) => sceneGlow(ctx, gx, gy, r * 1.25, '255,170,80', 0.4 * la);
     ctx.globalAlpha = la;
     for (const pl of PLACES) {
       if (pl.kind === 'market' || pl.kind === 'arena') continue;

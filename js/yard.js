@@ -48,7 +48,7 @@ function yardWeather(T) {
 function yardPerson(ctx, X, Y, d, o) {
   const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
   const skin = o.skin || '#d9a57c', skinD = shade(skin, 0.76), tunicD = shade(o.tunic, 0.72), wood = '#7a5a2a';
-  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3);
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(X - 4, Y - 1, 14 + Math.round(sceneLow * 16), 2);
   const st = o.moving ? (Math.sin(o.walk) > 0 ? 1 : -1) : 0;      // stride
   P(-3 - st, -12, 3, 12 - (st > 0 ? 1 : 0), skinD); P(st, -12, 3, 12 - (st < 0 ? 1 : 0), skin);
   P(-3 - st, -2 - (st > 0 ? 1 : 0), 4, 2, '#6b4526'); P(st, -2 - (st < 0 ? 1 : 0), 5, 2, '#6b4526');
@@ -112,6 +112,120 @@ function sceneRain(ctx, w, h, T, amt, n) {
   }
 }
 
+// ---------- the sky, the far country, the light and the air, shared by every scene that has them ----------
+let sceneLow = 0;      // how low the sun stands, 0 at noon to 1 at the horizon: the scene that is drawing sets it, and shadows lengthen by it
+
+// The sky down to the horizon at y = H: graded from the zenith to the horizon in narrow strips with their edges
+// broken, a glow where the sun is low, stars of three sizes and a shooting star now and then, the sun with a halo,
+// the moon in whatever phase the day of the month gives it, and clouds built of lobes, lit above and shaded below.
+function sceneSkyDraw(ctx, T, sky, wx, H) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const N = 20, low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, night = sky.night;
+  sceneLow = sky.sun ? low : 0.35;
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1), c = f < 0.5 ? mixHex(sky.bands[0], sky.bands[1], f * 2) : mixHex(sky.bands[1], sky.bands[2], (f - 0.5) * 2), y0 = Math.floor(i * H / N);
+    R(0, y0, 590, Math.ceil(H / N) + 1, c);
+    if (i) { ctx.fillStyle = c; for (let x = (i % 2) * 2; x < 590; x += 4) ctx.fillRect(x, y0 - 1, 2, 1); }
+  }
+  if (sky.sun && low > 0.25 && wx.over < 0.8) {                    // the horizon lit where the sun is going down or coming up
+    const [sx] = sky.sun, g = ctx.createRadialGradient(sx, H, 0, sx, H, 220), a = (low - 0.25) * 0.6 * (1 - wx.over);
+    g.addColorStop(0, `rgba(255,200,130,${a.toFixed(3)})`); g.addColorStop(0.5, `rgba(255,150,100,${(a * 0.4).toFixed(3)})`); g.addColorStop(1, 'rgba(255,150,100,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 590, H);
+  }
+  if (night > 0.05) {
+    for (let i = 0; i < 70; i++) { ctx.globalAlpha = night * 0.16; R(40 + i * 7.4 + ((i * 37) % 23), 4 + i * 0.5 + ((i * 53) % 17), 1, 1, '#c8d0f0'); }      // the milky way, faint, slanting across
+    for (let i = 0; i < 110; i++) {
+      const x = (i * 131) % 588, y = (i * 47) % Math.max(10, H - 8), big = i % 9 === 0, tw = 0.45 + 0.55 * Math.sin(T * (1.1 + (i % 5) * 0.35) + i * 2.1);
+      ctx.globalAlpha = night * (big ? 0.6 + 0.4 * tw : 0.3 + 0.5 * tw);
+      R(x, y, 1, 1, i % 11 === 0 ? '#ffd8b0' : i % 13 === 0 ? '#b8d0ff' : '#f4f6ff'); if (big && tw > 0.5) { R(x - 1, y, 3, 1, '#f4f6ff'); R(x, y - 1, 1, 3, '#f4f6ff'); }
+    }
+    const sc = (T * 0.021 + 0.4) % 1;
+    if (sc < 0.012 && night > 0.6) { const k = sc / 0.012, sx = 120 + ((Math.floor(T * 0.021 + 0.4) * 173) % 340) + k * 60, sy = 6 + k * 22; ctx.globalAlpha = (1 - k) * night; for (let q = 0; q < 8; q++) R(sx - q * 2, sy - q * 0.7, 2, 1, q < 2 ? '#ffffff' : '#c8d0f0'); }
+    ctx.globalAlpha = 1;
+  }
+  const disc = (cx, cy, r, c) => { ctx.fillStyle = c; for (let dy = -r; dy <= r; dy++) { const w = Math.round(Math.sqrt(r * r - dy * dy + r * 0.6)); ctx.fillRect(Math.round(cx - w), Math.round(cy + dy), w * 2, 1); } };
+  ctx.globalAlpha = 1 - wx.over * 0.9;
+  if (sky.sun) {
+    const [sx, sy] = sky.sun, g = ctx.createRadialGradient(sx, sy, 4, sx, sy, 34 + low * 20);
+    g.addColorStop(0, 'rgba(255,240,190,.5)'); g.addColorStop(1, 'rgba(255,220,160,0)'); ctx.fillStyle = g; ctx.fillRect(sx - 60, sy - 60, 120, 120);
+    disc(sx, sy, 8, sky.sunCol); disc(sx - 1, sy - 1, 5, mixHex(sky.sunCol, '#ffffff', 0.45));
+    if (low > 0.5) { ctx.fillStyle = `rgba(255,220,160,${((low - 0.5) * 0.5).toFixed(3)})`; for (let q = 0; q < 8; q++) { const an = q * Math.PI / 4 + T * 0.05; ctx.fillRect(Math.round(sx + Math.cos(an) * 13), Math.round(sy + Math.sin(an) * 13), 3, 1); ctx.fillRect(Math.round(sx + Math.cos(an) * 17), Math.round(sy + Math.sin(an) * 17), 2, 1); } }
+  }
+  if (sky.moon) {
+    const [mx, my] = sky.moon, g = ctx.createRadialGradient(mx, my, 4, mx, my, 30);
+    g.addColorStop(0, 'rgba(210,220,255,.28)'); g.addColorStop(1, 'rgba(210,220,255,0)'); ctx.fillStyle = g; ctx.fillRect(mx - 40, my - 40, 80, 80);
+    disc(mx, my, 7, '#eef0f8');
+    R(mx - 3, my - 2, 3, 2, '#cfd4e6'); R(mx + 1, my + 2, 2, 2, '#cfd4e6'); R(mx + 2, my - 4, 2, 1, '#d8dcec'); R(mx - 4, my + 3, 2, 1, '#d8dcec');
+    const ph = (((typeof G !== 'undefined' && G && G.day) || 0) % 16) / 16, k = Math.abs(ph * 2 - 1), shift = (ph < 0.5 ? -1 : 1) * Math.round(5 + 11 * (1 - k));      // the dark of it: none at the full, most of the face at the new
+    ctx.fillStyle = sky.bands[0]; for (let dy = -7; dy <= 7; dy++) { const w = Math.round(Math.sqrt(49 - dy * dy + 4)), a0 = Math.max(-w, shift - w), a1 = Math.min(w, shift + w); if (a1 > a0) ctx.fillRect(Math.round(mx + a0), Math.round(my + dy), a1 - a0, 1); }
+  }
+  ctx.globalAlpha = 1;
+  // clouds
+  const top = mixHex(sky.cloud, '#ffffff', 0.3 * (1 - night)), under = mixHex(mixHex(sky.cloud, sky.bands[0], 0.42), sky.sunCol || sky.cloud, sky.sun ? low * 0.45 : 0);
+  const cloud = (cx, cy, sc2, seed) => {
+    const n = 3 + seed % 3;
+    for (let l = 0; l < n; l++) {
+      const r = Math.round(sc2 * (4 + (seed * 7 + l * 5) % 4)), ox = (l - (n - 1) / 2) * sc2 * 8 + ((seed * 3 + l * 11) % 5) - 2, oy = -((seed + l * 3) % 3);
+      for (let dy = -r; dy <= Math.round(r * 0.35); dy++) { const w = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)) * 1.5); if (w > 0) R(cx + ox - w, cy + oy + dy, w * 2, 1, dy < -r * 0.35 ? top : dy > r * 0.05 ? under : sky.cloud); }
+    }
+    R(cx - n * sc2 * 5, cy + Math.round(sc2 * 2), n * sc2 * 10, 1, under);
+  };
+  for (let i = 0; i < 12; i++) {                 // four in fair weather, a sky full of them in foul
+    const a = i < 4 ? 1 : clamp(wx.over * 9 - (i - 4), 0, 1); if (a <= 0) continue;
+    const sc2 = i < 4 ? 1 + (i % 2) * 0.5 : 1.6 + (i % 3) * 0.5, cx = (T * (2 + (i % 4) * 0.9) * (sc2 > 1.4 ? 1.3 : 1) + i * 197) % 780 - 110, cy = Math.min(H - 14, 10 + (i * 13) % 44);
+    ctx.globalAlpha = a; cloud(cx, cy, sc2, i * 5 + 2);
+  }
+  ctx.globalAlpha = 0.7; for (let i = 0; i < 3; i++) { const cx = (T * 0.8 + i * 260) % 720 - 60; R(cx, H - 12 - i * 3, 46 - i * 8, 1, top); R(cx + 8, H - 13 - i * 3, 24, 1, top); } ctx.globalAlpha = 1;      // thin cloud far off, low down
+}
+
+// The country beyond: three ranges, each paler and bluer than the one in front, their crests rolling and lit from
+// above, with woods, a terraced slope and a white house far off on the nearest. base is where they meet whatever
+// stands in front; deep is how far below that they are filled in.
+function sceneHills(ctx, base, sky, deep, seed) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const L = [{ c: '#b4c6c4', l: '#c4d4d0', amp: 30, f: 0.011, up: 4 }, { c: '#97b3a4', l: '#a9c2b2', amp: 23, f: 0.017, up: 2 }, { c: '#7fa27a', l: '#92b488', amp: 16, f: 0.024, up: 0 }];
+  L.forEach((ly, k) => {
+    const ph = seed * 1.7 + k * 2.3, ys = [];
+    for (let x = 0; x < 590; x += 2) {
+      const hgt = ly.amp * (0.55 + 0.3 * Math.sin(x * ly.f + ph) + 0.15 * Math.sin(x * ly.f * 2.7 + ph * 1.9) + 0.06 * Math.sin(x * 0.13 + ph)), y = Math.round(base - ly.up - hgt);
+      ys.push(y); R(x, y, 2, base - y + deep, ly.c); R(x, y, 2, 1, ly.l); if ((x >> 1) % 3 === 0) R(x, y + 1, 2, 1, ly.l);
+    }
+    if (k === 1) for (let x = 6; x < 590; x += 14) { const y = ys[x >> 1]; if (((x * 7 + seed) % 5) < 3) { R(x, y + 3, 5, 2, '#86a494'); R(x + 1, y + 2, 3, 1, '#86a494'); } }      // woods on the middle range
+    if (k === 2) {
+      for (let x = 4; x < 590; x += 9) { const y = ys[x >> 1]; if (((x * 11 + seed * 3) % 7) < 4) { R(x, y - 1, 3, 3, '#5f8a5c'); R(x + 1, y - 2, 1, 1, '#5f8a5c'); R(x, y - 1, 1, 1, '#76a070'); } }      // trees along the near crest
+      const tx = 150 + (seed * 53) % 260; for (let q = 0; q < 4; q++) R(tx + q * 2, ys[(tx >> 1) + q + 6] + 5 + q * 2, 34 - q * 4, 1, '#8fb07e');                                                               // a slope cut into terraces
+      const hx = 60 + (seed * 97) % 440, hy = ys[hx >> 1] + 4; R(hx, hy, 8, 4, '#eee6d0'); R(hx - 1, hy - 2, 10, 2, '#c0623c'); R(hx + 3, hy + 2, 1, 2, '#5a4334'); R(hx + 10, hy - 4, 1, 8, '#3f6446'); R(hx + 9, hy - 2, 3, 4, '#3f6446');      // a white house, and its cypress
+    }
+  });
+}
+
+// Light from a flame or a window: soft, falling away evenly on every side.
+function sceneGlow(ctx, x, y, r, rgb, a) {
+  if (!(a > 0)) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${rgb},${a.toFixed(3)})`); g.addColorStop(0.45, `rgba(${rgb},${(a * 0.45).toFixed(3)})`); g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = 'source-over';
+}
+// The same light where it lies on the ground: a flattened pool.
+function scenePool(ctx, x, y, r, rgb, a) { ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.32); sceneGlow(ctx, 0, 0, r, rgb, a); ctx.restore(); }
+
+// The air between you and the scene, from the ground at gy down: mist lying at dawn, motes in the daylight, the
+// front of the picture a little darker than the back, and splashes where rain strikes (unless the scene does its own).
+function sceneAir(ctx, T, sky, wx, gy, splash) {
+  for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(30,18,6,${(0.035 * (i + 1)).toFixed(3)})`; ctx.fillRect(0, 190 - (4 - i) * 5, 590, 5); }
+  if (sky.sun && sky.sun[0] < 200 && wx.rain < 0.2) {            // early: mist along the ground, going as the sun gets up
+    const a = clamp((200 - sky.sun[0]) / 160, 0, 1) * 0.11;
+    for (let i = 0; i < 5; i++) { const mx = ((T * (2 + i) + i * 150) % 760) - 120, w = 120 + i * 30; ctx.fillStyle = `rgba(236,236,228,${a.toFixed(3)})`; ctx.fillRect(Math.round(mx), gy - 6 + i * 9, w, 5); ctx.fillRect(Math.round(mx + 14), gy - 8 + i * 9, w - 30, 2); ctx.fillRect(Math.round(mx + 10), gy - 1 + i * 9, w - 24, 2); }
+  }
+  if (sky.night < 0.3 && wx.rain < 0.1) {                         // dust in the light
+    for (let i = 0; i < 16; i++) { const x = ((i * 89 + T * (3 + i % 4)) % 620) - 15, y = gy - 44 + ((i * 53) % 90) + Math.sin(T * 0.6 + i) * 5; ctx.fillStyle = `rgba(255,246,214,${(0.16 + 0.16 * Math.sin(T * 0.9 + i * 1.3)).toFixed(3)})`; ctx.fillRect(Math.round(x), Math.round(y), 1, 1); }
+  }
+  if (splash && wx.rain > 0) {
+    ctx.fillStyle = 'rgba(225,238,250,.6)';
+    for (let i = 0, n = Math.round(30 * wx.rain); i < n; i++) { const k = Math.floor(T * 10) + i * 17, sx = (k * 73) % 588, sy = gy + 4 + (k * 29) % Math.max(4, 186 - gy); ctx.fillRect(sx, sy, 3, 1); ctx.fillRect(sx + 1, sy - 1, 1, 1); }
+  }
+}
+
 function yardSky(T) {
   let u = ((T / YARD_DAY) + 0.2) % 1;                         // begin in mid-morning
   if (yardForce && yardForce.u != null) u = yardForce.u;
@@ -172,22 +286,7 @@ function drawYard(cv, T) {
   const hit = (x0, y0, x1, y1, o) => yardHits.push(Object.assign({ x0, y0, x1, y1 }, o));
 
   // ---- sky, hills, sun ----
-  R(0, 0, 590, 70, sky.bands[0]); R(0, 42, 590, 30, sky.bands[1]); R(0, 60, 590, 14, sky.bands[2]);
-  if (sky.night > 0.05) {
-    for (let i = 0; i < 46; i++) { ctx.globalAlpha = sky.night * (0.5 + 0.5 * Math.sin(T * 1.7 + i * 2.1)); R((i * 131) % 588, (i * 47) % 58, 1, 1, '#f4f6ff'); }
-    ctx.globalAlpha = 1;
-  }
-  ctx.globalAlpha = 1 - wx.over * 0.9;
-  if (sky.sun) { const [sx, sy] = sky.sun; R(sx - 7, sy - 7, 14, 14, sky.sunCol); R(sx - 10, sy - 4, 20, 8, sky.sunCol); R(sx - 4, sy - 10, 8, 20, sky.sunCol); }
-  if (sky.moon) { const [mx, my] = sky.moon; R(mx - 6, my - 6, 12, 12, '#eef0f8'); R(mx - 8, my - 3, 16, 6, '#eef0f8'); R(mx - 3, my - 8, 6, 16, '#eef0f8'); R(mx + 1, my - 5, 6, 9, sky.bands[0]); R(mx - 3, my + 2, 2, 2, '#cfd4e6'); }
-  ctx.globalAlpha = 1;
-  for (let i = 0; i < 10; i++) {                 // three clouds in fair weather, a sky full of them in foul
-    const a = i < 3 ? 1 : clamp(wx.over * 8 - (i - 3), 0, 1);
-    if (a <= 0) continue;
-    const cx = (T * (3 + i % 4) + i * 210) % 760 - 100, cy = 8 + (i * 13) % 44, big = i >= 3 ? 2 : 1;
-    ctx.globalAlpha = a; R(cx, cy, 34 * big, 5 + big, sky.cloud); R(cx + 6, cy - 3, 20 * big, 4, sky.cloud); if (big > 1) R(cx + 14, cy + 6, 40, 3, sky.cloud);
-  }
-  ctx.globalAlpha = 1;
+  sceneSkyDraw(ctx, T, sky, wx, 76);
   if (sky.night < 0.3 && wx.rain < 0.2) {        // now and then a skein of birds crosses the sky
     const q = (T % 48) / 10;
     if (q < 1) for (let i = 0; i < 5; i++) {
@@ -205,8 +304,7 @@ function drawYard(cv, T) {
   ctx = yardLayer.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0); ctx.imageSmoothingEnabled = false;
-  for (let x = -30; x < 590; x += 64) { const h = 20 + ((x * 5) % 13); R(x, 72 - h, 90, h, '#93b0a0'); R(x + 14, 68 - h, 58, 5, '#a3bcad'); }      // far hills, paler
-  for (let x = -20; x < 590; x += 46) { const h = 14 + ((x * 7) % 11); R(x, 74 - h, 60, h, '#7fa27a'); R(x + 8, 70 - h, 40, 5, '#8fb287'); }
+  sceneHills(ctx, 75, sky, 3, 1);
   if (t >= 1) {                                 // a town of some standing has water brought to it
     R(60, 44, 330, 3, '#b7b3a4'); R(60, 44, 330, 1, '#cfcbbc');
     for (let x = 64; x < 388; x += 18) { R(x, 47, 4, 30, '#aaa697'); R(x + 4, 47, 14, 3, '#aaa697'); R(x + 5, 50, 12, 2, '#9c988a'); }
@@ -639,14 +737,11 @@ function drawYard(cv, T) {
     const n = sky.night;
     ctx.globalAlpha = n; for (const [lx, ly] of lights) { R(lx, ly, 6, 7, '#ffd27a'); R(lx + 3, ly, 1, 7, '#b8802e'); } ctx.globalAlpha = 1;
     R(512 - 1, GY - 46, 3, 6, '#e2702a'); R(562 - 1, GY - 46, 3, 6, '#e2702a');
-    ctx.globalCompositeOperation = 'lighter';
-    for (const [lx, ly] of lights) { ctx.fillStyle = `rgba(255,190,90,${(0.16 * n).toFixed(3)})`; ctx.fillRect(lx - 4, ly - 4, 14, 15); }
+    for (const [lx, ly] of lights) { sceneGlow(ctx, lx + 3, ly + 3, 15, '255,190,90', 0.42 * n); scenePool(ctx, lx + 3, GY + 5, 22, '255,180,90', 0.12 * n); }
     for (const [fx, fy, r] of fires) {
       const k = (0.85 + Math.sin(T * 8 + fx) * 0.15) * n;
-      for (const [q, a] of [[1, 0.07], [0.66, 0.1], [0.35, 0.14]]) { ctx.fillStyle = `rgba(255,150,60,${(a * k).toFixed(3)})`; ctx.fillRect(fx - r * q, fy - r * q * 0.7, r * q * 2, r * q * 1.4); }
-      for (let i = 0; i < 5; i++) { const w = r * (1.9 - i * 0.3); ctx.fillStyle = `rgba(255,170,80,${(0.022 * k).toFixed(3)})`; ctx.fillRect(fx - w / 2, GY + 1 + i, w, 14 - i * 2); }
+      sceneGlow(ctx, fx, fy, r * 1.25, '255,150,60', 0.42 * k); scenePool(ctx, fx, GY + 8, r * 1.9, '255,165,80', 0.26 * k);
     }
-    ctx.globalCompositeOperation = 'source-over';
   }
   if (wx.rain > 0) {
     ctx.fillStyle = 'rgba(205,222,240,.5)';
@@ -665,6 +760,7 @@ function drawYard(cv, T) {
     for (let i = 0; i < 5; i++) R((i * 211 + T * 120) % 640 - 20, GY + 22 + (i * 23) % 30 - Math.abs(Math.sin(T * 5 + i)) * 8, 2, 1, i % 2 ? '#6f8a3a' : '#a8722e');
     ctx.globalAlpha = 1;
   }
+  sceneAir(ctx, T, sky, wx, GY, false);
   late.forEach(f => f());
   sceneVignette(ctx, 590, 190, 0.3);
 }

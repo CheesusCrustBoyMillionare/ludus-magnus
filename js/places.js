@@ -35,13 +35,8 @@ function drawPlace(cv, T, tab) {
   ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
   if (scene.indoor) R(0, 0, 590, 190, '#1c1410');
   else {                                        // the sky, with the sun or the moon on its way across
-    R(0, 0, 590, 70, sky.bands[0]); R(0, 42, 590, 30, sky.bands[1]); R(0, 60, 590, 60, sky.bands[2]);
-    if (sky.night > 0.05) { for (let i = 0; i < 40; i++) { ctx.globalAlpha = sky.night * (0.5 + 0.5 * Math.sin(T * 1.7 + i * 2.1)); R((i * 131) % 588, (i * 47) % 58, 1, 1, '#f4f6ff'); } ctx.globalAlpha = 1; }
-    ctx.globalAlpha = 1 - wx.over * 0.9;
-    if (sky.sun) { const [sx, sy] = sky.sun; R(sx - 7, sy - 7, 14, 14, sky.sunCol); R(sx - 10, sy - 4, 20, 8, sky.sunCol); R(sx - 4, sy - 10, 8, 20, sky.sunCol); }
-    if (sky.moon) { const [mx, my] = sky.moon; R(mx - 6, my - 6, 12, 12, '#eef0f8'); R(mx - 8, my - 3, 16, 6, '#eef0f8'); R(mx + 1, my - 5, 6, 9, sky.bands[0]); }
-    ctx.globalAlpha = 1;
-    for (let i = 0; i < 3 + Math.round(wx.over * 5); i++) { const cx = (T * (3 + i % 4) + i * 210) % 760 - 100, cy = 8 + (i * 13) % 44; R(cx, cy, 34, 6, sky.cloud); R(cx + 6, cy - 3, 20, 4, sky.cloud); }
+    sky.cloud = mixHex(sky.cloud, mixHex('#7f8894', '#2a3248', sky.night), wx.over * 0.7);
+    sceneSkyDraw(ctx, T, sky, wx, 122);
   }
   // everything under the sky goes on its own layer, so the light of the hour stains the place and not the sky
   ctx = placeLayer.getContext('2d');
@@ -65,7 +60,14 @@ function drawPlace(cv, T, tab) {
     flame: (x, y, h, col) => { const fl = Math.sin(T * 12 + x) > 0 ? 1 : 0; R(x - 2, y - h - fl, 5, h + fl, col || '#e2702a'); R(x - 1, y - Math.round(h * 0.7) - fl, 3, Math.round(h * 0.7), '#f5c04a'); R(x, y - Math.round(h * 0.4), 1, Math.round(h * 0.4), '#fff0b0'); },
     column: (x, y, h) => { R(x, y, 7, h, '#e8e2d2'); R(x + 5, y, 2, h, '#c9c2ae'); R(x + 2, y, 1, h, '#f8f4ea'); R(x - 2, y - 3, 11, 3, '#d8d2c0'); R(x - 2, y + h, 11, 3, '#c9c2ae'); },
     tiles: (x, y, w, h) => { R(x, y, w, h, '#b5522e'); for (let i = 0; i < w; i += 6) R(x + i, y, 1, h, '#963f22'); R(x, y, w, 1, '#d06a3e'); },
-    paving: (y, c, d) => { R(0, y, 590, 190 - y, c); for (let i = 0; i < 110; i++) R((i * 97) % 588, y + 3 + (i * 53) % (186 - y), 3 + (i % 3) * 2, 1, d); R(0, y, 590, 2, 'rgba(40,24,8,.3)'); },
+    // the ground: stones laid in courses that widen toward you, their joints faint, worn pale down the middle where feet go
+    paving: (y, c, d) => {
+      R(0, y, 590, 190 - y, c);
+      for (let yy = y + 3, hr = 4, r = 0; yy < 190; yy += hr, hr += 2, r++) { R(0, yy, 590, 1, 'rgba(40,24,8,.10)'); R(0, yy + 1, 590, 1, 'rgba(255,244,214,.05)'); const pitch = 26 + r * 7; for (let x = ((r % 2) * pitch) / 2 + (r * 13) % 9; x < 590; x += pitch) R(x, yy + 1, 1, hr - 1, 'rgba(40,24,8,.08)'); }
+      for (let i = 0; i < 110; i++) R((i * 97) % 588, y + 3 + (i * 53) % (186 - y), 3 + (i % 3) * 2, 1, d);
+      for (let i = 0; i < 9; i++) { const ox = 30 + (i * 149) % 520, oy = y + 10 + (i * 37) % Math.max(6, 170 - y), rx = 30 + (i % 4) * 12; for (let dy = -3; dy <= 3; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / 12)); R(ox - w, oy + dy, w * 2, 1, i % 3 ? 'rgba(255,244,205,.06)' : 'rgba(60,40,14,.06)'); } }
+      R(0, y, 590, 2, 'rgba(40,24,8,.3)'); R(0, y + 2, 590, 3, 'rgba(40,24,8,.10)');
+    },
     // the shade a building throws on the ground before it: deeper and longer when the sun is low
     shade: (x, y, w) => R(x, y, w, 3 + Math.round(sky.shadow.len * 0.8), `rgba(40,24,8,${(0.13 + sky.shadow.len * 0.008).toFixed(3)})`),
     pips: (l, n) => '●'.repeat(Math.max(0, Math.min(n, l))) + '○'.repeat(Math.max(0, n - l)),
@@ -82,8 +84,7 @@ function drawPlace(cv, T, tab) {
     amphora: (x, y, c) => { R(x - 2, y - 9, 5, 8, c || '#b8703c'); R(x - 1, y - 12, 3, 3, c || '#b8703c'); R(x - 3, y - 11, 1, 3, '#8a5028'); R(x + 3, y - 11, 1, 3, '#8a5028'); R(x - 1, y - 1, 3, 2, '#8a5028'); },
   };
   if (!scene.indoor) {                          // the country beyond the town: two ranges of hills, cypresses, a roof or two
-    for (let x = -30; x < 590; x += 64) { const hh = 22 + ((x * 5) % 13); R(x, 96 - hh, 90, hh + 30, '#93b0a0'); R(x + 14, 92 - hh, 58, 5, '#a3bcad'); }
-    for (let x = -20; x < 590; x += 46) { const hh = 14 + ((x * 7) % 11); R(x, 100 - hh, 60, hh + 26, '#7fa27a'); R(x + 8, 96 - hh, 40, 5, '#8fb287'); }
+    sceneHills(ctx, 100, sky, 28, 2 + tab.length);
     for (const [cx, ch] of [[18, 34], [44, 26], [556, 30], [578, 38], [300, 22]]) { R(cx, 122 - ch, 2, ch, '#3a2a1c'); for (let q = 0; q < ch; q++) { const w = Math.round(Math.sin(q / ch * Math.PI) * 4) + 1; R(cx + 1 - w, 118 - q, w * 2, 1, q % 3 ? '#35543a' : '#416446'); } }
   }
   scene.draw(E);
@@ -107,10 +108,9 @@ function drawPlace(cv, T, tab) {
   if (la > 0) for (const [lx, ly] of lamps) {
     ctx.globalAlpha = la; E.flame(lx, ly, 5);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 5; i++) { const r = 26 - i * 5; ctx.fillStyle = `rgba(255,170,80,${(0.06 * la).toFixed(3)})`; ctx.fillRect(Math.round(lx - r), Math.round(ly - 4 - r * 0.7), r * 2, Math.round(r * 1.4)); }
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la);
   }
-  if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneRain(ctx, 590, 190, T, wx.rain); }
+  if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneRain(ctx, 590, 190, T, wx.rain); sceneAir(ctx, T, sky, wx, 128, true); }
   late.forEach(f => f());
   sceneVignette(ctx, 590, 190, scene.indoor ? 0.42 : 0.3);
 }
