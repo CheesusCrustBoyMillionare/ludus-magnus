@@ -391,6 +391,37 @@ test('the smith: reforging, fittings, commissions, a full harness, and clearing 
   G.armoury = [makeItem('arms', 5), makeItem('arms', 0), makeItem('arms', 0)]; G.roster.forEach(x => { x.gear.arms = makeItem('arms', 6); });
   const out = outclassed(), d2 = G.denarii, r = sellOutclassed();
   assert(out.length === 2 && r.n === 2 && G.armoury.length === 1 && G.armoury[0].r === 5 && G.denarii === d2 + r.sum, 'the best spare of a kind is kept');
+  // a master armourer reforges two between games; a lesser smith, one
+  { newGame(); G.denarii = 50000; G.smith.level = 2; const a1 = makeItem('arms', 1), a2 = makeItem('arms', 1), a3 = makeItem('arms', 1); G.armoury.push(a1, a2, a3);
+    assert(reforgeLimit() === 1 && reforgesDone() === 0 && reforge(a1.id) && reforgesDone() === 1 && !reforge(a2.id), 'an armourer: one');
+    G.smith.level = 3; assert(reforgeLimit() === 2 && reforge(a2.id) && reforgesDone() === 2 && !reforge(a3.id) && /two pieces/.test(reforgeBlock(a3)), 'a master armourer: two, and no more');
+    G.smith.reforged = dealCycle(); delete G.smith.reforgeN; assert(reforgesDone() === 1, 'a save from before counts the one it knew of'); }
+  // master-wrought: better than its grade, dearer, named for it, and it keeps the mark
+  { newGame(); G.denarii = 50000; G.smith.level = 4; const g2 = G.roster[0];
+    const plain = makeItem('weapon', 3, g2.cls), fine = Object.assign(makeItem('weapon', 3, g2.cls), { mw: true }), cu = makeItem('chest', 3), cuF = Object.assign(makeItem('chest', 3), { mw: true });
+    assert(Math.abs(itemStats(fine).dmg - itemStats(plain).dmg - 0.5) < 1e-9 && Math.abs(itemStats(cuF).armor - itemStats(cu).armor * 1.1) < 1e-9, 'half a point on a blade, a tenth on armour');
+    assert(itemPrice(fine) > itemPrice(plain) && /^Master-wrought /.test(itemName(fine)) && /Master-wrought/.test(itemEffect(fine)) && /Master-wrought/.test(itemEffect(cuF)) && !/Master/.test(itemName(plain)), 'and it is known for what it is');
+    G.armoury.push(fine); G.smith.reforged = -1; assert(reforge(fine.id) && fine.mw && fine.r === 4, 'reforged, it is master-wrought still');
+    assert(masterChance('order') > masterChance('reforge') && masterChance('order') <= 0.3, 'a commission comes out so oftener than a reforging: ' + masterChance('order'));
+    G.smith.level = 0; const low = masterChance('order'); G.smith.level = 4; assert(masterChance('order') > low, 'and a better forge oftener than a poor one');
+    let got = 0; for (let i = 0; i < 300; i++) { G.smith.order = { slot: 'head', cls: null, r: 6 }; genSmith(); if (G.armoury[G.armoury.length - 1].mw) got++; }
+    assert(got > 40 && got < 130, 'about one commission in four from an imperial forge: ' + got + ' of 300');
+    assert(G.smith.stock.every(x => !x.mw), 'nothing master-wrought is ever on the stall'); }
+  // three more fittings, and a fitting can be struck off for another
+  { newGame(); G.denarii = 50000; G.smith.level = 4; const g3 = G.roster[0], sw = makeItem('weapon', 3, g3.cls), gr = makeItem('legs', 3), sh = makeItem('shoulders', 3); G.armoury.push(sw, gr, sh);
+    assert(Object.keys(FITS).length === 8 && Object.keys(FITS).filter(k => FITS[k].weapon).length === 3, 'eight fittings: three for blades, five for armour');
+    const s0 = itemStats(sw), l0 = itemStats(gr), b0 = itemStats(sh);
+    assert(fitItem(sw.id, 'quick') && Math.abs(itemStats(sw).speed - s0.speed - 0.03) < 1e-9 && Math.abs(itemStats(sw).dmg - s0.dmg + 0.3) < 1e-9, 'a quick blade');
+    assert(fitItem(gr.id, 'braced') && Math.abs(itemStats(gr).hamRes - l0.hamRes - 0.15) < 1e-9 && fitItem(sh.id, 'lined') && Math.abs(itemStats(sh).bleedRes - b0.bleedRes - 0.2) < 1e-9, 'braced greaves and lined shoulders');
+    g3.gear.weapon = sw; G.armoury = G.armoury.filter(x => x !== sw); const base = gearStats(g3).speed; assert(base > 1.02, 'and a man is the faster for carrying it: ' + base);
+    const d3 = G.denarii, sc = stripCost(sw); assert(sc > 0 && sc < fitCost(sw) && stripFit(sw.id) && !sw.fit && G.denarii === d3 - sc && !/quick/.test(itemName(sw)) && !stripFit(sw.id), 'struck off for half, once');
+    assert(fitItem(sw.id, 'weighted') && sw.fit === 'weighted', 'and another put on in its place'); }
+  // the piece he is proudest of: the best on the stall, a fifth cheap, and only while it is his
+  { newGame(); G.denarii = 50000; G.smith.level = 4; genSmith();
+    const pr = G.smith.stock.filter(x => x.pride); assert(pr.length === 1 && pr[0].r === Math.max(...G.smith.stock.map(x => x.r)), 'one piece, and it is the best he has');
+    const p = pr[0], full = itemPrice(p), d4 = G.denarii; assert(buyPrice(p) === Math.round(full * 0.8 / 5) * 5 && buyPrice(p) < full, 'a fifth off');
+    const paid = buyPrice(p); assert(buyItem(p.id) && G.denarii === d4 - paid && !p.pride && itemPrice(p) === full, 'bought at that price, it is then a piece like any other');
+    const d5 = G.denarii; assert(sellItem(p.id) && G.denarii === d5 + Math.round(full / 2) && Math.round(full / 2) < paid, 'and selling it back loses money'); }
   assert(!badNumber(G), 'the smith left a bad number');
 }));
 
