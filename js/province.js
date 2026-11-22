@@ -492,6 +492,12 @@ function provLand() {
     if (reg === 'The Home Fields' && k === T_GRASS && !farmland(tx, ty) && a > 0.985) herd('sheep', tx, ty, 3 + Math.floor(v1 * 3), [T_GRASS, T_MEADOW], 110);
     else if ((reg === 'The High Fells' || reg === 'The Quarry Hills') && k === T_HILL && a < 0.012) herd('goats', tx, ty, 2 + Math.floor(v1 * 4), [T_HILL, T_GRASS], 110);
     else if ((reg === 'Greywood' || reg === 'The Barrow Downs' || reg === 'The Long Meadows') && (k === T_GRASS || k === T_MEADOW) && a < 0.05 && [3, 4].some(q => at(tx - q, ty) === T_FOREST || at(tx + q, ty) === T_FOREST || at(tx, ty - q) === T_FOREST || at(tx, ty + q) === T_FOREST)) herd('deer', tx, ty, 2 + Math.floor(v1 * 3), [T_GRASS, T_MEADOW], 150, 2);
+    else { const c1 = h(tx, ty, 1260), nearWood = [2, 3].some(q => at(tx - q, ty) === T_FOREST || at(tx + q, ty) === T_FOREST || at(tx, ty - q) === T_FOREST || at(tx, ty + q) === T_FOREST), nearWater = [2, 3].some(q => wet(at(tx - q, ty)) || wet(at(tx + q, ty)) || wet(at(tx, ty - q)) || wet(at(tx, ty + q)));
+      if ((reg === 'The Long Meadows' || reg === 'The Home Fields' || reg === 'The Barrow Downs') && (k === T_MEADOW || k === T_GRASS) && !farmland(tx, ty) && c1 < 0.012) herd('horses', tx, ty, 2 + Math.floor(v1 * 4), [T_GRASS, T_MEADOW], 170);                 // horses running loose
+      else if ((k === T_GRASS || k === T_MEADOW) && nearWood && !farmland(tx, ty) && c1 > 0.975 && reg !== 'The High Fells') herd('pigs', tx, ty, 3 + Math.floor(v1 * 4), [T_GRASS, T_MEADOW], 170, 1);                                                            // pigs put out under the trees
+      else if ((k === T_GRASS || k === T_MEADOW) && nearWater && c1 > 0.94 && c1 <= 0.975) herd('geese', tx, ty, 3 + Math.floor(v1 * 5), [T_GRASS, T_MEADOW, T_SAND], 150, 1);                                                                                   // geese by the water
+      else if (k === T_MARSH && c1 < 0.03) herd('cranes', tx, ty, 2 + Math.floor(v1 * 3), [T_MARSH], 140, 1);                                                                                                                                              // cranes standing in the marsh
+    }
     // poplars along the roads near the town: a tall one, a short one, sometimes two together
     if (k === T_GRASS && !farmland(tx, ty) && b > 0.86 && Math.hypot(tx - tx0, ty - ty0) < 30 && (at(tx, ty + 1) === T_ROAD || at(tx, ty - 1) === T_ROAD || at(tx + 1, ty) === T_ROAD || at(tx - 1, ty) === T_ROAD)) {
       const poplar = (px, hh, c1, c2) => { sh(px - 1, y + 9, 5); R(px, y + 6, 1, 3, '#4a3320'); for (let q = 0; q < hh; q++) { const w2 = q < 2 || q > hh - 3 ? 1 : 2; R(px - (w2 >> 1), y + 6 - hh + q, w2 + 1, 1, q % 3 ? c1 : c2); } };
@@ -1059,7 +1065,7 @@ function drawHerds(ctx, T, R, inView) {
   const F = G.field;
   for (const H of (prov.herds || [])) {
     if (!inView(H.x, H.y, 60) || !wildSeen(H.x, H.y)) continue;
-    const hv = n => wildHash(H.seed, n, 670), K = H.kind, roam = K === 'cattle' ? 12 : K === 'deer' ? 22 : 28, pace = K === 'cattle' ? 0.8 : K === 'goats' ? 2.4 : K === 'deer' ? 1.6 : 2.4;
+    const hv = n => wildHash(H.seed, n, 670), K = H.kind, roam = K === 'cattle' ? 12 : K === 'deer' ? 22 : K === 'horses' ? 36 : K === 'pigs' ? 14 : K === 'geese' ? 13 : K === 'cranes' ? 8 : 28, pace = K === 'cattle' ? 0.8 : K === 'goats' ? 2.4 : K === 'deer' ? 1.6 : K === 'horses' ? 2 : K === 'pigs' ? 1.2 : K === 'geese' ? 1.6 : K === 'cranes' ? 0.5 : 2.4;
     const w1 = (0.035 + hv(1) * 0.02) * pace, w2 = (0.061 + hv(2) * 0.03) * pace, p1 = hv(3) * 9, p2 = hv(4) * 9;
     let cx = H.x + roam * (Math.sin(T * w1 + p1) * 0.65 + Math.sin(T * w2 + p2) * 0.35), cy = H.y + roam * 0.7 * (Math.cos(T * w1 * 0.9 + p2) * 0.65 + Math.cos(T * w2 * 1.1 + p1) * 0.35);
     const vx = roam * (Math.cos(T * w1 + p1) * 0.65 * w1 + Math.cos(T * w2 + p2) * 0.35 * w2);      // which way the herd as a whole is drifting
@@ -1091,6 +1097,25 @@ function drawHerds(ctx, T, R, inView) {
         const c = B.b1 > 0.5 ? '#c9c2ae' : B.b1 > 0.25 ? '#8a7a66' : '#e8e2d2', hop = moving && Math.sin(T * 6 + B.i) > 0.6 ? 1 : 0;
         R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 3 - hop, 4, 2, c); R(right ? x + 2 : x - 3, y - 4 - hop + (graze ? 1 : 0), 2, 2, c); R(right ? x + 2 : x - 2, y - 5 - hop + (graze ? 1 : 0), 1, 1, '#5a4a3a'); R(right ? x + 3 : x - 4, y - 3 - hop + (graze ? 1 : 0), 1, 1, c);
         R(x - 2 + step, y - 1 - hop, 1, 2, '#3a2a22'); R(x + 1 - step, y - 1 - hop, 1, 2, '#3a2a22');
+      } else if (K === 'horses') {
+        const c = ['#7a4a2a', '#2a2220', '#c9c2ae', '#a8642e', '#c8a868'][Math.floor(B.b1 * 5)], dk = shade(c, 0.6), foal = B.b3 < 0.2, w = foal ? 5 : 8, bh = foal ? 3 : 4, lg = foal ? 2 : 3, hw = w >> 1, hx = right ? x + hw - 1 : x - hw - 1, trot = moving && Math.sin(T * 8 + B.i) > 0 ? 1 : 0;
+        R(x - hw, y + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(x - hw, y - lg - bh - trot, w, bh, c); if (B.b2 > 0.7 && c !== '#c9c2ae') R(x - 1, y - lg - bh - trot, 2, 2, '#e8e2d2');
+        if (graze) { R(hx, y - lg - bh + 1, 2, bh, c); R(right ? hx + 1 : hx - 1, y - lg, 2, 2, c); } else { R(hx, y - lg - bh - 3 - trot, 2, 4, c); R(right ? hx + 1 : hx - 2, y - lg - bh - 3 - trot, 3, 2, c); R(right ? hx - 1 : hx + 2, y - lg - bh - 2 - trot, 1, 3, dk); }
+        R(right ? x - hw - 1 : x + hw, y - lg - bh + 1 - trot, 1, 3, dk); R(x - hw + step, y - lg, 1, lg, dk); R(x + hw - 1 - step, y - lg, 1, lg, dk);
+      } else if (K === 'pigs') {
+        const c = B.b1 > 0.6 ? '#e0a8a0' : B.b1 > 0.3 ? '#5a4a44' : '#c8907c', piglet = B.b3 < 0.25, w = piglet ? 3 : 5;
+        R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - 3, w, 3, c); if (B.b2 > 0.6 && !piglet) R(x - 1, y - 3, 2, 2, c === '#5a4a44' ? '#e0a8a0' : '#5a4a44');
+        R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - 3 + (graze ? 1 : 0), 2, 2, c); R(right ? x + (w >> 1) + 3 : x - (w >> 1) - 3, y - 2 + (graze ? 1 : 0), 1, 1, shade(c, 0.8)); R(right ? x - (w >> 1) - 1 : x + (w >> 1) + 1, y - 3, 1, 1, c);
+        R(x - (w >> 1) + step, y, 1, 1, '#3a2a22'); R(x + (w >> 1) - step, y, 1, 1, '#3a2a22');
+      } else if (K === 'geese') {
+        const c = B.b1 > 0.3 ? '#f4f4f0' : '#a8a498', up = !graze, wad = moving && Math.sin(T * 10 + B.i) > 0 ? 1 : 0;
+        R(x - 1, y + 1, 4, 1, 'rgba(0,0,0,.18)'); R(x - 1, y - 2, 3, 2, c); R(right ? x - 2 : x + 2, y - 2, 1, 1, c);
+        if (up) { R(right ? x + 2 : x - 2, y - 4, 1, 3, c); R(right ? x + 3 : x - 3, y - 4, 1, 1, '#e8902a'); } else { R(right ? x + 2 : x - 2, y - 1, 1, 2, c); R(right ? x + 3 : x - 3, y, 1, 1, '#e8902a'); }
+        R(x - 1 + wad, y, 1, 1, '#e8902a'); R(x + 1 - wad, y, 1, 1, '#e8902a');
+      } else if (K === 'cranes') {
+        const c = B.b1 > 0.5 ? '#c8ccd0' : '#e8e8e4', down = graze;
+        R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.16)'); R(x - 1, y - 4, 1, 4, '#3a3a40'); R(x + 1, y - 4 + (moving && step ? 1 : 0), 1, 4 - (moving && step ? 1 : 0), '#3a3a40'); R(x - 2, y - 6, 5, 2, c); R(right ? x - 3 : x + 3, y - 5, 1, 2, '#3a3a40');
+        if (down) { R(right ? x + 3 : x - 3, y - 5, 1, 4, c); R(right ? x + 4 : x - 5, y - 2, 2, 1, '#c8a040'); } else { R(right ? x + 3 : x - 3, y - 10, 1, 5, c); R(right ? x + 3 : x - 3, y - 11, 1, 1, '#c23b2e'); R(right ? x + 4 : x - 5, y - 10, 2, 1, '#c8a040'); }
       } else {                                   // deer
         const stag = B.i === 0, c = B.b1 > 0.5 ? '#a8764a' : '#96683e', up = !graze || bolt > 0.1, leap = bolt > 0.1 && Math.sin(T * 10 + B.i) > 0 ? 2 : 0;
         R(x - 3, y + 1, 7, 1, 'rgba(0,0,0,.2)'); R(x - 3, y - 5 - leap, 6, 3, c); R(right ? x - 4 : x + 3, y - 5 - leap, 1, 2, '#f1ead8');
@@ -1100,11 +1125,11 @@ function drawHerds(ctx, T, R, inView) {
       }
     }
     // the shepherd and his dog, with the larger flocks
-    if (K === 'sheep' && hv(5) > 0.45 && H.n >= 4) {
+    if ((K === 'sheep' || K === 'pigs' || K === 'geese') && hv(5) > 0.45 && H.n >= 4) {
       const sx = Math.round(cx - (vx >= 0 ? 16 : -16)), sy = Math.round(cy + 6), mv = Math.abs(vx) > 0.9;
       vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', walk: T * 6, moving: mv, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14' });
       R(sx + (vx >= 0 ? 5 : -5), sy - 16, 1, 16, '#6b4f2c'); R(sx + (vx >= 0 ? 5 : -6), sy - 17, 2, 1, '#6b4f2c');      // his crook
-      if (hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
+      if (K === 'sheep' && hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
     }
   }
   // birds on the wing over the places that draw them
@@ -1161,13 +1186,13 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
 
 // Those who use the roads: carters, pilgrims, a file of soldiers, a merchant with his donkey, a man in a hurry on a
 // horse. Each keeps to one road and goes up and down it for ever; where he is comes from the clock, like the herds.
-const TRAVELLERS = ['cart', 'pilgrim', 'soldiers', 'merchant', 'rider', 'herdsman'];
+const TRAVELLERS = ['cart', 'pilgrim', 'soldiers', 'merchant', 'rider', 'herdsman', 'litter', 'mules', 'woodman', 'oxwagon', 'runner', 'family'];
 function drawTraffic(ctx, T, R, inView) {
   (prov.ways || []).forEach((way, wi) => {
     const len = way.length - 1, n = len > 60 ? 3 : 2;
     for (let j = 0; j < n; j++) {
       const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)];
-      const speed = kind === 'rider' ? 3.4 : kind === 'cart' ? 1.1 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
+      const speed = kind === 'rider' ? 3.4 : kind === 'runner' ? 2.8 : kind === 'cart' ? 1.1 : kind === 'oxwagon' ? 0.8 : kind === 'litter' ? 1.2 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
       const sraw = (T * speed + hv(2) * len * 2) % (len * 2), idx = sraw <= len ? sraw : len * 2 - sraw, dir = sraw <= len ? 1 : -1;
       const i0 = Math.min(len - 1, Math.floor(idx)), fr = idx - i0, a = way[i0], b = way[i0 + 1], x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
       if (!inView(x, y, 30) || !wildSeen(x, y) || Math.hypot(x - WILD.TOWN.x, y - WILD.TOWN.y) < 24) continue;
@@ -1181,6 +1206,12 @@ function drawTraffic(ctx, T, R, inView) {
       else if (kind === 'soldiers') { for (let q = 0; q < 2 + Math.floor(hv(3) * 2); q++) { man(-d * q * 8, (q % 2) * 2, '#a8261c', '#2a1c14'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 20, 1, 16, '#6b4f2c'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 22, 1, 2, '#c1c7cc'); R(x - d * q * 8 - d * 4, y + (q % 2) * 2 - 12, 3, 6, '#8a2a20'); R(x - d * q * 8 - d * 4 + 1, y + (q % 2) * 2 - 10, 1, 2, '#c9a21e'); } }
       else if (kind === 'merchant') { beast(x - d * 10, y, '#9a8a72'); R(x - d * 10 - 3, y - 9, 7, 4, hv(3) > 0.5 ? '#b93a2e' : '#2f6db8'); R(x - d * 10 - 3, y - 9, 7, 1, '#f1ead8'); man(0, 0, hv(4) > 0.5 ? '#7a2a8a' : '#3f7a5a'); }
       else if (kind === 'rider') { beast(x, y, hv(3) > 0.5 ? '#5a3a26' : '#c9c2ae', true); R(x - 1, y - 12, 3, 6, hv(4) > 0.5 ? '#a8261c' : '#4a6a8a'); R(x - 1, y - 15, 3, 3, '#d9a57c'); R(x - 1, y - 16, 3, 1, '#3a2a1c'); R(x - d * 2, y - 11, 2, 3, '#7a2a20'); }
+      else if (kind === 'litter') { const lc = ['#8a2a6a', '#a8261c', '#2f6db8', '#c9a21e'][Math.floor(hv(3) * 4)]; man(d * 9, 0, '#8a6a4a'); man(-d * 9, 0, '#8a6a4a'); R(x - 11, y - 9, 23, 1, '#5a4326'); R(x - 6, y - 15, 13, 7, lc); R(x - 6, y - 16, 13, 1, shade(lc, 1.25)); R(x - 4, y - 13, 4, 4, '#f1ead8'); R(x - 3, y - 12, 2, 2, '#d9a57c'); R(x + 2, y - 15, 1, 7, shade(lc, 0.75)); if (hv(4) > 0.5) man(-d * 17, 2, '#e8e2d2'); }      // somebody of account, carried
+      else if (kind === 'mules') { for (let q = 0, n2 = 2 + Math.floor(hv(3) * 2); q < n2; q++) { const mx = x - d * (10 + q * 11); beast(mx, y + (q % 2), ['#9a8a72', '#6f5a48', '#b8a888'][q % 3]); R(mx - 3, y - 9 + (q % 2), 7, 4, ['#b93a2e', '#c9b25a', '#5a6a4a', '#8a6a3a'][Math.floor(hv(5 + q) * 4)]); R(mx - 3, y - 9 + (q % 2), 7, 1, '#3a2a1c'); } man(0, 0, hv(4) > 0.5 ? '#6a5a3a' : '#7a4a3a'); }      // a string of pack mules
+      else if (kind === 'woodman') { man(0, 0, '#6a5a3a', hv(3) > 0.5 ? '#8a8a8a' : '#3a2a1c'); R(x - d * 4 - 1, y - 17, 4, 7, '#6b4f2c'); R(x - d * 4 - 2, y - 18, 6, 1, '#8a6a3a'); R(x - d * 4, y - 16, 1, 6, '#8a6a3a'); R(x - d * 4 - 1, y - 14, 4, 1, '#c8b890'); if (hv(4) > 0.5) { R(x + d * 5, y - 9, 1, 6, '#6b4f2c'); R(x + d * 5, y - 10, 2, 2, '#b8c0c8'); } }      // a man under a load of sticks
+      else if (kind === 'oxwagon') { const wx = x - d * 20, load = hv(3); R(wx - 9, y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, y - 6, 16, 5, '#7a5a34'); R(wx - 8, y - 7, 16, 1, '#a8834a'); if (load > 0.6) { R(wx - 6, y - 12, 12, 5, '#d8d2c0'); R(wx - 6, y - 12, 12, 1, '#f0ece0'); R(wx + 4, y - 12, 2, 5, '#b8b0a0'); } else if (load > 0.3) for (let q = 0; q < 3; q++) { R(wx - 6 + q * 4, y - 11, 3, 4, '#8a5a34'); R(wx - 6 + q * 4, y - 10, 3, 1, '#3a2a1c'); } else { R(wx - 7, y - 11, 14, 4, '#d9c070'); R(wx - 5, y - 12, 10, 1, '#e6d088'); } for (const o of [-6, 3]) { R(wx + o, y - 2, 4, 4, '#3a2a1c'); R(wx + o + 1, y - 1, 2, 2, '#8a6a3a'); } beast(x - d * 6, y, '#e8e2d2', true); beast(x + d * 4, y + 1, hv(4) > 0.5 ? '#8a6a4a' : '#d8d0b8', true); man(d * 12, 1, '#7a6a4a'); }      // oxen, and a wagon of stone, wine or hay
+      else if (kind === 'runner') { man(0, 0, hv(3) > 0.5 ? '#e8e2d2' : '#c9a21e', '#2a1c14'); R(x - d * 3, y - 10, 3, 3, '#6b4f2c'); R(x - d * 2, y - 13, 1, 3, '#6b4f2c'); }      // a runner with a satchel of letters
+      else if (kind === 'family') { man(0, 0, ['#7a6a4a', '#5a6a8a', '#8a4a3a'][Math.floor(hv(3) * 3)]); man(-d * 8, 1, ['#b8703c', '#8a2a6a', '#3f7a5a', '#c9b25a'][Math.floor(hv(4) * 4)], hv(5) > 0.5 ? '#6a4a2a' : '#2a1c14'); R(x - d * 8 - 2, y - 21, 5, 3, '#c9a763'); const dg = x - d * 16; R(dg - 2, y + 3, 5, 1, 'rgba(0,0,0,.2)'); R(dg - 2, y, 4, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(d > 0 ? dg + 2 : dg - 3, y - 1, 2, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(dg - 2 + step, y + 2, 1, 1, '#2a1c14'); R(dg + 1, y + 2, 1, 1, '#2a1c14'); }      // a man and a woman with a basket on her head, and their dog
       else { man(0, 0, '#8a6a4a', '#6a4a2a'); R(x + d * 5, y - 14, 1, 14, '#6b4f2c'); for (let q = 0; q < 3; q++) { const gx = x + d * (9 + q * 5), gy = y + (q % 2) * 3; R(gx - 2, gy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 4, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(d > 0 ? gx + 2 : gx - 3, gy - 4, 2, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(gx - 2 + step, gy - 1, 1, 2, '#3a2a22'); R(gx + 1 - step, gy - 1, 1, 2, '#3a2a22'); } }      // a herdsman driving goats to market
     }
   });
