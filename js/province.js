@@ -1134,7 +1134,7 @@ function provLand() {
     'The barrow of kings': {
       u: (x, y) => { lmSoft(x + 24, y + 9, 34, 5, 'rgba(40,60,20,.22)', 54); lmSoft(x + 24, y + 13, 12, 3, 'rgba(196,188,166,.45)', 55); },      // the ditch round it, and the forecourt worn pale
       o: (x, y) => {
-        for (let dy = -15; dy <= -2; dy++) { const w = Math.round(25 * Math.sqrt(1 - (dy * dy) / 232)); if (dy % 3 === 0) R(x + 24 - w + 3, y + 9 + dy, Math.max(1, w * 2 - 8), 1, 'rgba(40,70,20,.14)'); } lmDab(x + 4, y - 4, 40, 11, 14, ['#86ac58', '#4f7434', '#f4f4f0', '#f2e6a0', '#98bc68'], 56);      // the mound in its bands, with daisies on it
+        for (let dy = -15; dy <= -2; dy++) { const w = Math.round(25 * Math.sqrt(1 - (dy * dy) / 232)); if (dy % 3 === 0) R(x + 24 - w + 3, y + 9 + dy, Math.max(1, w * 2 - 8), 1, 'rgba(40,70,20,.14)'); } lmDab(x + 4, y - 4, 40, 11, 10, ['#8ea864', '#5f7f3f', '#f4f4f0', '#f2e6a0', '#a2be74'], 56);      // the mound in its bands, with daisies on it
         R(x + 23, y - 12, 3, 7, '#a8a290'); R(x + 23, y - 12, 1, 7, '#cfc9b6'); R(x + 25, y - 11, 1, 6, '#6d6858');                                                                                                                                         // one stone set up on the crown of it
         R(x + 19, y, 1, 1, '#6d6858'); R(x + 19, y + 3, 1, 1, '#6d6858'); R(x + 29, y + 1, 1, 1, '#5f5a4c'); R(x + 29, y + 4, 1, 1, '#5f5a4c'); R(x + 20, y - 5, 2, 1, '#6d6858'); R(x + 24, y - 5, 2, 1, '#6d6858'); R(x + 28, y - 5, 2, 1, '#6d6858'); R(x + 16, y - 3, 17, 1, '#8f8876');      // what is cut on the door-stones and the lintel
         R(x + 22, y - 2, 5, 11, 'rgba(0,0,0,.35)'); R(x + 9, y - 5, 1, 14, '#8f8876'); R(x + 40, y - 3, 1, 12, '#6d6858');
@@ -1641,8 +1641,29 @@ function provLand() {
     R(x + 15, y + 10, 6, 3, '#d8d4c6'); R(x + 15, y + 10, 6, 1, '#f8f6ee'); tree(x - 6, y + 9, 'cypress', 4, 1); tree(x + 42, y + 9, 'cypress', 4, 0.96);
   });
   setDown(45, on([T_GRASS, T_HILL, T_MEADOW], 'The Barrow Downs'), 24, 'The barrow of kings', (x, y) => {
-    R(x - 3, y + 9, 54, 3, 'rgba(0,0,0,.2)'); for (let dy = -15; dy <= 0; dy++) { const w = Math.round(25 * Math.sqrt(1 - (dy * dy) / 232)); R(x + 24 - w, y + 9 + dy, w * 2, 1, '#6c9246'); if (dy < -4) R(x + 24 - w + 2, y + 9 + dy, Math.round(w * 0.9), 1, '#86ac58'); R(x + 24 + w - Math.max(1, Math.round(w * 0.25)), y + 9 + dy, Math.max(1, Math.round(w * 0.25)), 1, '#4f7434'); }
-    for (let q = 0; q < 13; q++) { R(x + q * 4, y + 8, 3, 2, q % 2 ? '#a8a290' : '#b8b2a0'); R(x + q * 4, y + 8, 3, 1, '#cfc9b6'); }
+    // The mound rises out of the down; it is not set on it. First its skirt, lying a long way out in the colour of the
+    // ground; its shadow, falling away to the south-east; then the mound itself, in the down's own greens, lighter where
+    // the light takes it and darker round the far shoulder, its edge ragged with grass and its foot fading into the turf.
+    for (let q = 0; q < 5; q++) { const rw = 37 - q * 3, rh = 8 - q; for (let dy = -rh; dy <= rh; dy++) { const w = Math.round(rw * Math.sqrt(Math.max(0, 1 - (dy * dy) / (rh * rh)))); if (w > 0) R(x + 24 - w, y + 8 + dy - q, w * 2, 1, 'rgba(104,132,70,.13)'); } }
+    for (let q = 0; q < 6; q++) R(x + 26 + q * 3, y + 9 + q, Math.max(2, 26 - q * 5), 1, 'rgba(20,30,10,.10)');
+    for (let dy = -15; dy <= 2; dy++) {
+      const w0 = Math.round(25 * Math.sqrt(Math.max(0, 1 - (Math.min(0, dy) * Math.min(0, dy)) / 232))), jl = dy > -13 ? Math.round(wildHash(x + dy, y, 3301) * 2) : 0, jr = dy > -13 ? Math.round(wildHash(y, x + dy, 3302) * 2) : 0;
+      const l = x + 24 - w0 - jl + 1, w = w0 * 2 + jl + jr - 2, k = (dy + 15) / 17, col = k < 0.35 ? '#8ea864' : k < 0.7 ? '#7d9a56' : '#6f8c4c';
+      if (dy > 0) { R(l - 1, y + 9 + dy, w + 2, 1, 'rgba(111,140,76,' + (dy === 1 ? '.6' : '.3') + ')'); continue; }      // the foot of it, going into the turf
+      R(l, y + 9 + dy, w, 1, col);
+      if (dy < -3) R(l + 2, y + 9 + dy, Math.max(1, Math.round(w * 0.42)), 1, 'rgba(178,204,128,.34)');                    // the light on the near shoulder
+      R(l + w - Math.max(1, Math.round(w * 0.26)), y + 9 + dy, Math.max(1, Math.round(w * 0.26)), 1, 'rgba(36,58,22,.26)'); // and the far one in shade
+    }
+    for (let q = 0; q < 34; q++) {                // grass on it: tufts dark and light, and a few standing up along the skyline
+      const h1 = wildHash(x + q, y, 3303), h2 = wildHash(y, x + q, 3304), dy = -14 + Math.floor(h2 * 14), w = Math.round(25 * Math.sqrt(1 - (dy * dy) / 232)) - 2; if (w < 2) continue;
+      const gx = x + 24 - w + Math.floor(h1 * w * 2); R(gx, y + 9 + dy, 1 + (q % 3 === 0 ? 1 : 0), 1, q % 2 ? 'rgba(52,80,32,.5)' : 'rgba(190,212,140,.55)'); if (q % 7 === 0) R(gx, y + 8 + dy, 1, 1, 'rgba(52,80,32,.5)');
+    }
+    for (let q = 0; q < 9; q++) { const an = Math.PI * (0.12 + q * 0.095), gx = Math.round(x + 24 - Math.cos(an) * 25), gy = Math.round(y + 9 - Math.sin(an) * 15.2); R(gx, gy - 1, 1, 2, q % 2 ? '#5f7f3f' : '#7d9a56'); }
+    // the kerb: what is left of it. Stones of no one size, some sunk, some gone, moss on the north side of them, grass grown up between
+    for (let q = 0; q < 14; q++) { const h1 = wildHash(x + q * 3, y, 3305), h2 = wildHash(y, x + q * 3, 3306); if (h1 < 0.3 || (q > 4 && q < 8)) continue;
+      const sx = x - 2 + q * 4 + Math.round(h2 * 2), sw = 2 + Math.round(h2 * 2), sh = h1 > 0.75 ? 2 : 1, sy = y + 9 - sh + (h2 > 0.6 ? 1 : 0), c = ['#9a9684', '#a8a390', '#8c8876'][q % 3];
+      R(sx, sy, sw, sh + 1, c); R(sx, sy, sw, 1, '#c2bda8'); R(sx + sw - 1, sy + 1, 1, sh, '#77735f'); if (h1 > 0.6) R(sx, sy, 1, 1, '#6f8a4a'); R(sx, sy + sh + 1, sw + 1, 1, 'rgba(0,0,0,.14)'); }
+    for (let q = 0; q < 16; q++) { const gx = x - 4 + Math.floor(wildHash(x + q, y + 5, 3307) * 56), tall = q % 4 === 0; R(gx, y + 10 - (tall ? 2 : 1), 1, tall ? 3 : 2, q % 2 ? '#5f7f3f' : '#84a05a'); }
     R(x + 18, y - 3, 3, 12, '#a8a290'); R(x + 18, y - 3, 1, 12, '#cfc9b6'); R(x + 28, y - 3, 3, 12, '#8f8876'); R(x + 16, y - 6, 17, 3, '#b8b2a0'); R(x + 16, y - 6, 17, 1, '#d8d2c0'); R(x + 21, y - 3, 7, 12, '#120c0a');
     R(x + 8, y - 6, 3, 15, '#a8a290'); R(x + 8, y - 6, 1, 15, '#cfc9b6'); R(x + 38, y - 4, 3, 13, '#a8a290'); R(x + 38, y - 4, 1, 13, '#cfc9b6'); R(x + 22, y - 9, 6, 1, '#6f8a4a'); R(x + 12, y - 5, 2, 1, '#f2e6a0'); R(x + 34, y - 8, 2, 1, '#f2e6a0');
   });
@@ -2828,6 +2849,30 @@ function tradeWays() {
   W.coal = line(burners, gate); W.logs = from("A woodcutter's cabin", burners, 50, 520, 1)[0] || null;
   W.pick = from('A vineyard house', press, 40, 420, 2); W.jars = line(press, gate);
   W.watch = line(landmarkAt('The fort'), landmarkAt('The watchtower'));
+  const straight = (a, b) => { const d = Math.hypot(b.x - a.x, b.y - a.y); return d > 12 ? { pts: [a, b], len: [0, d], total: d } : null; };
+  // the ferry: over the river from the landing, on a slant
+  { const fy = landmarkAt('The ferry'); let best = null;
+    if (fy) for (let q = 0; q < 24; q++) { const an = q / 24 * Math.PI * 2, dx = Math.cos(an), dy = Math.sin(an); let shore = -1, far = -1;
+      for (let r = 4; r <= 220; r += 4) { const wt = wetAt(fy.x + dx * r, fy.y + dy * r); if (shore < 0) { if (wt) shore = r; else if (r > 60) break; } else if (!wt) { far = r; break; } }
+      if (shore >= 0 && far >= shore + 16 && far - shore <= 110 && (!best || Math.abs(far - shore - 50) < Math.abs(best.w - 50))) best = { w: far - shore, a: { x: fy.x + dx * (shore + 3), y: fy.y + dy * (shore + 3) }, b: { x: fy.x + dx * (far - 4), y: fy.y + dy * (far - 4) } }; }      // a slanting crossing of fifty paces or so, for choice: the river is narrow here
+    W.ferry = best ? straight(best.a, best.b) : null; }
+  // the bees' road, as a bee goes: straight from the garden to the press; and the way a man would walk it
+  { const bg = landmarkAt('The bee garden'); if (bg && press && Math.hypot(bg.x - press.x, bg.y - press.y) < 900) { W.bees = straight({ x: bg.x, y: bg.y - 10 }, { x: press.x, y: press.y - 10 }); W.court = line(press, bg); } }
+  // the hunters: from the lodge to the nearest deep wood it can reach
+  { const lodge = landmarkAt("The hunters' lodge"), tileAt = (x, y) => L.t[clamp(Math.floor(y / 10), 0, WILD.TH - 1) * WILD.TW + clamp(Math.floor(x / 10), 0, WILD.TW - 1)];
+    if (lodge) for (const r of [170, 130, 210, 100]) { for (let q = 0; q < 12 && !W.hunt; q++) { const an = q / 12 * Math.PI * 2, x = lodge.x + Math.cos(an) * r, y = lodge.y + Math.sin(an) * r; if (tileAt(x, y) === T_FOREST) W.hunt = line(lodge, { x: Math.floor(x / 10) * 10 + 5, y: Math.floor(y / 10) * 10 + 5 }); } if (W.hunt) break; } }
+  // the marsh people's punts: by water from under the stilt huts to the peat cutters', if water joins them; else up and down their own mere
+  { const stilts = landmarkAt('The huts on stilts'), TW = WILD.TW, TH = WILD.TH, wetT = i => L.t[i] === T_WATER;
+    const nearWet = (x, y, rad) => { let b = -1, bd = 1e9; const tx0 = Math.floor(x / 10), ty0 = Math.floor(y / 10); for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) { const tx = tx0 + dx, ty = ty0 + dy; if (tx < 1 || ty < 1 || tx >= TW - 1 || ty >= TH - 1) continue; const i = ty * TW + tx, d = dx * dx + dy * dy; if (wetT(i) && d < bd) { bd = d; b = i; } } return b; };
+    if (stilts) { const a = nearWet(stilts.x, stilts.y, 8);
+      const peat = (prov.marks || []).filter(m => m.name === "A peat cutter's hut").map(m => ({ m, d: Math.hypot(m.x - stilts.x, m.y - stilts.y) })).filter(o => o.d < 700).sort((x, y) => x.d - y.d);
+      if (a >= 0) { const prev = new Int32Array(TW * TH).fill(-2), q = [a]; prev[a] = -1;      // every water tile that can be reached from the huts, and how
+        for (let h = 0; h < q.length; h++) { const c = q[h], cx = c % TW, cy = (c - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = cx + dx, ny = cy + dy; if (nx < 1 || ny < 1 || nx >= TW - 1 || ny >= TH - 1) continue; const n = ny * TW + nx; if (prev[n] === -2 && wetT(n)) { prev[n] = c; q.push(n); } } }
+        for (const o of peat) { const b = nearWet(o.m.x + 12, o.m.y + 12, 7); if (b < 0 || prev[b] === -2 || b === a) continue;
+          const pts = []; for (let c = b; c !== -1; c = prev[c]) pts.push({ x: (c % TW) * 10 + 5, y: Math.floor(c / TW) * 10 + 5 }); pts.reverse();
+          const len = [0]; for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+          if (len[len.length - 1] > 40) { W.punt = { pts, len, total: len[len.length - 1] }; break; } }
+        if (!W.punt) { const far = q[q.length - 1]; if (q.length > 12) { const pts = []; for (let c = far; c !== -1; c = prev[c]) pts.push({ x: (c % TW) * 10 + 5, y: Math.floor(c / TW) * 10 + 5 }); pts.reverse(); const len = [0]; for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + 10); W.punt = { pts, len, total: len[len.length - 1], idle: true }; } } } } }
   return (prov.trade = W);
 }
 // Where along a way, so far from its start.
@@ -2969,21 +3014,100 @@ function drawTrade(ctx, T, R, inView) {
         provUnder(ctx, C.x, C.y, 18); } }
     if (watchRelief()) {
       const u = dayPart(), e = taleEnd('watch'), n = e === 'gone' || e === 'oath' ? 1 : 2;      // one man short, if Rufio never came back to it
-      const f = u >= 0.08 && u < 0.46 ? (u - 0.08) / 0.38 : u >= 0.54 && u < 0.92 ? 1 - (u - 0.54) / 0.38 : -1;
-      if (f >= 0) { const outward = u < 0.5, sgn = outward ? 1 : -1;
+      // Where the hour would have them on the road, and where they have got to: they march at a walk (FLOCK_PACE, the pace of
+      // a band on its round) however fast the day goes by, and are seen only while they are on the way.
+      const total = W.watch.total, want = u < 0.08 ? 0 : u < 0.46 ? (u - 0.08) / 0.38 * total : u < 0.54 ? total : u < 0.92 ? (1 - (u - 0.54) / 0.38) * total : 0;
+      const st = prov.relief && prov.relief.day === G.day ? prov.relief : (prov.relief = { day: G.day, d: want, t: T, sgn: 1 }), wdt = clamp(T - st.t, 0, 0.25), gap = want - st.d;
+      st.t = T; if (Math.abs(gap) > 0.5) { st.sgn = gap > 0 ? 1 : -1; st.d += clamp(gap, -FLOCK_PACE * wdt, FLOCK_PACE * wdt); }
+      const f = st.d > 3 && st.d < total - 3 ? st.d / total : -1;
+      if (f >= 0) { const sgn = st.sgn, onRoad = Math.abs(gap) > 0.5;
         for (let k = 0; k < n; k++) {
           const d0 = clamp(f * W.watch.total - sgn * k * 9, 0, W.watch.total), at = wayAt(W.watch, d0), on = wayAt(W.watch, d0 + sgn * 5), dx = on.x - at.x, dy = on.y - at.y, x = Math.round(at.x), y = Math.round(at.y) + (k % 2);
           if (!shown(x, y)) continue;
           const face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = dx >= 0 ? 1 : -1;
-          man(x, y, face, true, '#a8261c', '#2a1c14');
+          man(x, y, face, onRoad, '#a8261c', '#2a1c14');
           R(x + d * 4, y - 21, 1, 17, '#6b4f2c'); R(x + d * 4, y - 23, 1, 2, '#c1c7cc'); R(x - d * 4 - 1, y - 13, 3, 7, '#8a2a20'); R(x - d * 4, y - 11, 1, 2, '#c9a21e'); R(x - 1, y - 20, 3, 1, '#c1c7cc');      // spear, shield and helmet
           provUnder(ctx, x, y, 14);
         } }
     }
   }
+  // ---- the ferry: over and back all day; and tied up when the bell story says it is
+  if (W.ferry) {
+    const e = taleEnd('ferry'), u = dayPart(), runs = e === 'silent' ? true : e === 'noon' ? u >= 0.45 : u < 0.8;      // any hour, once the bell is cut down; from noon, where it rings at noon; and by day only, otherwise
+    const go = W.ferry.total / 7, cyc = (go + 9) * 2, trip = Math.floor(T / cyc), C = runs ? shuttleAt(W.ferry, T, 7, 9, 0) : Object.assign(shuttleAt(W.ferry, 0, 7, 1e9, 0), { moving: false, leg: 0 });
+    if (inView(C.x, C.y, 30) && wildSeen(C.x, C.y)) {
+      const bob = Math.sin(T * 1.5) > 0 ? 1 : 0, x = C.x, y = C.y + bob, d = C.dir, fares = runs && (C.leg === 1 || C.leg === 3) ? 1 + Math.floor(wildHash(trip, C.leg, 2901) * 2.2) : 0, dip = C.moving && Math.sin(T * 1.6) > 0 ? 1 : 0;
+      R(x - 8, y + 2, 17, 1, 'rgba(20,40,60,.3)'); R(x - 8, y - 1, 16, 3, '#6b4f2c'); R(x - 8, y - 1, 16, 1, '#8a6a3a'); R(x - 9, y - 2, 1, 2, '#5e4426'); R(x + 8, y - 2, 1, 2, '#5e4426'); R(x - 7, y - 4, 1, 3, '#5e4426'); R(x + 6, y - 4, 1, 3, '#5e4426'); R(x - 7, y - 4, 14, 1, '#7a5a34');
+      R(x - d * 5 - 1, y - 8, 2, 3, '#d9a57c'); R(x - d * 5 - 1, y - 5, 2, 4, '#5a6a8a'); R(x - d * 7 - (d > 0 ? 0 : 0), y - 11 + dip, 1, 13, '#8a7a5c');      // the ferryman at his pole
+      for (let q = 0; q < fares; q++) { const px = x + d * (1 + q * 4); R(px, y - 7, 2, 2, '#d9a57c'); R(px, y - 5, 2, 4, ['#8a4a3a', '#7a7a3a', '#e8e2d2'][(trip + q) % 3]); }
+      if (!runs) { R(x - d * 9, y - 1, -d * 5, 1, '#c9b890'); R(x - d * 14, y - 4, 1, 5, '#5e4426'); }      // made fast to its post
+      if (C.moving) for (let q = 0; q < 2; q++) { const wq = (T * 0.8 + q * 0.5) % 1; ctx.globalAlpha = 0.4 * (1 - wq); R(x - d * (10 + wq * 6), y + 1 + q, 2, 1, '#e6f3fa'); } ctx.globalAlpha = 1;
+    }
+  }
+  // ---- bees, between the garden and the press all the daylight hours
+  if (W.bees && dayPart() > 0.06 && dayPart() < 0.9) {
+    for (let q = 0; q < 14; q++) { const sp = 26 + (q % 4) * 5, back = q % 2, f = ((T * sp + q * 97) % W.bees.total) / W.bees.total, at = wayAt(W.bees, (back ? 1 - f : f) * W.bees.total);
+      const x = Math.round(at.x + Math.sin(T * 5 + q * 1.9) * 3 + (q % 3 - 1) * 5), y = Math.round(at.y + Math.cos(T * 6.3 + q * 2.3) * 3 + ((q >> 1) % 3 - 1) * 4);
+      if (!inView(x, y, 6) || !wildSeen(x, y)) continue;
+      R(x, y, 1, 1, q % 3 ? '#2a1c14' : '#e8c040'); if (Math.sin(T * 30 + q) > 0) R(x, y - 1, 1, 1, 'rgba(255,255,255,.5)'); }
+  }
+  // ---- and, where it ended in a supper, the vintner himself going over in the evening with a jar
+  if (W.court && taleEnd('vintner') === 'supper') { const u = dayPart(), f = (u - 0.62) / 0.3;
+    if (f > 0 && f < 1) { const d0 = f * W.court.total, at = wayAt(W.court, d0), on = wayAt(W.court, d0 + 5), dx = on.x - at.x, dy = on.y - at.y, x = Math.round(at.x), y = Math.round(at.y);
+      if (shown(x, y)) { const face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = dx >= 0 ? 1 : -1; man(x, y, face, true, '#f4f0e4', '#5a4326'); R(x + d * 4, y - 9, 2, 4, '#8a4a3a'); R(x + d * 4, y - 10, 2, 1, '#b8703c'); provUnder(ctx, x, y, 14); } } }
+  // ---- the hunters: out with spears and dogs, home with a deer on a pole
+  if (W.hunt) {
+    const C = shuttleAt(W.hunt, T, 12, 22, 0.35);
+    if (shown(C.x, C.y) && C.leg !== 2) {      // in the wood, they are not to be seen
+      const d = C.dir, home = C.leg === 3, step = C.moving && Math.sin(T * 8) > 0 ? 1 : 0;
+      const dog = (gx, gy, c) => { R(gx - 3, gy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 5, 2, c); R(d > 0 ? gx + 3 : gx - 4, gy - 4, 2, 2, c); R(d > 0 ? gx - 3 : gx + 3, gy - 4, 1, 2, c); R(gx - 2 + step, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - step, gy - 1, 1, 2, shade(c, 0.7)); };
+      const a = { x: C.x, y: C.y }, b = { x: C.x - d * 12, y: C.y + 1 };
+      if (home) { R(b.x, C.y - 13, a.x - b.x, 1, '#6b4f2c'); const mx = Math.round((a.x + b.x) / 2); R(mx - 4, C.y - 12, 8, 4, '#a8703c'); R(mx - 4, C.y - 9, 8, 1, '#8a5a2c'); R(mx - 3, C.y - 14, 1, 2, '#a8703c'); R(mx + 2, C.y - 14, 1, 2, '#a8703c'); R(d > 0 ? mx - 6 : mx + 4, C.y - 11, 2, 3, '#a8703c'); R(d > 0 ? mx - 7 : mx + 5, C.y - 13, 1, 2, '#d8c8a0'); }      // the deer, slung by its feet
+      man(b.x, b.y, C.face, C.moving, '#5a6a3a', '#6a4a2a'); man(a.x, a.y, C.face, C.moving, '#6a5a3a', '#2a1c14');
+      if (!home) { R(a.x + d * 4, a.y - 20, 1, 16, '#6b4f2c'); R(a.x + d * 4, a.y - 22, 1, 2, '#c1c7cc'); R(b.x - d * 3, b.y - 16, 1, 9, '#6b4f2c'); R(b.x - d * 4, b.y - 15, 1, 7, '#c9b890'); }      // a boar-spear, and a bow
+      const lead = home ? -1 : 1; dog(C.x + d * lead * 14 - (home ? d * 12 : 0), C.y + 3, '#8a6a4a'); dog(C.x + d * lead * 20 - (home ? d * 12 : 0), C.y - 2, '#3a2e24');
+      provUnder(ctx, C.x, C.y, 26);
+    }
+  }
+  // ---- the marsh people's punts, poled between the huts and the peat
+  if (W.punt) for (let k = 0; k < 2; k++) {
+    const C = shuttleAt(W.punt, T, 6, 12, k * 0.5);
+    if (!inView(C.x, C.y, 24) || !wildSeen(C.x, C.y)) continue;
+    const x = C.x, y = C.y + (Math.sin(T * 1.4 + k) > 0 ? 1 : 0), d = C.dir, dip = C.moving && Math.sin(T * 1.2 + k) > 0 ? 1 : 0, laden = !W.punt.idle && (C.leg === 3 || C.leg === 0);
+    R(x - 5, y + 1, 11, 1, 'rgba(20,40,60,.3)'); R(x - 5, y - 1, 10, 2, '#4a3a2a'); R(x - 5, y - 1, 10, 1, '#6b5a40'); R(x - 6, y - 1, 1, 1, '#4a3a2a'); R(x + 5, y - 1, 1, 1, '#4a3a2a');
+    R(x - d * 3, y - 7, 2, 3, '#b8946c'); R(x - d * 3, y - 4, 2, 3, k ? '#5a6a4a' : '#6a5a3a'); R(x - d * 5, y - 9 + dip, 1, 11, '#8a7a5c');
+    if (laden) { R(x + d * 0 - 1, y - 4, 5, 3, '#3a2c20'); R(x - 1, y - 4, 5, 1, '#5a4630'); R(x, y - 6, 3, 2, '#3a2c20'); }      // peat, cut and stacked amidships
+  }
+  // ---- market: the day before the games and the day of them, the whole country is on the road to town
+  if (typeof daysToGames === 'function' && daysToGames() <= 1) (prov.ways || []).forEach((way, wi) => {
+    const len = way.length - 1; if (len < 14) return;
+    const townEnd = Math.hypot(way[0][0] - WILD.TOWN.x, way[0][1] - WILD.TOWN.y) < Math.hypot(way[len][0] - WILD.TOWN.x, way[len][1] - WILD.TOWN.y) ? 0 : len, n = len > 60 ? 4 : 3;
+    for (let j = 0; j < n; j++) {
+      const hv = q => wildHash(wi * 23 + j, q, 2950), kind = Math.floor(hv(1) * 4), speed = kind === 0 ? 1.1 : kind === 1 ? 0.9 : 1.5;
+      const along = (T * speed + hv(2) * len) % len, idx = townEnd === 0 ? len - along : along, i0 = clamp(Math.floor(idx), 0, len - 1), fr = idx - i0, a = way[i0], b = way[i0 + 1];
+      const x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
+      if (!shown(x, y)) continue;
+      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0;
+      if (kind === 0) {                             // a cart of stuff to sell, under a cloth
+        const cx = x - d * 12, cloth = ['#b93a2e', '#2f6db8', '#c9b25a', '#5a8a4a'][Math.floor(hv(3) * 4)];
+        R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 11, 8, 4, cloth); R(cx - 4, y - 11, 8, 1, shade(cloth, 1.25)); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a');
+        beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48', d, false, step); man(x + d * 8, y + 1, face, true, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a');
+      } else if (kind === 1) {                      // a drover, and what he means to sell on the hoof
+        man(x - d * 4, y, face, true, '#8a6a4a', '#6a4a2a'); R(x - d * 8, y - 13, 1, 13, '#6b4f2c');
+        for (let q = 0; q < 3; q++) beast(x + d * (8 + q * 10), y + (q % 2) * 3, ['#e8e2d2', '#8a6444', '#3a2e24'][Math.floor(hv(6 + q) * 3)], d, hv(9) > 0.5, (step + q) % 2);
+      } else if (kind === 2) {                      // a woman with a basket on her head, and a child
+        man(x, y, face, true, ['#b8703c', '#8a2a6a', '#3f7a5a'][Math.floor(hv(3) * 3)], '#2a1c14'); R(x - 2, y - 22, 5, 3, '#c9a763'); R(x - 2, y - 22, 5, 1, '#e0c488'); R(x - 1, y - 23, 3, 1, ['#d8382a', '#e8c040', '#55803a'][Math.floor(hv(4) * 3)]);
+        R(x - d * 7 - 1, y - 7, 2, 2, '#d9a57c'); R(x - d * 7 - 1, y - 5, 2, 3, '#c9b25a'); R(x - d * 7 - 1 + step, y - 2, 1, 2, '#3a2a1c');
+      } else {                                      // a man with fowls slung on a stick
+        man(x, y, face, true, '#6a5a3a', '#3a2a1c'); R(x - 5, y - 15, 11, 1, '#6b4f2c'); for (const ox of [-5, 4]) { R(x + ox, y - 14, 2, 4, '#f1ead8'); R(x + ox, y - 10, 1, 1, '#c23b2e'); }
+      }
+      provUnder(ctx, x, y, 26);
+    }
+  });
   // ---- the fishers' boats: out with the day, in with the dusk
   if (W.sea) {
-    const S = W.sea, out = dayOut(), n = taleEnd('whale') === 'carted' ? 1 : 3;
+    const S = W.sea, bk = taleEnd('beacon'), u0 = dayPart(), home = bk === 'lit' ? [0.8, 0.99] : bk === 'dark' ? [0.5, 0.7] : [0.66, 0.92];      // with a light to come home by they stay out till dark; with none, they are in by mid-afternoon
+    const out = u0 < 0.1 ? 0 : u0 < 0.36 ? (u0 - 0.1) / 0.26 : u0 < home[0] ? 1 : u0 < home[1] ? 1 - (u0 - home[0]) / (home[1] - home[0]) : 0, n = taleEnd('whale') === 'carted' ? 1 : 3;
     for (let i = 0; i < n; i++) {
       const an = (i - (n - 1) / 2) * 0.34, ca = Math.cos(an), sa = Math.sin(an), dx = S.dx * ca - S.dy * sa, dy = S.dx * sa + S.dy * ca, far = 6 + i * 9 + out * (S.far * (0.55 + i * 0.2));
       const bx = Math.round(S.x + dx * far + Math.sin(T * 0.09 + i * 2) * 3), by = Math.round(S.y + dy * far + Math.sin(T * 1.5 + i) * 1);

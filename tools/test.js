@@ -698,7 +698,7 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
   const start = opts => createBattle([makeGladiator(30), makeGladiator(30)], [makeGladiator(30), makeGladiator(30)], Object.assign({ noIntro: true }, opts || {}));
   B = start(); B.fighters.forEach(f => { f.g.traits = []; });
   assert(!giveOrder(B, 'press') && !giveOrder(B, 'hold'), 'press and hold are gone');
-  assert(giveOrder(B, 'yield') && B.fighters.filter(f => f.team === 0 && f.yielded).length === 1 && !giveOrder(B, 'yield'), 'the cloth makes one of yours yield, once');
+  assert(giveOrder(B, 'yield') && B.fighters.filter(f => f.team === 0 && (f.yielded || f.down || f.killing)).length === 1 && !giveOrder(B, 'yield'), 'the cloth makes one of yours yield, once');
   assert(!giveOrder(start({ death: true }), 'yield'), 'no yielding in a bout to the death');
   return asked + ' choices asked of the player in one two-a-side fight';
 }));

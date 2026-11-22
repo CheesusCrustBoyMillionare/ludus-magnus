@@ -88,6 +88,7 @@ function vilPath(x0, y0, x1, y1) {
 function villagePlace(key) {
   const p = placeOf(key);
   vil.x = p.dx; vil.y = p.dy; vil.at = p.key; vil.path = null; vil.then = null; vil.face = 'down'; vil.moving = false;
+  vil.enter = null; vil.outT = 0; vil.inside = INDOORS.includes(p.key) ? p.key : null; if (vil.inside) vil.insideT = performance.now();      // put there, he is put indoors where there is an indoors
 }
 // Sends him to a door on his own feet. `then` runs when he gets there.
 // Where those who have come with work stand in the square, and where the lanista stops to hear each of them.
@@ -143,9 +144,19 @@ function followPath(o, dt, speed) {
   return !o.path || !o.path.length;
 }
 
+// Doors he goes in at, instead of standing on the step: he walks into the doorway, small in it, and is gone from the
+// map (vil.inside) until he is walked somewhere else; the screen of the place shows him indoors (see places.js).
+const INDOORS = ['smith'], DOOR_IN = 0.75, DOOR_OUT = 0.35;
+function villageOut() { if (vil.inside || vil.enter) { vil.outKey = vil.inside || vil.enter.key; vil.outT = DOOR_OUT; } vil.inside = null; vil.enter = null; }
 function villageStep(dt, frozen) {
+  if (vil.enter) {                              // on his way in at a door
+    vil.enter.t += dt;
+    if (vil.enter.t >= DOOR_IN) { const k = vil.enter.key; vil.enter = null; vil.inside = k; vil.insideT = performance.now(); if (typeof villageEnter === 'function') villageEnter(k); }
+  }
+  if (vil.outT > 0) vil.outT = Math.max(0, vil.outT - dt);
   const k = vil.keys, kx = (k.r ? 1 : 0) - (k.l ? 1 : 0), ky = (k.d ? 1 : 0) - (k.u ? 1 : 0);
   const x0 = vil.x, y0 = vil.y;
+  if (!frozen && (kx || ky || vil.path) && (vil.inside || vil.enter)) villageOut();      // walked anywhere, he comes out first
   if (!frozen && (kx || ky)) {                       // steering takes over from any walk he was sent on
     vil.path = null; vil.then = null;
     const n = Math.hypot(kx, ky), s = VILLAGE.SPEED * dt / n;
@@ -160,7 +171,7 @@ function villageStep(dt, frozen) {
   if (vil.puffs.length && vil.puffs[0].t > 0.5) vil.puffs.shift();
   const here = PLACES.find(p => Math.abs(vil.x - p.dx) < 7 && Math.abs(vil.y - p.dy) < 5);
   // a doorstep opens when you step onto it; a man sent somewhere walks past the doors on his way without looking in
-  if (here && vil.at !== here.key && !vil.path) { vil.at = here.key; if (typeof villageEnter === 'function') villageEnter(here.key); }
+  if (here && vil.at !== here.key && !vil.path) { vil.at = here.key; if (INDOORS.includes(here.key)) { if (!vil.inside && !vil.enter) vil.enter = { key: here.key, t: 0 }; } else if (typeof villageEnter === 'function') villageEnter(here.key); }
   else if (!here) vil.at = null;
   // the east gate: walk into it and the school marches out, if it is open
   if (vil.x > 578 && vil.y > 72 && vil.y < 94) { if (!vil.gated) { vil.gated = true; vil.path = null; villageStill(); if (typeof villageGate === 'function') villageGate(); } }
@@ -319,7 +330,8 @@ function villageLayer() {
         // under the beam; each column is lit down its left side, throws its own shadow on the wall, and stands on a step
         R(x + 2, wy + 1, w - 4, wh - 1, 'rgba(46,28,14,.3)'); R(x + 2, wy + 1, w - 4, 2, 'rgba(20,12,6,.3)'); R(x + 2, wy + 3, w - 4, 1, 'rgba(20,12,6,.14)');
         R(x + 1, y + 46, w - 2, 2, '#e4dcc8'); R(x + 1, y + 46, w - 2, 1, '#f6f0e0'); R(x + 2, y + 45, w - 4, 1, 'rgba(20,12,6,.3)');
-        for (let cx = x + 4; cx < x + w - 5; cx += 12) if (Math.abs(cx + 1 - p.dx) > 7) {
+        const cols = []; for (let cx = p.dx - 11; cx >= x + 3; cx -= 12) cols.push(cx); for (let cx = p.dx + 8; cx + 3 <= x + w - 3; cx += 12) cols.push(cx);      // set out from the door, so that it stands midway between the two beside it
+        for (const cx of cols) {
           R(cx + 3, wy + 2, 2, wh - 4, 'rgba(20,12,6,.3)');                                             // its shadow, on the wall behind
           R(cx, wy + 1, 3, wh - 2, '#f4eedc'); R(cx, wy + 1, 1, wh - 2, '#fffaf0'); R(cx + 2, wy + 1, 1, wh - 2, '#cfc6b0');
           R(cx - 1, wy, 5, 2, '#fbf6ea'); R(cx - 1, wy + 1, 5, 1, '#ddd4be');                           // capital
@@ -367,8 +379,9 @@ function villageLayer() {
     } else if (p.kind === 'temple') {         // marble, a pediment, and columns across the front
       R(x, y, w, 30, '#d9d2bd'); for (let i = 0; i < 15; i++) R(x + 2 + i * 2.4, y + 14 - i, w - 4 - i * 4.8, 1, i % 2 ? '#ebe5d2' : '#e2dbc6'); R(x, y + 15, w, 15, '#cfc8b2'); for (let yy = y + 17; yy < y + 30; yy += 3) R(x, yy, w, 1, '#bdb6a0');
       R(p.dx - 1, y + 1, 2, 3, '#e3b04a'); R(x, y + 29, w, 1, '#9f987f');
-      wall(x + 2, y + 30, w - 4, 14, '#b8b09a'); for (let cx = x + 5; cx < x + w - 6; cx += 9) { R(cx, y + 30, 4, 14, '#f1ecdc'); R(cx, y + 30, 1, 14, '#d8d2bf'); R(cx - 1, y + 30, 6, 1, '#f8f4e8'); }
-      R(p.dx - 4, y + 33, 8, 11, '#3a2416'); R(x, y + 44, w, 2, '#e2dbc6'); R(x - 2, y + 46, w + 4, 2, '#d0c9b3'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
+      wall(x + 2, y + 30, w - 4, 14, '#b8b09a'); { const col = cx => { R(cx, y + 30, 4, 14, '#f1ecdc'); R(cx, y + 30, 1, 14, '#d8d2bf'); R(cx + 3, y + 30, 1, 14, '#cfc8b4'); R(cx - 1, y + 30, 6, 1, '#f8f4e8'); R(cx - 1, y + 43, 6, 1, '#e2dbc6'); };      // set out from the door, so that it stands clear in the middle bay
+        for (let cx = p.dx - 10; cx >= x + 3; cx -= 9) col(cx); for (let cx = p.dx + 6; cx + 4 <= x + w - 3; cx += 9) col(cx); }
+      R(p.dx - 5, y + 32, 10, 12, '#5a4326'); R(p.dx - 4, y + 33, 8, 11, '#3a2416'); R(p.dx - 1, y + 33, 1, 11, '#2a180e'); R(p.dx - 5, y + 31, 10, 1, '#f1ecdc'); R(x, y + 44, w, 2, '#e2dbc6'); R(x - 2, y + 46, w + 4, 2, '#d0c9b3'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
     } else if (p.kind === 'archive') {        // the record house: grey stone under a dome
       R(x, y, w, 26, '#8f97a0'); for (let yy = y + 3; yy < y + 26; yy += 4) R(x, yy, w, 1, '#7d858e'); R(x, y, w, 1, '#aab2ba'); R(x, y + 25, w, 1, '#5d646c');
       ell(p.dx, y + 13, 13, 9, '#6f7780'); ell(p.dx, y + 12, 12, 8, '#a8b0b8'); ell(p.dx - 3, y + 10, 5, 3, '#c4ccd2'); R(p.dx - 1, y + 3, 2, 2, '#e3b04a');
@@ -596,7 +609,16 @@ function drawVillage(cv, T) {
       else { const peck = Math.sin(T * 5 + i * 1.7) > 0.5 ? 1 : 0; R(hx, hy - 2, 3, 2, i % 3 ? '#8f97a0' : '#c9d1d9'); R(hx + 2, hy - 3 + peck, 1, 1, '#6f7780'); }
     }
   }
-  folk.push({ y: vil.y, draw: () => vilPerson(ctx, vil.x, vil.y, { face: vil.face, walk: vil.walk, moving: vil.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }) });
+  if (!vil.inside) folk.push({ y: vil.y, draw: () => {
+    const look = { face: vil.face, walk: vil.walk, moving: vil.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true };
+    const k = vil.enter ? clamp(vil.enter.t / DOOR_IN, 0, 1) : vil.outT > 0 ? vil.outT / DOOR_OUT : 0;      // how far into the doorway he is
+    if (k <= 0) { vilPerson(ctx, vil.x, vil.y, look); return; }
+    // going in: up off the step into the doorway, growing small as he goes (a little smaller than the door), and gone
+    const p = placeOf(vil.enter ? vil.enter.key : vil.outKey), dx = p.dx, dy = p.y + p.h, s = 1 - 0.42 * k, x = vil.x + (dx - vil.x) * k, y = vil.y + (dy - vil.y) * k;
+    ctx.save(); ctx.globalAlpha = k > 0.82 ? Math.max(0, (1 - k) / 0.18) : 1; ctx.translate(Math.round(x), Math.round(y)); ctx.scale(s, s);
+    vilPerson(ctx, 0, 0, Object.assign(look, vil.enter ? { face: 'up', moving: true, walk: T * 14 } : { face: 'down' }));
+    ctx.restore();
+  } });
   folk.sort((p, q) => p.y - q.y).forEach(p => p.draw());
   // two who have stopped near each other have something to say
   for (let i = 0; i < vil.npcs.length; i++) for (let j = i + 1; j < vil.npcs.length; j++) {
