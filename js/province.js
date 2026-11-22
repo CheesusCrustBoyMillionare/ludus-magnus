@@ -2817,6 +2817,17 @@ function tradeWays() {
       if (shore >= 0 && (!best || run > best.run)) best = { dx, dy, shore, run }; }
     if (best && best.run >= 6) W.sea = { x: huts.x + best.dx * (best.shore + 8), y: huts.y + best.dy * (best.shore + 8), dx: best.dx, dy: best.dy, far: Math.min(150, best.run * 10 - 20) };
   }
+  // charcoal to the town, and logs from the nearest woodcutter to the clamps; grapes down from the vineyard houses to the
+  // press, and jars from the press to the town; and the road the watch walks, between the fort and its tower
+  const gate = { x: WILD.TOWN.x + 30, y: WILD.TOWN.y }, door = m => [[14, 18], [6, 20], [22, 20], [14, 26], [14, 12]].map(([ox, oy]) => ({ x: m.x + ox, y: m.y + oy }));
+  const from = (name, to, lo, hi, n) => { const out = []; if (!to) return out;
+    const near = (prov.marks || []).filter(m => m.name === name).map(m => ({ m, d: Math.hypot(m.x - to.x, m.y - to.y) })).filter(o => o.d > lo && o.d < hi).sort((a, b) => a.d - b.d);
+    for (const o of near) { let w = null; for (const q of door(o.m)) { w = line(q, to); if (w) break; } if (w) out.push(w); if (out.length >= n) break; }
+    return out; };
+  const burners = landmarkAt('The charcoal burners'), press = landmarkAt('The wine press');
+  W.coal = line(burners, gate); W.logs = from("A woodcutter's cabin", burners, 50, 520, 1)[0] || null;
+  W.pick = from('A vineyard house', press, 40, 420, 2); W.jars = line(press, gate);
+  W.watch = line(landmarkAt('The fort'), landmarkAt('The watchtower'));
   return (prov.trade = W);
 }
 // Where along a way, so far from its start.
@@ -2834,6 +2845,13 @@ function shuttleAt(W, T, speed, wait, phase) {
   const at = wayAt(W, d), on = wayAt(W, d + (back ? -5 : 5)), dx = on.x - at.x, dy = on.y - at.y;
   return { x: Math.round(at.x), y: Math.round(at.y), d, leg, moving: leg === 1 || leg === 3, face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), dir: dx >= 0 ? 1 : -1 };
 }
+// The year, such as it is out here: a hundred and twenty days, and the vintage in the third quarter of them.
+const VINTAGE = { year: 120, from: 60, to: 90 };
+const isVintage = () => { const d = ((G.day % VINTAGE.year) + VINTAGE.year) % VINTAGE.year; return d >= VINTAGE.from && d < VINTAGE.to; };
+// The watch on the tower is relieved every third day: the relief goes out in the morning, and the old watch comes in after noon.
+const WATCH_EVERY = 3;
+const watchRelief = () => G.day % WATCH_EVERY === 0;
+const FLOCK_PACE = 24;      // a flock goes at the pace of an outlaw band walking its round (see the packs in provStep)
 // How far out the day has taken them: 0 at home at dawn and dusk, 1 through the middle of the day.
 const dayOut = () => { const u = dayPart(); return u < 0.1 ? 0 : u < 0.36 ? (u - 0.1) / 0.26 : u < 0.66 ? 1 : u < 0.92 ? 1 - (u - 0.66) / 0.26 : 0; };
 function drawTrade(ctx, T, R, inView) {
@@ -2875,28 +2893,92 @@ function drawTrade(ctx, T, R, inView) {
   }
   // ---- the flock, out to the hill with the morning and home with the evening, the dog behind
   if (W.flock) {
-    const out = dayOut(), u = dayPart(), going = u < 0.5, moving = out > 0 && out < 1, d0 = out * W.flock.total, sgn = going ? 1 : -1;
-    if (out > 0) {
+    // Where the day would have them, and where they have got to: they go at a walk (the pace of a band on the road, FLOCK_PACE),
+    // however fast the day itself is going by.
+    const want = dayOut() * W.flock.total, st = prov.flock || (prov.flock = { d: want, t: T, sgn: 1 }), fdt = clamp(T - st.t, 0, 0.25), gap = want - st.d;
+    st.t = T; if (Math.abs(gap) > 0.5) { st.sgn = gap > 0 ? 1 : -1; st.d += clamp(gap, -FLOCK_PACE * fdt, FLOCK_PACE * fdt); }
+    const d0 = st.d, sgn = st.sgn, moving = Math.abs(gap) > 0.5, grazing = d0 > W.flock.total - 3;
+    if (d0 > 2) {
       const lead = wayAt(W.flock, d0), white = taleEnd('whitewolf') === 'dog';
       if (shown(lead.x, lead.y)) {
         const ahead = wayAt(W.flock, d0 + sgn * 6), dir = (ahead.x - lead.x) * 1 >= 0 ? 1 : -1, face = dir > 0 ? 'right' : 'left';
         for (let i = 0; i < 8; i++) {               // the sheep: strung out behind on the way, spread about when they are let graze
           const h1 = wildHash(i, 3, 2710), h2 = wildHash(3, i, 2711);
           let sx, sy;
-          if (moving) { const at = wayAt(W.flock, d0 - sgn * (9 + i * 5)); sx = at.x + (h1 - 0.5) * 10; sy = at.y + (h2 - 0.5) * 8 + 2; }
+          if (!grazing) { const at = wayAt(W.flock, d0 - sgn * (9 + i * 5)); sx = at.x + (h1 - 0.5) * 10; sy = at.y + (h2 - 0.5) * 8 + 2; }
           else { sx = lead.x + (h1 - 0.5) * 46 + Math.sin(T * 0.11 + i * 2) * 4; sy = lead.y + (h2 - 0.5) * 26 + 4; }
           sx = Math.round(sx); sy = Math.round(sy);
-          const bob = moving && Math.sin(T * 7 + i) > 0 ? 1 : 0, graze = !moving && Math.sin(T * 0.8 + i * 1.7) > 0.2 ? 1 : 0, sd = moving ? dir : (h1 > 0.5 ? 1 : -1);
+          const bob = moving && Math.sin(T * 7 + i) > 0 ? 1 : 0, graze = !moving && Math.sin(T * 0.8 + i * 1.7) > 0.2 ? 1 : 0, sd = !grazing ? dir : (h1 > 0.5 ? 1 : -1);
           R(sx - 2, sy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(sx - 2, sy - 3 - bob, 5, 3, i === 5 ? '#8a7a66' : '#f1ead8'); R(sx - 1, sy - 4 - bob, 3, 1, i === 5 ? '#9a8a76' : '#fbf6ea');
           R(sd > 0 ? sx + 3 : sx - 4, sy - 3 - bob + graze, 2, 2, '#3a322c'); R(sx - 1, sy, 1, 1, '#3a322c'); R(sx + 1, sy, 1, 1, '#3a322c');
         }
-        const sh = moving ? wayAt(W.flock, d0 + sgn * 9) : { x: lead.x + 26, y: lead.y - 6 };      // the shepherd goes in front, and stands off on his crook while they graze
+        const sh = !grazing ? wayAt(W.flock, d0 + sgn * 9) : { x: lead.x + 26, y: lead.y - 6 };      // the shepherd goes in front, and stands off on his crook while they graze
         man(Math.round(sh.x), Math.round(sh.y), face, moving, '#8a6a4a', '#8a8a8a'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 15, 1, 15, '#6b4f2c'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 16, 2, 1, '#6b4f2c');
-        { const at = moving ? wayAt(W.flock, d0 - sgn * 54) : { x: lead.x - 28, y: lead.y + 8 }, wv = moving ? Math.sin(T * 2.2) * 8 : 0, gx = Math.round(at.x + wv * 0.4), gy = Math.round(at.y + wv), c = white ? '#f1ead8' : '#8a6a4a', run = moving && Math.sin(T * 9) > 0 ? 1 : 0, wag = Math.sin(T * 8) > 0 ? 1 : 0;      // the dog behind, working from side to side
+        { const at = !grazing ? wayAt(W.flock, d0 - sgn * 54) : { x: lead.x - 28, y: lead.y + 8 }, wv = moving ? Math.sin(T * 2.2) * 8 : 0, gx = Math.round(at.x + wv * 0.4), gy = Math.round(at.y + wv), c = white ? '#f1ead8' : '#8a6a4a', run = moving && Math.sin(T * 9) > 0 ? 1 : 0, wag = Math.sin(T * 8) > 0 ? 1 : 0;      // the dog behind, working from side to side
           R(gx - 3, gy + 1, 7, 1, 'rgba(0,0,0,.2)'); R(gx - 3, gy - 3, 6 + (white ? 1 : 0), white ? 3 : 2, c); R(dir > 0 ? gx + 3 : gx - 5, gy - 5, 2, 3, c); R(dir > 0 ? gx - 4 : gx + 3, gy - 4 - wag, 1, 2, c);
           R(gx - 2 + run, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - run, gy - 1, 1, 2, shade(c, 0.7)); if (!moving) R(dir > 0 ? gx + 4 : gx - 5, gy - 4, 1, 1, '#1c1310'); }
         provUnder(ctx, lead.x, lead.y, 30);
       }
+    }
+  }
+  // ---- charcoal for the town's hearths and forges, on a mule
+  if (W.coal) {
+    const C = shuttleAt(W.coal, T, 11, 14, 0.8);
+    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+      beast(mx, C.y, '#6f5a48', d, false, step);
+      if (loaded) { R(mx - 4, C.y - 10, 4, 6, '#2a2420'); R(mx + 1, C.y - 10, 4, 6, '#2a2420'); R(mx - 4, C.y - 10, 4, 1, '#4a4038'); R(mx + 1, C.y - 10, 4, 1, '#4a4038'); R(mx - 3, C.y - 11, 2, 1, '#8a6a3a'); R(mx + 2, C.y - 11, 2, 1, '#8a6a3a'); } else R(mx - 2, C.y - 7, 5, 1, '#6b4f2c');
+      man(C.x, C.y, C.face, C.moving, '#4a4038', '#2a1c14');
+      provUnder(ctx, C.x, C.y, 18); }
+  }
+  // ---- a log dragged in from the woodcutter's, to be stacked and burned
+  if (W.logs) {
+    const C = shuttleAt(W.logs, T, 7, 10, 0.45);
+    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1, mx = C.x - d * 9;
+      if (loaded) { const lx = mx - d * 15; R(Math.min(mx - d * 4, lx), C.y - 1, Math.abs(d * 11), 1, '#6b4f2c'); R(lx - 6, C.y - 2, 12, 3, '#7a5a34'); R(lx - 6, C.y - 2, 12, 1, '#94703f'); R(d > 0 ? lx - 6 : lx + 5, C.y - 2, 1, 3, '#d8c090'); R(lx - 6, C.y + 1, 13, 1, 'rgba(0,0,0,.2)'); if (C.moving && Math.sin(T * 9) > 0.4) R(lx - d * 8, C.y, 1, 1, '#c8b078'); }
+      beast(mx, C.y, '#8a6a4a', d, false, step);
+      man(C.x, C.y, C.face, C.moving, '#6a5a3a', '#6a4a2a'); R(C.x - d * 4, C.y - 14, 1, 8, '#6b4f2c'); R(C.x - d * 4 - (d > 0 ? 2 : 0), C.y - 15, 3, 2, '#b8c0c8');      // his axe over his shoulder
+      provUnder(ctx, C.x, C.y, 26); }
+  }
+  // ---- the vintage: pickers down from the vineyard houses with their baskets, for the month it lasts
+  if (isVintage()) (W.pick || []).forEach((way, wi) => { for (let k = 0; k < 2; k++) {
+    const C = shuttleAt(way, T, 9, 6, 0.2 + wi * 0.31 + k * 0.5);
+    if (!shown(C.x, C.y)) continue;
+    const d = C.dir, full = C.leg === 1 || C.leg === 2;
+    man(C.x, C.y, C.face, C.moving, k ? '#8a4a6a' : '#7a7a4a', k ? '#3a2a1c' : '#6a4a2a');
+    R(C.x - d * 4 - 2, C.y - 15, 5, 4, '#b89a5a'); R(C.x - d * 4 - 2, C.y - 15, 5, 1, '#d0b46e'); if (full) { R(C.x - d * 4 - 2, C.y - 17, 5, 2, '#6a2a6a'); R(C.x - d * 4 - 1, C.y - 18, 2, 1, '#8a4a8a'); R(C.x - d * 4 + 1, C.y - 17, 1, 1, '#4a8a3a'); }      // the basket on the shoulder, heaped going down and empty coming back
+    provUnder(ctx, C.x, C.y, 14);
+  } });
+  // ---- wine for the town, in jars bedded in straw
+  if (W.jars) {
+    const C = shuttleAt(W.jars, T, 9, 18, 0.65);
+    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, cx = C.x - d * 14;
+      R(cx - 7, C.y + 1, 15, 2, 'rgba(0,0,0,.25)'); R(cx - 6, C.y - 6, 12, 5, '#8a6a3a'); R(cx - 6, C.y - 7, 12, 1, '#a8834a'); R(cx - 6, C.y - 2, 12, 1, '#6b4f2c');
+      if (loaded) { R(cx - 5, C.y - 8, 10, 2, '#d9c070'); for (let q = 0; q < 3; q++) { const jx = cx - 5 + q * 4; R(jx, C.y - 12, 3, 5, '#b8703c'); R(jx + 1, C.y - 14, 1, 2, '#b8703c'); R(jx, C.y - 12, 1, 5, '#d08a54'); R(jx + 1, C.y - 15, 1, 1, '#6b4f2c'); } }
+      for (const ox of [-5, 2]) { R(cx + ox, C.y - 2, 4, 4, '#3a2a1c'); R(cx + ox + 1, C.y - 1, 2, 2, '#8a6a3a'); }
+      R(cx + d * 6, C.y - 5, d * 4, 1, '#6b4f2c'); beast(C.x, C.y, '#9a8a72', d, false, step);
+      man(C.x + d * 8, C.y + 1, C.face, C.moving, '#7a4a6a');
+      provUnder(ctx, C.x, C.y, 24); }
+  }
+  // ---- the watch: a supply mule to the tower, and every third day the relief out in the morning and the old watch home after noon
+  if (W.watch) {
+    { const C = shuttleAt(W.watch, T, 10, 22, 0.05);
+      if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+        beast(mx, C.y, '#8a6a4a', d, false, step);
+        if (loaded) { R(mx - 4, C.y - 9, 4, 4, '#b8703c'); R(mx + 1, C.y - 9, 4, 4, '#c9a763'); R(mx - 4, C.y - 9, 9, 1, '#3a2a1c'); } else R(mx - 2, C.y - 7, 5, 1, '#a8261c');
+        man(C.x, C.y, C.face, C.moving, '#8a3a2a', '#2a1c14');
+        provUnder(ctx, C.x, C.y, 18); } }
+    if (watchRelief()) {
+      const u = dayPart(), e = taleEnd('watch'), n = e === 'gone' || e === 'oath' ? 1 : 2;      // one man short, if Rufio never came back to it
+      const f = u >= 0.08 && u < 0.46 ? (u - 0.08) / 0.38 : u >= 0.54 && u < 0.92 ? 1 - (u - 0.54) / 0.38 : -1;
+      if (f >= 0) { const outward = u < 0.5, sgn = outward ? 1 : -1;
+        for (let k = 0; k < n; k++) {
+          const d0 = clamp(f * W.watch.total - sgn * k * 9, 0, W.watch.total), at = wayAt(W.watch, d0), on = wayAt(W.watch, d0 + sgn * 5), dx = on.x - at.x, dy = on.y - at.y, x = Math.round(at.x), y = Math.round(at.y) + (k % 2);
+          if (!shown(x, y)) continue;
+          const face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = dx >= 0 ? 1 : -1;
+          man(x, y, face, true, '#a8261c', '#2a1c14');
+          R(x + d * 4, y - 21, 1, 17, '#6b4f2c'); R(x + d * 4, y - 23, 1, 2, '#c1c7cc'); R(x - d * 4 - 1, y - 13, 3, 7, '#8a2a20'); R(x - d * 4, y - 11, 1, 2, '#c9a21e'); R(x - 1, y - 20, 3, 1, '#c1c7cc');      // spear, shield and helmet
+          provUnder(ctx, x, y, 14);
+        } }
     }
   }
   // ---- the fishers' boats: out with the day, in with the dusk
