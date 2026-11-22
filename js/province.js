@@ -2476,25 +2476,8 @@ function drawTraffic(ctx, T, R, inView) {
 }
 
 // ---------- the column on the move ----------
-function provPath(x0, y0, x1, y1) {
-  const L = wildLand(), w = WILD.TW, hgt = WILD.TH, a = Math.floor(y0 / 10) * w + Math.floor(x0 / 10), b = Math.floor(y1 / 10) * w + Math.floor(x1 / 10);
-  if (L.t[b] >= T_WATER || a === b) return a === b ? [{ x: x1, y: y1 }] : null;
-  const from = new Int32Array(w * hgt).fill(-1), q = [a];
-  from[a] = a;
-  for (let i = 0; i < q.length && from[b] < 0; i++) {
-    const c = q[i], cx = c % w, cy = (c - cx) / w;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const nx = cx + dx, ny = cy + dy, n = ny * w + nx;
-      if (nx < 0 || ny < 0 || nx >= w || ny >= hgt || L.t[n] >= T_WATER || from[n] >= 0) continue;
-      if (dx && dy && (L.t[cy * w + nx] >= T_WATER || L.t[ny * w + cx] >= T_WATER)) continue;
-      from[n] = c; q.push(n);
-    }
-  }
-  if (from[b] < 0) return null;
-  const pts = [{ x: x1, y: y1 }];
-  for (let c = from[b]; c !== a; c = from[c]) pts.push({ x: (c % w) * 10 + 5, y: Math.floor(c / w) * 10 + 5 });
-  return pts.reverse();
-}
+// The way to a spot: by the roads where they serve, round woods and bogs, never through water (wildRoute, in wilds.js).
+function provPath(x0, y0, x1, y1) { return wildRoute(x0, y0, x1, y1); }
 function provClick(cv, e) {
   if (!G.field) return;
   const r = cv.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
@@ -2516,7 +2499,7 @@ function provStep(dt) {
     if (wildWalk(F.x + dx, F.y)) F.x += dx;
     if (wildWalk(F.x, F.y + dy)) F.y += dy;
     prov.face = faceOf(kx, ky, prov.face);
-  } else if (prov.path) {
+  } else if (prov.path && !F.fight && !G.pendingEvent) {
     let left = sp;
     while (prov.path.length && left > 0) {
       const t = prov.path[0], dx = t.x - F.x, dy = t.y - F.y, d = Math.hypot(dx, dy);
@@ -2531,7 +2514,7 @@ function provStep(dt) {
     prov.night = performance.now(); SFX.ui('camp'); save();
     fieldDayDone();
     if (!G.field) return;
-    if (G.pendingEvent || !document.getElementById('modal').hidden) { prov.path = null; villageStill(); }
+    if (G.pendingEvent || !document.getElementById('modal').hidden) villageStill();      // it halts for whatever the morning brings, and goes on along its way after
   }
   if (prov.moving) {
     prov.walk += dt * 10;
@@ -2560,13 +2543,13 @@ function provStep(dt) {
   const pack = F.packs.find(p => Math.hypot(p.x - F.x, p.y - F.y) < 12);
   if (pack && fieldParty().length) {
     wildFight(pack.kind === 'wolves' ? 'A wolf pack' : 'An outlaw patrol', pack.kind === 'wolves' ? wildBeasts(Math.min(pack.tier, 2), pack.tier > 2 ? ['wolf', 'wolf'] : []) : wildMen(pack.tier, Math.max(2, wildCount(pack.tier) - 2)), 'forest', 'pack', { tier: pack.tier, pack: pack.id });
-    prov.path = null; villageStill(); startWildFight();
+    villageStill(); startWildFight();      // the way it was going is kept: it goes on when the fight is done
     return;
   }
   const here = wildSites().find(s => Math.hypot(s.x - F.x, s.y - F.y) < 13);
-  if (here && F.at !== here.id) { F.at = here.id; if (wildVisit(here)) { prov.path = null; villageStill(); save(); showEvent(); return; } }
+  if (here && F.at !== here.id) { F.at = here.id; if (wildVisit(here)) { villageStill(); save(); showEvent(); return; } }
   else if (!here) F.at = null;
-  if (moved && wildWalked(moved)) { prov.path = null; villageStill(); save(); showEvent(); }
+  if (moved && wildWalked(moved)) { villageStill(); save(); showEvent(); }      // something on the road: when it is settled the column goes on to where it was bound
 }
 // Back through the gate.
 function provHome() {

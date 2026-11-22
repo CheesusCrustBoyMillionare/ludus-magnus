@@ -477,6 +477,35 @@ const MARCH_DAY = 450;       // how far the column goes in a day over open groun
 const marchDay = () => MARCH_DAY * (1 + 0.12 * facLvl('stables'));      // further with mules and a wagon
 // What a stretch of walking costs, in open-ground units: roads are quicker, rough ground slower.
 const marchCost = (x0, y0, x1, y1) => Math.hypot(x1 - x0, y1 - y0) / wildPace((x0 + x1) / 2, (y0 + y1) / 2);
+// The way the column would take from one spot to another: not the shortest line, but the one a man leading mules
+// would choose. It keeps to a road where there is one, goes round a wood or a bog sooner than through it, and never
+// tries the water. What each kind of ground costs to cross, a tile: a road is cheaper than its speed alone would make
+// it, so that the column will go some way round to stay on one.
+const ROUTE_COST = (() => { const c = []; c[T_GRASS] = 1; c[T_MEADOW] = 1; c[T_SAND] = 1.05; c[T_FOREST] = 1.45; c[T_HILL] = 1.45; c[T_MARSH] = 1.85; c[T_ROAD] = 0.6; c[T_BRIDGE] = 0.6; return c; })();
+function wildRoute(x0, y0, x1, y1) {
+  const L = wildLand(), w = WILD.TW, hgt = WILD.TH, a = Math.floor(y0 / 10) * w + Math.floor(x0 / 10), b = Math.floor(y1 / 10) * w + Math.floor(x1 / 10);
+  if (L.t[b] >= T_WATER || a === b) return a === b ? [{ x: x1, y: y1 }] : null;
+  const dist = new Float32Array(w * hgt).fill(Infinity), from = new Int32Array(w * hgt).fill(-1), done = new Uint8Array(w * hgt);
+  // a small heap of [cost, tile]
+  const heap = [], push = (c, n) => { let i = heap.length; heap.push([c, n]); while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  dist[a] = 0; from[a] = a; push(0, a);
+  while (heap.length) {
+    const [d, c] = pop(); if (done[c]) continue; done[c] = 1; if (c === b) break;
+    const cx = c % w, cy = (c - cx) / w;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const nx = cx + dx, ny = cy + dy, n = ny * w + nx;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= hgt || done[n] || L.t[n] >= T_WATER) continue;
+      if (dx && dy && (L.t[cy * w + nx] >= T_WATER || L.t[ny * w + cx] >= T_WATER)) continue;      // not across the corner of a pond
+      const nd = d + (dx && dy ? 1.414 : 1) * (ROUTE_COST[L.t[n]] || 1);
+      if (nd < dist[n]) { dist[n] = nd; from[n] = c; push(nd, n); }
+    }
+  }
+  if (from[b] < 0) return null;
+  const pts = [{ x: x1, y: y1 }];
+  for (let c = from[b]; c !== a; c = from[c]) pts.push({ x: (c % w) * 10 + 5, y: Math.floor(c / w) * 10 + 5 });
+  return pts.reverse();
+}
 function pathCost(x, y, path) { let c = 0; for (const p of path) { c += marchCost(x, y, p.x, p.y); x = p.x; y = p.y; } return c; }
 // How many nights will pass on the way, given what is left of today's march.
 function marchDays(cost) { const left = marchDay() - ((G.field && G.field.march) || 0); return cost <= left ? 0 : Math.ceil((cost - left) / marchDay()); }

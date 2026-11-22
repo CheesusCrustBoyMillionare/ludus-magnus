@@ -1464,6 +1464,34 @@ test('the province: every bridge runs straight, and the roads still meet across 
   return comps.map(c => c.length).join(', ') + ' tiles';
 }));
 
+test('the province: the column keeps to the roads, goes round bad ground, and never tries the water', () => game()(function () {
+  newGame();
+  const L = wildLand(), TW = WILD.TW, kind = p => L.t[Math.floor(p.y / 10) * TW + Math.floor(p.x / 10)], onRoad = p => kind(p) === T_ROAD || kind(p) === T_BRIDGE;
+  const share = path => path.filter(onRoad).length / path.length;
+  // from the town gate to places along each road: nearly every step of the way is on it
+  for (const [tx, ty, name] of [[150, 96, 'the east road'], [84, 58, 'the north road'], [64, 150, 'the shore road'], [172, 141, 'the road into the mere']]) {
+    const path = wildRoute(WILD.TOWN.x + 22, WILD.TOWN.y, tx * 10 + 5, ty * 10 + 5);
+    assert(path && path.length > 10 && path.every(p => kind(p) < T_WATER), name + ': a way that stays dry');
+    assert(share(path) > 0.85, name + ': kept to, for ' + Math.round(share(path) * 100) + '% of the way');
+    for (let i = 1; i < path.length; i++) assert(Math.abs(path[i].x - path[i - 1].x) <= 15 && Math.abs(path[i].y - path[i - 1].y) <= 15, name + ': no step longer than a tile');
+  }
+  // to somewhere off the road it goes by road as far as that serves, then strikes out
+  { const far = wildRoute(WILD.TOWN.x + 22, WILD.TOWN.y, 1700, 800); assert(far && share(far) > 0.5 && !onRoad(far[far.length - 1]), 'most of the way by road, the last of it across country: ' + Math.round(share(far) * 100) + '%'); }
+  // it will go round by the road sooner than straight through a wood or a bog, but not for ever
+  assert(ROUTE_COST[T_ROAD] < ROUTE_COST[T_GRASS] && ROUTE_COST[T_GRASS] < ROUTE_COST[T_FOREST] && ROUTE_COST[T_FOREST] < ROUTE_COST[T_MARSH] && ROUTE_COST[T_ROAD] >= 0.5, 'road is cheapest, then open ground, then wood and hill, then marsh');
+  // nowhere to go: the sea, and where it stands already
+  let sea = null; for (let i = 0; i < L.t.length && !sea; i++) if (L.t[i] === T_WATER) sea = [(i % TW) * 10 + 5, Math.floor(i / TW) * 10 + 5];
+  assert(wildRoute(WILD.TOWN.x + 22, WILD.TOWN.y, sea[0], sea[1]) === null && wildRoute(905, 1005, 906, 1006).length === 1, 'no way into the water; and one step to where you are');
+  // quick enough to ask for at every click
+  const t0 = Date.now(); for (let i = 0; i < 10; i++) wildRoute(WILD.TOWN.x + 22, WILD.TOWN.y, 2260, 140); assert(Date.now() - t0 < 2500, 'ten ways across the whole province in ' + (Date.now() - t0) + ' ms');
+}));
+test('the province: an event on the road does not make the column forget where it was going', () => {
+  const src = read('js/province.js');
+  assert(!src.includes('if (wildVisit(here)) { prov.path = null') && !src.includes('wildWalked(moved)) { prov.path = null') && !src.includes('prov.path = null; villageStill(); startWildFight()'), 'the path is thrown away when something stops the column');
+  assert(src.includes('prov.path && !F.fight && !G.pendingEvent'), 'and it does not walk on while the matter is still open');
+  assert(src.includes('function provPath(x0, y0, x1, y1) { return wildRoute(x0, y0, x1, y1); }'), 'the map asks the same road-keeping way-finder the rules use');
+});
+
 test('the province: clearings in the woods, where a rainbow can come down', () => game()(function () {
   newGame();
   const C = wildClearings(), L = wildLand();
