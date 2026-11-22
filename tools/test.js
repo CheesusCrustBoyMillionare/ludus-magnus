@@ -212,6 +212,31 @@ test('patrons: petitions spend favour, requests are asked and settled', () => ga
   // the temple heals
   G.patrons.temple = 60; G.roster[0].injury = 4; G.roster[0].hp = 5;
   assert(petition('temple', 'heal').ok && G.roster[0].injury === 2 && G.roster[0].hp === maxHp(G.roster[0]), 'the priests mend wounds');
+  // a third thing to ask of each, of a house they trust
+  { G.petitioned = {}; G.honoured = { magistrate: 1, guild: 1, temple: 1 }; G.patrons.magistrate = 59; assert(!petition('magistrate', 'levy').ok, 'not before sixty');
+    G.patrons.magistrate = 70; const n = G.market.length, r = petition('magistrate', 'levy'), m = G.market[0];
+    assert(r.ok && !/undefined|NaN/.test(r.text) && G.market.length === n + 1 && m.levy && m.bg === 'captive' && m.price >= 5 && m.price % 5 === 0 && m.price < value(m) && G.patrons.magistrate === 55, 'the pick of the prisoners, at half his price: ' + m.price + ' for a man worth ' + value(m));
+    G.petitioned = {}; G.patrons.magistrate = 70; assert(/still/.test(petitionBlock('magistrate', PETITIONS.magistrate.find(p => p.id === 'levy'))), 'one such man at a time');
+    genMarket(); assert(!G.market.some(x => x.levy), 'and he goes with the rest at the next market');
+    G.patrons.guild = 70; G.petitioned = {}; assert(petition('guild', 'book').ok && G.bookUntil >= G.day && G.patrons.guild === 56, 'the Guild’s book is opened');
+    G.patrons.temple = 70; G.petitioned = {}; const best = G.roster.slice().sort((x, y) => statSum(y) - statSum(x))[0]; G.roster.forEach(x => { x.traits = x.traits.filter(q => q !== 'blessed'); });
+    assert(oracleMan() === best && petition('temple', 'oracle').ok && best.traits.includes('blessed') && G.patrons.temple === 52, 'the oracle names the best man');
+    G.roster.forEach(x => { if (!x.traits.includes('blessed')) x.traits.push('blessed'); }); G.petitioned = {}; G.patrons.temple = 70;
+    assert(!petition('temple', 'oracle').ok && G.patrons.temple === 70, 'and has nobody left to name');
+    assert(Object.keys(PETITIONS).every(k => PETITIONS[k].length === 3 && PETITIONS[k][2].need === 60), 'three petitions to each patron'); G.honoured = undefined; }
+  // honours: the first time a patron reaches sixty, once
+  { newGame(); G.denarii = 1000; const arm = G.armoury.length;
+    G.patrons.magistrate = 55; favor('magistrate', 4); assert(!G.honoured || !G.honoured.magistrate, 'not at fifty-nine');
+    favor('magistrate', 1); const it = G.armoury[G.armoury.length - 1];
+    assert(G.honoured.magistrate === G.day && G.armoury.length === arm + 1 && it.slot === 'weapon' && it.mw && it.r >= 2 && G.roster.some(g => g.cls === it.cls), 'the Magistrate sends a blade one of your men can use');
+    favor('magistrate', -30); favor('magistrate', 40); assert(G.armoury.length === arm + 1, 'once only');
+    const d = G.denarii; G.patrons.guild = 59; favor('guild', 5); assert(G.denarii === d + 100 * (1 + tier()) && G.honoured.guild, 'the Guild sends a purse');
+    G.roster[0].injury = 5; G.roster[0].hp = 3; G.roster[0].morale = 20; G.patrons.temple = 58; favor('temple', 9);
+    assert(G.roster[0].injury === 3 && G.roster[0].hp === maxHp(G.roster[0]) && G.roster[0].morale === 100 && G.honoured.temple, 'the Temple lays hands on every man');
+    G.patrons.guild = 20; const d2 = G.denarii; favor('guild', -5); G.patrons.guild = 80; favor('guild', -5); assert(G.denarii === d2, 'favour lost is never an honour'); }
+  // the Guild may ask you to back your own man
+  { newGame(); let stake = 0, show = 0; for (let i = 0; i < 400; i++) { G.request = null; genRequest(); if (G.request && G.request.patron === 'guild') { if (G.request.type === 'stake') { stake++; assert(G.request.need >= 20 && G.request.need % 5 === 0 && /denarii or more/.test(requestText(G.request)), 'a stake is named'); } else show++; } }
+    assert(stake > 15 && show > 15, 'sometimes a show, sometimes a stake: ' + show + ' and ' + stake); }
   // a request: a tithe paid is favour gained; one left undone is favour lost
   G.request = { patron: 'temple', type: 'tithe', cost: 30, day: G.day, favor: 9, pay: 0 }; let f0 = G.patrons.temple;
   assert(payTithe() && G.request.done && G.patrons.temple === f0 + 9, 'an offering made');
@@ -1406,6 +1431,33 @@ test('the province: every fight that can be started has an ending when it is won
     let B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0.3, 0] }), guard = 0;
     while (B.winner !== 0 && guard++ < 20) { G.roster.forEach(x => { x.hp = maxHp(x); x.injury = 0; }); B = fight(fieldParty(), G.field.fight.foes, { wild: 'camp', hunt: true, mercy: [0.3, 0] }); }
     const r = applyWildResult(B); assert(r.win && !G.field.fight && !badNumber(G), 'it ends, and the school marches on'); }
+}));
+
+test('the province: every bridge runs straight, and the roads still meet across it', () => game()(function () {
+  newGame();
+  const L = wildLand(), { TW, TH } = WILD, seen = new Uint8Array(TW * TH), comps = [];
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    if (L.t[ty * TW + tx] !== T_BRIDGE || seen[ty * TW + tx]) continue;
+    const todo = [[tx, ty]], comp = [];
+    while (todo.length) { const [cx, cy] = todo.pop(), k = cy * TW + cx; if (seen[k] || L.t[k] !== T_BRIDGE) continue; seen[k] = 1; comp.push([cx, cy]); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) todo.push([cx + dx, cy + dy]); }
+    comps.push(comp);
+  }
+  assert(comps.length >= 4, 'the roads cross water in four places: ' + comps.length);
+  for (const comp of comps) {
+    const xs = comp.map(q => q[0]), ys = comp.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), at = (x, y) => L.t[y * TW + x];
+    assert(x0 === x1 || y0 === y1, 'a bridge runs aslant, from ' + x0 + ',' + y0 + ' to ' + x1 + ',' + y1);
+    assert(comp.length === (x1 - x0) + (y1 - y0) + 1, 'a bridge with a gap in it');
+    // a road on dry ground at each end, and every plank of it can be walked to from the town
+    const ends = y0 === y1 ? [[x0 - 1, y0], [x1 + 1, y0]] : [[x0, y0 - 1], [x0, y1 + 1]];
+    assert(ends.every(([x, y]) => at(x, y) === T_ROAD && L.reach[y * TW + x]) && comp.every(([x, y]) => L.reach[y * TW + x]), 'a bridge at ' + x0 + ',' + y0 + ' does not meet the road at both ends');
+  }
+  // nothing that was a place has been cut off or built over by it
+  for (const s of wildSites()) { const k = Math.floor(s.y / 10) * TW + Math.floor(s.x / 10); assert(L.reach[k] && L.t[k] !== T_BRIDGE && L.t[k] < T_WATER, s.name + ' is cut off'); }
+  // a column caught standing where a bridge used to be is set down on the nearest bank
+  G.tally.wins = 1; assert(wildEnter(), 'out');
+  let wet = null; for (let i = 0; i < TW * TH && !wet; i++) if (L.t[i] === T_WATER && [i - 1, i + 1, i - TW, i + TW].some(n => L.reach[n])) wet = [(i % TW) * 10 + 5, Math.floor(i / TW) * 10 + 5];
+  G.field.x = wet[0]; G.field.y = wet[1]; assert(!wildWalk(G.field.x, G.field.y) && wildUnstick() && wildWalk(G.field.x, G.field.y) && Math.hypot(G.field.x - wet[0], G.field.y - wet[1]) < 25 && !wildUnstick(), 'he is put back on dry ground, close by');
+  return comps.map(c => c.length).join(', ') + ' tiles';
 }));
 
 test('the province: clearings in the woods, where a rainbow can come down', () => game()(function () {

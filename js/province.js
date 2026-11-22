@@ -621,7 +621,10 @@ function provLand() {
     let A = null, Z = null, far = -1;
     for (const e1 of ends) for (const e2 of ends) { const d = Math.hypot(e1[0] - e2[0], e1[1] - e2[1]); if (d > far) { far = d; A = e1; Z = e2; } }
     if (!A || far < 1) { const xs = B.tiles.map(q => q[0]), ys = B.tiles.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); if (B.across) { A = [x0 - 1, (y0 + y1) >> 1]; Z = [x1 + 1, (y0 + y1) >> 1]; } else { A = [(x0 + x1) >> 1, y0 - 1]; Z = [(x0 + x1) >> 1, y1 + 1]; } }
-    const legs = [[A, Z]]; for (const e of ends) if (e !== A && e !== Z && Math.min(Math.hypot(e[0] - A[0], e[1] - A[1]), Math.hypot(e[0] - Z[0], e[1] - Z[1])) > 2) legs.push([e, [Math.round((A[0] + Z[0]) / 2), Math.round((A[1] + Z[1]) / 2)]]);      // a third road coming onto it: a spur to the middle
+    const bxs = B.tiles.map(q => q[0]), bys = B.tiles.map(q => q[1]), straight = Math.min(...bys) === Math.max(...bys) ? 'h' : Math.min(...bxs) === Math.max(...bxs) ? 'v' : '';
+    if (straight === 'h') { A = [Math.min(...bxs) - 1, bys[0]]; Z = [Math.max(...bxs) + 1, bys[0]]; }
+    else if (straight === 'v') { A = [bxs[0], Math.min(...bys) - 1]; Z = [bxs[0], Math.max(...bys) + 1]; }
+    const legs = [[A, Z]]; if (!straight) for (const e of ends) if (e !== A && e !== Z && Math.min(Math.hypot(e[0] - A[0], e[1] - A[1]), Math.hypot(e[0] - Z[0], e[1] - Z[1])) > 2) legs.push([e, [Math.round((A[0] + Z[0]) / 2), Math.round((A[1] + Z[1]) / 2)]]);      // a third road coming onto it: a spur to the middle
     const ST = [{ deck: '#8a6a3a', line: '#77592e', rail: '#5f4622', lit: '#a8834a', post: '#4a3620' }, { deck: '#b5ad9c', line: '#a39a8a', rail: '#8f8676', lit: '#cfc8b6', post: '#7d7566' }, { deck: '#6b4f2c', line: '#5a4326', rail: '#3a2a1c', lit: '#7a5a34', post: '#3a2a1c' }][B.style] || null;
     for (const [P, Q] of legs) {
       // from the edge of the one road tile to the edge of the other, so that it stands on both banks
@@ -3260,15 +3263,36 @@ function drawMini(cv) {
   if (Math.floor(performance.now() / 400) % 2) dot(F.x, F.y, '#7a2a8a', 2);
 }
 
-// The places you know of and have not dealt with, nearest first, to set out for with a click.
-function placesHtml() {
+// The places you know of and have not dealt with, to set out for with a click: first what you were sent for or gave
+// your word on, then the rest, nearest first. Each says what kind of matter it is, and a man's journey says whose.
+const PLACE_ROWS = 6;
+function placeRows() {
   const F = G.field, M = wildMap();
-  const all = wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => ({ st, d: Math.hypot(st.x - F.x, st.y - F.y), mark: !!M.marks[st.id] })).sort((a, b) => (b.mark - a.mark) || a.d - b.d);
-  const row = (id, nm, sub, dz, gold) => `<div class="lrow place" data-act="wildgo" data-v="${id}"><div class="grow"><span class="t ${gold ? 'gold' : ''}">${nm}</span><small>${sub}</small></div>${dz ? `<span class="skulls">${'<i></i>'.repeat(dz)}</span>` : ''}</div>`;
-  const show = F.note && F.note.day === G.day ? 4 : 5;
-  return all.slice(0, show).map(({ st, mark }) => st.errand ? (q => row(st.id, `Quest: ${st.name}`, `<b class="gold num">${q.pay}</b> &middot; ${Math.max(0, q.until - G.day)}d left &middot; ${wayTo(st.x, st.y)}`, siteDanger(st), true))(errandById(st.errand)) : st.kind === 'bounty' ? row(st.id, `Bounty: ${st.name}`, `<b class="gold num">${G.bounty.pay}</b> &middot; ${G.bounty.until - G.day}d left &middot; ${wayTo(st.x, st.y)}`, siteDanger(st), true) : row(st.id, st.name, `${mark ? 'marked &middot; ' : ''}${wayTo(st.x, st.y)}`, siteDanger(st), mark)).join('')
-    + row('home', 'Home', wayTo(WILD.TOWN.x, WILD.TOWN.y), 0, false)
+  return wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => {
+    const man = st.journey || QUEST_SITE[st.kind] ? questAt(st) : null, q = st.errand ? errandById(st.errand) : null;
+    const tag = man ? 'Journey' : q ? 'Quest' : st.kind === 'bounty' ? 'Bounty' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(st.kind) && M.marks[st.id] ? 'Eagle' : M.marks[st.id] ? 'Marked' : '';
+    const sub = q ? `<b class="gold num">${q.pay}</b> &middot; <span class="${q.until - G.day <= 3 ? 'bad' : ''}">${Math.max(0, q.until - G.day)}d left</span>` : st.kind === 'bounty' && G.bounty ? `<b class="gold num">${G.bounty.pay}</b> &middot; <span class="${G.bounty.until - G.day <= 3 ? 'bad' : ''}">${G.bounty.until - G.day}d left</span>` : '';
+    return { st, tag, sub, d: Math.hypot(st.x - F.x, st.y - F.y), name: man ? `${man.name}: ${lower(st.name)}` : st.name,
+      what: man ? `${man.name} asked to be brought here, and you gave your word.` : q ? `For ${q.giver.name}. ${SITE_WHAT[st.kind] || 'Somebody in town asked this of you.'}` : SITE_WHAT[st.kind] || '' };
+  }).sort((x, y) => (!!y.tag - !!x.tag) || x.d - y.d);
+}
+function placesHtml() {
+  const all = placeRows(), show = PLACE_ROWS;
+  if (!all.length) return '<div class="listnote">No place is known yet. Walk on, or spend a day scouting from high ground.</div>';
+  return all.slice(0, show).map(({ st, tag, sub, name, what }) => { const dz = siteDanger(st);
+    return `<div class="lrow place" data-act="wildgo" data-v="${st.id}"${tip(`${what ? what + '\n' : ''}${dz ? 'Danger ' + dz + ' of 5. ' : 'No danger known. '}Click to set out for it.`)}>
+      ${tag ? `<span class="ptag ${tag.toLowerCase()}">${tag}</span>` : '<span class="ptag none"></span>'}
+      <div class="grow"><span class="t ${tag ? 'gold' : ''}">${name}</span><small>${sub ? sub + ' &middot; ' : ''}${wayTo(st.x, st.y)}</small></div>
+      <span class="skulls">${'<i></i>'.repeat(dz)}</span></div>`; }).join('')
     + (all.length > show ? `<div class="listnote">and ${all.length - show} more on the whole map</div>` : '');
+}
+// Where the column stands just now: what it could bring to a fight, the ground it is on, and the way home.
+function campNowHtml() {
+  const F = G.field, t = wildTier(F.x, F.y), left = clamp(1 - ((F.march || 0) / marchDay()), 0, 1);
+  return `<div${tip('The strength of your fit men together: what is set against the strength of whatever you meet.')}><span>Strength</span><b class="num">${yours()}</b></div>
+    <div${tip('How dangerous this ground is: what walks it, and how hard the places in it are. One by the town, five in the far corners.')}><span>This country</span><b><span class="skulls">${'<i></i>'.repeat(t)}</span> <small class="num">${t} of 5</small></b></div>
+    <div${tip('How much of today\'s march is left before the day ends where you stand. Roads go further; forest, hill and marsh less far.')}><span>Day's march</span><b class="num ${left < 0.2 ? 'bad' : ''}">${Math.round(left * 100)}% left</b></div>
+    <div${tip('The way back to the town gate from here.')}><span>Home</span><b>${wayTo(WILD.TOWN.x, WILD.TOWN.y)}</b></div>`;
 }
 
 function provFrame(ts) {
@@ -3287,7 +3311,8 @@ function provFrame(ts) {
           prov.mini = ts; const m = document.getElementById('wildMini'); if (m) drawMini(m);
           SFX.mood({ danger: wildTier(G.field.x, G.field.y) });
           if (!busy && G.tut && G.tut.hints && !G.tut.on && document.getElementById('tutor').hidden) renderTutor();
-          const pl = document.getElementById('placeList'); if (pl) { const h = placesHtml(); if (pl.dataset.h !== String(h.length) + h.slice(0, 80)) { pl.innerHTML = h; pl.dataset.h = String(h.length) + h.slice(0, 80); } }
+          const cn = document.getElementById('campNow'); if (cn) { const h = campNowHtml(); if (cn.dataset.h !== h) { cn.innerHTML = h; cn.dataset.h = h; } }
+          const pl = document.getElementById('placeList'); if (pl) { const h = placesHtml(); if (pl.dataset.h !== h) { pl.innerHTML = h; pl.dataset.h = h; } }
         }
         if (ts - prov.saved > 6000 && !busy) { prov.saved = ts; save(); }
       }
@@ -3313,23 +3338,24 @@ function renderWilds() {
   el.hidden = !out;
   if (!out) return;
   const F = G.field, M = wildMap(), dg = daysToGames(), men = G.roster.filter(g => !g.away), sel = men.find(g => g.id === ui.campSel);
-  const journeys = men.filter(g => g.quest && QUESTS[g.quest.id]).map(g => `<div><b>${g.name}</b>: ${questWhere(g)}.</div>`).join('');
+  const unseen = men.filter(g => g.quest && QUESTS[g.quest.id] && !wildSites().some(st => (st.journey || QUEST_SITE[st.kind]) && questAt(st) === g && siteKnown(st)));      // a journey whose place is not yet on the list below
+  const journeys = unseen.map(g => `<div><b>${g.name}</b>: ${questWhere(g)}.</div>`).join('');
   const lead = eagleLead();
-  const head = `<div class="camphead"><div class="title">THE PROVINCE</div>
+  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out. Key: Esc')}>Menu</button></span></div>
       <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day &middot; ${F.days} out</span></div>
       <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>${stipend() - upkeep() >= 0 ? '+' : ''}${stipend() - upkeep()} a day</span></div>
       <div class="stat games"${tip('awaygames')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>${dg === 0 ? 'Games, without you' : 'Games in town'}</span></div></div>`;
   let body;
   if (sel) body = `<div class="row" style="margin:6px 0"><button data-act="campback">&laquo; Back to the camp</button></div>${gladDetail(sel)}`;
-  else body = `<canvas id="wildMini" width="240" height="180" data-act="bigmap"${tip('minimap')} style="cursor:pointer"></canvas>
-      <div class="row camprow" style="margin:8px 0 4px"><button class="primary" data-act="makecamp"${tip('makecamp')} style="flex:1.3">Make camp<span class="key">E</span></button>
-        <button data-act="scout" style="flex:1"${tip(`Spend the day on the high ground: the fog lifts for a long way round${staffLvl('scout') ? ', further for your scout' : '; a scout would see further'}. The men get some rest.`)}>Scout</button></div>
-      <div class="row camprow" style="margin:0 0 8px"><button data-act="wildgo" data-v="home" style="flex:1"${tip('Sets the column on the road back to the town gate, by the shortest way it can walk. It goes in when it gets there. You can still steer away, or click elsewhere, to change your mind.')}>Go home<span class="key">R</span></button><button data-act="bigmap"${tip('bigmap')}>${prov.big ? 'Close map' : 'Whole map'}<span class="key">M</span></button><button data-act="help" style="padding-left:9px;padding-right:9px"${tip('The keys, and the rules of the trade in a page. Key: H')}>?</button></div>
+  else body = `<div class="campnow"><canvas id="wildMini" width="240" height="180" data-act="bigmap"${tip('minimap')} style="cursor:pointer"></canvas><div class="nowlist" id="campNow">${campNowHtml()}</div></div>
+      <div class="campbtns"><button class="primary" data-act="makecamp"${tip('makecamp')}>Make camp<span class="key">E</span></button>
+        <button data-act="scout"${tip(`Spend the day on the high ground: the fog lifts for a long way round${staffLvl('scout') ? ', further for your scout' : '; a scout would see further'}. The men get some rest.`)}>Scout</button>
+        <button data-act="wildgo" data-v="home"${tip('Sets the column on the road back to the town gate, by the shortest way it can walk. It goes in when it gets there. You can still steer away, or click elsewhere, to change your mind.')}>Go home<span class="key">R</span></button><button data-act="bigmap"${tip('bigmap')}>${prov.big ? 'Close map' : 'Whole map'}<span class="key">M</span></button></div>
       ${F.note && F.note.day === G.day ? `<div class="dealmsg ${F.note.ok ? '' : 'bad'}" style="margin:0 0 6px">${F.note.text}</div>` : ''}
       ${lead ? `<div class="lead"${tip('eagle')}><b class="gold">The eagle of the Seventeenth.</b> ${lead}</div>` : ''}
-      ${journeys ? `<div class="lead"><b class="gold">Promised.</b>${journeys}</div>` : ''}
-      <div class="pane" data-pane="camp"><h2>Places known <small>click to walk there</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>
-      <h2>The school <small>${fieldParty().length} fit of ${men.length}</small></h2>
+      ${journeys ? `<div class="lead"${tip('A journey you gave your word on, whose place you have not yet found on the map.')}><b class="gold">Promised.</b>${journeys}</div>` : ''}
+      <div class="pane" data-pane="camp"><h2>Places known <small>click to go</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>
+      <h2>The school <small>${fieldParty().length} of ${men.length} fit${men.some(g => g.injury > 0) ? ` &middot; <span class="bad">${men.filter(g => g.injury > 0).length} hurt</span>` : ''}${men.some(g => g.perkPending > 0) ? ' &middot; <span class="gold">perk</span>' : ''}</small></h2>
       <div class="panel list ${men.length > 5 ? 'twoup dense' : ''}">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
       <div class="listnote"${tip('fieldrules')}>${Math.round(wildExplored() * 100)}% walked &middot; ${M.cleared} places dealt with &middot; <span class="${safeRegions().length ? 'gold' : ''}"${tip(`A region is safe when every lair and outlaw camp in it has been dealt with. Each safe region pays ${SAFE_TOLL} denarii a day, at home or away, and the family keeps it.\n${Object.entries(regionTally()).map(([r, t]) => `${r}: ${t.done} of ${t.n}${t.done >= t.n ? ' - safe' : ''}`).join('\n')}`)}>${safeRegions().length} of ${Object.keys(regionTally()).length} regions safe${safeRegions().length ? ` (+${SAFE_TOLL * safeRegions().length} a day)` : ''}</span>${M.bounties ? ` &middot; ${M.bounties} bount${M.bounties === 1 ? 'y' : 'ies'} taken` : ''}</div></div>`;
   $('#camp').innerHTML = head + body;

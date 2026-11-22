@@ -109,6 +109,110 @@ function wildLand() {
     if (spots.some(s => Math.hypot(s.tx - tx, s.ty - ty) < 15)) continue;
     spots.push({ tx, ty }); sites.push({ tx, ty });
   }
+  // Bridges run straight: across the water from west to east, or from north to south, never aslant. A road that came
+  // to the water at a slant is turned along the bank to the foot of its bridge. (Done after the places are settled, and
+  // keeping clear of them, so that nothing else on the map moves on a bridge's account.)
+  {
+    const inMap = (x, y) => x > 1 && y > 1 && x < TW - 2 && y < TH - 2, wetK = k => k === T_WATER || k === T_BRIDGE;
+    const taken = (x, y) => spots.some(sp => sp.tx === x && sp.ty === y);      // a place's own ground is never built on, nor flooded
+    const seenB = new Uint8Array(TW * TH), comps = [];
+    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+      if (t[ty * TW + tx] !== T_BRIDGE || seenB[ty * TW + tx]) continue;
+      const todo = [[tx, ty]], comp = [];
+      while (todo.length) { const [cx, cy] = todo.pop(), key = cy * TW + cx; if (cx < 0 || cy < 0 || cx >= TW || cy >= TH || seenB[key] || t[key] !== T_BRIDGE) continue; seenB[key] = 1; comp.push([cx, cy]); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) todo.push([cx + dx, cy + dy]); }
+      comps.push(comp);
+    }
+    for (const comp of comps) {
+      const xs = comp.map(q => q[0]), ys = comp.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      if (x0 === x1 || y0 === y1) continue;                     // straight already
+      // the roads that came to this crossing, told apart by which bank they are on: with the old bridge taken up,
+      // every stretch of road that touched it is followed out, and each separate stretch is one bank's road
+      const before = comp.map(([x, y]) => [y * TW + x, t[y * TW + x]]);
+      for (const [x, y] of comp) t[y * TW + x] = taken(x, y) ? T_ROAD : T_WATER;      // where a place stands at the end of a causeway, the causeway's end is its doorstep
+      // a tile of the old crossing with dry ground on three sides of it is no water worth bridging: it is road
+      for (const [x, y] of comp) { const k = y * TW + x; if (t[k] === T_WATER && [k - 1, k + 1, k - TW, k + TW].filter(n => t[n] < T_WATER).length >= 3) t[k] = T_ROAD; }
+      const lab = new Map(); let labels = 0;
+      for (const [bx, by] of comp) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const sk = (by + dy) * TW + bx + dx; if (t[sk] !== T_ROAD || lab.has(sk)) continue;
+        labels++; const todo = [sk];
+        while (todo.length) { const k = todo.pop(); if (lab.has(k) || (t[k] !== T_ROAD && t[k] !== T_BRIDGE)) continue; lab.set(k, labels); const kx = k % TW, ky = (k - kx) / TW; for (let ey = -1; ey <= 1; ey++) for (let ex = -1; ex <= 1; ex++) if ((ex || ey) && inMap(kx + ex, ky + ey)) todo.push((ky + ey) * TW + kx + ex); }
+      }
+      // every line through it, both ways, shortest stretch of water first
+      const lines = [];
+      const tryLine = (horiz, c) => {
+        const on = comp.filter(([x, y]) => (horiz ? y : x) === c).map(([x, y]) => (horiz ? x : y)).sort((u, v) => u - v);
+        const wetAt = v => { const x = horiz ? v : c, y = horiz ? c : v; return inMap(x, y) && wetK(t[y * TW + x]); }, dry = ([x, y]) => inMap(x, y) && t[y * TW + x] < T_WATER;
+        let past = -1;
+        for (const m of on) {
+          if (m <= past) continue;
+          let p = m, q = m; while (wetAt(p - 1)) p--; while (wetAt(q + 1)) q++;
+          past = q;
+          const e1 = horiz ? [p - 1, c] : [c, p - 1], e2 = horiz ? [q + 1, c] : [c, q + 1];
+          if (!dry(e1) || !dry(e2)) continue;
+          lines.push({ horiz, c, a: p, b: q, e1, e2, len: q - p + 1, off: Math.abs(c - (horiz ? (y0 + y1) / 2 : (x0 + x1) / 2)) + (horiz === (x1 - x0 >= y1 - y0) ? 0 : 0.25) });
+        }
+      };
+      for (let r = y0; r <= y1; r++) tryLine(true, r);
+      for (let c = x0; c <= x1; c++) tryLine(false, c);
+      lines.sort((u, v) => u.len - v.len || u.off - v.off);
+      // from the foot of a bridge to the road on its bank, over dry ground: the way, and which road it came to
+      const wayToRoad = ([sx, sy]) => {
+        const s0 = sy * TW + sx;
+        if (t[s0] === T_ROAD) return { path: [], lab: lab.get(s0) || 0 };
+        const from = new Map([[s0, -1]]), q = [s0];
+        for (let k = 0; k < q.length && k < 1500; k++) {
+          const cur = q[k], cx = cur % TW, cy = (cur - cx) / TW;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nx = cx + dx, ny = cy + dy, n = ny * TW + nx;
+            if (!inMap(nx, ny) || from.has(n) || t[n] >= T_WATER || t[n] === T_BRIDGE || taken(nx, ny)) continue;
+            from.set(n, cur);
+            if (t[n] === T_ROAD) { const path = []; for (let p = cur; p !== -1; p = from.get(p)) path.push(p); return path.length > 24 ? null : { path, lab: lab.get(n) || 0 }; }
+            q.push(n);
+          }
+        }
+        return null;
+      };
+      // The ground the old crossing joined: every piece of dry land that touched it, told apart by whether one can be
+      // walked to from another now that it is taken up. (A causeway out to an island touched two: the shore and the island.)
+      const land = new Map(); let lands = 0;
+      for (const [bx, by] of comp) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const sk = (by + dy) * TW + bx + dx; if (!inMap(bx + dx, by + dy) || t[sk] >= T_WATER || land.has(sk)) continue;
+        lands++; const todo = [sk];
+        while (todo.length) { const k = todo.pop(); if (land.has(k) || t[k] >= T_WATER) continue; land.set(k, lands); for (const n of [k - 1, k + 1, k - TW, k + TW]) if (!land.has(n) && t[n] < T_WATER) todo.push(n); }
+      }
+      // Bridges are laid shortest first, each one only if it joins two pieces of ground, or two stretches of road, not
+      // yet joined: until every bank the old crossing touched can be walked to from every other, and no road is left
+      // ending at the water with its other half on the far side.
+      const mk = n => { const h = []; for (let i = 0; i <= n; i++) h.push(i); return h; }, find = (h, i) => { while (h[i] !== i) i = h[i]; return i; };
+      const hl = mk(lands), hr = mk(labels);
+      let landParts = lands, roadParts = labels; const changed = [];
+      const put2 = (key, v) => { changed.push([key, t[key]]); t[key] = v; };
+      for (const Ln of lines) {
+        if (landParts <= 1 && roadParts <= 1) break;
+        const keys = []; let open = true;
+        for (let v = Ln.a; v <= Ln.b; v++) { const key = Ln.horiz ? v + Ln.c * TW : Ln.c + v * TW; keys.push(key); if (t[key] !== T_WATER) open = false; }
+        if (!open) continue;                                     // it would run into a bridge already laid
+        const k1 = Ln.e1[1] * TW + Ln.e1[0], k2 = Ln.e2[1] * TW + Ln.e2[0], g1 = land.get(k1) || 0, g2 = land.get(k2) || 0;
+        const mark = changed.length; for (const key of keys) put2(key, T_BRIDGE);
+        const w1 = wayToRoad(Ln.e1), w2 = wayToRoad(Ln.e2);
+        const joinsLand = !!(g1 && g2 && find(hl, g1) !== find(hl, g2)), joinsRoad = !!(w1 && w2 && w1.lab && w2.lab && find(hr, w1.lab) !== find(hr, w2.lab));
+        if (!joinsLand && !joinsRoad) { while (changed.length > mark) { const [key, was] = changed.pop(); t[key] = was; } continue; }
+        for (const [w, e] of [[w1, Ln.e1], [w2, Ln.e2]]) {
+          const l = w && w.lab ? w.lab : 0;
+          for (const key of (w ? w.path : [])) { put2(key, T_ROAD); if (l) lab.set(key, l); }
+          const ek = e[1] * TW + e[0]; if (t[ek] < T_WATER && t[ek] !== T_ROAD) { put2(ek, T_ROAD); if (l) lab.set(ek, l); }
+        }
+        if (joinsLand) { hl[find(hl, g1)] = find(hl, g2); landParts--; }
+        if (joinsRoad) { hr[find(hr, w1.lab)] = find(hr, w2.lab); roadParts--; }
+      }
+      const done = landParts <= 1;                               // every bank is joined: that is what must hold
+      if (!done) { while (changed.length) { const [key, was] = changed.pop(); t[key] = was; } }
+      if (!done) for (const [key, was] of before) t[key] = was;      // no straight way joins them: that crossing stays as it was
+    }
+    // and what can be reached on foot is reckoned again, now that the crossings have moved
+    reach.fill(0); reach[start] = 1; const q2 = [start];
+    for (let k = 0; k < q2.length; k++) { const c = q2[k]; for (const n of [c - 1, c + 1, c - TW, c + TW]) if (!reach[n] && t[n] < T_WATER) { reach[n] = 1; q2.push(n); } }
+  }
   // glades: here and there, deep in a wood, a patch of open grass with the trees standing all round it. (They are
   // cut after everything else is settled, so that no road, place or landmark moves on their account.)
   const glades = [];
@@ -127,6 +231,20 @@ const wildWalk = (x, y) => wildTile(x, y) < T_WATER;
 // Clearings in the woods: open grass with the trees close all round. (Where the rainbow comes down.)
 const wildClearings = () => wildLand().glades.map(g => ({ x: g.tx * 10 + 5, y: g.ty * 10 + 5 }));
 const wildPace = (x, y) => { const k = wildTile(x, y); return k === T_ROAD || k === T_BRIDGE ? 1.25 : k === T_FOREST || k === T_HILL ? 0.7 : k === T_MARSH ? 0.55 : 1; };
+// A column that finds itself standing where nobody can stand (a save made on a bridge that has since been moved) is
+// set down on the nearest ground that can be walked from the town.
+function wildUnstick() {
+  const F = G.field; if (!F) return false;
+  const L = wildLand(), ok = (x, y) => wildWalk(x, y) && L.reach[Math.floor(y / 10) * WILD.TW + Math.floor(x / 10)];
+  if (ok(F.x, F.y)) return false;
+  const tx0 = Math.floor(F.x / 10), ty0 = Math.floor(F.y / 10);
+  for (let r = 1; r < 40; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    const x = (tx0 + dx) * 10 + 5, y = (ty0 + dy) * 10 + 5;
+    if (ok(x, y)) { F.x = x; F.y = y; return true; }
+  }
+  return false;
+}
 // How dangerous the country is here: one skull by the town, five in the far corners.
 function wildTier(x, y) { const d = Math.hypot(x - WILD.TOWN.x, y - WILD.TOWN.y); return d < 330 ? 1 : d < 600 ? 2 : d < 900 ? 3 : d < 1250 ? 4 : 5; }
 function wildRegion(x, y) { let best = WILD_REGIONS[0], bd = 1e9; for (const r of WILD_REGIONS) { const d = Math.hypot(r.x - x, r.y - y); if (d < bd) { bd = d; best = r; } } return best.name; }

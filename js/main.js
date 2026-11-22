@@ -1121,7 +1121,7 @@ function viewMarket() {
     const deal = scout ? dealOf(m) : null, why = buyBlock(m);
     return lrow('msel', m.id, `<canvas width="48" height="56" style="width:34px;height:40px" data-mportrait="${m.id}"></canvas>
       <div class="grow"><span class="t">${m.name} ${styleMark(m)} <small class="inl">${CLASSES[m.cls].name} of ${m.origin}</small></span>
-        <div class="l2"><span class="sks"${tip('rating')}><b class="num pw">${rating(m)}</b>${skills(m)}</span>${bgChip(m)}${m.held ? `<span class="chip gold"${tip('You have paid the dealer to keep him for you past the next games.')}>Held</span>` : m.kept ? `<span class="chip gold"${tip('Kept back for you from the last market. He goes at the next games if you do not buy him.')}>Kept for you</span>` : ''}${m.ordered ? `<span class="chip gold"${tip('The kind of man you sent the dealer for.')}>Sent for</span>` : ''}${m.spoils ? `<span class="chip gold"${tip('Brought home in the general\'s train and sold off after his triumph: a fifth under the usual price.')}>Spoils</span>` : ''}${scout ? `<span class="chip gold"${tip('talent')}>Potential ${potential(m)}</span>` : ''}${m.gear && m.gear.weapon ? `<span class="chip"${tip('He comes with his own weapon, and it is in the price.')}>Armed</span>` : ''}${m.traits.map(t => `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>`).join('')}${deal ? `<span class="chip ${deal[0] === 'good' ? 'gold' : 'red'}"${tip(deal[2])}>${deal[1]}</span>` : ''}</div></div>
+        <div class="l2"><span class="sks"${tip('rating')}><b class="num pw">${rating(m)}</b>${skills(m)}</span>${bgChip(m)}${m.held ? `<span class="chip gold"${tip('You have paid the dealer to keep him for you past the next games.')}>Held</span>` : m.kept ? `<span class="chip gold"${tip('Kept back for you from the last market. He goes at the next games if you do not buy him.')}>Kept for you</span>` : ''}${m.ordered ? `<span class="chip gold"${tip('The kind of man you sent the dealer for.')}>Sent for</span>` : ''}${m.levy ? `<span class="chip gold"${tip('Taken out of a file of prisoners at a word from the Magistrate, and priced at half. He goes at the next games.')}>From the Magistrate</span>` : ''}${m.spoils ? `<span class="chip gold"${tip('Brought home in the general\'s train and sold off after his triumph: a fifth under the usual price.')}>Spoils</span>` : ''}${scout ? `<span class="chip gold"${tip('talent')}>Potential ${potential(m)}</span>` : ''}${m.gear && m.gear.weapon ? `<span class="chip"${tip('He comes with his own weapon, and it is in the price.')}>Armed</span>` : ''}${m.traits.map(t => `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>`).join('')}${deal ? `<span class="chip ${deal[0] === 'good' ? 'gold' : 'red'}"${tip(deal[2])}>${deal[1]}</span>` : ''}</div></div>
       <span class="end price"${why ? tip(why) : ''}><b class="num ${why ? 'bad' : 'gold'}">${m.price}</b><small>${Math.round(m.price / rating(m))} a point</small></span>`, 'lud');
   }).join('') || '<div class="listnote">The dealer has nothing left until the next games.</div>';
   const lotRow = lot ? lrow('msel', lot.id, `<canvas width="48" height="56" style="width:34px;height:40px" data-mportrait="${lot.id}"></canvas>
@@ -1309,7 +1309,7 @@ const PATRON_GIVES = {
   guild: f => [[`A stipend of <b class="num">${Math.round(f / 10 * (1 + tier()))}</b> denarii a day`, f >= 5], ['They sometimes ask for you by name on the contract board', f >= 35], ['Wagers won pay <b class="num">a fifth more</b>', f >= 80]],
   temple: f => [[`Morale settles <b class="num">${Math.round(f / 10)}</b> higher`, f >= 5], [`The fallen are spared <b class="num">${Math.round(f * 0.1)}%</b> more often`, f >= 5], ['The priests sometimes ask for you by name on the contract board', f >= 35], ['Wounds from the arena mend a day sooner', f >= 80]],
 };
-const PATRON_MARKS = { magistrate: [35, 40, 60, 80], guild: [20, 35, 80], temple: [20, 35, 80] };
+const PATRON_MARKS = { magistrate: [35, 40, 60, 80], guild: [20, 35, 60, 80], temple: [20, 35, 60, 80] };
 // What moves each patron, as the rules have it.
 const PATRON_WAYS = {
   magistrate: [['good', 'Every bout won (more if to the death), the Laurel Tournament, his contracts, outlaws and bandits handed over.'], ['bad', 'Ducking a grudge bout, staying away from his dinners, failing his contracts.']],
@@ -1330,7 +1330,7 @@ function patronRequest() {
   const P = PATRONS[r.patron], reward = `Favour +${r.favor}${r.pay ? ` and ${r.pay} denarii` : ''}; left undone, favour &minus;4.`;
   if (r.done) return `<div class="today preq done"><span class="lbl">Asked of you</span><div><b>${P.name}</b> had what was asked. It is remembered.</div></div>`;
   const stale = r.type !== 'tithe' && r.day !== G.day;
-  const what = r.type === 'wins' ? `win <b>${r.need}</b> bouts at ${stale ? 'the games just gone' : 'today\'s games'} (<b class="num">${r.got}</b> so far)` : r.type === 'show' ? `win a bout ${stale ? 'at the games just gone' : 'today'} with the crowd on its feet (a crowd at 45 or better over the whole bout)` : `an offering of <b class="num">${r.cost}</b> denarii before the next games`;
+  const what = r.type === 'wins' ? `win <b>${r.need}</b> bouts at ${stale ? 'the games just gone' : 'today\'s games'} (<b class="num">${r.got}</b> so far)` : r.type === 'show' ? `win a bout ${stale ? 'at the games just gone' : 'today'} with the crowd on its feet (a crowd at 45 or better over the whole bout)` : r.type === 'stake' ? `put <b class="num">${r.need}</b> denarii or more on a man of your own ${stale ? 'at the games just gone' : 'today'}, and win the wager` : `an offering of <b class="num">${r.cost}</b> denarii before the next games`;
   return `<div class="today preq"><span class="lbl">Asked of you</span><div><b>${P.name}</b> ask${r.patron === 'guild' ? '' : 's'}: ${what}. <span class="dim">${stale ? 'The day has passed: it will be held against you at the next games. ' : ''}${reward}</span>
     ${r.type === 'tithe' ? `<button class="mini primary" data-act="tithe" ${G.denarii < r.cost ? 'disabled' : ''} style="margin-left:6px">Make the offering &mdash; ${r.cost}</button>` : ''}</div></div>`;
 }
@@ -1340,6 +1340,7 @@ function patronBoons() {
   if (G.richCard && G.richCard >= G.day) b.push('a richer card at the next games');
   if (G.grainUntil && G.grainUntil > G.day) b.push(`grain at the Guild's cost for ${G.grainUntil - G.day} more day${G.grainUntil - G.day === 1 ? '' : 's'}`);
   if (G.blessed && G.blessed >= G.day) b.push('the temple\'s blessing on your fallen at the next games');
+  if (G.bookUntil && G.bookUntil >= G.day) b.push('the Guild\'s book behind you: wagers won at the next games pay half as much again');
   if (G.rigged && G.rigged >= G.day) b.push('<span class="bad">a bought man at the editor\'s elbow, against you</span>');
   return b.length ? `<div class="today preq"><span class="lbl">In force</span><div>${b.join(' &middot; ')}</div></div>` : '';
 }
@@ -1359,7 +1360,7 @@ function viewPatrons() {
       <div class="dim" style="font-size:13px">${p.desc}</div>
       <div class="favour"${tip('favour')}><span>Favour</span><div class="bar prog"><i style="width:${pct(f, 100)}%"></i>${PATRON_MARKS[k].map(m => `<u class="${f >= m ? 'got' : ''}" style="left:${m}%"></u>`).join('')}</div><b class="num">${Math.round(f)}</b></div>
       <div class="dim" style="font-size:12px">${next ? `${Math.ceil(next - f)} more to the next mark, at ${next}.` : 'Every mark reached.'} One point fades ${dg === 0 ? 'today' : `in ${dg} day${dg === 1 ? '' : 's'}`}.</div>
-      <ul class="gives">${gives}</ul>
+      <ul class="gives">${gives}<li class="${(G.honoured || {})[k] ? 'on' : 'off'}"${tip('The first time a patron comes to trust your house, at 60 favour, it is marked once with a gift.')}>${(G.honoured || {})[k] ? `Honoured your house on day ${G.honoured[k]}: ${HONOURS[k]}` : `At 60, once: ${HONOURS[k]}`}</li></ul>
       <div class="asks"><span class="lbl"${tip('Spend favour for something now. One petition to each patron between one games and the next.')}>Ask of ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}</span>${asks}<span class="moves"${tip(ways)}>what moves ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}?</span></div>${said}
       <div class="work ${asked ? 'gold' : 'dim'}">${work.length ? `${work.length} offer${work.length === 1 ? '' : 's'} of work on the board${asked ? ', <b>one asking for you by name</b>: ignoring it costs favour' : ''}.` : 'No work on the board from here.'}${out ? ` ${out} of your outings ${out === 1 ? 'is' : 'are'} in ${k === 'guild' ? 'their' : k === 'temple' ? 'her' : 'his'} service now.` : ''}</div>
       <div class="buyrow"><button class="primary" data-act="gift" data-v="${k}" ${why ? 'disabled' : ''}>Send a gift &mdash; ${cost}</button>
@@ -2503,7 +2504,7 @@ const ACTIONS = {
   buy(v) {
     const g = G.market.find(m => m.id === +v);
     if (!g || G.denarii < g.price || G.roster.length >= capacity()) return;
-    G.denarii -= g.price; addStory(g, `Bought at market for ${g.price} denarii.`); delete g.price; delete g.tried; dealerMove(2);
+    G.denarii -= g.price; addStory(g, `Bought at market for ${g.price} denarii.`); delete g.price; delete g.tried; delete g.levy; dealerMove(2);
     G.market = G.market.filter(m => m !== g); G.roster.push(welcome(g));
     log(`${g.name} the ${CLASSES[g.cls].name} is bought at market.`);
     ui.sel = g.id; save(); render();

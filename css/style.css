@@ -1365,3 +1365,34 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 /* the household: a post's buttons sit one over the other */
 .htile .hbtns { display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
 .htile.vacant .hbtns { grid-column: 2; }
+
+/* the province panel, reworked: the map and what matters now side by side, four equal orders, and a list that says what each place is */
+#camp .camphead .title { display: flex; justify-content: space-between; align-items: center; }
+#camp .camphead .title .hbtns { display: flex; gap: 4px; }
+#camp .camphead .title button.mini { font: 10px var(--display); letter-spacing: .08em; padding: 1px 8px; text-shadow: none; }
+#camp .campnow { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 8px; align-items: stretch; margin-bottom: 6px; }
+#camp .campnow #wildMini { width: 100%; max-height: none; height: auto; margin: 0; align-self: start; }
+#camp .nowlist { display: flex; flex-direction: column; justify-content: space-between; gap: 3px; }
+#camp .nowlist > div { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 2px 8px; background: #1c140f; border: 1px solid var(--bronze-d); line-height: 1.2; min-width: 0; }
+#camp .nowlist span { font: 9px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+#camp .nowlist b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#camp .nowlist .skulls { display: inline-flex; vertical-align: middle; min-width: 0; }
+#camp .campbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 0 0 8px; }
+#camp .campbtns button { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+#camp .place { align-items: center; gap: 7px; }
+#camp .place .skulls { min-width: 43px; justify-content: flex-end; }
+#camp .ptag { flex: none; width: 52px; text-align: center; font: 8.5px var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 1px 0; border: 1px solid var(--bronze-d); color: var(--gold); background: #1c140f; }
+#camp .ptag.none { border-color: transparent; background: none; }
+#camp .ptag.journey { color: #f5d584; border-color: #8a6a1e; }
+#camp .ptag.quest { color: #e8c46a; }
+#camp .ptag.bounty { color: #f08a7c; border-color: #7a2a20; }
+#camp .ptag.eagle { color: #fff0b0; border-color: #c9a21e; }
+#camp .place .grow { min-width: 0; }
+#camp .place .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* a place takes two short lines, so its name is never squeezed out by how far away it is */
+#camp .place .grow { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 0; }
+#camp .place .grow small { flex: none; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#camp .place .t { line-height: 1.2; }
+#camp .place { padding-top: 3px; padding-bottom: 3px; }
+#camp .nowlist b small { font-size: 10px; opacity: .7; font-weight: 400; }
