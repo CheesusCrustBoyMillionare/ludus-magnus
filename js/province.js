@@ -111,6 +111,10 @@ function provLand() {
   const shoreD = new Uint8Array(TW * TH).fill(255);
   { let cur = []; for (let i = 0; i < TW * TH; i++) if (L.t[i] !== T_WATER && L.t[i] !== T_BRIDGE) { shoreD[i] = 0; cur.push(i); }
     for (let d = 1; d < 10 && cur.length; d++) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (shoreD[j] === 255) { shoreD[j] = d; nx.push(j); } } } cur = nx; } }
+  // which water is the sea: whatever open water can be reached from the western edge of the map without going up a river
+  const seaM = new Uint8Array(TW * TH);
+  { let cur = []; for (let ty = 0; ty < TH; ty++) if (L.t[ty * TW] === T_WATER) { seaM[ty * TW] = 1; cur.push(ty * TW); }
+    while (cur.length) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (!seaM[j] && L.t[j] === T_WATER && shoreD[j] >= 2) { seaM[j] = 1; nx.push(j); } } } cur = nx; } }
   const zq = (v, n) => Math.min(n - 1, Math.max(0, Math.floor(((v - 0.5) * 2.4 + 0.5) * n)));      // which of n kinds a stretch of country is
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 40), b = h(tx, ty, 41);
@@ -163,7 +167,7 @@ function provLand() {
         }
       }
     } else if (k === T_WATER) {
-      const dp = deep(tx, ty), nz = wildNoise(tx / 6, ty / 6, 311), reg = wildRegion(x + 5, y + 5), sea = tx < 16 || reg === 'The Salt Shore';
+      const dp = deep(tx, ty), nz = wildNoise(tx / 6, ty / 6, 311), reg = wildRegion(x + 5, y + 5), sea = tx < 16 || reg === 'The Salt Shore' || !!seaM[ty * TW + tx];
       const sd = Math.min(9, shoreD[ty * TW + tx]);
       let sdA = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const ax = Math.max(0, Math.min(TW - 1, tx + dx)), ay = Math.max(0, Math.min(TH - 1, ty + dy)); sdA += Math.min(9, shoreD[ay * TW + ax]); }
       sdA = sdA / 25 + (wildNoise(tx / 4, ty / 4, 1030) - 0.5) * 1.6;      // the depth, smoothed, so that it shelves and does not step
@@ -505,7 +509,13 @@ function provLand() {
       if (v3 > 0.7) poplar(x + 8, 5 + Math.floor(v4 * 4), '#356026', '#4c7a34');
     }
     // fishing boats lie off the Salt Shore (they are drawn live, bobbing): open water, a little way out
-    if (reg === 'The Salt Shore' && wet(k) && a > 0.992 && wet(at(tx + 1, ty)) && wet(at(tx - 1, ty)) && prov.boats.length < 9) prov.boats.push([x + 5, y + 5]);
+    if (reg === 'The Salt Shore' && wet(k) && a > 0.992 && wet(at(tx + 1, ty)) && wet(at(tx - 1, ty)) && prov.boats.filter(q => !q[2]).length < 9) prov.boats.push([x + 5, y + 5]);
+    if (wet(k)) {                              // galleys and a warship out at sea, punts and rafts on the lakes, coracles on the mere
+      const sdv = shoreD[ty * TW + tx], seaT = tx < 16 || reg === 'The Salt Shore' || !!seaM[ty * TW + tx], c2 = h(tx, ty, 1270), c3 = h(tx, ty, 1271), clear = r => !prov.boats.some(q => Math.hypot(q[0] - x, q[1] - y) < r), count = kd => prov.boats.filter(q => q[2] === kd).length;
+      if (seaT && sdv >= 6 && c2 > 0.985 && count('galley') < 3 && clear(140)) prov.boats.push([x + 5, y + 5, 'galley']);
+      else if (seaT && sdv >= 7 && c2 < 0.01 && count('warship') < 1 && clear(140)) prov.boats.push([x + 5, y + 5, 'warship']);
+      else if (!seaT && sdv >= 2 && sdv < 250 && c2 > 0.9 && clear(70)) { const kd = reg === 'Blackmere' ? 'coracle' : c3 > 0.5 ? 'raft' : 'punt'; if (count(kd) < 4) prov.boats.push([x + 5, y + 5, kd]); }
+    }
   }
   // farmsteads among the fields: five families, five ways of building
   const STEADS = [
@@ -847,7 +857,17 @@ function provLand() {
     else if (m.name === 'The beacon' || m.name === 'A wreck on the strand' || m.name === 'The fishers\' huts') prov.birds.push({ x: m.x + m.r, y: m.y - 18, kind: 'gull', n: 3, r: 20 });
     else if (m.name === 'The drowned temple' || m.name === 'The bog oak') prov.birds.push({ x: m.x + m.r, y: m.y - 16, kind: 'crow', n: 2, r: 12 });
   }
-  prov.boats.slice(0, 5).forEach(([bx, by]) => prov.birds.push({ x: bx, y: by - 16, kind: 'gull', n: 2, r: 14 }));
+  prov.boats.filter(q => !q[2]).slice(0, 5).forEach(([bx, by]) => prov.birds.push({ x: bx, y: by - 16, kind: 'gull', n: 2, r: 14 }));
+  for (let ty = 3; ty < TH - 3; ty++) for (let tx = 3; tx < TW - 3; tx++) {      // a hawk hanging over the hills, swallows over the water, starlings over the fields, duck on the lakes, a heron in the marsh
+    const c1 = h(tx, ty, 1280); if (c1 < 0.9965) continue;
+    const k = at(tx, ty), x = tx * 10 + 5, y = ty * 10 + 5, c2 = h(tx, ty, 1281), sdv = shoreD[ty * TW + tx];
+    if (prov.birds.length > 60 || prov.birds.some(q => Math.hypot(q.x - x, q.y - y) < 130)) continue;
+    if (k === T_HILL) { if (c2 > 0.55) prov.birds.push({ x, y: y - 22, kind: 'kestrel', n: 1, r: 30 }); }
+    else if (k === T_WATER && sdv <= 2) prov.birds.push({ x, y: y - 6, kind: 'swallow', n: 2 + Math.floor(c2 * 3), r: 18 });
+    else if (k === T_WATER && sdv >= 3 && tx > 16 && !seaM[ty * TW + tx]) prov.birds.push({ x, y: y - 14, kind: 'duck', n: 3 + Math.floor(c2 * 4), r: 40 });
+    else if (k === T_MEADOW || k === T_GRASS) { if (c2 > 0.72) prov.birds.push({ x, y: y - 26, kind: 'starling', n: 10 + Math.floor(c2 * 10), r: 34 }); }
+    else if (k === T_MARSH) prov.birds.push({ x, y: y - 16, kind: 'heron', n: 1, r: 36 });
+  }
   const nearMark = (cx, cy) => marks.some(m => cx > m.x - 6 && cx < m.x + m.r * 2 + 4 && cy > m.y - m.r * 1.6 && cy < m.y + 16);
 
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
@@ -1132,12 +1152,30 @@ function drawHerds(ctx, T, R, inView) {
       if (K === 'sheep' && hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
     }
   }
+  { const span = WILD.W + 400, run = T * 16, lap = Math.floor(run / span), gx = (run % span) - 200, gy = 150 + wildHash(lap, 7, 694) * (WILD.H - 300) + Math.sin(T * 0.2) * 20;      // wild geese going over, high up, from one side of the province to the other
+    if (inView(gx, gy, 60)) for (let i = 0; i < 9; i++) { const k2 = Math.abs(i - 4), x = Math.round(gx - k2 * 5), y = Math.round(gy + (i - 4) * 4), fl = Math.sin(T * 6 + i) > 0 ? 1 : 0; if (!wildSeen(Math.max(5, Math.min(WILD.W - 5, x)), Math.max(5, Math.min(WILD.H - 5, y)))) continue; R(x - 2, y - fl, 2, 1, '#8a8478'); R(x + 1, y - fl, 2, 1, '#8a8478'); R(x, y, 2, 1, '#5a544a'); R(x + 2, y, 1, 1, '#3a342e'); R(x - 1, y + 34, 3, 1, 'rgba(0,0,0,.08)'); } }
   // birds on the wing over the places that draw them
   for (const Bd of (prov.birds || [])) {
     if (!inView(Bd.x, Bd.y, 60) || !wildSeen(Bd.x, Bd.y)) continue;
+    if (Bd.kind === 'kestrel') {                 // it hangs on the wind, slides a little way, hangs again; now and then it drops
+      const cyc = (T * 0.12 + Bd.x) % 3, slide = Math.floor(T * 0.12 + Bd.x), hx = Math.round(Bd.x + (wildHash(slide, Bd.y, 692) - 0.5) * Bd.r * 2), stoop = cyc > 2.7 ? (cyc - 2.7) / 0.3 : 0, hy = Math.round(Bd.y + (wildHash(Bd.x, slide, 693) - 0.5) * 12 + stoop * 20), fl = stoop ? 0 : Math.sin(T * 22) > 0 ? 1 : 0;
+      R(hx - 2, hy - fl, 2, 1, '#a8643a'); R(hx + 1, hy - fl, 2, 1, '#a8643a'); R(hx, hy, 1, 2, '#8a4a2a'); R(hx, hy + 2, 1, 1, '#3a2a22'); R(hx - 1, hy + 22 - stoop * 20, 3, 1, 'rgba(0,0,0,.12)');
+      continue;
+    }
+    if (Bd.kind === 'starling') {                // a flock that moves as one thing, stretching and folding
+      const cx = Bd.x + Math.cos(T * 0.23 + Bd.y) * Bd.r, cy = Bd.y + Math.sin(T * 0.31 + Bd.x) * Bd.r * 0.5, sq = 0.6 + 0.4 * Math.sin(T * 0.5 + Bd.x);
+      for (let i = 0; i < Bd.n; i++) { const an = T * 1.1 + i * 0.7, x = Math.round(cx + Math.cos(an + Math.sin(T * 0.4 + i) * 0.8) * (5 + (i % 5) * 2.4) * (1.6 - sq)), y = Math.round(cy + Math.sin(an * 1.3 + i) * (3 + (i % 4) * 1.6) * sq); R(x, y, 1, 1, '#1c1614'); if (i % 3 === 0) R(x + 1, y, 1, 1, '#1c1614'); }
+      R(Math.round(cx) - 4, Math.round(cy) + 24, 9, 2, 'rgba(0,0,0,.07)');
+      continue;
+    }
+    if (Bd.kind === 'duck') {                    // a skein in a line or a V, down the lake and back
+      const ph = T * 0.11 + Bd.x, cx = Bd.x + Math.sin(ph) * Bd.r, d = Math.cos(ph) > 0 ? 1 : -1, mid = (Bd.n - 1) / 2;
+      for (let i = 0; i < Bd.n; i++) { const x = Math.round(cx - d * Math.abs(i - mid) * 4), y = Math.round(Bd.y + (i - mid) * 3 + Math.sin(T * 0.7 + i) * 1), fl = Math.sin(T * 12 + i * 1.3) > 0 ? 1 : 0; R(x - 1, y - fl, 1, 1, '#5a4a3a'); R(x + 1, y - fl, 1, 1, '#5a4a3a'); R(x, y, 1, 1, '#3a2a22'); R(x + d, y, 1, 1, '#2f6a3a'); R(x, y + 12, 2, 1, 'rgba(0,20,40,.12)'); }
+      continue;
+    }
     for (let i = 0; i < Bd.n; i++) {
-      const sp = Bd.kind === 'eagle' ? 0.25 : Bd.kind === 'gull' ? 0.6 : 0.8, an = T * sp * (i % 2 ? -1 : 1) + i * 2.1 + Bd.x, r = Bd.r * (0.7 + (i % 3) * 0.2);
-      const x = Math.round(Bd.x + Math.cos(an) * r), y = Math.round(Bd.y + Math.sin(an) * r * 0.5), flap = Math.sin(T * (Bd.kind === 'eagle' ? 2 : 7) + i) > 0 ? 1 : 0, c = Bd.kind === 'gull' ? '#f4f4f0' : Bd.kind === 'eagle' ? '#4a3a2a' : '#1c1614', w = Bd.kind === 'eagle' ? 4 : 2;
+      const sp = Bd.kind === 'eagle' ? 0.25 : Bd.kind === 'gull' ? 0.6 : Bd.kind === 'swallow' ? 1.7 : Bd.kind === 'heron' ? 0.14 : 0.8, an = T * sp * (i % 2 ? -1 : 1) + i * 2.1 + Bd.x, r = Bd.r * (0.7 + (i % 3) * 0.2);
+      const x = Math.round(Bd.x + Math.cos(an) * r), y = Math.round(Bd.y + Math.sin(an) * r * 0.5), flap = Math.sin(T * (Bd.kind === 'eagle' ? 2 : Bd.kind === 'heron' ? 3 : Bd.kind === 'swallow' ? 14 : 7) + i) > 0 ? 1 : 0, c = Bd.kind === 'gull' ? '#f4f4f0' : Bd.kind === 'eagle' ? '#4a3a2a' : Bd.kind === 'swallow' ? '#2a3a5a' : Bd.kind === 'heron' ? '#c8ccd0' : '#1c1614', w = Bd.kind === 'eagle' || Bd.kind === 'heron' ? 4 : 2;
       R(x - w, y - flap, w, 1, c); R(x + 1, y - flap, w, 1, c); R(x, y, 1, 1, c); if (Bd.kind === 'eagle') { R(x - w - 1, y - flap - 1, 1, 1, c); R(x + w + 1, y - flap - 1, 1, 1, c); R(x, y - 1, 1, 1, '#e8e2d2'); }
       R(x - 1, y + 14, 3, 1, 'rgba(0,0,0,.12)');
     }
@@ -1531,8 +1569,29 @@ function drawProvince(cv, T) {
   const M = wildMap();
 
   // boats off the Salt Shore, riding the swell: each its own hull and sail, some under oars, one or two with a net out
-  for (const [bx0, by0] of (prov.boats || [])) {
-    if (!inView(bx0, by0, 30) || !wildSeen(bx0, by0)) continue;
+  for (const [bx0, by0, bk] of (prov.boats || [])) {
+    if (!inView(bx0, by0, 60) || !wildSeen(bx0, by0)) continue;
+    if (bk) {
+      const sd = wildHash(bx0, by0, 660), s2 = wildHash(by0, bx0, 661), bob = Math.sin(T * 1.4 + bx0) > 0 ? 1 : 0;
+      if (bk === 'galley' || bk === 'warship') {            // a ship under oar and sail, beating up and down the coast
+        const war = bk === 'warship', ph = T * 0.05 + sd * 9, bx = bx0 + Math.round(Math.sin(ph * 0.7) * 8), by = by0 + Math.round(Math.sin(ph) * 30) + bob, d = Math.cos(ph) > 0 ? 1 : -1, len = war ? 26 : 20 + Math.floor(s2 * 5), half = len >> 1;
+        const hull = war ? '#3a2a22' : ['#6b4f2c', '#5a3a2a', '#7a5a34'][Math.floor(sd * 3)], sail = war ? '#a8261c' : ['#e8dcc0', '#d8b860', '#b85a48', '#e8dcc0'][Math.floor(s2 * 4)], F = (px, py, w, hh, c) => R(d > 0 ? px : 2 * bx - px - w, py, w, hh, c);
+        F(bx - half, by + 2, len + 2, 1, 'rgba(20,40,60,.3)'); F(bx - half, by - 3, len, 4, hull); F(bx - half + 1, by + 1, len - 2, 1, shade(hull, 0.7)); F(bx - half, by - 3, len, 1, shade(hull, 1.3));
+        F(bx - half - 1, by - 6, 2, 4, hull); F(bx - half - 2, by - 7, 2, 1, hull); F(bx + half, by - 4, 2, 3, hull);                                   // the stern curling up, and the stem
+        if (war) { F(bx + half + 2, by, 3, 1, '#c1c7cc'); for (let q = 0; q < 6; q++) F(bx - half + 3 + q * 3, by - 2, 2, 2, q % 2 ? '#c9a21e' : '#a8261c'); }      // a ram at the bow, and shields along the rail
+        const pull = Math.sin(T * 2.4 + sd * 6) > 0 ? 1 : 0; for (let q = 0; q < (war ? 8 : 6); q++) F(bx - half + 3 + q * 3 - pull, by + 1, 1, 2 + pull, '#c9b890');      // the oars, all together
+        F(bx, by - 15, 1, 12, '#3a2a1c'); F(bx - 5, by - 14 + bob, 11, 8, sail); F(bx - 5, by - 14 + bob, 11, 1, shade(sail, 1.2)); F(bx - 5, by - 7 + bob, 11, 1, shade(sail, 0.8));
+        if (war) { F(bx - 1, by - 12 + bob, 3, 4, '#c9a21e'); F(bx, by - 11 + bob, 1, 2, '#a8261c'); } else if (s2 > 0.4) { F(bx - 2, by - 14 + bob, 2, 8, shade(sail, 0.8)); F(bx + 2, by - 14 + bob, 2, 8, shade(sail, 0.8)); }
+        F(bx - half + 2, by - 6, 2, 3, '#d9a57c'); F(bx - half + 2, by - 5, 2, 2, war ? '#a8261c' : '#4a6a8a');                                           // the steersman
+        for (let q = 0; q < 3; q++) { const wq = (T * 0.8 + q * 0.33) % 1; ctx.globalAlpha = 0.5 * (1 - wq); F(bx - half - 3 - wq * 10, by + 1 + q % 2, 3, 1, '#e6f3fa'); } ctx.globalAlpha = 1;      // her wake
+      } else {
+        const bx = bx0 + Math.round(Math.sin(T * 0.06 + sd * 9) * 6), by = by0 + bob, d = Math.cos(T * 0.06 + sd * 9) > 0 ? 1 : -1, tun = ['#8a4a3a', '#4a6a8a', '#7a7a3a', '#6a5a3a'][Math.floor(s2 * 4)];
+        if (bk === 'punt') { R(bx - 4, by + 1, 9, 1, 'rgba(20,40,60,.3)'); R(bx - 4, by - 1, 8, 2, '#6b4f2c'); R(bx - 4, by - 1, 8, 1, '#8a6a3a'); R(bx + d * 2, by - 7, 2, 3, '#d9a57c'); R(bx + d * 2, by - 4, 2, 3, tun); const dip = Math.sin(T * 1.1 + sd * 5) > 0 ? 1 : 0; R(bx + d * 4 + (d > 0 ? 0 : -1), by - 9 + dip, 1, 11, '#8a7a5c'); if (s2 > 0.5) R(bx - d * 3, by - 3, 2, 2, '#c9a763'); }      // a punt, poled along
+        else if (bk === 'raft') { R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); for (let q = 0; q < 5; q++) R(bx - 5 + q * 2, by - 1, 2, 2, q % 2 ? '#7a5a34' : '#8a6a3a'); R(bx - 5, by - 1, 10, 1, '#a8834a'); R(bx - 1, by - 7, 2, 3, '#d9a57c'); R(bx - 1, by - 4, 2, 3, tun); R(bx + 2, by - 4, 3, 3, s2 > 0.5 ? '#8a5a34' : '#c9b890'); R(bx - 4, by - 8, 1, 8, '#6b4f2c'); if (sd > 0.5) R(bx - 3, by - 8, 3, 2, ['#c23b2e', '#e8dcc0'][Math.floor(s2 * 2)]); }      // a raft of logs, a load on it
+        else { R(bx - 3, by + 1, 6, 1, 'rgba(20,40,60,.3)'); R(bx - 2, by - 1, 5, 2, '#3a2e24'); R(bx - 3, by - 1, 1, 1, '#3a2e24'); R(bx + 3, by - 1, 1, 1, '#3a2e24'); R(bx - 2, by - 1, 5, 1, '#5a4a3a'); R(bx, by - 6, 2, 3, '#d9a57c'); R(bx, by - 3, 2, 2, tun); const side = Math.sin(T * 1.6 + sd * 5) > 0 ? 1 : -1; R(bx + side * 3, by - 3, 1, 5, '#8a7a5c'); R(bx + side * 3, by + 1, 2, 1, '#8a7a5c'); }      // a coracle of hide, paddled from one side then the other
+      }
+      continue;
+    }
     const sd = wildHash(bx0, by0, 660), s2 = wildHash(by0, bx0, 661), bx = bx0 + Math.round(Math.sin(T * 0.07 + sd * 9) * 5), by = by0 + Math.round(Math.sin(T * 1.6 + bx0) * 1), tilt = Math.sin(T * 1.6 + bx0) > 0 ? 1 : 0;
     const hull = ['#6b4f2c', '#5a3a2a', '#4a5a6a', '#7a6a4a'][Math.floor(sd * 4)], len = 8 + Math.floor(s2 * 5), half = len >> 1;
     R(bx - half, by + 1, len + 1, 1, 'rgba(20,40,60,.3)'); R(bx - half, by - 2, len, 3, hull); R(bx - half + 1, by + 1, len - 2, 1, shade(hull, 0.7)); R(bx - half, by - 2, len, 1, shade(hull, 1.25)); R(bx + half, by - 3, 1, 2, hull);
