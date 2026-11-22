@@ -936,7 +936,7 @@ function viewContracts() {
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
         ${questsHtml()}
-        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about half what the same men would win at the games, teach a man far less than a bout does, and are little talked of. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
+        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about a third of what the same men would win at the games, teach a man almost nothing, tire him, and are little talked of. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
     <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}</div></div>
   </div>`;
 }

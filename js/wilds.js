@@ -36,6 +36,8 @@ const WILD_ROADS = [
   [[150, 96], [160, 120], [172, 141], [200, 156], [206, 151]],                                             // south-east, into the mere
   [[84, 58], [96, 62]], [[150, 96], [146, 75]], [[200, 70], [186, 64]], [[100, 100], [112, 118], [122, 140]],
 ];
+// The mill road: on from where the south road used to end, over the river, to the water-mill and the barns.
+const WILD_BYROAD = [[122, 140], [112, 141], [106, 141], [101, 143], [101, 149], [94, 150], [89, 150], [86, 143], [86, 138]];
 const WILD_RIVER = [[205, 18], [182, 44], [152, 60], [128, 86], [116, 108], [112, 132], [104, 156], [98, 179]];
 const WILD_REGIONS = [
   { name: 'The Salt Shore', x: 300, y: 1300 }, { name: 'Greywood', x: 900, y: 420 }, { name: 'The Quarry Hills', x: 1080, y: 170 },
@@ -316,6 +318,20 @@ function wildLand() {
       for (let p = hit; p !== -1 && p !== s0; p = from.get(p)) { t[p] = T_ROAD; lane[p] = 1; }
     }
   }
+  // The mill road. The road south of the river crossing used to stop in a field. It goes on now: past the mill on the
+  // east bank, over the river by a bridge of its own, round behind the water-mill on the far side, and along to the two
+  // barns, where it ends. (Laid last of all the roads, after the places and the lanes are settled and clear of every one of them; and what lay
+  // under it is remembered, so that the landmarks can be set out as if it were not there and none of them moves for it.)
+  const under = new Map();
+  {
+    line(WILD_BYROAD, (x, y) => {
+      const k = y * TW + x; if (x < 2 || y < 2 || x > TW - 3 || y > TH - 3 || spots.some(sp => sp.tx === x && sp.ty === y)) return;
+      if (t[k] === T_ROAD || t[k] === T_BRIDGE || t[k] === T_PEAK) return;
+      under.set(k, t[k]); t[k] = t[k] === T_WATER ? T_BRIDGE : T_ROAD;
+    });
+    reach.fill(0); reach[start] = 1; const q3 = [start];
+    for (let k = 0; k < q3.length; k++) { const c = q3[k]; for (const n of [c - 1, c + 1, c - TW, c + TW]) if (!reach[n] && t[n] < T_WATER) { reach[n] = 1; q3.push(n); } }
+  }
   // glades: here and there, deep in a wood, a patch of open grass with the trees standing all round it. (They are
   // cut after everything else is settled, so that no road, place or landmark moves on their account.)
   const glades = [];
@@ -327,7 +343,7 @@ function wildLand() {
     glades.push({ tx, ty });
   }
   for (const g of glades) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!(dx && dy) || wildHash(g.tx + dx, g.ty + dy, 772) > 0.5) t[(g.ty + dy) * TW + g.tx + dx] = T_MEADOW;
-  return (wildLandCache = { t, reach, sites, glades, lane, aqueduct });
+  return (wildLandCache = { t, reach, sites, glades, lane, aqueduct, under });
 }
 const wildTile = (x, y) => { const tx = Math.floor(x / 10), ty = Math.floor(y / 10); return tx < 0 || ty < 0 || tx >= WILD.TW || ty >= WILD.TH ? T_PEAK : wildLand().t[ty * WILD.TW + tx]; };
 const wildWalk = (x, y) => wildTile(x, y) < T_WATER;

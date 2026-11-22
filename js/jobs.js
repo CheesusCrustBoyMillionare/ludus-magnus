@@ -197,13 +197,16 @@ for (const k in CONTRACTS) {
   for (const s of STATS) w[s] = rest > 0 ? (w[s] || 0) / rest : 1 / STATS.length;
 }
 
-// The going rate: about half of what the same men would win at the games over the same days.
-const JOB_RATE = 0.1;
+// The going rate: about a third of what the same men would win at the games over the same days. Work away from the
+// sand keeps a school fed between games; it is not a way to grow rich, or great.
+const JOB_RATE = 0.065;
 // What work away from the sand is worth besides the money. It is a living, not a road to glory: a man learns far less
 // on somebody's doorstep than at the post or in the arena, and the town talks of it far less than of a bout.
-const JOB_XP = 1;                 // to each man who comes home from work done well (a bout won gives 5); nothing for work that failed
-const JOB_PROG = 0.15;            // of a day's training in the skill the work leans on, for each day away
-const contractFame = D => (D.fame ? Math.round(D.fame * (1 + tier() * 0.5)) : 0);
+const JOB_XP = 1;                 // to each man who comes home from work done better than was asked (a bout won gives 5); nothing otherwise
+const JOB_PROG = 0.08;            // of a day's training in the skill the work leans on, for each day away
+const JOB_TRAIT = [0.12, 0.08];   // the chance a man comes home having learned the trade's trait: well suited to the work, or not
+const JOB_WELL = 0.1;             // how much over the price is paid for work done better than asked
+const contractFame = D => (D.fame ? Math.round(D.fame * (1 + tier() * 0.25)) : 0);
 const DANGER_WORD = d => d <= 0 ? 'No danger' : d < 0.4 ? 'Some danger' : d < 0.65 ? 'Dangerous' : 'Deadly work';
 const jobNeed = (t, diff) => ENEMY_BUDGET[t] / 4 * diff;
 const jobById = id => (G.jobs || []).find(j => j.id === +id) || null;
@@ -265,7 +268,7 @@ function flightRisk(g) {
 const WORK_NAMES = [[85, 'First choice'], [60, 'Sought after'], [35, 'Reliable'], [12, 'Tried'], [0, 'Unknown']];
 const workRep = () => G.workRep || 0;
 const workWord = r => WORK_NAMES.find(x => r >= x[0])[1];
-const workPay = r => 1 + r * 0.003;
+const workPay = r => 1 + r * 0.002;
 const workOffers = (t, r) => (t >= 2 ? 4 : 3) + (r >= 35 ? 1 : 0) + (r >= 85 ? 1 : 0);
 function workMove(d) { G.workRep = clamp(workRep() + d, 0, 100); }
 function makeContract(type, t) {
@@ -274,7 +277,7 @@ function makeContract(type, t) {
     id: ++G.nextId, type, patron: D.patron, days, size: D.size, diff, need: jobNeed(t, diff),
     land: D.travel ? pick(ORIGINS).name : null, asked: false,
     pay: round5(PURSE[t] * JOB_RATE * days * Math.pow(D.size, 0.85) * D.pay * (0.6 + 0.5 * diff) * workPay(workRep())),
-    favor: 3 + Math.round(days / 2),
+    favor: 2 + Math.round(days / 3),
   };
 }
 // The terms men are sent on. Standard: paid on success. An advance: a third now, a third on success, and the rest
@@ -411,7 +414,7 @@ function finishJob(J) {
       deserts(g);
       continue;
     }
-    if (!J.abandon && D.danger > 0 && chance(D.danger * (win ? 0.18 : 0.55))) {
+    if (!J.abandon && D.danger > 0 && chance(D.danger * (win ? 0.28 : 0.6))) {
       if (!win && D.danger >= 0.5 && chance(clamp(D.danger * 0.25 - mercyBonus(), 0.02, 0.3))) {
         lines.push(`<span class="bad"><b>${g.name}</b> did not live to come home.</span>`);
         diesAway(g, quest ? 'far from the ludus' : 'on contract');
@@ -424,10 +427,10 @@ function finishJob(J) {
   }
 
   for (const g of back) {
-    g.fatigue = clamp(Math.max(g.fatigue * 0.5, 25 + 40 * D.danger), 0, 100);
+    g.fatigue = clamp(Math.max(g.fatigue * 0.5, 38 + 45 * D.danger), 0, 100);
     g.morale = clamp(g.morale + (J.abandon ? -4 : win ? 6 : -6), g.traits.includes('atpeace') ? 60 : 0, 100);
     if (!J.abandon) {
-      if (win) g.xp += JOB_XP;
+      if (well) g.xp += JOB_XP;
       addProg(g, top, JOB_PROG * days * g.pot[top]);
     }
   }
@@ -438,7 +441,7 @@ function finishJob(J) {
   } else {
     lines.unshift((win ? D.win : D.fail)(names, J));
     if (win) {
-      if (well) { const more = Math.max(5, round5(J.pay * 0.15)); J.pay += more; J.favor += 1; lines.push(`<span class="gold">It was better done than was asked, and the employer says so with ${more} denarii over the price.</span>`); }
+      if (well) { const more = Math.max(5, round5(J.pay * JOB_WELL)); J.pay += more; J.favor += 1; lines.push(`<span class="gold">It was better done than was asked, and the employer says so with ${more} denarii over the price.</span>`); }
       G.denarii += J.pay; favor(J.patron, J.favor); workMove((J.asked ? 6 : 4) + (well ? 1 : 0));
       let gain = `<b class="gold">+${J.pay} denarii.</b> ${PATRONS[J.patron].name}: favour +${J.favor}.`;
       if (D.fame) { const f = contractFame(D); G.fame += f; back.forEach(g => { g.fame += Math.round(f / back.length); }); gain += ` Fame +${f}.`; }
@@ -447,7 +450,7 @@ function finishJob(J) {
       if (D.feud) { const H = pick(G.houses); feud(H, D.feud); lines.push(`<span class="dim">${houseDef(H.id).name} had a man in the same pit, and will remember who beat him.</span>`); }
       for (const g of back) {
         addStory(g, `Did good service on contract: ${D.name}.`);
-        if (D.trait && !g.traits.includes(D.trait) && chance(p >= 0.75 ? 0.3 : 0.2)) {
+        if (D.trait && !g.traits.includes(D.trait) && chance(p >= 0.75 ? JOB_TRAIT[0] : JOB_TRAIT[1])) {
           g.traits.push(D.trait); addStory(g, `Learned: ${TRAITS[D.trait].name}.`);
           lines.push(`<span class="gold"><b>${g.name}</b> has learned something out there: ${TRAITS[D.trait].name}.</span> <span class="dim">${TRAITS[D.trait].desc}</span>`);
         }

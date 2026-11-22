@@ -1213,15 +1213,16 @@ function provLand() {
   // good way out is what that place has made it. Each is laid before the place itself and before the trees, only on
   // ground that suits it, and never over a road, a farm plot, another place or another landmark.
   const setKinds = { base: [T_GRASS, T_MEADOW], hill: [T_GRASS, T_MEADOW, T_HILL], shore: [T_GRASS, T_MEADOW, T_SAND], wood: [T_GRASS, T_MEADOW, T_FOREST], bog: [T_GRASS, T_MEADOW, T_MARSH] };
+  // (A mill grinds what the farms bring to it: the corn grows round the barns, not round the mills.)
   const SET_OF = { 'The wine press': 'vines', 'A vineyard house': 'vines', 'The great quarry': 'quarry', 'The lime kiln': 'quarry', 'The unfinished columns': 'quarry', 'A lime kiln': 'quarry',
-    'The mill': 'corn', 'A windmill': 'corn', 'A mill on the water': 'corn', 'A field barn': 'corn', 'The bee garden': 'flowers', "A beekeeper's cottage": 'flowers', "The shepherds' fold": 'pasture', "A shepherd's hut": 'pasture',
+    'A field barn': 'corn', 'The bee garden': 'flowers', "A beekeeper's cottage": 'flowers', "The shepherds' fold": 'pasture', "A shepherd's hut": 'pasture',
     'The charcoal burners': 'felled', "A charcoal burner's clamp": 'felled', "A woodcutter's cabin": 'felled', 'An old battlefield': 'battle', 'A burnt village': 'burnt', 'The barrow of kings': 'barrows', 'The fort': 'fort',
     'The hot spring': 'spring', 'A villa in its garden': 'garden', "The fishers' huts": 'fishers', "A fisherman's hut": 'fishers', "A peat cutter's hut": 'peat',
     'The eagle rock': 'moor', 'The wolf stone': 'moor', 'The needle': 'moor', "The giant's table": 'moor', 'The ring of stones': 'moor' };
   const SET_GROUND = { quarry: 'hill', barrows: 'hill', spring: 'hill', moor: 'hill', fishers: 'shore', felled: 'wood', burnt: 'wood', peat: 'bog' };
   const setting = (x, y, r, name, sd) => {
     const kind = SET_OF[name]; if (!kind) return;
-    const kinds = setKinds[SET_GROUND[kind] || 'base'], cx = x + r, cy = y, RX = r + 40, RY = 31, v = q => lmV(q, 3000 + sd);
+    const big = kind === 'corn', kinds = setKinds[SET_GROUND[kind] || 'base'], cx = x + r, cy = y, RX = r + (big ? 66 : 40), RY = big ? 48 : 31, v = q => lmV(q, 3000 + sd);      // a farm's fields run a good deal further than a quarry's spoil
     const self = marks.find(m => m.name === name && m.x === x && m.y === y);
     const ok = (px, py) => {
       if (px > x - 9 && px < x + 2 * r + 9 && py > y - 26 && py < y + 15) return false;                       // not under the place itself
@@ -1247,10 +1248,30 @@ function provLand() {
       strew(9, (px, py, h2) => { if (py < cy + 6) return; R(px, py + 3, 5, 1, 'rgba(0,0,0,.16)'); R(px, py, 4, 3, '#e4dfcd'); R(px, py, 4, 1, '#f4f0e4'); R(px + 3, py + 1, 1, 2, '#a39a84'); });
       strew(26, (px, py, h2) => R(px, py, 1 + (h2 > 0.6 ? 1 : 0), 1, h2 > 0.5 ? '#f0ece0' : '#b8b2a0'));
       for (const off of [-2, 2]) for (let q = 16; q < RY + 6; q += 2) dot(cx + off + Math.round(Math.sin(q * 0.3) * 2), cy + q, 1, 1, 'rgba(120,104,74,.5)');
-    } else if (kind === 'corn') {                            // strips of standing corn, the furrows running along them, and stooks where it is cut
-      for (let py = cy - RY; py <= cy + RY; py += 2) for (let px = cx - RX; px <= cx + RX; px += 2) { if (!ok(px, py)) continue; const plot = Math.floor((px - cx + 200) / 24) + Math.floor((py - cy + 200) / 13) * 7, cut = lmV(plot, 94 + sd) > 0.7, edge = (px - cx + 200) % 24 < 2 || (py - cy + 200) % 13 < 1;
-        if (edge) continue; R(px, py, 2, 2, cut ? ((py >> 1) % 2 ? '#c9b472' : '#bfa862') : ((py >> 1) % 2 ? '#d9c070' : '#cdb25c')); if (!cut && lmV(px + py * 13, 95 + sd) > 0.9) R(px, py, 1, 1, '#ead58a'); }
-      strew(8, (px, py) => { const plot = Math.floor((px - cx + 200) / 24) + Math.floor((py - cy + 200) / 13) * 7; if (lmV(plot, 94 + sd) > 0.7) { R(px, py - 2, 2, 3, '#d9c070'); R(px - 1, py, 4, 1, '#b89a4a'); R(px, py - 3, 1, 1, '#ead58a'); } });
+    } else if (kind === 'corn') {                            // a farm's fields, plot by plot: standing wheat, barley, stubble with its stooks, plough-land, green corn coming, beans in rows
+      const PW2 = 30, PH2 = 17, plotOf = (px, py) => Math.floor((px - cx + 600) / PW2) + Math.floor((py - cy + 600) / PH2) * 41, crop = pl => Math.floor(lmV(pl, 94 + sd) * 6);
+      for (let py = cy - RY; py <= cy + RY; py++) for (let px = cx - RX; px <= cx + RX; px++) {
+        if (!ok(px, py)) continue;
+        const lx = (px - cx + 600) % PW2, ly = (py - cy + 600) % PH2, pl = plotOf(px, py), c = crop(pl), hz = lmV(pl * 7 + 1, 95 + sd) > 0.5;      // hz: which way its rows run
+        if (lx < 2 || ly < 2) {                              // the bounds between plots: a hedge on some, a baulk of trodden earth on the rest, with a gap for the cart
+          const hedge = lmV(pl * 3 + (lx < 2 ? 1 : 2), 96 + sd) > 0.55, gap = (lx < 2 ? ly : lx) > 6 && (lx < 2 ? ly : lx) < 10;
+          if (hedge && !gap) R(px, py, 1, 1, (px + py) % 3 ? '#4f7038' : '#5f8a3e'); else R(px, py, 1, 1, (px + py) % 4 ? 'rgba(160,136,92,.55)' : 'rgba(132,110,72,.55)');
+          continue;
+        }
+        const row = hz ? ly : lx, n1 = lmV(px * 13 + py * 7, 97 + sd);
+        if (c === 0) R(px, py, 1, 1, row % 2 ? '#d9c070' : n1 > 0.88 ? '#ead58a' : '#cdb25c');                                          // wheat, standing
+        else if (c === 1) R(px, py, 1, 1, row % 2 ? '#e0d090' : n1 > 0.9 ? '#f0e4ac' : '#d2c07a');                                     // barley, paler
+        else if (c === 2) R(px, py, 1, 1, row % 3 === 0 ? '#b89a4a' : n1 > 0.85 ? '#d2bc7c' : '#c9b472');                              // stubble
+        else if (c === 3) R(px, py, 1, 1, row % 2 ? '#8a6a44' : n1 > 0.8 ? '#6f5334' : '#7a5c3a');                                     // plough-land: ridge and furrow
+        else if (c === 4) R(px, py, 1, 1, row % 2 ? '#7fb04e' : '#9a8050');                                                            // green corn, in drills
+        else R(px, py, 1, 1, row % 3 === 0 ? ((hz ? px : py) % 3 ? '#4f8a3a' : '#6aa04a') : '#8a7048');                                // beans, staked in rows
+      }
+      // what stands in them: stooks on the stubble, a rick by the gate, a scarecrow in the green corn, crows on the plough
+      strew(26, (px, py, h2, q) => { const c = crop(plotOf(px, py)), lx = (px - cx + 600) % PW2, ly = (py - cy + 600) % PH2; if (lx < 4 || ly < 5 || lx > PW2 - 4) return;
+        if (c === 2) { R(px - 1, py + 1, 4, 1, 'rgba(0,0,0,.18)'); R(px, py - 3, 2, 4, '#d9c070'); R(px - 1, py - 1, 4, 2, '#c9ae5a'); R(px, py - 4, 1, 1, '#ead58a'); }
+        else if (c === 3 && q % 2) { R(px, py, 2, 1, '#1c1310'); R(px + 1, py - 1, 1, 1, '#1c1310'); }
+        else if (c === 4 && q % 5 === 0) { R(px, py - 7, 1, 8, '#6b4f2c'); R(px - 2, py - 5, 5, 1, '#6b4f2c'); R(px - 1, py - 6, 3, 3, '#a8452e'); R(px, py - 8, 1, 2, '#d9c9a0'); R(px - 1, py - 9, 3, 1, '#8a6a3a'); }
+        else if (c <= 1 && q % 6 === 0) { R(px - 3, py + 1, 8, 1, 'rgba(0,0,0,.2)'); for (let q2 = 0; q2 < 5; q2++) R(px - 3 + Math.max(0, 2 - q2), py - 4 + q2, 7 - Math.max(0, 2 - q2) * 2, 1, q2 % 2 ? '#d9c070' : '#e6d088'); R(px, py - 6, 1, 2, '#6b4f2c'); } });
     } else if (kind === 'flowers') {                         // a meadow thick with what bees want, and thyme in grey patches
       strew(150, (px, py, h2, q) => R(px, py, 1, 1, ['#e8a0c0', '#f4f4f0', '#f2e06a', '#b89ae0', '#e86a6a', '#f2e06a'][q % 6]));
       strew(14, (px, py) => { R(px - 1, py, 4, 2, 'rgba(150,170,140,.5)'); R(px, py - 1, 2, 1, '#b89ae0'); });
@@ -1325,6 +1346,11 @@ function provLand() {
     return false;
   };
   const GR = [T_GRASS, T_MEADOW], HL = [T_HILL], SD = [T_SAND], MS = [T_MARSH], FO = [T_FOREST];
+  // The landmarks and dwellings are set out on the land as it was before the mill road was laid across it: otherwise
+  // everything that likes to stand by a road would move to the new one, and push its neighbours about. The road is
+  // put back as soon as they are all placed (their painting comes later, and sees it).
+  const laterRoad = L.under ? [...L.under].map(([k, was]) => [k, L.t[k], was]) : [];
+  for (const [k, , was] of laterRoad) L.t[k] = was;
   // -- the Home Fields --
   setDown(1, on(GR, 'The Home Fields'), 20, 'The great oak', (x, y) => {
     sh2(x - 1, y + 10, 32); R(x + 13, y - 2, 4, 12, '#4a3320'); R(x + 11, y + 8, 8, 2, '#4a3320'); R(x + 13, y - 2, 1, 12, '#6b4f2c');
@@ -1768,6 +1794,7 @@ function provLand() {
     P.at = px => flip ? 2 * x + 10 - px : px;
     feats.push({ y: y + 9, d: () => OUT[kind](x, y, P, v) });
   }
+  for (const [k, now] of laterRoad) L.t[k] = now;      // the mill road, back where it runs
   prov.marks = marks;
   // each road, as the run of its own tiles from one end to the other, so that travellers keep to it
   prov.ways = WILD_ROADS.filter(q => q.length >= 3).map(poly => {

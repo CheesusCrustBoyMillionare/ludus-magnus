@@ -1072,7 +1072,7 @@ test('contracts: the board, who suits the work, going away and coming home', () 
   G.jobs[0].edge = 9; G.jobs[0].eventDay = 0;                 // cannot fail
   endDay(); G.pendingEvent = null; G.eventQueue = []; endDay();
   assert(!g.away && !G.jobs.length && G.reports.length === 1 && /denarii/.test(G.reports[0].html), 'he comes home on the day, with a report');
-  assert(G.patrons.magistrate >= fav + fv - 1 && G.denarii > coin - 100 + pay - 1 && g.xp === 1, 'paid in silver, favour and a little experience');
+  assert(G.patrons.magistrate >= fav + fv - 1 && G.denarii > coin - 100 + pay - 1 && g.xp <= 1, 'paid in silver and favour, and taught next to nothing');
   // failure, wounds, death and desertion
   let hurt = 0, dead = 0, ran = 0;
   for (let i = 0; i < 300; i++) {
@@ -1099,7 +1099,8 @@ test('contracts: the board, who suits the work, going away and coming home', () 
 
 test('contracts: a living, not a road to glory; and work can be done well, or half done', () => game()(function () {
   assert(Object.keys(CONTRACTS).length === 22 && ['vintage', 'pyre', 'runaway', 'taxchest'].every(k => CONTRACTS[k] && CONTRACTS[k].events.every(e => FIELD_EVENTS[e])), 'twenty-two kinds of work');
-  assert(JOB_XP === 1 && JOB_PROG <= 0.15, 'work away teaches little');
+  assert(JOB_XP === 1 && JOB_PROG <= 0.08 && JOB_RATE <= 0.07 && JOB_TRAIT[0] <= 0.12 && JOB_TRAIT[1] < JOB_TRAIT[0] && JOB_WELL <= 0.1 && Math.abs(workPay(100) - 1.2) < 1e-9, 'work away pays a third of the sand, teaches next to nothing, and seldom leaves a man with a new trade');
+  { newGame(); const c = makeContract('caravan', 0); assert(c.favor === 2 + Math.round(c.days / 3) && c.favor <= 4, 'and wins little favour: ' + c.favor); }
   // the fame of it: a third or less of what a show used to be worth, at every standing
   for (const k in CONTRACTS) { const D = CONTRACTS[k]; if (!D.fame) { assert(contractFame(D) === 0, k + ' is not talked of'); continue; }
     newGame(); const low = contractFame(D); G.fame = 5000; const high = contractFame(D);
@@ -1108,8 +1109,8 @@ test('contracts: a living, not a road to glory; and work can be done well, or ha
     assert(sendContract(c.id, [g.id]), 'sent'); const J = G.jobs[0]; J.eventDay = 0; if (edge != null) J.edge = edge; const pay = J.pay, prog = JSON.stringify(g.prog), money = G.denarii, fav = G.patrons[J.patron];
     finishJob(J); return { g, J, pay, money, fav, moved: JSON.stringify(g.prog) !== prog || true }; };
   // done: one point of experience, two or so of fame, and the pay
-  { let wellSeen = 0, plain = 0; for (let i = 0; i < 60; i++) { const r = go(9); assert(r.g.xp === 1 && G.fame === contractFame(CONTRACTS.procession) && G.fame <= 3, 'a procession: 1 experience, ' + G.fame + ' fame');
-      if (G.denarii === r.money + r.pay) plain++; else { assert(G.denarii === r.money + r.pay + Math.max(5, round5(r.pay * 0.15)) && G.patrons[r.J.patron] >= r.fav, 'better than asked: fifteen parts in a hundred over'); wellSeen++; } }
+  { let wellSeen = 0, plain = 0; for (let i = 0; i < 60; i++) { const r = go(9); assert(r.g.xp <= 1 && G.fame === contractFame(CONTRACTS.procession) && G.fame <= 3, 'a procession: ' + r.g.xp + ' experience, ' + G.fame + ' fame');
+      if (G.denarii === r.money + r.pay) { plain++; assert(r.g.xp === 0, 'work merely done teaches nothing'); } else { assert(G.denarii === r.money + r.pay + Math.max(5, round5(r.pay * JOB_WELL)) && G.patrons[r.J.patron] >= r.fav && r.g.xp === 1, 'better than asked: a tenth over the price, and something learned'); wellSeen++; } }
     assert(wellSeen > 5 && plain > 5, 'well-suited men sometimes do better than was asked: ' + wellSeen + ' of 60'); }
   // failed outright: nothing learned, nothing paid
   { const r = go(-9); assert(r.g.xp === 0 && G.denarii === r.money && G.fame === 0 && G.patrons[r.J.patron] < r.fav, 'a failure teaches nothing and pays nothing'); }
@@ -1483,7 +1484,11 @@ test('the province: every bridge runs straight, and the roads still meet across 
     while (todo.length) { const [cx, cy] = todo.pop(), k = cy * TW + cx; if (seen[k] || L.t[k] !== T_BRIDGE) continue; seen[k] = 1; comp.push([cx, cy]); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) todo.push([cx + dx, cy + dy]); }
     comps.push(comp);
   }
-  assert(comps.length >= 4, 'the roads cross water in four places: ' + comps.length);
+  assert(comps.length >= 5, 'the roads cross water in five places: ' + comps.length);
+  // the mill road: on from the old end of the south road, over its own bridge, to the barns
+  { const at2 = (x, y) => L.t[y * TW + x]; assert(WILD_BYROAD.length >= 6 && at2(122, 140) === T_ROAD && at2(108, 141) === T_BRIDGE && at2(109, 141) === T_BRIDGE && at2(107, 141) === T_ROAD && at2(110, 141) === T_ROAD && at2(101, 146) === T_ROAD && at2(92, 150) === T_ROAD && at2(86, 138) === T_ROAD, 'the mill road is not where it was laid');
+    const way = wildRoute(1225, 1405, 1015, 1465), on = way.filter(p => { const k = at2(Math.floor(p.x / 10), Math.floor(p.y / 10)); return k === T_ROAD || k === T_BRIDGE; }).length;
+    assert(way.some(p => Math.floor(p.y / 10) === 141 && [108, 109].includes(Math.floor(p.x / 10))) && on / way.length > 0.85, 'from the old end of the road to the water-mill the column goes over the new bridge: ' + Math.round(on / way.length * 100) + '% by road'); }
   for (const comp of comps) {
     const xs = comp.map(q => q[0]), ys = comp.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), at = (x, y) => L.t[y * TW + x];
     assert(x0 === x1 || y0 === y1, 'a bridge runs aslant, from ' + x0 + ',' + y0 + ' to ' + x1 + ',' + y1);
@@ -1569,12 +1574,12 @@ test('the province: places make the country round them', () => {
   const box = { T_GRASS: 0, T_FOREST: 1, T_HILL: 2, T_MARSH: 3, T_SAND: 4, T_MEADOW: 7 }; vm.createContext(box);
   vm.runInContext(src.slice(from, to) + '; this.SET_OF = SET_OF; this.SET_GROUND = SET_GROUND;', box);
   const names = Object.keys(box.SET_OF), kinds = [...new Set(Object.values(box.SET_OF))];
-  assert(names.length >= 28 && kinds.length === 15, names.length + ' places, of ' + kinds.length + ' kinds of country');
+  assert(names.length >= 25 && kinds.length === 15, names.length + ' places, of ' + kinds.length + ' kinds of country');
   // each is a real landmark or a real dwelling, and each kind of country is actually painted
   for (const n of names) assert(wilds.includes("'" + n + "'") || wilds.includes('"' + n + '"') || src.includes(", '" + n + "', ") || src.includes(', "' + n + '", '), n + ' is no place on the map');
   for (const k of kinds) assert(src.includes("kind === '" + k + "'"), 'nothing is painted for ' + k);
   for (const k of Object.keys(box.SET_GROUND)) assert(kinds.includes(k), k + ' has ground but no place');
-  assert(box.SET_OF['The wine press'] === 'vines' && box.SET_OF['The great quarry'] === 'quarry' && box.SET_OF['The mill'] === 'corn', 'vines by the press, cut rock by the quarry, corn by the mill');
+  assert(box.SET_OF['The wine press'] === 'vines' && box.SET_OF['The great quarry'] === 'quarry' && box.SET_OF['A field barn'] === 'corn' && !box.SET_OF['The mill'] && !box.SET_OF['A mill on the water'] && !box.SET_OF['A windmill'], 'vines by the press, cut rock by the quarry, corn by the barns and none by the mills');
   // and it is laid before the place itself, for landmarks and for dwellings both
   assert(src.split('d: () => setting(x, y, ').length === 3, 'both kinds of place are given their country');
 });
