@@ -1419,3 +1419,8 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 
 /* setting out for a journey, from beside its chip */
 button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vertical-align: top; }
+
+/* the chronicle: a second row to choose the matter, and the copy button at its end */
+.logtabs.about { margin-top: 3px; }
+.logtabs.about button { font-size: 10.5px; padding-top: 2px; padding-bottom: 2px; }
+.logtabs.about .copy { margin-left: auto; }

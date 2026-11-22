@@ -1877,9 +1877,11 @@ function provincePanel() {
 }
 
 const LOG_FILTERS = [['all', 'Everything'], ['gold', 'Great days'], ['good', 'Good news'], ['bad', 'Bad news']];
+const LOG_ABOUT = [['all', 'Any matter'], ['sand', 'The sand'], ['road', 'The road'], ['house', 'The house'], ['men', 'The men']];
 function viewChronicle() {
   const f = LOG_FILTERS.some(x => x[0] === ui.lfilter) ? ui.lfilter : 'all';
-  const shown = G.log.filter(e => f === 'all' || e.k === f);
+  const topic = LOG_ABOUT.some(x => x[0] === ui.ltopic) ? ui.ltopic : 'all';
+  const shown = G.log.filter(e => (f === 'all' || e.k === f) && logTopic(e, topic));
   // the days, newest first, each under its own heading
   // a page holds what the pane can show without scrolling: lines are counted, a long entry as two
   const pages = [[]]; { let used = 0, d0 = null; for (const e of shown.slice().reverse()) { const cost = (e.d !== d0 ? 1.2 : 0) + (String(e.t).replace(/<[^>]+>/g, '').length > 78 ? 2 : 1); if (used + cost > 17 && pages[pages.length - 1].length) { pages.push([]); used = 0; d0 = null; } used += cost; d0 = e.d; pages[pages.length - 1].push(e); } }
@@ -1887,11 +1889,13 @@ function viewChronicle() {
   const pager = pages.length > 1 ? `<div class="pager"><button class="mini" data-act="lpage" data-v="-1" ${pg === 0 ? 'disabled' : ''}>&lsaquo; Newer</button><span>Page ${pg + 1} of ${pages.length}</span><button class="mini" data-act="lpage" data-v="1" ${pg >= pages.length - 1 ? 'disabled' : ''}>Older &rsaquo;</button></div>` : '';
   let rows = '', day = null;
   for (const e of pages[pg]) {
-    if (e.d !== day) { day = e.d; const ago = G.day - e.d; rows += `<div class="dayhead"><b>Day ${e.d}</b><span>${ago === 0 ? 'today' : ago === 1 ? 'yesterday' : ago + ' days ago'}${e.d > 0 && e.d % GAMES_EVERY === 0 ? ' &middot; a games day' : ''}</span></div>`; }
+    if (e.d !== day) { day = e.d; const ago = G.day - e.d, P = G.dayPurse || {}, net = P[e.d] !== undefined && P[e.d - 1] !== undefined ? P[e.d] - P[e.d - 1] : null;
+      rows += `<div class="dayhead"><b>Day ${e.d}</b><span>${ago === 0 ? 'today' : ago === 1 ? 'yesterday' : ago + ' days ago'}${e.d > 0 && e.d % GAMES_EVERY === 0 ? ' &middot; a games day' : ''}${net !== null ? ` &middot; <b class="num ${net < 0 ? 'bad' : net > 0 ? 'good' : 'dim'}"${tip('What the purse gained or lost over that whole day, everything counted.')}>${net > 0 ? '+' : ''}${net}</b> denarii` : ''}</span></div>`; }
     rows += `<div class="entry ${e.k}">${e.t}</div>`;
   }
   const count = k => G.log.filter(e => e.k === k).length;
   const filters = LOG_FILTERS.map(([k, n]) => `<button class="${f === k ? 'on' : ''}" data-act="lfilter" data-v="${k}">${n}${k === 'all' ? '' : ` <span class="num">${count(k)}</span>`}</button>`).join('');
+  const abouts = LOG_ABOUT.map(([k, n]) => `<button class="${topic === k ? 'on' : ''}" data-act="ltopic" data-v="${k}"${k === 'all' ? '' : tip(`Only what concerns ${n.toLowerCase()}, judged from the words of each entry.`)}>${n}${k === 'all' ? '' : ` <span class="num">${G.log.filter(e => (f === 'all' || e.k === f) && logTopic(e, k)).length}</span>`}</button>`).join('');
   // where the house stands
   const t = tier(), nextFame = t < TIERS.length - 1 ? TIERS[t + 1].fame : FINAL_FAME, base = TIERS[t].fame, T = G.tally, fought = T.wins + T.losses;
   const place = G.houses.filter(H => H.prestige > G.fame).length + 1;
@@ -1942,7 +1946,8 @@ function viewChronicle() {
   return `<div class="fill">
     <div><h2>Chronicle <small>${shown.length} of the last ${G.log.length} entries</small></h2>
       <div class="subtabs logtabs">${filters}</div>
-      <div class="pane" data-pane="log-${f}-${pg}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div>${pager}</div></div>
+      <div class="subtabs logtabs about">${abouts}<button class="copy" data-act="lcopy" ${shown.length ? '' : 'disabled'}${tip('Copies what is listed here, every page of it, as plain text: to keep the story of the house, or to send it to somebody.')}>${ui.lcopied === G.day + ':' + shown.length ? 'Copied' : 'Copy'}</button></div>
+      <div class="pane" data-pane="log-${f}-${topic}-${pg}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div>${pager}</div></div>
     <div><h2>The annals</h2>
       <div class="subtabs logtabs">${tabs.map(([k, n]) => `<button class="${ct === k ? 'on' : ''}" data-act="ctab" data-v="${k}"${k === 'deeds' ? tip('Things the house has done once and for all. Each is a point of legacy for the heir if the house falls.') : ''}>${n}</button>`).join('')}</div>
       <div class="pane" data-pane="annals-${ct}">${right}</div></div>
@@ -2439,6 +2444,14 @@ const ACTIONS = {
   rowsel(v, w) { ui[v] = /^\d+$/.test(w) ? +w : w; render(); },
   dtab(v) { ui.dtab = v; render(); },
   lfilter(v) { ui.lfilter = v; ui.lpage = 0; render(); },
+  ltopic(v) { ui.ltopic = v; ui.lpage = 0; render(); },
+  lcopy() {
+    const f = ui.lfilter || 'all', topic = ui.ltopic || 'all', shown = G.log.filter(e => (f === 'all' || e.k === f) && logTopic(e, topic));
+    const text = `Ludus Magnus: the chronicle of the house, day ${G.day}\n\n${logText(shown)}\n`;
+    const done = () => { ui.lcopied = G.day + ':' + shown.length; SFX.ui('scroll'); render(); };
+    const old = () => { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:-999px;top:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { /* nothing more to try */ } ta.remove(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, old); else old();
+  },
   ctab(v) { ui.ctab = v; render(); },
   lpage(v) { ui.lpage = Math.max(0, (ui.lpage || 0) + (+v)); render(); },
   storyall(v) { ui.storyAll = ui.storyAll === +v ? null : +v; render(); },

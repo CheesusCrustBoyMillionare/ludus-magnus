@@ -1397,6 +1397,27 @@ test('training: teachers, sparring partners, the doctore\'s choice, and great da
   assert(!badNumber(G), 'training left a bad number');
 }));
 
+test('the chronicle: what each entry is about, what each day brought, and the whole of it as plain words', () => game()(function () {
+  newGame();
+  const E = (t2, k) => ({ d: 3, t: t2, k: k || '' });
+  // the matter of an entry is told from its words
+  assert(logTopic(E('Victory over Ludus Ferox: 140 denarii, +12 fame.'), 'sand') && !logTopic(E('Victory over Ludus Ferox: 140 denarii, +12 fame.'), 'road'), 'a bout is of the sand');
+  assert(logTopic(E('The contract failed: The grain road.'), 'road') && logTopic(E('Done: wolves at the mill. Old Tiro is owed the news.'), 'road') && logTopic(E('A single gold coin, lying in the grass of a clearing.'), 'road'), 'contracts, quests and finds are of the road');
+  assert(logTopic(E('Felix is taken on as medicus.'), 'house') && logTopic(E('The forge is improved. Your smith is now a journeyman smith.'), 'house') && logTopic(E('A gift worth 40 denarii is sent to The Magistrate.'), 'house'), 'staff, the forge and patrons are of the house');
+  assert(logTopic(E('Gauda the Thraex died on contract (4 victories).'), 'men') && logTopic(E('Kleitos is still waiting for you to take him where you promised.'), 'men') && !logTopic(E('Felix is taken on as medicus.'), 'men'), 'deaths and promises are of the men');
+  assert(logTopic(E('anything at all'), 'all') && logTopic(E('<b>Gauda</b> rises to the rank of Veteran'), 'men'), 'no matter chosen shows everything; and markup does not hide the words');
+  assert(Object.keys(LOG_TOPICS).length === 4, 'four matters');
+  // real entries find a home: after a few weeks most of the chronicle belongs to one matter or another
+  for (let i = 0; i < 30; i++) { endDay(); G.pendingEvent = null; G.eventQueue = []; G.reports = []; }
+  const homed = G.log.filter(e => Object.keys(LOG_TOPICS).some(k => logTopic(e, k))).length;
+  assert(G.log.length > 5 && homed >= G.log.length * 0.6, homed + ' of ' + G.log.length + ' entries are about something the filters know');
+  // each day's purse is kept by its day, for sixty days
+  const days = Object.keys(G.dayPurse).map(Number); assert(days.length >= 29 && days.includes(G.day - 1) && G.dayPurse[G.day - 1] === G.denarii && days.every(d => d > G.day - 61), 'the purse is noted at each day\u2019s end');
+  // as plain words: day by day, newest first, no markup
+  const text = logText([{ d: 1, t: 'Bought <b>a man</b> &mdash; cheap.', k: '' }, { d: 2, t: 'A great day.', k: 'gold' }, { d: 2, t: 'A bad one.', k: 'bad' }]);
+  assert(text.indexOf('Day 2') < text.indexOf('Day 1') && text.includes('* A great day.') && text.includes('- A bad one.') && text.includes('Bought a man - cheap.') && !/[<>]|&mdash;/.test(text), 'the chronicle in plain words: ' + JSON.stringify(text));
+}));
+
 test('the annals: deeds, records, the years, and those who left', () => game()(function () {
   newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(30));
   assert(new Set(DEEDS.map(D => D.id)).size === DEEDS.length && DEEDS.every(D => D.name && D.what && (D.done || D.at)), 'every deed is named and can be judged');

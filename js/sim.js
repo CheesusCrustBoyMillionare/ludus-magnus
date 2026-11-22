@@ -93,6 +93,20 @@ function importSave(text, n) {
   return null;
 }
 
+// What an entry in the chronicle is about, judged from its words: the sand, the road, the house or the men.
+const LOG_TOPICS = {
+  sand: /victory|defeat|\bbout|games|arena|crowd|champion|tournament|\btitle|wager|laurel|spared|called (you|them) out|auction/i,
+  road: /contract|province|\bwild|quest|bounty|journey|fountain|\broad\b|\bcamp\b|march|region|eagle|done:|driven off|gold coin/i,
+  house: /taken on as|dismissed|raised:|bought|\bsold\b|forge|smith|reforge|commission|improved|market|dealer|gift|favour|magistrate|guild|temple|priests|denarii short|\bdebt|word is sent|regimen|asked of/i,
+  men: /rank of|perk|learned|\bdied|\bdies|did not come back|friends|bad blood|\bvow|sworn|freed|waiting for you|finished what he set out|rises to|sparring/i,
+};
+const logTopic = (e, topic) => !LOG_TOPICS[topic] || LOG_TOPICS[topic].test(String(e.t).replace(/<[^>]+>/g, ''));
+// The chronicle as plain words, newest day first, for copying out of the game.
+function logText(entries) {
+  const out = []; let day = null;
+  for (const e of entries.slice().reverse()) { if (e.d !== day) { day = e.d; out.push((out.length ? '\n' : '') + 'Day ' + e.d); } out.push('  ' + (e.k === 'gold' ? '* ' : e.k === 'bad' ? '- ' : '  ') + String(e.t).replace(/<[^>]+>/g, '').replace(/&mdash;/g, '-').replace(/&middot;/g, '.').replace(/&[a-z]+;/g, ' ')); }
+  return out.join('\n');
+}
 function log(text, kind) {
   G.log.push({ d: G.day, t: text, k: kind || '' });
   if (G.log.length > 400) G.log.shift();
@@ -1968,7 +1982,8 @@ function endDay() {
     }
   }
   G.denarii += stipend() - upkeep();
-  (G.purseLog = G.purseLog || []).push(G.denarii); if (G.purseLog.length > 30) G.purseLog.shift();      // the purse, day by day, for the ledger
+  (G.purseLog = G.purseLog || []).push(G.denarii); if (G.purseLog.length > 30) G.purseLog.shift();
+  (G.dayPurse = G.dayPurse || {})[G.day] = G.denarii; delete G.dayPurse[G.day - 60];      // and by its day, so the chronicle can say what each day cost or brought      // the purse, day by day, for the ledger
   if (G.denarii < 0) {
     G.debtDays++;
     G.roster.forEach(g => { g.morale = clamp(g.morale - 5, 0, 100); });
