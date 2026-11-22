@@ -41,6 +41,7 @@ function provLand() {
       for (let i = 0; i < 5; i++) { const q = Math.floor(h(tx, ty, 20 + n * 5 + i) * 9); R(dx ? x + (dx > 0 ? 8 + (i % 2) : 1 - (i % 2)) : x + q, dy ? y + (dy > 0 ? 8 + (i % 2) : 1 - (i % 2)) : y + q, 2, 2, oc); }
     });
   }
+  const lone = [];
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 40), b = h(tx, ty, 41);
     if (k === T_ROAD || k === T_BRIDGE) {
@@ -67,10 +68,36 @@ function provLand() {
       R(x + 7, y + 1 + Math.floor(b * 3), 1, 4, '#8a9a4a'); R(x + 2, y + 1, 1, 3, '#8a9a4a'); if (a > 0.5) { R(x + 8, y + 1 + Math.floor(b * 3), 1, 1, '#6b4a2a'); R(x + 5, y + 2, 1, 3, '#9aaa5a'); }
     }
     else if (k === T_HILL) {
-      const t = tone(tx, ty);
-      if (a > 0.5) { R(x - 1, y + 4, 12, 4, tint('#a3a866', t)); R(x + 1, y + 2, 8, 2, tint('#b4b978', t)); R(x + 3, y + 1, 4, 1, tint('#c2c688', t)); R(x - 1, y + 8, 12, 1, tint('#70763f', t)); R(x + 8, y + 4, 3, 4, tint('#7f8548', t)); }
-      else if (a > 0.36) { R(x + 2, y + 5, 6, 3, tint('#a3a866', t)); R(x + 3, y + 4, 3, 1, tint('#b4b978', t)); R(x + 2, y + 8, 6, 1, tint('#70763f', t)); }
-      else if (a < 0.1) { R(x + 3, y + 5, 4, 3, '#9a958a'); R(x + 3, y + 5, 4, 1, '#bdb8ac'); R(x + 3, y + 8, 5, 1, 'rgba(0,0,0,.2)'); }
+      // each stretch of high ground has its own colour, and each mound its own size and shape
+      const reg = wildRegion(x + 5, y + 5), t = tone(tx, ty) * (0.94 + h(tx, ty, 120) * 0.12);
+      const pal = reg === 'The Quarry Hills' ? ['#b9b083', '#cfc79c', '#8d8660', '#77704e'] : reg === 'The High Fells' ? ['#8f9a78', '#a6b08e', '#6c765a', '#5a634a'] : reg === 'The Barrow Downs' ? ['#86a05a', '#9ab56c', '#64803f', '#52692f'] : ['#a3a866', '#b9be7c', '#7f8548', '#6b703a'];
+      const hillN = (at(tx - 1, ty) === T_HILL) + (at(tx + 1, ty) === T_HILL) + (at(tx, ty - 1) === T_HILL) + (at(tx, ty + 1) === T_HILL);
+      const mound = (cx, cy, rx, ry) => {
+        R(cx - rx, cy + 1, rx * 2 + 2, 1, 'rgba(0,0,0,.16)');
+        for (let dy = -ry; dy <= 0; dy++) {
+          const w = Math.max(1, Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)) + (h(cx + dy, cy, 121) - 0.5) * 1.6));
+          R(cx - w, cy + dy, w * 2, 1, tint(pal[0], t));
+          if (dy < -ry * 0.25) R(cx - w + 1, cy + dy, Math.max(1, Math.round(w * (0.9 - (dy + ry) / (ry * 2.2)))), 1, tint(pal[1], t));      // the light, from the north-west
+          R(cx + w - Math.max(1, Math.round(w * 0.3)), cy + dy, Math.max(1, Math.round(w * 0.3)), 1, tint(pal[2], t));                              // the far side, in shade
+        }
+        R(cx - rx + 1, cy, rx * 2 - 1, 1, tint(pal[3], t));
+      };
+      if (a > 0.58 || (hillN < 3 && a > 0.3)) {
+        const big = hillN === 4 && a > 0.8, rx = big ? 10 + Math.floor(b * 8) : 4 + Math.floor(b * 6), ry = Math.max(3, Math.round(rx * (0.5 + h(tx, ty, 122) * 0.35)));
+        const cx = x + Math.floor(h(tx, ty, 123) * 10), cy = y + 2 + Math.floor(h(tx, ty, 124) * 10);
+        if (h(tx, ty, 125) > 0.7) mound(cx + rx - 2, cy - 1, Math.max(3, rx - 3), Math.max(2, ry - 1));      // a shoulder behind it
+        mound(cx, cy, rx, ry);
+        const e = h(tx, ty, 126);
+        if (e > 0.93) { R(cx - 1, cy - ry - 1, 3, 2, '#9a958a'); R(cx - 1, cy - ry - 1, 2, 1, '#c4bfb2'); }                                            // a rock on the crown
+        else if (e > 0.86) { R(cx - 3, cy - 2, 2, 1, '#55703a'); R(cx + 1, cy - 3, 2, 1, '#55703a'); R(cx - 1, cy - 1, 1, 1, '#6f8a4a'); }              // scrub
+        else if (e > 0.82) for (let q = 0; q < 3; q++) R(cx - rx + 2 + q * 2, cy - 1 - q, rx - q * 2, 1, tint(pal[2], t));                              // terraces cut into it
+        else if (e < 0.03) { R(cx, cy - ry - 5, 1, 5, '#4a3320'); R(cx - 2, cy - ry - 7, 5, 3, '#3f6a2c'); R(cx - 1, cy - ry - 8, 3, 1, '#57863a'); }  // a lone tree
+      } else if (a < 0.1) {                        // bare ground between: stones, a goat track
+        const n = 1 + Math.floor(b * 3);
+        for (let q = 0; q < n; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 127 + q) * 7), sy = y + 2 + Math.floor(h(tx, ty, 130 + q) * 6), sw = 2 + Math.floor(h(tx, ty, 133 + q) * 3); R(sx, sy, sw, 2, '#9a958a'); R(sx, sy, sw, 1, '#bdb8ac'); R(sx, sy + 2, sw + 1, 1, 'rgba(0,0,0,.18)'); }
+      } else if (a < 0.2) for (let q = 0; q < 5; q++) R(x + q * 2 + Math.floor(b * 2), y + 3 + Math.floor(h(tx + q, ty, 136) * 4), 2, 1, tint(pal[3], t));
+      else if (a < 0.3) { const n = 2 + Math.floor(b * 3), gc = tint(pal[2], t); for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 137 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 141 + q) * 5); R(gx, gy, 1, 2, gc); R(gx + 1, gy - 1, 1, 1, gc); } }      // heather and rough grass
+      else if (a < 0.34) { R(x + 2 + Math.floor(b * 4), y + 5, 3, 2, '#55703a'); R(x + 3 + Math.floor(b * 4), y + 4, 2, 1, '#6f8a4a'); }      // gorse
     }
     else if (k === T_GRASS) {
       const f = farm(tx, ty);
@@ -79,8 +106,29 @@ function provLand() {
         R(x, y, 10, 10, c1); for (let i = 1; i < 10; i += 3) R(x, y + i, 10, 1, c2);
         if (tx % 4 === 0) R(x, y, 1, 10, '#5f7f3f'); if (ty % 3 === 0) R(x, y, 10, 1, '#5f7f3f');
       }
-      else if (a > 0.94) { R(x + 3, y + 5, 5, 3, '#4c7f38'); R(x + 4, y + 4, 3, 1, '#69a04a'); R(x + 3, y + 8, 5, 1, 'rgba(0,0,0,.18)'); }       // a bush
-      else if (a < 0.02) { R(x + 4, y + 5, 3, 2, '#9a958a'); R(x + 4, y + 5, 3, 1, '#bdb8ac'); }                                                   // a stone
+      else if (a > 0.94) {                     // a bush: one of several kinds, never quite the same size
+        const w = 3 + Math.floor(b * 4), hh = 2 + Math.floor(h(tx, ty, 140) * 2), bx = x + Math.floor(h(tx, ty, 141) * (9 - w)), by = y + 4 + Math.floor(h(tx, ty, 142) * 3), kind = Math.floor(h(tx, ty, 143) * 4);
+        const dk = ['#4c7f38', '#3f6f45', '#5f7f2f', '#4a6a3a'][kind], lt = ['#69a04a', '#58905c', '#7fa040', '#62884c'][kind];
+        R(bx, by + hh, w, 1, 'rgba(0,0,0,.18)'); R(bx, by, w, hh, dk); R(bx + 1, by - 1, Math.max(1, w - 2), 1, lt); R(bx, by, Math.max(1, w >> 1), 1, lt);
+        if (kind === 0 && b > 0.5) { R(bx + 1, by, 1, 1, '#c23b2e'); R(bx + w - 2, by + 1, 1, 1, '#c23b2e'); }      // berries
+        if (kind === 2) { R(bx + 1, by, 1, 1, '#f2e6a0'); R(bx + w - 1, by + 1, 1, 1, '#f2e6a0'); }                  // broom in flower
+      }
+      else if (a > 0.86) {                     // long grass, bending one way or the other
+        const n = 2 + Math.floor(b * 3), lean = h(tx, ty, 144) > 0.5 ? 1 : -1, gc = b > 0.5 ? '#6b8f3e' : '#93b055';
+        for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 145 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 150 + q) * 5); R(gx, gy, 1, 3, gc); R(gx + lean, gy - 1, 1, 1, gc); }
+      }
+      else if (a > 0.82) {                     // a drift of flowers, in the colours of that part of the country
+        const reg = wildRegion(x + 5, y + 5), fc = reg === 'The Long Meadows' ? ['#f2e6a0', '#f4f4f0'] : reg === 'The Home Fields' ? ['#c23b2e', '#f2e6a0'] : reg === 'Greywood' ? ['#b9a0e0', '#f4f4f0'] : reg === 'The Salt Shore' ? ['#e8a0c0', '#f4f4f0'] : ['#e8a0a0', '#b9a0e0'];
+        for (let q = 0; q < 4 + Math.floor(b * 4); q++) R(x + Math.floor(h(tx, ty, 155 + q) * 9), y + Math.floor(h(tx, ty, 163 + q) * 9), 1, 1, fc[q % 2]);
+      }
+      else if (a < 0.012) {                    // a tree standing by itself
+        lone.push([tx, ty]);
+      }
+      else if (a < 0.04) {                     // stones, singly or in a scatter
+        const n = 1 + Math.floor(b * 3);
+        for (let q = 0; q < n; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 172 + q) * 7), sy = y + 3 + Math.floor(h(tx, ty, 175 + q) * 5), sw = 2 + Math.floor(h(tx, ty, 178 + q) * 2); R(sx, sy, sw, 2, q % 2 ? '#8f8a80' : '#9a958a'); R(sx, sy, sw, 1, '#bdb8ac'); }
+      }
+      else if (a < 0.05) { const lx = x + 1 + Math.floor(b * 4); R(lx, y + 6, 6, 2, '#6b4f2c'); R(lx, y + 6, 6, 1, '#8a6a3a'); R(lx + 6, y + 6, 1, 2, '#c9a763'); R(lx, y + 8, 7, 1, 'rgba(0,0,0,.16)'); }      // a fallen trunk
     }
   }
   // ---- depth: high ground throws its shade to the south and east, and the shore has a strand ----
@@ -143,25 +191,111 @@ function provLand() {
     const x = tx * 10, y = ty * 10;
     R(x - 1, y + 8, 13, 2, 'rgba(0,0,0,.22)'); R(x, y + 2, 11, 7, '#e2d2a8'); R(x - 1, y - 2, 13, 4, '#a8482a'); R(x, y - 3, 11, 1, '#c2603a'); R(x + 4, y + 5, 3, 4, '#3a2416'); R(x + 13, y + 4, 4, 5, '#8a6a3a'); R(x + 13, y + 3, 4, 1, '#c9b25a');
   }
-  // what stands up from the ground is drawn last, row by row, so that it overlaps what is behind it
+  // what stands up from the ground is gathered first and drawn from the back of the picture to the front, so that
+  // each thing overlaps what is behind it. Nothing is stamped: every tree and every mountain is made for its own spot.
+  const feats = [];
+  const peakDepth = (tx, ty) => { for (let r = 1; r <= 4; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && at(tx + dx, ty + dy) !== T_PEAK) return r; return 5; };
+  // a tree: its kind, its size, and a shade of its own
+  const tree = (cx, cy, kind, sz, f) => {
+    const C = c => tint(c, f);
+    R(cx - sz - 1, cy + 1, sz * 2 + 3, 2, 'rgba(0,0,0,.2)');
+    if (kind === 'pine' || kind === 'fir') {
+      const dk = kind === 'fir' ? '#27483a' : '#2c5230', lt = kind === 'fir' ? '#3c6450' : '#437046', tiers = 2 + Math.floor(sz / 2);
+      R(cx, cy - 1, 1, 3, '#4a3320');
+      for (let q = 0; q < tiers; q++) { const w = sz - Math.round(q * sz / (tiers + 0.5)), y0 = cy - 2 - q * 2; R(cx - w, y0, w * 2 + 1, 2, C(dk)); R(cx - w, y0, Math.max(1, w), 1, C(lt)); }
+      R(cx, cy - 2 - tiers * 2, 1, 2, C(dk));
+    } else if (kind === 'stone') {               // the umbrella pine of the coast: a long bare trunk and a flat crown
+      R(cx, cy - sz - 3, 1, sz + 5, '#5a3f26'); R(cx + 1, cy - sz - 1, 1, 2, '#5a3f26');
+      R(cx - sz - 1, cy - sz - 5, sz * 2 + 3, 3, C('#35602b')); R(cx - sz, cy - sz - 6, sz * 2 + 1, 1, C('#35602b')); R(cx - sz - 1, cy - sz - 5, sz + 1, 1, C('#5a8a46'));
+    } else if (kind === 'birch') {
+      R(cx, cy - sz - 2, 1, sz + 4, '#e8e4d8'); R(cx, cy - 1, 1, 1, '#5a5448'); R(cx, cy - sz, 1, 1, '#5a5448');
+      R(cx - sz + 1, cy - sz - 5, sz * 2 - 1, sz, C('#6f9a48')); R(cx - sz + 2, cy - sz - 6, Math.max(1, sz * 2 - 3), 1, C('#6f9a48')); R(cx - sz + 1, cy - sz - 5, sz - 1, Math.max(1, sz - 2), C('#93b866'));
+    } else if (kind === 'cypress') {
+      R(cx, cy - 1, 1, 3, '#4a3320');
+      for (let q = 0; q < sz * 2 + 3; q++) { const w = q < 2 || q > sz * 2 ? 0 : 1; R(cx - w, cy - 2 - q, w * 2 + 1, 1, C(q % 3 ? '#2f5234' : '#3f6844')); }
+    } else if (kind === 'willow') {              // over water: a low wide head, and the withies hanging
+      R(cx, cy - 2, 1, 4, '#4a4030');
+      R(cx - sz - 1, cy - sz - 3, sz * 2 + 3, sz, C('#5f7f4a')); R(cx - sz, cy - sz - 4, sz * 2 + 1, 1, C('#5f7f4a')); R(cx - sz - 1, cy - sz - 3, sz + 1, 1, C('#7f9f62'));
+      for (let q = -sz - 1; q <= sz + 1; q += 2) R(cx + q, cy - 3, 1, 2 + (Math.abs(q) % 3), C('#6f8f56'));
+    } else if (kind === 'dead') {
+      R(cx, cy - sz - 3, 1, sz + 5, '#5a5046'); R(cx - 2, cy - sz - 1, 2, 1, '#5a5046'); R(cx - 3, cy - sz - 2, 1, 1, '#5a5046'); R(cx + 1, cy - sz, 2, 1, '#5a5046'); R(cx + 3, cy - sz - 1, 1, 1, '#5a5046'); R(cx + 1, cy - sz - 4, 1, 2, '#5a5046');
+    } else {                                     // broadleaf: a crown built of two or three lobes, so that no two have one outline
+      const dk = kind === 'beech' ? '#3f7032' : kind === 'chestnut' ? '#4a6a2a' : kind === 'blossom' ? '#4c7f38' : '#35602b', lt = kind === 'beech' ? '#5f9a46' : kind === 'chestnut' ? '#7a9a3a' : kind === 'blossom' ? '#69a04a' : '#4c7f38', hi = kind === 'beech' ? '#7fb85a' : '#69a04a';
+      R(cx, cy - 2, 1, 4, '#4a3320');
+      const lobes = 2 + Math.floor(h(cx, cy, 190) * 2);
+      for (let q = 0; q < lobes; q++) { const ox = Math.round((h(cx + q, cy, 191) - 0.5) * sz * 1.4), oy = -Math.round(h(cx, cy + q, 192) * sz * 0.8), r = Math.max(2, sz - q);
+        R(cx + ox - r, cy - 3 - r + oy, r * 2 + 1, r + 1, C(dk)); R(cx + ox - r + 1, cy - 4 - r + oy, Math.max(1, r * 2 - 1), 1, C(dk)); R(cx + ox - r, cy - 3 - r + oy, r, Math.max(1, r - 1), C(lt)); R(cx + ox - r + 1, cy - 4 - r + oy, Math.max(1, r - 1), 1, C(hi)); }
+      if (kind === 'blossom') for (let q = 0; q < 4; q++) R(cx - sz + Math.floor(h(cx, cy, 193 + q) * sz * 2), cy - 3 - Math.floor(h(cx, cy, 197 + q) * sz), 1, 1, q % 2 ? '#f4d0d8' : '#ffffff');
+    }
+  };
+  // which trees grow where
+  const species = (tx, ty, reg, r) => {
+    const nn = north(tx, ty) + (r - 0.5) * 0.24;
+    if (reg === 'Greywood') return r < 0.1 ? 'dead' : r < 0.45 ? 'fir' : r < 0.8 ? 'oak' : 'birch';
+    if (reg === 'Blackmere') return r < 0.25 ? 'dead' : r < 0.7 ? 'willow' : 'fir';
+    if (reg === 'The Salt Shore') return r < 0.5 ? 'stone' : r < 0.75 ? 'cypress' : 'oak';
+    if (reg === 'The Quarry Hills') return r < 0.35 ? 'cypress' : r < 0.7 ? 'pine' : 'oak';
+    if (reg === 'The High Fells' || reg === 'The Barrow Downs') return r < 0.6 ? 'pine' : r < 0.85 ? 'fir' : 'birch';
+    if (reg === 'The Home Fields') return r < 0.15 ? 'blossom' : r < 0.5 ? 'beech' : r < 0.85 ? 'oak' : 'chestnut';
+    if (nn > 0.6) return r < 0.7 ? 'pine' : 'birch';
+    return r < 0.4 ? 'oak' : r < 0.7 ? 'beech' : r < 0.9 ? 'chestnut' : 'birch';
+  };
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 60), b = h(tx, ty, 61);
     if (k === T_FOREST) {
-      const pine = north(tx, ty) + (h(tx, ty, 62) - 0.5) * 0.2 > 0.56;
-      const tree = (cx, cy, small) => {
-        R(cx - 4, cy + 4, 9, 2, 'rgba(0,0,0,.2)'); R(cx, cy + 1, 1, 4, '#4a3320');
-        if (pine) { R(cx - 3, cy, 7, 2, '#2c5230'); R(cx - 2, cy - 2, 5, 2, '#2c5230'); R(cx - 1, cy - 4, 3, 2, '#2c5230'); R(cx, cy - 6, 1, 2, '#2c5230'); R(cx - 3, cy, 3, 1, '#437046'); R(cx - 2, cy - 2, 2, 1, '#437046'); R(cx - 1, cy - 4, 1, 1, '#5a8a58'); }
-        else if (small) { R(cx - 2, cy - 3, 5, 4, '#3a6a2e'); R(cx - 2, cy - 3, 3, 2, '#55893e'); }
-        else { R(cx - 3, cy - 4, 7, 6, '#35602b'); R(cx - 4, cy - 3, 9, 4, '#35602b'); R(cx - 2, cy - 5, 5, 1, '#35602b'); R(cx - 3, cy - 4, 4, 3, '#4c7f38'); R(cx - 2, cy - 5, 2, 1, '#69a04a'); }
-      };
-      if (b > 0.55) tree(x + 8 - Math.floor(a * 3), y + 1 + Math.floor(b * 2), true);
-      tree(x + 3 + Math.floor(a * 4), y + 3 + Math.floor(b * 4), false);
+      const reg = wildRegion(x + 5, y + 5), edge = at(tx - 1, ty) !== T_FOREST || at(tx + 1, ty) !== T_FOREST || at(tx, ty - 1) !== T_FOREST || at(tx, ty + 1) !== T_FOREST;
+      const glade = !edge && wildNoise(tx / 4, ty / 4, 77) < 0.13;
+      if (glade) {                               // a clearing: stumps, a log, toadstools, sun on the grass
+        feats.push({ y: y + 5, d: () => {
+          if (a > 0.86) { R(x + 3, y + 5, 3, 2, '#6b4f2c'); R(x + 3, y + 5, 3, 1, '#c9a763'); }                                         // a stump
+          else if (a > 0.74) { const lx = x + Math.floor(b * 3); R(lx, y + 6, 6, 2, '#5a4326'); R(lx, y + 6, 6, 1, '#7a5a34'); }          // a log
+          else if (a > 0.68) { R(x + 4, y + 6, 1, 2, '#f1ead8'); R(x + 3, y + 5, 3, 1, '#c23b2e'); }                                     // a toadstool
+          else if (a > 0.4) for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 78 + q) * 9), y + Math.floor(h(tx, ty, 82 + q) * 9), 1, 1, q % 2 ? '#f2e6a0' : '#f4f4f0');      // flowers in the sun
+        } });
+        continue;
+      }
+      const n = edge ? 1 + (b > 0.6 ? 1 : 0) : 1 + (b > 0.35 ? 1 : 0) + (b > 0.8 ? 1 : 0);
+      for (let q = 0; q < n; q++) {
+        const cx = x + 1 + Math.floor(h(tx, ty, 63 + q) * 9), cy = y + 2 + Math.floor(h(tx, ty, 66 + q) * 8), kind = species(tx, ty, reg, h(tx, ty, 69 + q)), sz = (edge ? 2 : 3) + Math.floor(h(tx, ty, 72 + q) * (edge ? 2 : 3)), f = 0.86 + h(tx, ty, 75 + q) * 0.26;
+        feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
+      }
+      if (edge && a > 0.7) feats.push({ y: y + 9, d: () => { R(x + 1 + Math.floor(b * 5), y + 7, 4, 2, '#4c7f38'); R(x + 2 + Math.floor(b * 5), y + 6, 2, 1, '#69a04a'); } });      // brush along the wood's edge
     } else if (k === T_PEAK) {
-      const px = x + Math.floor(a * 3), hgt = 8 + Math.floor(b * 6), snow = hgt > 11 || north(tx, ty) > 0.62;
-      for (let i = 0; i < hgt; i++) { const half = Math.ceil(i * 0.55); R(px + 4 - half, y + 7 - hgt + i, half, 1, i % 4 === 3 ? '#9a9486' : '#aaa496'); R(px + 4, y + 7 - hgt + i, half + 1, 1, i % 3 === 2 ? '#5d584e' : '#6b665c'); }
-      if (snow) { R(px + 3, y + 7 - hgt, 2, 2, '#f2efe6'); R(px + 2, y + 9 - hgt, 2, 1, '#f2efe6'); R(px + 4, y + 9 - hgt, 2, 1, '#d8d4c8'); }
+      const d = peakDepth(tx, ty), reg = wildRegion(x + 5, y + 5), r = h(tx, ty, 80);
+      const rock = reg === 'The High Fells' ? ['#a2aab4', '#646c78', '#7d8692'] : reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876', '#b3ac98'] : reg === 'The Barrow Downs' ? ['#8c8676', '#4f4a3c', '#6d6858'] : ['#aaa496', '#6b665c', '#8a8478'];
+      // scree and broken rock on the ground between
+      feats.push({ y: y, d: () => { for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 81 + q) * 8), y + Math.floor(h(tx, ty, 84 + q) * 8), 2 + (q % 2), 1, q % 2 ? rock[1] : rock[0]); } });
+      // the deeper into the range, the greater the mountain; along its edge, crags
+      const p = d >= 4 ? 0.2 : d === 3 ? 0.3 : d === 2 ? 0.48 : 0.75;
+      if (r > p) continue;
+      const w = d >= 4 ? 26 + Math.floor(a * 20) : d === 3 ? 18 + Math.floor(a * 12) : d === 2 ? 12 + Math.floor(a * 9) : 7 + Math.floor(a * 6);
+      const hgt = Math.round(w * (d === 1 ? 0.55 + b * 0.4 : 0.75 + b * 0.6)), cx = x + Math.floor(h(tx, ty, 87) * 10), by = y + 6 + Math.floor(h(tx, ty, 88) * 4), lean = (h(tx, ty, 89) - 0.5) * 0.6;
+      const snowRows = (hgt > 16 || north(tx, ty) > 0.6 || reg === 'The High Fells') ? Math.round(hgt * (reg === 'The High Fells' ? 0.42 : 0.26) * (0.6 + h(tx, ty, 90) * 0.8)) : 0;
+      const mountain = (mx, mby, mw, mh, ml, sr, seed) => {
+        R(mx - (mw >> 1), mby, mw + 3, 2, 'rgba(0,0,0,.22)');
+        for (let i = 0; i < mh; i++) {
+          const fr = (i + 1) / mh, half = Math.max(1, Math.round((mw / 2) * Math.pow(fr, 0.8) + (h(seed + i, seed, 91) - 0.5) * (1 + fr * 2)));
+          const px = Math.round(mx + ml * mw * (1 - fr)), yy = mby - mh + i, snowL = i < sr + Math.round((h(seed, i, 92) - 0.5) * 3), snowR = i < sr * 0.7 + Math.round((h(i, seed, 93) - 0.5) * 3);
+          R(px - half, yy, half, 1, snowL ? '#f4f6fa' : (i + (seed % 3)) % 5 === 4 ? rock[2] : rock[0]);
+          R(px, yy, half + 1, 1, snowR ? '#c9d2de' : (i + (seed % 2)) % 4 === 3 ? tint(rock[1], 0.88) : rock[1]);
+          if (!snowL && fr > 0.35 && h(seed, i, 94) > 0.72) R(px - Math.round(half * (0.3 + h(i, seed, 95) * 0.5)), yy, 1, 1, tint(rock[0], 1.12));       // a ledge catching the light
+          if (fr > 0.3 && h(i, seed, 96) > 0.66) R(px + Math.round(half * (0.3 + h(seed, i, 97) * 0.5)), yy, 1, 1, tint(rock[1], 0.8));                    // a gully
+        }
+      };
+      const seed = tx * 131 + ty * 17;
+      feats.push({ y: by, d: () => {
+        if (w > 14 && h(tx, ty, 98) > 0.45) { const side = h(tx, ty, 99) > 0.5 ? 1 : -1; mountain(cx + side * Math.round(w * 0.42), by - 1, Math.round(w * 0.62), Math.round(hgt * 0.62), -lean, Math.round(snowRows * 0.4), seed + 7); }      // a shoulder
+        mountain(cx, by, w, hgt, lean, snowRows, seed);
+        if (w > 20 && h(tx, ty, 100) > 0.6) { const px = cx - Math.round(w * 0.3); for (let q = 0; q < 3; q++) R(px + q * 2, by - 2 - q * 2, 2, 2, '#35543a'); }                                                              // pines at its foot
+      } });
     }
   }
+  for (const [tx, ty] of lone) {
+    const x = tx * 10, y = ty * 10, reg = wildRegion(x + 5, y + 5), kind = species(tx, ty, reg, h(tx, ty, 101)), sz = 2 + Math.floor(h(tx, ty, 102) * 3), f = 0.88 + h(tx, ty, 103) * 0.24, cx = x + 2 + Math.floor(h(tx, ty, 104) * 6), cy = y + 7;
+    feats.push({ y: cy, d: () => tree(cx, cy, kind === 'dead' && h(tx, ty, 105) > 0.3 ? 'oak' : kind, sz, f) });
+  }
+  feats.sort((p1, p2) => p1.y - p2.y);
+  for (const ft of feats) ft.d();
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) if (at(tx, ty) === T_FOREST && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood') R(tx * 10, ty * 10 - 4, 10, 12, 'rgba(128,132,136,.16)');      // an old wood, gone grey
   return (prov.land = cv);
 }
