@@ -26,7 +26,7 @@ function drawPlace(cv, T, tab) {
   yardHits = [];                                // nothing here is clickable as the yard's fighters and buildings are
   let ctx = main;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  const sky = yardSky(T), wx = yardWeather(T), late = [], lamps = [];
+  const sky = yardSky(T), wx = yardWeather(T), late = [], lamps = [], fires = [], shafts = [];
   if (wx.over > 0) {
     const grey = mixHex('#8d98a3', '#1a2030', sky.night);
     sky.bands = sky.bands.map(c => mixHex(c, grey, wx.over * 0.8));
@@ -57,6 +57,8 @@ function drawPlace(cv, T, tab) {
       ctx.fillStyle = gold ? '#ffe9a0' : '#f2e6cc'; ctx.fillText(text, x, y);
     }),
     lamp: (x, y) => lamps.push([x, y]),
+    fire: (x, y, r) => fires.push([x, y, r]),            // a hearth: it lights the room about it, and flickers
+    shaft: pts => shafts.push(pts),                      // daylight (or the moon) coming in: the four corners of where it falls, from the opening round to the floor
     flame: (x, y, h, col) => { const fl = Math.sin(T * 12 + x) > 0 ? 1 : 0; R(x - 2, y - h - fl, 5, h + fl, col || '#e2702a'); R(x - 1, y - Math.round(h * 0.7) - fl, 3, Math.round(h * 0.7), '#f5c04a'); R(x, y - Math.round(h * 0.4), 1, Math.round(h * 0.4), '#fff0b0'); },
     column: (x, y, h) => { R(x, y, 7, h, '#e8e2d2'); R(x + 5, y, 2, h, '#c9c2ae'); R(x + 2, y, 1, h, '#f8f4ea'); R(x + 3, y + 2, 1, h - 4, '#d6cfbc'); R(x - 2, y - 3, 11, 3, '#d8d2c0'); R(x - 3, y - 4, 13, 1, '#f0ebde'); R(x - 2, y, 11, 1, 'rgba(0,0,0,.14)'); R(x - 2, y + h, 11, 3, '#c9c2ae'); R(x - 3, y + h + 2, 13, 1, '#b5ad98'); },
     tiles: (x, y, w, h) => { R(x, y, w, h, '#b5522e'); for (let i = 0; i < w; i += 6) { R(x + i, y, 1, h, '#963f22'); R(x + i + 1, y, 1, h, '#c66444'); if (i + 3 < w) R(x + i + 2, y + h, 3, 1, '#c9684a'); } R(x, y, w, 1, '#d87650'); if (h > 4) R(x, y + (h >> 1), w, 1, 'rgba(60,20,8,.18)'); R(x, y + h + 1, w, 1, 'rgba(0,0,0,.22)'); },
@@ -74,14 +76,14 @@ function drawPlace(cv, T, tab) {
     // courses of brick or dressed stone across a wall
     brick: (x, y, w, h, c) => { for (let r = 0; r * 6 < h; r++) { R(x, y + r * 6 + 5, w, 1, c); for (let q = (r % 2) * 9 + 4; q < w; q += 18) R(x + q, y + r * 6, 1, 5, c); } },
     wreath: (x, y, c) => { R(x - 3, y - 4, 6, 1, c); R(x - 4, y - 3, 1, 5, c); R(x + 3, y - 3, 1, 5, c); R(x - 3, y + 2, 6, 1, c); R(x - 1, y + 3, 2, 2, '#a02d22'); },
-    barrel: (x, y) => { R(x - 5, y - 12, 10, 12, '#7a5a34'); R(x - 5, y - 12, 10, 1, '#94703f'); R(x - 5, y - 9, 10, 1, '#3a2a1c'); R(x - 5, y - 4, 10, 1, '#3a2a1c'); R(x + 3, y - 12, 2, 12, '#5e4426'); },
-    crate: (x, y, w, h) => { R(x, y - h, w, h, '#8a6a3a'); R(x, y - h, w, 1, '#a8834a'); R(x, y - 1, w, 1, '#5e4426'); R(x + Math.floor(w / 2), y - h, 1, h, '#5e4426'); },
-    sack: (x, y, c) => { R(x - 4, y - 7, 8, 7, c || '#c9b48a'); R(x - 3, y - 9, 6, 2, c || '#c9b48a'); R(x - 1, y - 10, 2, 1, '#8a6a3a'); R(x - 4, y - 1, 8, 1, '#a8956a'); },
-    cypress: (x, y, h) => { R(x, y - 3, 2, 3, '#3a2a1c'); for (let q = 0; q < h; q++) { const w = Math.round(Math.sin(q / h * Math.PI) * 4) + 1; R(x + 1 - w, y - 3 - q, w * 2, 1, q % 3 ? '#35543a' : '#416446'); } },
+    barrel: (x, y) => { R(x - 6, y - 1, 14, 2, 'rgba(0,0,0,.2)'); R(x - 5, y - 12, 10, 12, '#7a5a34'); R(x - 4, y - 11, 1, 10, '#94703f'); R(x - 5, y - 12, 10, 1, '#94703f'); R(x - 5, y - 9, 10, 1, '#3a2a1c'); R(x - 5, y - 4, 10, 1, '#3a2a1c'); R(x + 3, y - 12, 2, 12, '#5e4426'); },
+    crate: (x, y, w, h) => { R(x - 1, y - 1, w + 4, 2, 'rgba(0,0,0,.2)'); R(x, y - h, w, h, '#8a6a3a'); R(x + w - 1, y - h, 1, h, '#6e5230'); R(x, y - h, 1, h, '#9c7c48'); R(x, y - h, w, 1, '#a8834a'); R(x, y - 1, w, 1, '#5e4426'); R(x + Math.floor(w / 2), y - h, 1, h, '#5e4426'); },
+    sack: (x, y, c) => { R(x - 5, y - 1, 11, 2, 'rgba(0,0,0,.2)'); R(x - 4, y - 7, 8, 7, c || '#c9b48a'); R(x - 3, y - 6, 1, 5, 'rgba(255,255,255,.18)'); R(x - 3, y - 9, 6, 2, c || '#c9b48a'); R(x - 1, y - 10, 2, 1, '#8a6a3a'); R(x - 4, y - 1, 8, 1, '#a8956a'); },
+    cypress: (x, y, h) => { R(x - 4, y - 1, 11, 2, 'rgba(0,0,0,.18)'); R(x, y - 3, 2, 3, '#3a2a1c'); for (let q = 0; q < h; q++) { const w = Math.round(Math.sin(q / h * Math.PI) * 4) + 1; R(x + 1 - w, y - 3 - q, w * 2, 1, q % 3 ? '#35543a' : '#416446'); if (w > 1) { R(x + 1 - w, y - 3 - q, 1, 1, '#527a56'); R(x + w, y - 3 - q, 1, 1, '#294430'); } if (q % 4 === 1 && w > 2) R(x, y - 3 - q, 1, 1, '#294430'); } },
     // a mule, feet at x, y; d is 1 facing right
     mule: (x, y, d, c) => { const b = c || '#8a6a4a', k = shade(b, 0.7); R(x - 8, y - 13, 16, 7, b); R(x - 8, y - 13, 16, 1, shade(b, 1.2)); R(x - 7, y - 6, 2, 6, k); R(x - 3, y - 6, 2, 6, k); R(x + 3, y - 6, 2, 6, k); R(x + 6, y - 6, 2, 6, k);
       R(x + d * 7 - (d < 0 ? 3 : 0), y - 18, 4, 7, b); R(x + d * 9 - (d < 0 ? 5 : 0), y - 20, 6, 4, b); R(x + d * 9 - (d < 0 ? 0 : 0), y - 23, 1, 3, k); R(x + d * 12 - (d < 0 ? 0 : 0), y - 23, 1, 3, k); R(x - d * 9, y - 12, 1, 5 + (Math.sin(T * 3 + x) > 0.6 ? 1 : 0), k); R(x + d * 13 - (d < 0 ? 1 : 0), y - 18, 2, 2, '#e8dcc0'); },
-    amphora: (x, y, c) => { R(x - 2, y - 9, 5, 8, c || '#b8703c'); R(x - 1, y - 12, 3, 3, c || '#b8703c'); R(x - 3, y - 11, 1, 3, '#8a5028'); R(x + 3, y - 11, 1, 3, '#8a5028'); R(x - 1, y - 1, 3, 2, '#8a5028'); },
+    amphora: (x, y, c) => { R(x - 3, y, 8, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 9, 5, 8, c || '#b8703c'); R(x - 1, y - 8, 1, 6, 'rgba(255,255,255,.2)'); R(x - 1, y - 12, 3, 3, c || '#b8703c'); R(x - 3, y - 11, 1, 3, '#8a5028'); R(x + 3, y - 11, 1, 3, '#8a5028'); R(x - 1, y - 1, 3, 2, '#8a5028'); },
   };
   if (!scene.indoor) {                          // the country beyond the town: two ranges of hills, cypresses, a roof or two
     sceneHills(ctx, 100, sky, 28, 2 + tab.length);
@@ -110,6 +112,20 @@ function drawPlace(cv, T, tab) {
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
     ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la);
     if (scene.indoor) for (let q = 0; q < 4; q++) { const an = T * (0.25 + q * 0.07) + lx + q * 1.7, mx = lx + Math.cos(an) * (8 + q * 5), my = ly - 6 + Math.sin(an * 1.3) * (6 + q * 3); ctx.fillStyle = `rgba(255,236,190,${(0.25 + 0.2 * Math.sin(T * 1.1 + q + lx)).toFixed(3)})`; ctx.fillRect(Math.round(mx), Math.round(my), 1, 1); }      // dust turning in the lamplight
+  }
+  if (scene.indoor) {
+    const fy = scene.floor || 142, day = (1 - sky.night) * (1 - wx.over * 0.6);
+    const cg = ctx.createLinearGradient(0, 0, 0, 74); cg.addColorStop(0, 'rgba(10,6,4,.4)'); cg.addColorStop(1, 'rgba(10,6,4,0)'); ctx.fillStyle = cg; ctx.fillRect(0, 0, 590, 74);      // the roof timbers lost in the dark
+    for (const side of [0, 1]) { const eg = ctx.createLinearGradient(side ? 590 : 0, 0, side ? 520 : 70, 0); eg.addColorStop(0, 'rgba(10,6,4,.3)'); eg.addColorStop(1, 'rgba(10,6,4,0)'); ctx.fillStyle = eg; ctx.fillRect(side ? 520 : 0, 0, 70, 190); }
+    for (const [lx] of lamps) scenePool(ctx, lx, fy + 14, 46, '255,170,80', 0.15 * la);
+    for (const [fx, fy2, fr] of fires) { const k = 0.82 + 0.18 * Math.sin(T * 9 + fx) * Math.sin(T * 5.3 + 1); sceneGlow(ctx, fx, fy2, fr, '255,140,60', 0.3 * k); scenePool(ctx, fx, fy + 16, fr * 1.3, '255,150,70', 0.2 * k); }
+    for (const pts of shafts) {
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = day > 0.15 ? `rgba(255,240,200,${(0.13 * day).toFixed(3)})` : `rgba(150,170,255,${(0.06 * sky.night * (1 - wx.over)).toFixed(3)})`;
+      ctx.beginPath(); pts.forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(pts[3][0], pts[3][1]); ctx.lineTo(pts[2][0], pts[2][1]); ctx.lineTo(pts[2][0] + 6, pts[2][1]); ctx.lineTo(pts[3][0] + 14, pts[3][1] - 10); ctx.closePath(); ctx.fill();      // brighter where it lands
+      ctx.globalCompositeOperation = 'source-over';
+      if (day > 0.15) for (let q = 0; q < 9; q++) { const u = (q * 0.37 + 0.1) % 1, v = (T * (0.02 + (q % 3) * 0.008) + q * 0.19) % 1, ax = pts[0][0] + (pts[1][0] - pts[0][0]) * u, ay = pts[0][1] + (pts[1][1] - pts[0][1]) * u, bx = pts[3][0] + (pts[2][0] - pts[3][0]) * u, by = pts[3][1] + (pts[2][1] - pts[3][1]) * u; ctx.fillStyle = `rgba(255,248,220,${(0.5 * day * Math.sin(v * Math.PI)).toFixed(3)})`; ctx.fillRect(Math.round(ax + (bx - ax) * v + Math.sin(T + q) * 2), Math.round(ay + (by - ay) * v), 1, 1); }      // dust, seen only where the light is
+    }
   }
   if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneRain(ctx, 590, 190, T, wx.rain); sceneAir(ctx, T, sky, wx, 128, true); }
   late.forEach(f => f());
@@ -187,8 +203,9 @@ const PLACE_SCENES = {
   } },
 
   // ---- the forge: fire, anvil, and the smith's real stock on the wall ----
-  smith: { indoor: true, draw(E) {
+  smith: { indoor: true, floor: 140, draw(E) {
     const { R, T } = E, lv = G.smith.level;
+    E.fire(76, 116, 96); E.shaft([[552, 140], [590, 140], [590, 188], [478, 188]]);
     R(0, 0, 590, 140, '#3a3430'); for (let r = 0; r < 14; r++) { R(0, r * 10 + 9, 590, 1, '#2a2522'); for (let x = (r % 2) * 14; x < 590; x += 28) R(x, r * 10, 1, 9, '#2a2522'); }
     R(0, 140, 590, 50, '#4a3f36'); for (let i = 0; i < 70; i++) R((i * 89) % 588, 144 + (i * 37) % 44, 4, 1, '#3d342c'); R(0, 140, 590, 2, '#2a2420');
     // the hearth, its hood, and the fire
@@ -196,7 +213,6 @@ const PLACE_SCENES = {
     R(40, 30, 72, 54, '#2a2420'); R(34, 76, 84, 8, '#3a322c'); R(44, 100, 64, 30, '#170f0b');
     const glow = 0.6 + 0.4 * Math.sin(T * 7);
     R(48, 118, 56, 12, `rgba(255,${Math.round(110 + 70 * glow)},40,.9)`); for (let i = 0; i < 6; i++) E.flame(54 + i * 9, 122, 8 + ((i * 7 + Math.floor(T * 6)) % 5), i % 2 ? '#e2702a' : '#f08a3a');
-    E.ctx().globalCompositeOperation = 'lighter'; for (let i = 0; i < 6; i++) { const r = 70 - i * 10; R(76 - r, 116 - r * 0.6, r * 2, r * 1.2, `rgba(255,150,60,${(0.035 * glow).toFixed(3)})`); } E.ctx().globalCompositeOperation = 'source-over';
     R(132, 110, 22, 16, '#6b4526'); R(132, 110, 22, 2, '#8a6230'); R(150, 116, 12, 3, '#3a2a1c');       // bellows
     // the anvil, and the smith at it
     const sw = (T * 1.5) % 1;
@@ -411,8 +427,9 @@ const PLACE_SCENES = {
   } },
 
   // ---- the tavern: the schools' shields, hung in order of renown ----
-  rivals: { indoor: true, draw(E) {
+  rivals: { indoor: true, floor: 142, draw(E) {
     const { R, T } = E;
+    E.fire(560, 124, 84);
     R(0, 0, 590, 142, '#b89868'); R(0, 96, 590, 46, '#7a5a34'); for (let x = 0; x < 590; x += 20) R(x, 96, 1, 46, '#5e4426'); R(0, 94, 590, 3, '#94703f');
     for (let x = 30; x < 590; x += 110) R(x, 0, 8, 96, '#5e4426'); R(0, 0, 590, 8, '#4a3520');
     R(0, 142, 590, 48, '#6b4f2c'); for (let i = 0; i < 12; i++) R(0, 146 + i * 4, 590, 1, '#5e4426');
@@ -520,8 +537,9 @@ const PLACE_SCENES = {
   } },
 
   // ---- the record house: shelves that fill as your chronicle grows ----
-  chronicle: { indoor: true, draw(E) {
+  chronicle: { indoor: true, floor: 142, draw(E) {
     const { R, T } = E;
+    E.shaft([[440, 54], [510, 54], [452, 188], [350, 188]]);
     R(0, 0, 590, 142, '#8a7a66'); R(0, 0, 590, 6, '#5e4c3a'); R(0, 142, 590, 48, '#6b5a48'); for (let i = 0; i < 60; i++) R((i * 97) % 588, 146 + (i * 41) % 42, 6, 1, '#5a4a3a');
     // the shelves: a scroll for every few entries, so a long history fills the wall
     R(24, 22, 372, 104, '#4a3520'); for (let r = 0; r <= 4; r++) R(24, 22 + r * 26, 372, 3, '#6b4f2c'); for (let c = 0; c <= 12; c++) R(24 + c * 31, 22, 2, 104, '#6b4f2c');
