@@ -444,7 +444,7 @@ function helpModal() {
       + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
       + sec('Training', 'Each man is set to rest, to drill one skill, or to spar at all three. Sparring is worth more with a stronger partner. A Veteranus or better can <b>Teach</b>: men drilling a skill he is clearly better at learn it faster. <b>Auto</b> leaves a man to the doctore, who rests him when he needs it and drills him at what he learns fastest. In good spirits a man sometimes has a great day and learns far more.')
       + sec('The school', 'At the <b>Ludus</b>, the button <b>The school</b> shows its own buildings: barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. The regimen is set there too.')
-      + sec('Household', 'Staff are hired by the day. Rations trade coin for morale, and the granary makes them cheaper. Other buildings stand where they are used: the shrine with the <b>Patrons</b>, the stables with the <b>Contracts</b>, and the armourer is hired at the <b>Blacksmith</b>.')
+      + sec('Household', 'Staff are hired by the day. Rations trade coin for morale, and the granary makes them cheaper. Other buildings stand where they are used: the shrine with the <b>Patrons</b>, the stables just outside the east gate, on the map of the province, and the armourer is hired at the <b>Blacksmith</b>.')
       + sec('Patrons', 'The <b>Magistrate</b> fattens purses and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts and the right choices win favour.')
       + sec('Rival houses', 'Killing their men, or losing yours to them, deepens a feud. At open feud a house calls you out: answer the grudge match and it cools; refuse and it costs you.')
       + sec('Contracts', 'Work away from the ludus for pay and favour: guard duty, caravans, hunts. A man sent out is gone until he comes home, and some come home changed.')
@@ -887,7 +887,7 @@ function viewContracts() {
         ${asked ? `<span class="gold"${tip('asked')}>${PATRONS[asked.patron].name} asks for you by name</span>` : ''}
         ${bountyLive() ? `<span class="gold"${tip(`The Magistrate pays ${G.bounty.pay} denarii for ${G.bounty.name}, last seen in ${G.bounty.region}, out through the east gate. It is marked on the map of the province, danger ${G.bounty.tier} of 5, and stands for ${G.bounty.until - G.day} more day${G.bounty.until - G.day === 1 ? '' : 's'}. Take the school there.`)}>bounty: <b class="num">${G.bounty.pay}</b> for ${G.bounty.name}</span>` : ''}
         <span${tip(`What the town thinks of your house's work away from the sand: ${Math.round(workRep())} of 100. Good service raises it; failures and men called home lower it. It adds ${Math.round((workPay(workRep()) - 1) * 100)}% to what every contract pays. At Reliable (35) the board carries one more offer, and at First choice (85) another.`)}>name for work <b class="${workRep() >= 35 ? 'gold' : ''}">${workWord(workRep())}</b>${workRep() >= 1 ? ` <small class="num">+${Math.round((workPay(workRep()) - 1) * 100)}% pay</small>` : ''}</span></div>
-        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`A few coins in the right taverns turn up one more piece of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}${facButton('stables')}</div>
+        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`A few coins in the right taverns turn up one more piece of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}</div>
       <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
@@ -1148,7 +1148,7 @@ function facTile(k) {
       ${l < 3 ? `<button class="mini" data-act="build" data-v="${k}" ${G.denarii < cost ? 'disabled' : ''}>Improve &mdash; ${cost}</button>` : '<span class="done">Fully built</span>'}</div>`;
 }
 // Buildings that stand somewhere else in town, and the post that goes with the forge.
-const ELSEWHERE_FACS = { shrine: 'Patrons', stables: 'Contracts' }, SMITH_POSTS = ['faber'];
+const ELSEWHERE_FACS = { shrine: 'Patrons', stables: 'Stables' }, SMITH_POSTS = ['faber'];
 function facButton(k) {
   const f = FACILITIES[k], l = G.fac[k] || 0, cost = FAC_COST[l], short = l < 3 && G.denarii < cost;
   return `<button class="mini facbtn" data-act="build" data-v="${k}" ${l >= 3 || short ? 'disabled' : ''}${tip(`${f.name}: ${f.desc}\nNow: ${f.effect(l)}.${l < 3 ? `\nNext, for ${cost} denarii: ${f.effect(l + 1)}.${short ? `\nYou are ${cost - G.denarii} denarii short.` : ''}` : '\nFully built.'}`)}>${f.name.split(' ')[0]} ${grade(l)}${l < 3 ? ` &mdash; ${cost}` : ''}</button>`;
@@ -1217,7 +1217,7 @@ function viewFacilities() {
         <span${tip('The hiring hall changes its faces every games day.')}>new faces ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span></div></div>
       <div class="pane" data-pane="staff"><div class="htiles">${staff}</div>
       <h2>Hiring hall <small>${hallMen.length} looking for a place${hallMen.length < G.hires.length ? ' &middot; an armourer is asking at the Blacksmith' : ''}</small></h2><div class="htiles">${hall}</div></div></div>
-    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen. The shrine is with the Patrons, the stables with the Contracts, and the armourer at the Blacksmith.')}>the rest stands where it is used</small></h2><div class="pane" data-pane="fac"><div class="htiles solo">${fac}</div>
+    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen. The shrine is with the Patrons, the stables outside the east gate, and the armourer at the Blacksmith.')}>the rest stands where it is used</small></h2><div class="pane" data-pane="fac"><div class="htiles solo">${fac}</div>
       <h2${tip('rations')}>Rations <small>${fed} at table &middot; morale ${avg}</small></h2><div class="rations">${rations}</div>
       ${ledger()}</div></div>
   </div>`;
@@ -2072,6 +2072,15 @@ function startWildFight() {
   fight.raf = requestAnimationFrame(fightLoop);
 }
 // The east gate of the village: the way out to the province.
+// The stables stand outside the east wall, on the map of the province: walking up to them is how they are improved.
+function stablesModal() {
+  const f = FACILITIES.stables, l = G.fac.stables || 0, cost = FAC_COST[l], short = l < 3 && G.denarii < cost;
+  const what = ['A paddock and a trough, and nothing in it. The school marches on its own feet.', 'A shed, a mule, and a boy who knows the roads.', 'Stalls for four, and a cart to carry what the men would otherwise carry.', 'A tiled range, a wagon and a team: the column travels like a legion\'s baggage.'][l];
+  if (modalQueue.length) closeModal();
+  showModal(`<h2>The stables <small>${grade(l)}</small></h2><p>${what}</p>
+    <p style="color:#5a4326">${f.effect(l)}.${l < 3 ? ` Improved, for <b class="gold num">${cost}</b> denarii: ${lower(f.effect(l + 1))}.` : ' There is nothing more to build here.'}</p>
+    <div class="row">${l < 3 ? `<button class="primary" data-act="stablebuild" ${short ? 'disabled' : ''}${short ? tip(`You are ${cost - G.denarii} denarii short.`) : ''}>Improve &mdash; ${cost}</button>` : ''}<button data-act="close">${l < 3 ? 'Not now' : 'Continue'}</button></div>`);
+}
 // Walking up to the fountain when somebody is waiting there: they say what they want.
 function villageTalk() { if (typeof fountainTalk === 'function' && fountainTalk()) { save(); showEvent(); } }
 function villageGate() {
@@ -2461,6 +2470,7 @@ const ACTIONS = {
     ui.sellArm = null; SFX.ui('coin'); ACTIONS.sell(v);
   },
   school() { ui.school = !ui.school; render(); },
+  stablebuild() { ACTIONS.build('stables'); SFX.ui('gate'); stablesModal(); },
   build(v) {
     const l = G.fac[v];
     if (l >= 3 || G.denarii < FAC_COST[l]) return;

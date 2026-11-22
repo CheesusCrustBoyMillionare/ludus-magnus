@@ -10,7 +10,7 @@ const PLACE_TIPS = {
   market: 'The slave market. The men on the block are the ones for sale today; the pen holds any the dealer is keeping for you, and a gold dais is a prize lot up for auction.',
   smith: 'The forge. What hangs on the wall is what the smith has to sell; the colours are the grades. Your armourer works at the bench, and a commission waits under its cloth.',
   arena: 'The arena from the street. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
-  contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. Your stables stand at the corner, and the packs by the road belong to men who are away.',
+  contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. A rail for the mules of the carriers stands at the corner, and the packs by the road belong to men who are away.',
   patrons: 'The temple. The three fires burn as high as each patron\'s favour. Your own shrine stands to the right of the steps.',
   rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner.',
   facilities: 'Your own house. The people in the court are the staff you have hired; those waiting by the wall are looking for a place. The granary and its garden stand at the corner.',
@@ -399,7 +399,7 @@ const PLACE_SCENES = {
     R(136, 160, 44, 10, '#b8ab94'); R(134, 158, 48, 3, '#d8cdb6'); R(139, 161, 38, 5, '#4f8fb8'); R(156, 146, 4, 14, '#c9c2ae'); R(153, 144, 10, 3, '#d8d2c0');
     for (let i = 0; i < 6; i++) { const q = (T * 1.4 + i / 6) % 1; R(157 + Math.round((i % 2 ? 1 : -1) * q * 9), 144 - Math.round(Math.sin(q * Math.PI) * 7), 1, 2, '#d6ecf8'); } for (let i = 0; i < 3; i++) R(142 + ((i * 13 + Math.floor(T * 6)) % 30), 163, 4, 1, '#d6ecf8');
     // your stables, at the corner of the square: a rail, then a roof, then a cart, then a proper yard
-    { const sl = G.fac.stables || 0;
+    { const sl = 0;      // (your own stables are outside the east gate now: this is only the forum's rail)
       if (!sl) { R(14, 150, 2, 14, '#5e4426'); R(58, 150, 2, 14, '#5e4426'); R(12, 152, 50, 2, '#7a5a34'); }
       else {
         R(8, 132, 66, 30, '#5a4a3e'); R(8, 132, 66, 2, '#6b5a4c'); for (let x = 8; x < 74; x += 22) R(x, 132, 3, 32, '#6b4f2c'); R(72, 132, 3, 32, '#6b4f2c');

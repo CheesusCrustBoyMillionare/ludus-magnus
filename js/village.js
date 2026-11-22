@@ -397,7 +397,7 @@ function villageLayer() {
         for (let q = 0; q < 4; q++) R(x0 - 1 + q * 2, sy - h2 - q, w2 + 2 - q * 4, 1, q === 0 ? '#d8d2c0' : '#efe9da'); R(x0 + (w2 >> 1) - 1, sy - h2 - 5, 2, 2, l === 3 ? '#e8b545' : '#d8d2c0');
         R(x0 + (w2 >> 1) - 1, sy - 5, 2, 5, '#d8d2c0'); R(x0 + (w2 >> 1) - 1, sy - 7, 2, 2, '#e2702a'); R(x0 - 1, sy - 1, w2 + 2, 1, '#b5ad98'); if (l === 3) { R(x0 - 3, sy - 3, 2, 3, '#5d7f3f'); R(x0 + w2 + 1, sy - 3, 2, 3, '#5d7f3f'); R(x0, sy - h2, w2, 1, '#e8b545'); } } } }
   // the stables across the street from the forum: a shed and a mule, then stalls and a cart, then a tiled range, a wagon and hay
-  { const l = F.stables | 0, sx = 402, sy = 185;
+  { const l = 0, sx = 402, sy = 185;      // the stables stand outside the east wall now, on the map of the province (province.js): nothing is drawn here
     if (l >= 1) { const w2 = 12 + l * 6; R(sx + 2, sy, w2 + 2, 2, 'rgba(0,0,0,.2)');
       R(sx, sy - 9, w2, 9, l >= 3 ? '#dccba0' : '#8a6a3a'); for (let q = 3; q < w2; q += 6) { R(sx + q, sy - 7, 4, 7, '#2a1c14'); R(sx + q, sy - 3, 4, 1, '#6b4f2c'); }
       if (l >= 3) tiles(sx - 1, sy - 14, w2 + 2, 5, '#a8482a'); else { R(sx - 1, sy - 12, w2 + 2, 3, '#9a7a42'); R(sx - 1, sy - 12, w2 + 2, 1, '#b8964e'); }
@@ -470,7 +470,7 @@ function drawVillage(cv, T) {
   { const F2 = G.fac || {}, lu = placeOf('ludus');
     if ((F2.shrine | 0) >= 1) { const fl2 = Math.sin(T * 11) > 0 ? 1 : 0; R(474, 61 - fl2 - ((F2.shrine | 0) > 1 ? 2 : -1), 2, 2 + fl2, '#f5c04a'); if (night > 0.3) sceneGlow(ctx, 475, 62, 10, '255,170,80', 0.3 * Math.min(1, (night - 0.3) * 2.5)); }
     if ((F2.baths | 0) >= 2 && night < 0.7) for (let q = 0; q < 2; q++) { const p2 = (T * 0.3 + q / 2) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(lu.x + lu.w - 26 + q * 4 + Math.sin(p2 * 5) * 2, lu.y + 20 - p2 * 9, 3, 2, '#eef6f8'); } ctx.globalAlpha = 1;
-    if ((F2.stables | 0) >= 1 && Math.sin(T * 0.8) > 0.7) R(411, 178, 1, 1, '#6f5a48'); }
+  }
   // what moves on the buildings: water, smoke, the forge fire, flags
   for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.6; R(296 + Math.cos(a) * 5, 118 + Math.sin(a) * 3, 2, 1, '#d6ecf8'); }
   R(295, 109 - Math.abs(Math.sin(T * 3)) * 2, 2, 3, '#bfe0f4');
