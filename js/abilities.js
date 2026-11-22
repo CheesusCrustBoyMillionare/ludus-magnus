@@ -155,6 +155,46 @@ function toggleAbility(g, id) {
   g.abil = cur;
   return true;
 }
+// ---------- mastery, and the one ability a man is known for ----------
+// An ability grows with use. Every time he uses it in a fight, and now and then when he spars, it counts; at 3, 8 and
+// 15 uses it is Practised, Honed, Mastered, and each of those makes it 7% stronger: more damage, longer stuns, nets,
+// guards and furies, more health back.
+const MAST_AT = [3, 8, 15], MAST_NAMES = ['', 'Practised', 'Honed', 'Mastered'], MAST_STEP = 0.07;
+const masteryUses = (g, id) => (g && g.mast && g.mast[id]) || 0;
+const masteryRank = (g, id) => { const u = masteryUses(g, id); return u >= MAST_AT[2] ? 3 : u >= MAST_AT[1] ? 2 : u >= MAST_AT[0] ? 1 : 0; };
+// What the ability does in this man's hands: its plain effect, scaled by how well he has it.
+function abilityFx(g, ab) {
+  const r = g && !g.beast && ab.cls ? masteryRank(g, ab.id) : 0;
+  if (!r) return ab.fx;
+  const k = 1 + MAST_STEP * r, x = Object.assign({}, ab.fx), r1 = v => Math.round(v * 10) / 10;
+  if (x.mult) x.mult = x.mult * k;
+  if (x.stun) x.stun = r1(x.stun * k);
+  if (x.net) x.net = r1(x.net * k);
+  if (x.heal) x.heal = x.heal * k;
+  if (x.expose) x.expose = r1(x.expose * k);
+  if (x.weak) x.weak = { amt: x.weak.amt, t: r1(x.weak.t * k) };
+  if (x.buff) x.buff = Object.assign({}, x.buff, { t: r1(x.buff.t * k) });
+  return x;
+}
+// One more use of it. Returns the new rank if that use carried him up to one, and 0 otherwise.
+function practise(g, id) {
+  const a = abilityById(id);
+  if (!g || g.beast || !a || !a.cls) return 0;
+  const before = masteryRank(g, id);
+  g.mast = g.mast || {}; g.mast[id] = (g.mast[id] || 0) + 1;
+  const after = masteryRank(g, id);
+  return after > before ? after : 0;
+}
+// His signature: one of the four he carries, chosen for him. After he uses it his charge starts again at 30, not nothing.
+const SIG_CHARGE = 30;
+const signatureOf = g => { const a = g && !g.beast && g.sig ? abilityById(g.sig) : null; return a && abilitiesOf(g).includes(a) ? a : null; };
+function setSignature(g, id) {
+  const a = abilityById(id);
+  if (!g || !a || !a.cls || !abilitiesOf(g).includes(a)) return false;
+  g.sig = g.sig === id ? null : id;
+  return true;
+}
+
 // The next thing each skill will teach him, for the dossier.
 function abilityNext(g, sk) { return g.beast || !ABILITIES[g.cls] ? null : ABILITIES[g.cls][sk].find(a => g.stats[sk] < a.at) || null; }
 
@@ -225,10 +265,12 @@ function castAbility(B, f, ab) {
   snd(B, 'cutin', 1, f, f.g.beast ? 'beast' : '');
 }
 function castNow(B, f, ab) {
-  const x = ab.fx;
+  const x = abilityFx(f.g, ab);
   let t = f.target && !out(f.target) ? f.target : null;
   if (!t) for (const o of B.fighters) if (o.team !== f.team && !out(o) && (!t || Math.hypot(o.x - f.x, o.y - f.y) < Math.hypot(t.x - f.x, t.y - f.y))) t = o;
-  f.charge = 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id; f.combo = null;
+  f.charge = signatureOf(f.g) === ab ? SIG_CHARGE : 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id; f.combo = null;
+  { const up = practise(f.g, ab.id);          // it is his a little more each time; now and then it shows
+    if (up && f.team === 0) { fxText(B, f, MAST_NAMES[up].toUpperCase() + '!', '#ffd24a', true); if (typeof log === 'function' && typeof G !== 'undefined' && G && G.roster && G.roster.includes(f.g)) log(`${f.g.name} has ${ab.name} ${MAST_NAMES[up].toLowerCase()}: it is ${Math.round(MAST_STEP * up * 100)}% the stronger for it.`, 'good'); } }
   if (f.used) f.used[ab.name] = (f.used[ab.name] || 0) + 1;
   // he calls on it: a ring of light at his feet, its name on a ribbon over his head, and the fight holds its breath
   vfx(B, { k: 'ring', under: true, x: f.x, y: f.y, r: 15, col: '#ffd24a', dur: 0.45, fill: true });
@@ -300,7 +342,7 @@ function aiPickAbility(B, f) {
   let best = f.abl[0], bs = -1e9;
   for (const a of f.abl) {
     const x = a.fx;
-    let s = (a.tier || 0) + Math.random() * 1.3;
+    let s = (a.tier || 0) + Math.random() * 1.3 + (f.g.sig === a.id ? 0.6 : 0) + (a.cls ? masteryRank(f.g, a.id) * 0.2 : 0);
     if (x.heal) s += hurt < 0.45 ? 4 : hurt < 0.7 ? 0 : -6;
     if (x.buff && !x.mult) { s += f.buff ? -6 : (x.buff.dr > 0 || x.buff.block || x.buff.dodge) && hurt < 0.6 ? 1.5 : 0; }
     if (x.aoe && t) { const n = B.fighters.filter(o => o.team !== f.team && !out(o) && Math.hypot(o.x - t.x, o.y - t.y) <= x.aoe).length; s += n >= 3 ? 3 : n === 2 ? 1.5 : -1.5; }
@@ -314,8 +356,8 @@ function aiPickAbility(B, f) {
   return best;
 }
 // What an ability does, in a few short words each, for the player choosing between them.
-function abilityTags(a) {
-  const x = a.fx, t = [];
+function abilityTags(a, g) {
+  const x = g ? abilityFx(g, a) : a.fx, t = [];
   if (x.mult) t.push(`${Math.round(x.mult * 100)}%${(x.n || 1) > 1 ? ' x' + x.n : ''} damage`);
   if (x.aoe) t.push('All foes near');
   if (x.lunge) t.push('Rush');
@@ -341,7 +383,7 @@ function abilityTags(a) {
 // and roughly what it would do to the man in front of him. The same things a man weighs when he chooses for himself
 // (aiPickAbility), without the dice.
 function abilityRead(B, f, a) {
-  const t = f.target && !out(f.target) ? f.target : null, x = a.fx, hurt = f.hp / f.maxHp, notes = [];
+  const t = f.target && !out(f.target) ? f.target : null, x = abilityFx(f.g, a), hurt = f.hp / f.maxHp, notes = [];
   let s = a.tier || 0;
   const say = (v, text, good) => { s += v; notes.push([text, good]); };
   if (x.heal) { if (hurt < 0.45) say(4, 'He is badly hurt', 1); else if (hurt >= 0.7) say(-6, 'He is barely hurt', 0); }

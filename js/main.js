@@ -671,14 +671,16 @@ function faceTip(g) {
 const DTABS = [['stats', 'Stats'], ['abil', 'Abilities'], ['gear', 'Gear'], ['story', 'Story'], ['orders', 'Orders']];
 // Everything his fighting style can learn, skill by skill: what he carries, what he knows, what is still locked.
 function abilityBlock(g) {
-  const known = abilitiesKnown(g), carried = abilitiesOf(g), choose = known.length > 4;
+  const known = abilitiesKnown(g), carried = abilitiesOf(g), choose = known.length > 4, sigA = signatureOf(g);
   const pace = Math.round((g.traits.includes('ironlungs') ? 1.25 : 1) * (1 - g.fatigue / 250) * 100);
   const rows = STATS.map(k => `<div class="abgroup"><div class="abhead">${ic(k)} ${STAT_NAMES[k]} <b class="num">${g.stats[k]}</b>${(a => a ? `<small>${a.at - g.stats[k]} to go</small>` : '<small>all learned</small>')(abilityNext(g, k))}</div>${ABILITIES[g.cls][k].map(a => {
-    const has = known.includes(a), on = carried.includes(a);
-    return `<div class="ab ${has ? (on ? 'on' : 'known') : 'locked'}" ${has && choose ? `data-act="abil" data-v="${g.id}" data-w="${a.id}"` : ''}>
-      <b>${a.name}</b> <small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small><div class="dim"${tip(a.desc)}>${a.desc}</div></div>`;
+    const has = known.includes(a), on = carried.includes(a), mr = masteryRank(g, a.id), uses = masteryUses(g, a.id), sig = sigA === a;
+    const mast = has ? `<span class="mast r${mr}"${tip(`${mr ? MAST_NAMES[mr] + '. ' : ''}Used ${uses} time${uses === 1 ? '' : 's'}, in fights and at sparring.${mr < 3 ? ` ${MAST_NAMES[mr + 1]} at ${MAST_AT[mr]}.` : ''}\nPractised at ${MAST_AT[0]}, Honed at ${MAST_AT[1]}, Mastered at ${MAST_AT[2]}: each makes it ${Math.round(MAST_STEP * 100)}% stronger, in damage or in how long it lasts.${mr ? `\nNow: ${abilityTags(a, g).join(', ')}.` : ''}`)}>${'●'.repeat(mr)}${'○'.repeat(3 - mr)}</span>` : '';
+    const star = has && on ? `<span class="sig ${sig ? 'on' : ''}" data-act="absig" data-v="${g.id}" data-w="${a.id}"${tip(sig ? 'His signature. After he uses it, his charge starts again at 30% instead of nothing. Click to take the mark off.' : 'Make this his signature: after he uses it, his charge starts again at 30% instead of nothing. One to a man.')}>&#9733;</span>` : '';
+    return `<div class="ab ${has ? (on ? 'on' : 'known') : 'locked'} ${sig ? 'sigd' : ''}" ${has && choose ? `data-act="abil" data-v="${g.id}" data-w="${a.id}"` : ''}>
+      <b>${a.name}</b> ${mast}<small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small>${star}<div class="dim"${tip(a.desc)}>${a.desc}</div></div>`;
   }).join('')}</div>`).join('');
-  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''}` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'} <span${tip('How fast his gold bar fills in a fight. Fatigue slows it; rest restores it.')} class="${pace < 85 ? 'bad' : 'dim'}">His charge fills at ${pace}% of full pace${pace < 85 ? ': he is tired' : ''}.</span></div><div class="abcols">${rows}</div>`;
+  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''} ${sigA ? `His signature is <b class="gold">${sigA.name}</b>.` : 'Star one he carries to make it his signature.'} Abilities grow stronger with use.` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'} <span${tip('How fast his gold bar fills in a fight. Fatigue slows it; rest restores it.')} class="${pace < 85 ? 'bad' : 'dim'}">His charge fills at ${pace}% of full pace${pace < 85 ? ': he is tired' : ''}.</span></div><div class="abcols">${rows}</div>`;
 }
 
 function gladDetail(g) {
@@ -2103,8 +2105,9 @@ function paintOrders() {
       const r = reads[i], n = pick.used[a.name] || 0;
       return `<button data-act="abpick" data-v="${a.id}" class="${i === bestI && pick.abl.length > 1 ? 'sug' : ''}" style="--sk:${a.skill ? STYLE_COL[a.skill] : '#e0aa3e'}">
         <span class="key">${i + 1}</span>${i === bestI && pick.abl.length > 1 ? '<span class="rib">Suggested</span>' : ''}
-        <b>${a.skill ? ic(a.skill) : ''}${a.name}</b>
-        <span class="tags">${abilityTags(a).map(t => `<i>${t}</i>`).join('')}</span>
+        <b>${a.skill ? ic(a.skill) : ''}${a.name}${pick.g.sig === a.id ? ' <span class="gold" title="His signature">&#9733;</span>' : ''}</b>
+        ${a.cls && masteryRank(pick.g, a.id) ? `<span class="pmast">${MAST_NAMES[masteryRank(pick.g, a.id)]} ${'●'.repeat(masteryRank(pick.g, a.id))}</span>` : ''}
+        <span class="tags">${abilityTags(a, pick.g).map(t => `<i>${t}</i>`).join('')}</span>
         <small>${a.desc}</small>
         ${r.notes.map(([t, good]) => `<span class="note ${good ? 'good' : 'bad'}">${good ? '&#9650;' : '&#9660;'} ${t}</span>`).join('')}
         <span class="foot"><span>${r.dmg ? `about <b>${r.dmg}</b> damage` : '&nbsp;'}</span>${n ? `<em>used ${n === 1 ? 'once' : n + ' times'}</em>` : ''}</span></button>`;
@@ -2615,6 +2618,7 @@ const ACTIONS = {
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
   cutins() { ui.noCut = !ui.noCut; try { localStorage.setItem('ludus-magnus-cutins', ui.noCut ? '0' : '1'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.cutins = !ui.noCut; fight.ordState = ''; paintOrders(); } },
   abil(v, w) { const g = byId(v); if (g && toggleAbility(g, w)) { save(); render(); } },
+  absig(v, w) { const g = byId(v); if (g && setSignature(g, w)) { SFX.ui('tick'); save(); render(); } },
   skip() {
     if (!fight || fight.finished) return;
     if (!fight.B.over && fight.armed !== 'skip') { fight.armed = 'skip'; fight.armT = performance.now(); paintOrders(); return; }

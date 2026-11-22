@@ -997,6 +997,42 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
 }));
 
+test('abilities: mastery grows with use, and a signature comes round sooner', () => game()(function () {
+  newGame(); const g = G.roster[0]; g.stats = { str: 16, agi: 16, skl: 16 }; g.hp = maxHp(g);
+  const known = abilitiesKnown(g), ab = ABILITIES[g.cls].str[0], buffAb = Object.values(ABILITIES).flatMap(c => STATS.flatMap(k => c[k])).find(a => a.fx.buff && !a.fx.mult);
+  assert(known.length === 9 && masteryRank(g, ab.id) === 0 && abilityFx(g, ab) === ab.fx, 'a new ability is as written');
+  // use by use: Practised at 3, Honed at 8, Mastered at 15
+  let ups = [];
+  for (let i = 1; i <= 16; i++) { const up = practise(g, ab.id); if (up) ups.push([i, up]); }
+  assert(JSON.stringify(ups) === JSON.stringify([[3, 1], [8, 2], [15, 3]]) && masteryUses(g, ab.id) === 16 && masteryRank(g, ab.id) === 3, 'ranks come at 3, 8 and 15 uses');
+  const x = abilityFx(g, ab);
+  assert(x !== ab.fx && Math.abs(x.mult - ab.fx.mult * 1.21) < 1e-9 && ab.fx.mult === ABILITIES[g.cls].str[0].fx.mult, 'mastered, it does a fifth more, and the book is not rewritten');
+  if (ab.fx.stun) assert(x.stun > ab.fx.stun, 'and stuns longer');
+  // a guard or a fury lasts longer
+  const h = makeGladiator(30, { cls: buffAb.cls }); h.mast = { [buffAb.id]: 8 };
+  assert(abilityFx(h, buffAb).buff.t > buffAb.fx.buff.t && abilityFx(h, buffAb).buff.t === Math.round(buffAb.fx.buff.t * 1.14 * 10) / 10, 'a honed guard lasts 14% longer');
+  assert(abilityTags(ab, g)[0] !== abilityTags(ab)[0], 'the tags show his own figures');
+  assert(practise(g, 'blow') === 0 && practise(g, 'nonsense') === 0 && abilityFx(g, BLOW) === BLOW.fx, 'a plain heavy blow is never mastered');
+  const beast = makeBeast('lion', 20); assert(abilityFx(beast, BEAST_MOVES.lion) === BEAST_MOVES.lion.fx, 'nor a beast\'s move');
+  // the signature: one he carries, and only one
+  const carried = abilitiesOf(g), spare = known.find(a => !carried.includes(a));
+  assert(!signatureOf(g) && !setSignature(g, spare.id) && setSignature(g, carried[0].id) && signatureOf(g) === carried[0], 'only an ability he carries can be his signature');
+  assert(setSignature(g, carried[1].id) && signatureOf(g) === carried[1], 'choosing another moves the mark');
+  assert(setSignature(g, carried[1].id) && !signatureOf(g), 'choosing it again takes the mark off');
+  // in a fight: a cast counts as a use, and the signature leaves him part charged
+  const foe = makeGladiator(20), B = createBattle([g], [foe], { noIntro: true }), f = B.fighters.find(q => q.team === 0);
+  setSignature(g, carried[0].id); const u0 = masteryUses(g, carried[0].id), u1 = masteryUses(g, carried[1].id);
+  f.charge = 100; castNow(B, f, carried[0]);
+  assert(f.charge === SIG_CHARGE && masteryUses(g, carried[0].id) === u0 + 1, 'his signature leaves him at 30, and is one use the better');
+  f.charge = 100; castNow(B, f, carried[1]);
+  assert(f.charge === 0 && masteryUses(g, carried[1].id) === u1 + 1, 'any other leaves him at nothing');
+  // sparring works at them too
+  G.staff.doctore = { name: 'd', skill: 1, wage: 0 }; g.activity = 'spar'; g.fatigue = 0; const total = () => Object.values(g.mast).reduce((a, b) => a + b, 0), t0 = total();
+  for (let i = 0; i < 40; i++) { g.fatigue = 0; g.injury = 0; endDay(); if (G.pendingEvent) G.pendingEvent = null; }
+  assert(total() > t0 && total() < t0 + 25, 'forty days of sparring is a handful of uses, got ' + (total() - t0));
+  assert(!badNumber(G), 'abilities left a bad number');
+}));
+
 test('training: teachers, sparring partners, the doctore\'s choice, and great days', () => game()(function () {
   const fresh = () => { newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(25)); G.day = 2; G.staff.doctore = { name: 'd', skill: 1, wage: 0 }; G.roster.forEach(g => { g.fatigue = 0; g.hp = maxHp(g); g.morale = 40; g.injury = 0; g.rank = 0; g.stats = { str: 6, agi: 6, skl: 6 }; g.prog = { str: 0, agi: 0, skl: 0 }; g.pot = { str: 1, agi: 1, skl: 1 }; g.traits = []; }); G.bonds = []; return G.roster; };
   // a teacher: only a veteran, only where he is clearly better, and only the best counts

@@ -1696,6 +1696,10 @@ function endDay() {
       for (const st of (spar ? STATS : [g.activity])) {
         if (addProg(g, st, m * g.pot[st] * (spar ? 0.32 : 1) * (1 + teachBonus(g, st)))) log(`${g.name}'s ${STAT_NAMES[st].toLowerCase()} rises to ${g.stats[st]}.`, 'good');
       }
+      if (spar && chance(0.25)) {              // sparring is where a man works at what he knows
+        const ab = pick(abilitiesOf(g).filter(a => a.cls));
+        if (ab) { const up = practise(g, ab.id); if (up) log(`${g.name}, sparring, has ${ab.name} ${MAST_NAMES[up].toLowerCase()}.`, 'good'); }
+      }
       g.fatigue += trainTire(g, spar);
       g.hp += mh * 0.06;
       if (g.fatigue > 75 && chance(0.12)) {
