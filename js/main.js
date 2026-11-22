@@ -532,6 +532,7 @@ function paintModal() {
   $('#modalBox').classList.toggle('perkwide', modalQueue[0].startsWith('<div class="perkbox">'));
   $('#modalBox').classList.toggle('savebox', modalQueue[0].startsWith('<div class="saves">'));
   $('#modalBox').classList.toggle('menubox', modalQueue[0].startsWith('<div class="menu">'));
+  $('#modalBox').classList.toggle('questbox', modalQueue[0].startsWith('<div class="quests">'));
   paintHelpMarks();
   if (typeof paintResultFaces === 'function') paintResultFaces();
   m.hidden = false;
@@ -2752,6 +2753,8 @@ const ACTIONS = {
   pause() { if (fight && !fight.finished && !fight.B.over) { fight.paused = !fight.paused; paintSpeed(); } },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
+  quests() { if (modalQueue.length) { if (modalQueue[0].startsWith('<div class="quests">')) closeModal(); return; } SFX.ui('scroll'); showModal(questsModal()); },
+  questgo(v) { closeModal(); ACTIONS.wildgo(v); },
   wildgo(v) {
     const F = G.field; if (!F) return;
     const st = v === 'home' ? { x: WILD.TOWN.x + 12, y: WILD.TOWN.y } : siteById(v); if (!st) return;      // home: right up to the gate, so that arriving takes you in
@@ -2976,7 +2979,8 @@ document.addEventListener('keydown', e => {
   const press = el => { if (el && !el.disabled) { e.preventDefault(); el.click(); } };
   if (!$('#modal').hidden) {
     const btns = [...document.querySelectorAll('#modalBox button:not(:disabled)')], opts = [...document.querySelectorAll('#modalBox [data-act=evopt]')];
-    if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON') press(btns[0]);
+    if (k === 'q' && modalQueue[0] && modalQueue[0].startsWith('<div class="quests">')) { e.preventDefault(); closeModal(); }
+    else if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON') press(btns[0]);
     else if (k === 'Escape' && $('#modalBox [data-act=close]')) press($('#modalBox [data-act=close]'));
     else if (/^[1-9]$/.test(k) && opts[+k - 1]) press(opts[+k - 1]);
     else if (/^[1-3]$/.test(k) && document.querySelectorAll('#modalBox .perkcard')[+k - 1]) press(document.querySelectorAll('#modalBox .perkcard')[+k - 1]);
@@ -2984,7 +2988,7 @@ document.addEventListener('keydown', e => {
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
   if (k === 'h' || k === 'F1') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.help(); return; }
-  if (G.field) { if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'r') { e.preventDefault(); SFX.ui('tick'); ACTIONS.wildgo('home'); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
+  if (G.field) { if (k === 'q') { e.preventDefault(); ACTIONS.quests(); } else if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'r') { e.preventDefault(); SFX.ui('tick'); ACTIONS.wildgo('home'); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
   if (k === 'g') return press($('[data-act=skipdays]'));
   if (k === 'ArrowUp' || k === 'ArrowDown') {

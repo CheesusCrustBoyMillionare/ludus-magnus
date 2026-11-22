@@ -3592,6 +3592,40 @@ function provFrame(ts) {
   prov.raf = requestAnimationFrame(provFrame);
 }
 
+// ---------- the quests window: everything the school has been asked to do, in one place ----------
+// What was taken on at the fountain, what the Magistrate has posted, what was promised to a man of yours, and the
+// trail of the eagle: each with who asked, where it is, how far, how dangerous, how long is left and what it pays,
+// and a button to set out for it.
+function questsModal() {
+  const F = G.field, M = wildMap(), parts = [], dn = n => `${n} day${n === 1 ? '' : 's'}`;
+  const go = (id, label) => F && siteById(id) ? `<button class="mini primary" data-act="questgo" data-v="${id}">${label || 'Set out'}</button>` : '';
+  const way = (x, y) => F ? ` &middot; ${wayTo(x, y)}` : '';
+  const sk = t => t ? `<span class="skulls">${'<i></i>'.repeat(t)}</span>` : '<span class="dim">no danger known</span>';
+  const card = (tag, cls, title, meta, body, btn) => `<div class="qcard ${cls}"><div class="qhead"><span class="ptag ${cls}">${tag}</span><b>${title}</b>${btn || ''}</div><div class="qmeta">${meta}</div>${body ? `<div class="qbody">${body}</div>` : ''}</div>`;
+  // quests from the people of the town
+  for (const q of errands()) {
+    const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1, mark = second ? q.mark2 : q.mark, x = second ? q.x2 : q.x, y = second ? q.y2 : q.y, left = Math.max(0, q.until - G.day), hint = goalHint(T);
+    const what = T.type === 'rescue' ? (second ? 'The trail leads here: there will be a fight.' : 'Ask here which way they were taken.') : T.type === 'fight' ? 'There will be a fight.' : T.type === 'fetch' ? `Search for ${T.thing || 'what was lost'}.` : T.cost ? `Carry the offering there, and add ${T.cost} denarii of your own.` : T.day ? 'It will take a day there.' : 'Carry it there.';
+    parts.push(card('Quest', 'quest', T.title(mark), `for ${q.giver.name} &middot; ${mark}, ${wildRegion(x, y)}${way(x, y)} &middot; ${sk(q.tier)} &middot; <span class="${left <= 3 ? 'bad' : ''}">${dn(left)} left</span> &middot; <b class="gold num">${q.pay}</b> denarii${q.relic ? ` &middot; <span class="gold">${RELICS[q.relic].name}</span>` : ''}`,
+      `${T.ask(q)}<div class="qnote">${what}${q.boss && T.lead ? ' ' + T.lead(q) : ''}${hint ? ` <span class="gold">It is ${hint}.</span>` : ''} The pay is at the fountain, when you are home.</div>`, go('e' + q.id)));
+  }
+  // done, and waiting to be paid; and people waiting at the fountain to ask
+  for (const q of owed()) parts.push(card('Done', 'done', ERRANDS[q.tpl].title(q.mark), `${q.giver.name} is waiting at the fountain in the square with <b class="gold num">${q.owedPay}</b> denarii${ERRANDS[q.tpl].next ? ', and has more to say' : ''}`, '', F ? '<button class="mini" data-act="questgo" data-v="home">Go home</button>' : ''));
+  for (const q of asksNow()) parts.push(card('Asking', 'asking', q.giver.name, `${GIVERS[q.giver.kind].what}, waiting by the fountain in the square for ${dn(Math.max(1, q.leaves - G.day + 1))} more`, '<span class="dim">Walk up to the fountain in the town to hear what is wanted.</span>', ''));
+  // the Magistrate's bounty
+  if (bountyLive()) { const b = G.bounty; parts.push(card('Bounty', 'bounty', b.name, `the Magistrate &middot; ${b.region}${way(b.x, b.y)} &middot; ${sk(b.tier)} &middot; <span class="${b.until - G.day <= 3 ? 'bad' : ''}">${dn(b.until - G.day)} left</span> &middot; <b class="gold num">${b.pay}</b> denarii`, 'A price is on their heads. Take the school there and bring them in; the Magistrate pays when it is done.', go('bounty'))); }
+  // journeys promised to your own men
+  for (const g of G.roster.filter(x => x.quest && QUESTS[x.quest.id])) { const Q = QUESTS[g.quest.id], id = questMarkId(g), st = siteById(id), waited = G.day - g.quest.since;
+    parts.push(card('Journey', 'journey', `${g.name}: ${lower(Q.name)}`, `${questWhere(g)}${st ? way(st.x, st.y) : ''}${st ? ' &middot; ' + sk(siteDanger(st)) : ''} &middot; <span class="${waited >= 10 ? 'bad' : ''}">promised ${dn(waited)} ago</span>${g.away ? ' &middot; <span class="bad">he is away on contract</span>' : ''}`,
+      `You gave him your word. Take the whole school there, and him with it: see it through and he comes back changed, and will never desert you.${g.quest.heard ? ' He has told you what it is, by the fire: you know what it will take.' : ''}${waited >= 10 ? ' <span class="bad">He is losing heart with the waiting.</span>' : ''}`, st && !g.away ? go(id) : '')); }
+  // the eagle
+  { const lead = eagleLead(); if (lead) { const st = wildSites().find(s => ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) && siteLive(s) && M.marks[s.id]); parts.push(card('Eagle', 'eagle', 'The eagle of the Seventeenth', st ? `${st.name}, ${wildRegion(st.x, st.y)}${way(st.x, st.y)} &middot; ${sk(siteDanger(st))}` : 'the trail of a lost legion', lead, st ? go(st.id) : '')); } }
+  const n = errands().length;
+  return `<div class="quests"><h2>Quests <small>${n} of 3 from the town in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small></h2>
+    ${parts.length ? `<div class="qlist">${parts.join('')}</div>` : '<p class="dim">Nothing is asked of the school just now. People with work wait by the fountain in the town square; the Magistrate posts a bounty at the games; and a man of yours who has proved himself may ask something of you in his own time.</p>'}
+    <div class="row"><button class="primary" data-act="close">Close <span class="key">Q</span></button></div></div>`;
+}
+
 // ---------- the camp: who is with you, and what can be done without going home ----------
 function campRow(g) {
   const state = g.injury > 0 ? `<span class="chip red">Wounded ${g.injury}d</span>` : g.fatigue > 75 ? '<span class="chip red">Exhausted</span>' : g.perkPending > 0 ? '<span class="chip gold">Perk</span>' : '';
@@ -3612,7 +3646,7 @@ function renderWilds() {
   const unseen = men.filter(g => g.quest && QUESTS[g.quest.id] && !wildSites().some(st => (st.journey || QUEST_SITE[st.kind]) && questAt(st) === g && siteKnown(st)));      // a journey whose place is not yet on the list below
   const journeys = unseen.map(g => `<div><b>${g.name}</b>: ${questWhere(g)}.</div>`).join('');
   const lead = eagleLead();
-  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out. Key: Esc')}>Menu</button></span></div>
+  const head = `<div class="camphead"><div class="title"><span>THE PROVINCE</span><span class="hbtns"><button class="mini ${errands().length || owed().length || bountyLive() || G.roster.some(g => g.quest) ? 'primary' : ''}" data-act="quests"${tip('Everything the school has been asked to do: quests from the town, the bounty, journeys promised to your men, and the eagle. Key: Q')}>Quests</button><button class="mini" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="mini" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out. Key: Esc')}>Menu</button></span></div>
       <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day &middot; ${F.days} out</span></div>
       <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>${stipend() - upkeep() >= 0 ? '+' : ''}${stipend() - upkeep()} a day</span></div>
       <div class="stat games"${tip('awaygames')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>${dg === 0 ? 'Games, without you' : 'Games in town'}</span></div></div>`;
