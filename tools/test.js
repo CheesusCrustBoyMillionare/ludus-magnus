@@ -1426,7 +1426,29 @@ test('quests: people at the fountain, landmarks, unique pieces, deadlines, and n
     }
     n++;
   }
-  assert(n >= 26 && Object.keys(ERRANDS).filter(k => ERRANDS[k].relic).length === 12 && Object.keys(ERRANDS).filter(k => ERRANDS[k].chain).length === 5, 'ten kinds of work, five that follow on, and twelve unique pieces: ' + n);
+  assert(n >= 26 && Object.keys(ERRANDS).filter(k => ERRANDS[k].relic).length === 12 && Object.keys(ERRANDS).filter(k => ERRANDS[k].chain).length === 5, 'fourteen kinds of work, five that follow on, and twelve unique pieces: ' + n);
+  assert(n === 30 && Object.keys(ERRANDS).filter(k => ERRANDS[k].type === 'rescue').length === 2 && GIVERS.physician, 'four new kinds of work, one of them a second trail to follow: ' + n);
+  // with the work done there is often a choice of the lanista's own, and it changes what is waiting at the fountain
+  { const twists = Object.keys(ERRANDS).filter(k => ERRANDS[k].twist);
+    assert(twists.length === 6 && twists.every(k => EVENTS['wAfter_' + k] && EVENTS['wAfter_' + k].wild && EVENTS['wAfter_' + k].opts.length >= 3), 'six kinds of quest end in a choice: ' + twists);
+    for (const k of twists) for (let i = 0; i < ERRANDS[k].twist.opts.length; i++) {
+      newGame(); G.tally.wins = 1; G.fac.barracks = 2; assert(wildEnter(), 'out');
+      const q = errandNew(k); errands().push(q); let raised = 0;
+      for (let t = 0; t < 60 && !raised; t++) { G.pendingEvent = null; G.eventQueue = []; G.owed = []; if (!errands().includes(q)) errands().push(q); errandDone(q, []); raised = G.pendingEvent && G.pendingEvent.id === 'wAfter_' + k ? 1 : 0; }
+      assert(raised && G.pendingEvent.c.o === q.id && owed().includes(q), k + ': the choice is raised out there, about the quest just done');
+      const text = EVENTS['wAfter_' + k].text(G.pendingEvent.c), pay = q.owedPay, fame = q.owedFame, men = G.roster.length;
+      assert(text.length > 60 && !/undefined|NaN/.test(text), k + ' says what was found');
+      const out = answerEvent(i);
+      assert(typeof out === 'string' && out.length > 20 && !/undefined|NaN/.test(out) && !badNumber(G), k + ' choice ' + i + ' gave: ' + out);
+      if (k === 'champion' && i === 0) assert(G.roster.length === men + 1 && G.roster[men].name === q.boss && q.owedPay === round5(pay * 0.5), 'the beaten champion swears, and the noble pays half');
+      if (k === 'ledger' && i === 2) assert(!owed().includes(q), 'the box given to the Guild: nobody waits at the fountain');
+      if (k === 'ledger' && i === 1) assert(q.owedPay === round5(pay * 1.7), 'silence has its price');
+      if (k === 'rescue' && i === 1) assert(q.owedFame === fame + 3, 'what the captives did is told');
+    }
+    // a man who has sworn to the house is not met again as somebody else's champion
+    newGame(); G.roster[0].name = QUEST_NAMES.champion[0];
+    for (let i = 0; i < 60; i++) assert(errandNew('champion').boss !== QUEST_NAMES.champion[0], 'a sworn man was named as an enemy'); }
+  assert(goalHint(ERRANDS.wolves).length > 10 && goalHint(ERRANDS.bandits).length > 5 && goalHint(ERRANDS.heirloom) === '', 'the quest log says how it is best done');
   // what follows on is never offered cold
   newGame(); G.tally.wins = 1; G.fame = 5000;
   for (let i = 0; i < 400; i++) { const q = errandNew(); assert(q && !ERRANDS[q.tpl].chain, 'a follow-up was offered to a stranger: ' + (q && q.tpl)); }
