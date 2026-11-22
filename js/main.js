@@ -43,7 +43,7 @@ const TIPS = {
   armoury: 'Pieces you own that nobody is wearing. Gear returns here when a fighter dies, is sold or is freed.',
   smithlevel: 'A better smith offers more pieces each games day, and rarer ones.',
   orders: 'Standing orders he follows in every bout.',
-  sell: 'Sells him for half his market value. Proven fighters are worth far more than raw recruits.',
+  sell: 'Sells him to the dealer for half his market value, or six parts in ten once the dealer counts you an old friend. Proven fighters are worth far more than raw recruits.',
   free: 'A veteran given his freedom leaves for good. The city talks of it, and every man in the yard trains harder for it.',
   injured: 'He can neither train nor fight until healed. A medicus and a better infirmary shorten it.',
   exhausted: 'Fatigue above three quarters. Rest him.',
@@ -761,7 +761,7 @@ function gladDetail(g) {
       ${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
       <div class="partings">
         <div><b>Sell him</b><small>He is worth about ${value(g)} denarii; the dealer pays half. His kit comes back to your racks.</small>
-          <button class="${ui.sellArm === g.id ? 'primary' : ''}" data-act="msell" data-v="${g.id}"${tip('sell')}>${ui.sellArm === g.id ? `Sure? Sell ${g.name}` : `Sell for ${Math.round(value(g) / 2)}`}</button></div>
+          <button class="${ui.sellArm === g.id ? 'primary' : ''}" data-act="msell" data-v="${g.id}"${tip('sell')}>${ui.sellArm === g.id ? `Sure? Sell ${g.name}` : `Sell for ${sellPrice(g)}`}</button></div>
         <div><b>Grant the wooden sword</b><small>${g.wins >= 8 ? `He walks free for good. The city talks of it: fame +${40 + g.wins * 5}, and every man in the yard takes heart.` : `Freedom may be granted after 8 victories. He has ${g.wins}.`}</small>
           ${g.wins >= 8 ? `<button data-act="free" data-v="${g.id}"${tip('free')}>Free ${g.name}</button>` : bar('prog', g.wins, 8)}</div>
       </div>`}`,
@@ -1132,12 +1132,12 @@ function viewMarket() {
   const orders = `<div class="orderrow"><span class="lbl"${tip(`Pay the dealer ${orderCost()} denarii and the first man at the next market will be of the kind you name, and a little better than most. The money is spent whether or not you buy him.`)}>Send for a</span>${G.marketOrder ? `<b class="gold">${CLASSES[G.marketOrder].name}</b> <small class="dim">at the next market</small>` : Object.keys(CLASSES).map(k => `<button class="mini" data-act="morder" data-v="${k}" ${G.denarii < orderCost() ? 'disabled' : ''}>${CLASSES[k].name}</button>`).join('') + `<small class="dim num">${orderCost()}</small>`}</div>`;
   const many = G.roster.length > 6;            // a full barracks is listed three abreast, by name, with the rest on the tip
   const mine = G.roster.map(r => {
-    const armed = ui.sellArm === r.id, what = `${CLASSES[r.cls].name}, power ${rating(r)}, ${r.wins}W ${r.losses}L. Worth about ${value(r)}; the dealer pays half.`;
+    const armed = ui.sellArm === r.id, what = `${CLASSES[r.cls].name}, power ${rating(r)}, ${r.wins}W ${r.losses}L. Worth about ${value(r)}; the dealer pays ${dealer() >= 15 ? 'six parts in ten' : 'half'}.`;
     return many
       ? `<div class="lrow" style="cursor:default"${tip(what)}><div class="grow"><span class="t">${r.name} ${styleMark(r)}</span></div>
-          ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}">${armed ? 'Sure?' : 'Sell'} ${Math.round(value(r) / 2)}</button>`}</div>`
+          ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}">${armed ? 'Sure?' : 'Sell'} ${sellPrice(r)}</button>`}</div>`
       : prow(`<div class="grow"><span class="t">${r.name} ${styleMark(r)} <small class="inl">${CLASSES[r.cls].name} &middot; power ${rating(r)} &middot; ${r.wins}W ${r.losses}L</small></span></div>
-      ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}"${tip('sell')}>${armed ? 'Sure? Sell' : 'Sell'} &mdash; ${Math.round(value(r) / 2)}</button>`}`);
+      ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}"${tip('sell')}>${armed ? 'Sure? Sell' : 'Sell'} &mdash; ${sellPrice(r)}</button>`}`);
   }).join('');
   const why = g ? buyBlock(g) : '';
   const card = g ? `<div class="panel dossier">
@@ -1145,21 +1145,22 @@ function viewMarket() {
         <canvas class="portrait" width="96" height="112" data-mportrait="${g.id}"></canvas>
         <div style="flex:1"><h2>${g.name}</h2>
           <div>${CLASSES[g.cls].name} of ${g.origin}</div>
-          <div>${ratingLine(g, !scout)} &middot; ${styleMark(g)}</div>
+          <div>${ratingLine(g, !scout && !g.tried)} &middot; ${styleMark(g)}</div>
           <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div>
           ${g === lot ? `<div class="bidrow"><span class="lbl"${tip(`An auction, against ${houseDef(A.h).lanista} of ${houseDef(A.h).name}. You bid once. Bid higher than they are willing to go and he is yours at your price; bid lower and he goes to them, and you will meet him on the sand. Nobody knows how far they will go: somewhere near his worth, perhaps half as much again.`)}>One bid</span>${auctionBids(A).map((b, n) => { const no = auctionBlock(b), armed = ui.bidArm === b; return `<button class="${armed ? 'primary' : ''}" data-act="mbid" data-v="${b}" ${no ? 'disabled' : ''}${tip(no || ['About what he is worth: it will rarely be enough.', 'A quarter over his worth: enough more often than not.', 'Half as much again: nobody will go higher.'][n])}>${armed ? 'Sure? ' : ''}${b}</button>`; }).join('')}</div>
-            <small class="dim">Worth about ${A.worth}. ${houseDef(A.h).name} wants him too.</small>`
+            <small class="dim">Worth about ${A.worth}. ${houseDef(A.h).name} wants him too.${dealer() >= 15 ? ` <span class="gold">The dealer, behind his hand: they will not go much past ${Math.round(A.cap / 25) * 25}.</span>` : ''}</small>`
           : `<div class="buyrow"><button class="primary" data-act="buy" data-v="${g.id}" ${why ? 'disabled' : ''}${tip('Buy him and put him in a cell. Key: B')}>Buy &mdash; ${g.price} denarii</button>
             <button class="mini" data-act="mhaggle" data-v="${g.id}" ${g.haggled ? 'disabled' : ''}${tip(g.haggled ? 'You have had your say on his price.' : `One try a man. About ${Math.round(haggleChance() * 100)} chances in 100 he comes down by 15%; otherwise the price goes up by 5%. A scout and the Guild's favour help.`)}>Haggle</button>
             <button class="mini" data-act="mhold" data-v="${g.id}" ${g.held || g.kept || G.denarii < holdCost(g) ? 'disabled' : ''}${tip(g.held ? 'He is being held for you.' : g.kept ? 'He has been kept back once already.' : `Pay ${holdCost(g)} now, taken off his price, and the dealer keeps him for you through the next market. The deposit is lost if you never buy him.`)}>${g.held ? 'Held' : `Hold &mdash; ${holdCost(g)}`}</button>
+            ${scout ? '' : `<button class="mini" data-act="mtry" data-v="${g.id}" ${g.tried || G.denarii < tryCost() ? 'disabled' : ''}${tip(g.tried ? 'He has been tried: his stars are shown below.' : `Pay ${tryCost()} to have him put through his paces against the dealer's man while your doctore watches. It shows how fast he will learn each skill, which you cannot otherwise see without a scout.`)}>${g.tried ? 'Tried' : `Try him &mdash; ${tryCost()}`}</button>`}
             <small class="${why ? 'bad' : 'dim'}">${why || `Leaves you ${G.denarii - g.price}.`}</small></div>`}
           ${ui.mktMsg && ui.mktMsg.id === g.id && ui.mktMsg.day === G.day ? `<div class="dealmsg ${ui.mktMsg.ok ? '' : 'bad'}">${ui.mktMsg.text}</div>` : ''}
         </div>
       </div>
       <div class="dbody" data-pane="recruit">
         <div class="today"><span class="lbl">In your school</span><div>${g.bg && BACKGROUNDS[g.bg] && BACKGROUNDS[g.bg].name ? `<b>${BACKGROUNDS[g.bg].name}.</b> ${BACKGROUNDS[g.bg].desc} ` : ''}${fitNotes(g).join(' ')}${g.wins ? ` He has fought ${g.wins + g.losses} times and won ${g.wins}.` : ''}</div></div>
-        ${statRows(g, !scout)}
-        ${scout ? '' : `<div class="dim" style="font-size:12px;margin-top:2px">The stars are hidden: you cannot judge how fast he will learn without a scout.</div>`}
+        ${statRows(g, !scout && !g.tried)}
+        ${scout || g.tried ? '' : `<div class="dim" style="font-size:12px;margin-top:2px">The stars are hidden: you cannot judge how fast he will learn without a scout, unless you pay to have him tried.</div>`}
         <hr class="sep">${traitList(g)}<hr class="sep">
         <div class="dim" style="font-size:13px">${CLASSES[g.cls].desc}</div>
         <div class="dim" style="font-size:13px;margin-top:4px">${abilitiesKnown(g).length ? `Knows ${abilitiesKnown(g).map(a => `<b>${a.name}</b>`).join(', ')}.` : 'Knows no abilities yet: a skill at 5 teaches the first.'}</div>
@@ -1171,6 +1172,7 @@ function viewMarket() {
         <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. The barracks, improved at the Ludus under The school, add two at a time.')}><b class="num">${Math.max(0, free)}</b> cell${free === 1 ? '' : 's'} free</span>
         <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
         <span${tip('The dealer brings new men every games day, and takes away whoever was not sold.')}>fresh stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
+        <span class="${dealer() >= 3 ? 'gold' : ''}"${tip(`What the dealer thinks of your custom: ${dealer()}. Every man you buy from him counts two, and every man you sell him one.\nKnown to him (3): haggling goes your way more often.\nA good customer (8): he brings one more man to every market.\nAn old friend (15): he pays six parts in ten for a man instead of half, and tells you how far the other house will bid for the prize lot.${dealerNext(dealer()) ? `\n${dealerNext(dealer())} more to the next.` : ''}`)}>the dealer: <b>${dealerWord(dealer()).toLowerCase()}</b></span>
         <span class="${scout ? 'gold' : ''}"${tip(scout ? 'Your scout shows each man\'s potential and whether the price is fair.' : TIPS.hidden)}>${scout ? 'scout at your side' : 'no scout: talent hidden'}</span></div></div>
       <div class="pane" data-pane="market"><div class="panel list">${lotRow}${rows}</div>${lotNote}${orders}
       ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight ${many ? 'threeup' : 'twoup'}">${mine}</div>` : ''}</div></div>
@@ -2481,8 +2483,8 @@ const ACTIONS = {
   unequip(v, w) { const g = byId(v); if (g && unequip(g, w)) { save(); render(); } },
   sell(v) {
     const g = byId(v); if (!g) return;
-    const p = Math.round(value(g) / 2);
-    G.denarii += p; G.roster = G.roster.filter(x => x !== g); departed(g, 'sold');
+    const p = sellPrice(g);
+    G.denarii += p; G.roster = G.roster.filter(x => x !== g); departed(g, 'sold'); dealerMove(1);
     log(`${g.name} is sold for ${p} denarii.`);
     save(); render();
   },
@@ -2499,13 +2501,14 @@ const ACTIONS = {
   buy(v) {
     const g = G.market.find(m => m.id === +v);
     if (!g || G.denarii < g.price || G.roster.length >= capacity()) return;
-    G.denarii -= g.price; addStory(g, `Bought at market for ${g.price} denarii.`); delete g.price;
+    G.denarii -= g.price; addStory(g, `Bought at market for ${g.price} denarii.`); delete g.price; delete g.tried; dealerMove(2);
     G.market = G.market.filter(m => m !== g); G.roster.push(welcome(g));
     log(`${g.name} the ${CLASSES[g.cls].name} is bought at market.`);
     ui.sel = g.id; save(); render();
   },
   mhaggle(v) { const m = G.market.find(x => x.id === +v), r = haggle(m); if (r) { ui.mktMsg = { id: +v, day: G.day, ok: r.ok, text: r.text }; SFX.ui(r.ok ? 'coin' : 'thud'); save(); render(); } },
   mhold(v) { if (holdMan(G.market.find(x => x.id === +v))) { SFX.ui('coin'); save(); render(); } },
+  mtry(v) { const r = tryMan(G.market.find(x => x.id === +v)); if (r) { ui.mktMsg = { id: +v, day: G.day, ok: r.ok, text: r.text }; SFX.ui('thud'); save(); render(); } },
   morder(v) { if (orderMan(v)) { SFX.ui('coin'); save(); render(); } },
   mbid(v) {                                    // one bid, and it cannot be taken back: asked twice
     if (ui.bidArm !== +v) { ui.bidArm = +v; SFX.ui('warn'); render(); return; }

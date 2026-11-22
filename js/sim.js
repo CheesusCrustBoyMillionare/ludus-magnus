@@ -592,12 +592,44 @@ const BACKGROUNDS = {
     make: g => { g.wins = rint(2, 5); g.losses = rint(0, 2); g.kills = rint(0, 1); g.xp = g.wins * 5 + g.losses * 2; checkRank(g);
       while (g.perkPending > 0) { const sp = Object.keys(TRAITS).filter(k => TRAITS[k].good && !TRAITS[k].special && !g.traits.includes(k)); if (sp.length) g.traits.push(pick(sp)); g.perkPending--; } g.fame = g.wins * 2; } },
   freeborn: { name: 'A free man', w: 1, price: 1.1, desc: 'He sold himself to clear a debt. Nobody put him here but himself.', make: g => { g.morale = 80; } },
+  hunter:   { name: 'Hill hunter', w: 2, desc: 'He has stood in front of a boar with a spear and nothing else. Beasts do not frighten him, and he knows where to put the point.',
+    make: g => { g.stats.agi = Math.min(20, g.stats.agi + 1); if (!g.traits.includes('beastslayer')) g.traits.push('beastslayer'); } },
+  pitman:   { name: 'Tavern pit-fighter', w: 1, price: 1.05, desc: 'He has fought for coppers behind wine-shops since he was a boy. He knows every foul there is, and has little left to learn.',
+    make: g => { g.stats.str = Math.min(20, g.stats.str + 1); if (!g.traits.includes('pitfighter')) g.traits.push('pitfighter'); STATS.forEach(k => { g.pot[k] = Math.max(0.7, g.pot[k] - 0.08); }); g.wins = rint(1, 3); g.xp = g.wins * 5; checkRank(g); while (g.perkPending > 0) { const sp = Object.keys(TRAITS).filter(k => TRAITS[k].good && !TRAITS[k].special && !g.traits.includes(k)); if (sp.length) g.traits.push(pick(sp)); g.perkPending--; } } },
+  pirate:   { name: 'Off a taken ship', w: 2, desc: 'A pirate, pulled out of the water when his galley was rammed. Quick on his feet, at home anywhere, and not much given to obedience.',
+    make: g => { g.stats.agi = Math.min(20, g.stats.agi + 2); if (!g.traits.includes('travelled')) g.traits.push('travelled'); g.morale = 45; } },
+  deserter: { name: 'Legion deserter', w: 1, price: 0.7, desc: 'He was drilled by the best army in the world and ran from it. He is cheap because he is bitter, and because a man who has run once may run again.',
+    make: g => { g.stats.skl = Math.min(20, g.stats.skl + 2); if (!g.traits.includes('embittered')) g.traits.push('embittered'); g.morale = 40; } },
+  gentleman: { name: 'A ruined gentleman', w: 1, price: 1.15, desc: 'He had a fencing-master once, and a name. He carries himself as if the crowd were his guests, and they like him for it.',
+    make: g => { g.stats.skl = Math.min(20, g.stats.skl + 1); if (!g.traits.includes('showy')) g.traits.push('showy'); g.pot.skl = Math.min(1.4, g.pot.skl + 0.12); g.morale = 55; } },
 };
 function giveBackground(g) {
   const bag = []; for (const k in BACKGROUNDS) for (let i = 0; i < BACKGROUNDS[k].w; i++) bag.push(k);
   g.bg = pick(bag);
   const B = BACKGROUNDS[g.bg]; if (B.make) B.make(g);
   g.hp = maxHp(g);
+}
+// What the dealer thinks of your custom. Every man bought or sold through him counts; it never goes down.
+// Known to him: he hears you out when you haggle. A good customer: he brings one more man to every market. An old
+// friend: he pays six parts in ten for a man instead of five, and will say how far the other house means to bid.
+const DEALER_RANKS = [[15, 'An old friend'], [8, 'A good customer'], [3, 'Known to him'], [0, 'A stranger']];
+const dealer = () => G.dealer || 0;
+const dealerWord = n => DEALER_RANKS.find(x => n >= x[0])[1];
+const dealerNext = n => { const up = DEALER_RANKS.slice().reverse().find(x => x[0] > n); return up ? up[0] - n : 0; };
+function dealerMove(d) { G.dealer = Math.max(0, dealer() + d); }
+const sellPrice = g => Math.round(value(g) * (dealer() >= 15 ? 0.6 : 0.5));
+// A man on the block can be tried before he is bought: a wooden sword, the dealer's own bruiser, and your doctore
+// watching. It shows how quickly he will learn each skill, which a house with no scout cannot otherwise see.
+const tryCost = () => 5 + tier() * 5;
+function tryMan(m) {
+  if (!m || m.tried || G.denarii < tryCost()) return null;
+  G.denarii -= tryCost(); m.tried = true;
+  const by = STATS.slice().sort((a, b) => m.pot[b] - m.pot[a]), best = by[0], worst = by[by.length - 1];
+  const quick = stars(m.pot[best]) >= 4, slow = stars(m.pot[worst]) <= 2, all = STATS.reduce((n, k) => n + m.pot[k], 0) / STATS.length;
+  const said = [quick ? `He takes to ${STAT_NAMES[best].toLowerCase()} as if he had been waiting to be shown.` : `There is nothing in him that will come quickly; ${STAT_NAMES[best].toLowerCase()} is the best of it.`];
+  if (slow && worst !== best) said.push(`His ${STAT_NAMES[worst].toLowerCase()} will be slow work.`);
+  said.push(all >= 1.15 ? 'Your doctore says: buy him before somebody else sees this.' : all >= 0.95 ? 'Your doctore says he will do.' : 'Your doctore says he is what he is today, and will not be much more.');
+  return { ok: all >= 0.95, text: said.join(' ') };
 }
 function marketPrice(g) {
   const scout = staffLvl('scout'), B = BACKGROUNDS[g.bg] || BACKGROUNDS.plain;
@@ -608,7 +640,7 @@ function genMarket() {
   const kept = (G.market || []).filter(m => m.held);       // a man you paid the dealer to hold stays one more turn
   kept.forEach(m => { m.held = false; m.kept = true; });
   G.market = [];
-  for (let i = 0; i < (scout >= 2 ? 5 : 4); i++) {
+  for (let i = 0; i < (scout >= 2 ? 5 : 4) + (dealer() >= 8 ? 1 : 0); i++) {
     const order = i === 0 && G.marketOrder && CLASSES[G.marketOrder] ? G.marketOrder : null;        // the kind of man you sent for
     const g = makeGladiator(18 + t * 8 + rint(-3, 6) + (order ? 2 : 0), order ? { cls: order } : null);
     g.gear = emptyGear();
@@ -632,7 +664,7 @@ function genMarket() {
   }
 }
 // What may be done about a man on the block besides buying him.
-function haggleChance() { return clamp(0.35 + 0.12 * staffLvl('scout') + G.patrons.guild / 400, 0.1, 0.85); }
+function haggleChance() { return clamp(0.35 + 0.12 * staffLvl('scout') + G.patrons.guild / 400 + (dealer() >= 3 ? 0.1 : 0), 0.1, 0.85); }
 function haggle(m) {
   if (!m || m.haggled) return null;
   m.haggled = true;
@@ -667,7 +699,7 @@ function auctionBid(amount) {
   A.done = true; A.bid = amount;
   const g = A.g, H = houseOf(A.h), def = houseDef(A.h);
   if (amount >= A.cap) {
-    A.won = true; G.denarii -= amount;
+    A.won = true; G.denarii -= amount; dealerMove(2);
     addStory(g, `Won at auction for ${amount} denarii, against ${def.name}.`);
     G.roster.push(welcome(g)); feud(H, 4);
     log(`${g.name} the ${CLASSES[g.cls].name} is won at auction for ${amount} denarii.`, 'gold');

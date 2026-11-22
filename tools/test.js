@@ -258,6 +258,26 @@ test('the market: backgrounds, haggling, holding, sending for a man, and the auc
   const seen = {};
   for (let i = 0; i < 60; i++) { genMarket(); for (const m of G.market) { seen[m.bg] = 1; assert(BACKGROUNDS[m.bg] && m.price >= 5 && m.price % 5 === 0 && STATS.every(k => m.stats[k] >= 2 && m.stats[k] <= 20 && m.pot[k] >= 0.7 - 1e-9 && m.pot[k] <= 1.4 + 1e-9) && m.perkPending === 0, 'a sound man with a background: ' + m.bg); } }
   assert(Object.keys(BACKGROUNDS).every(k => seen[k]), 'every background turns up');
+  assert(Object.keys(BACKGROUNDS).length === 12 && ['hunter', 'pitman', 'pirate', 'deserter', 'gentleman'].every(k => BACKGROUNDS[k].desc.length > 40), 'twelve kinds of man come to the block');
+  { const mk = bg => { const g = makeGladiator(26); g.bg = bg; BACKGROUNDS[bg].make(g); return g; };
+    assert(mk('hunter').traits.includes('beastslayer') && mk('pitman').traits.includes('pitfighter') && mk('pitman').wins >= 1 && mk('pirate').traits.includes('travelled') && mk('gentleman').traits.includes('showy'), 'each brings what his life taught him');
+    const d = mk('deserter'); assert(d.traits.includes('embittered') && flightRisk(d) && BACKGROUNDS.deserter.price < 1, 'a deserter is cheap, and may run again'); }
+  // the dealer comes to know a good customer
+  { newGame(); G.denarii = 5000; assert(dealer() === 0 && dealerWord(0) === 'A stranger' && dealerNext(0) === 3, 'a stranger at first');
+    const h0 = haggleChance(), g = G.roster[0], half = sellPrice(g); assert(half === Math.round(value(g) * 0.5), 'he pays half');
+    dealerMove(3); assert(dealerWord(dealer()) === 'Known to him' && Math.abs(haggleChance() - h0 - 0.1) < 1e-9, 'known: he hears you out');
+    genMarket(); assert(G.market.length === 4, 'four men still');
+    dealerMove(5); genMarket(); assert(dealerWord(dealer()) === 'A good customer' && G.market.length === 5, 'a good customer is brought one more');
+    dealerMove(7); assert(dealerWord(dealer()) === 'An old friend' && dealerNext(dealer()) === 0 && sellPrice(g) === Math.round(value(g) * 0.6) && sellPrice(g) > half, 'an old friend is paid six parts in ten');
+    dealerMove(-99); assert(dealer() === 0, 'and it does not go below nothing'); }
+  // a man can be tried before he is bought: once, for a fee, and it shows how he learns
+  { newGame(); G.denarii = 500; genMarket(); const m = G.market[0], d0 = G.denarii, r = tryMan(m);
+    assert(r && r.text.length > 40 && !/undefined|NaN/.test(r.text) && m.tried && G.denarii === d0 - tryCost() && tryCost() >= 5, 'tried for a fee: ' + (r && r.text));
+    assert(!tryMan(m) && G.denarii === d0 - tryCost(), 'once is enough');
+    G.denarii = 0; assert(!tryMan(G.market[1]) && !G.market[1].tried, 'and not on credit');
+    const quick = makeGladiator(26); STATS.forEach(k => { quick.pot[k] = 1.4; }); const slow = makeGladiator(26); STATS.forEach(k => { slow.pot[k] = 0.7; }); G.denarii = 500;
+    assert(tryMan(quick).ok && /buy him/.test(tryMan(Object.assign(makeGladiator(26), { pot: quick.pot })).text) && !tryMan(slow).ok, 'the doctore can tell a quick learner from a slow one'); }
+  newGame(); G.denarii = 5000; G.fac.barracks = 3;
   // haggling: once, and it moves the price one way or the other
   genMarket(); let m = G.market[0], p0 = m.price, r = haggle(m);
   assert(r && m.haggled && m.price !== p0 && (r.ok ? m.price < p0 : m.price > p0) && haggle(m) === null, 'one try at the price');

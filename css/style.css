@@ -1356,3 +1356,8 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 .menu .mstats { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
 .menu .mstats td { padding: 5px 2px; border-bottom: 1px solid rgba(110, 72, 26, .3); }
 .menu .mstats td:last-child { text-align: right; font-weight: 600; }
+
+/* the market's row of dealings wraps when the card is narrow, so no button is cut off */
+.dossier .buyrow { flex-wrap: wrap; row-gap: 6px; }
+.dossier .dhead > div { min-width: 0; }
+.dossier .dealmsg { overflow-wrap: anywhere; }
