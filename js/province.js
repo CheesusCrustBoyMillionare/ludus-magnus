@@ -1772,10 +1772,11 @@ function provLand() {
     for (let q = 0; q < pts.length - 1; q++) {
       const [x0, y0] = pts[q], [x1, y1] = pts[q + 1], len = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(len);
       for (let i2 = 0; i2 < n; i2++, run++) {
-        const px = Math.round(x0 + (x1 - x0) * i2 / n), py = Math.round(y0 + (y1 - y0) * i2 / n), k = at(Math.floor(px / 10), Math.floor(py / 10)), pier = run % 9 === 0, open = k === T_WATER || k === T_ROAD || k === T_BRIDGE, r2 = run;
+        const px = Math.round(x0 + (x1 - x0) * i2 / n), py = Math.round(y0 + (y1 - y0) * i2 / n), k = at(Math.floor(px / 10), Math.floor(py / 10)), pier = run % 9 === 0, wet = k === T_WATER, open = k === T_ROAD || k === T_BRIDGE, r2 = run;
         const steep = Math.abs(y1 - y0) > Math.abs(x1 - x0) * 1.5;      // a stretch running north and south is seen end on: its deck, and its shadow thrown to the east
         const slice = () => {
-          if (pier && !open) { R(px - 2, py + 6, 8, 2, 'rgba(0,0,0,.2)'); R(px - 2, py - 6, 4, 12, '#c9c2ae'); R(px - 2, py - 6, 1, 12, '#e4dfcd'); R(px + 1, py - 6, 1, 12, '#a39a84'); R(px - 2, py + 5, 4, 1, '#8f8876'); }
+          if (pier && !open) { R(px - 2, py + 6, 8, 2, 'rgba(0,0,0,.2)'); R(px - 2, py - 6, 4, 12, '#c9c2ae'); R(px - 2, py - 6, 1, 12, '#e4dfcd'); R(px + 1, py - 6, 1, 12, '#a39a84'); R(px - 2, py + 5, 4, 1, '#8f8876');
+            if (wet) { R(px - 2, py + 6, 8, 2, '#4f86ae'); R(px - 3, py + 3, 6, 3, '#8f8876'); R(px - 3, py + 3, 6, 1, '#b8b09a'); R(px - 4, py + 6, 8, 1, '#b4d6ea'); R(px - 2, py + 2, 4, 1, '#7f8a6a'); } }      // standing in the river: a wider foot, green at the waterline, and the current breaking white on it
           else if (steep) R(px + 3, py + 2, 4, 1, 'rgba(0,0,0,.13)');
           else if (r2 % 3 === 0) R(px - 1, py + 1, 3, 1, 'rgba(0,0,0,.10)');                                                  // the shadow of the channel across the ground
           // the channel: its far wall, the bed, its near wall with the light on the coping, and the face of the stone below
@@ -3588,6 +3589,7 @@ function drawMini(cv) {
 // The places you know of and have not dealt with, to set out for with a click: first what you were sent for or gave
 // your word on, then the rest, nearest first. Each says what kind of matter it is, and a man's journey says whose.
 const PLACE_ROWS = 6;
+const TIER_WORD = ['slight', 'some', 'real', 'grave', 'deadly'];
 function placeRows() {
   const F = G.field, M = wildMap();
   return wildSites().filter(st => siteKnown(st) && !siteDone(st)).map(st => {
@@ -3603,17 +3605,17 @@ function placesHtml() {
   if (!all.length) return '<div class="listnote">No place is known yet. Walk on, or spend a day scouting from high ground.</div>';
   return all.slice(0, show).map(({ st, tag, sub, name, what }) => { const dz = siteDanger(st);
     return `<div class="lrow place" data-act="wildgo" data-v="${st.id}"${tip(`${what ? what + '\n' : ''}${dz ? 'Danger ' + dz + ' of 5. ' : 'No danger known. '}Click to set out for it.`)}>
-      ${tag ? `<span class="ptag ${tag.toLowerCase()}">${tag}</span>` : '<span class="ptag none"></span>'}
-      <div class="grow"><span class="t ${tag ? 'gold' : ''}">${name}</span><small>${sub ? sub + ' &middot; ' : ''}${wayTo(st.x, st.y)}</small></div>
-      <span class="skulls">${'<i></i>'.repeat(dz)}</span></div>`; }).join('')
+      <div class="grow"><span class="t ${tag ? 'gold' : ''}">${tag ? `<span class="ptag ${tag.toLowerCase()}">${tag}</span>` : ''}${name}</span><small>${sub ? sub + ' &middot; ' : ''}${wayTo(st.x, st.y)}</small></div>
+      ${dz ? `<span class="pdanger"><span class="skulls">${'<i></i>'.repeat(dz)}</span><small>${TIER_WORD[dz - 1]}</small></span>` : '<span class="pdanger"><small class="safe">no fight known</small></span>'}</div>`; }).join('')
     + (all.length > show ? `<div class="listnote">and ${all.length - show} more on the whole map</div>` : '');
 }
 // Where the column stands just now: what it could bring to a fight, the ground it is on, and the way home.
 function campNowHtml() {
-  const F = G.field, t = wildTier(F.x, F.y), left = clamp(1 - ((F.march || 0) / marchDay()), 0, 1);
-  return `<div${tip('The strength of your fit men together: what is set against the strength of whatever you meet.')}><span>Strength</span><b class="num">${yours()}</b></div>
-    <div${tip('How dangerous this ground is: what walks it, and how hard the places in it are. One by the town, five in the far corners.')}><span>This country</span><b><span class="skulls">${'<i></i>'.repeat(t)}</span> <small class="num">${t} of 5</small></b></div>
-    <div${tip('How much of today\'s march is left before the day ends where you stand. Roads go further; forest, hill and marsh less far.')}><span>Day's march</span><b class="num ${left < 0.2 ? 'bad' : ''}">${Math.round(left * 100)}% left</b></div>
+  const F = G.field, t = wildTier(F.x, F.y), left = clamp(1 - ((F.march || 0) / marchDay()), 0, 1), fit = fieldParty().length;
+  const hurt = G.roster.filter(g => !g.away && g.injury > 0).length;
+  return `<div${tip('The strength of your fit men together: what is set against the strength of whatever you meet. A wounded man adds nothing to it.')}><span>Strength</span><b class="num">${yours()} <small>${fit} fit${hurt ? ` &middot; <i class="bad">${hurt} hurt</i>` : ''}</small></b></div>
+    <div${tip('How dangerous this ground is: what walks it, and how hard the places in it are. One by the town, five in the far corners.')}><span>${wildRegion(F.x, F.y)}</span><b><span class="skulls">${'<i></i>'.repeat(t)}</span> <small>${TIER_WORD[t - 1] || 'no'} danger</small></b></div>
+    <div${tip('How much of today\'s march is left before the day ends where you stand. Roads go further; forest, hill and marsh less far.')}><span>Day's march</span><b class="num ${left < 0.2 ? 'bad' : ''}">${Math.round(left * 100)}% left</b><i class="marchbar ${left < 0.2 ? 'low' : ''}"><i style="width:${Math.round(left * 100)}%"></i></i></div>
     <div${tip('The way back to the town gate from here.')}><span>Home</span><b>${wayTo(WILD.TOWN.x, WILD.TOWN.y)}</b></div>`;
 }
 
@@ -3693,9 +3695,10 @@ function questsModal() {
 // ---------- the camp: who is with you, and what can be done without going home ----------
 function campRow(g) {
   const state = g.injury > 0 ? `<span class="chip red">Wounded ${g.injury}d</span>` : g.fatigue > 75 ? '<span class="chip red">Exhausted</span>' : g.perkPending > 0 ? '<span class="chip gold">Perk</span>' : '';
-  return `<div class="lrow grow-row ${g.injury > 0 || g.fatigue > 75 ? 'hurt' : g.perkPending > 0 ? 'perk' : ''}" data-act="campsel" data-v="${g.id}"${tip(`${g.name}, ${CLASSES[g.cls].name}, power ${rating(g)}.${g.injury > 0 ? ` Wounded for ${g.injury} more day${g.injury === 1 ? '' : 's'}.` : g.fatigue > 75 ? ' Exhausted.' : g.perkPending > 0 ? ' Has a perk to choose.' : ''} Click for his dossier.`)}>
+  const short = g.injury > 0 ? `<i class="bad">${g.injury}d</i>` : g.fatigue > 75 ? '<i class="bad">spent</i>' : '';
+  return `<div class="lrow grow-row ${g.injury > 0 || g.fatigue > 75 ? 'hurt' : g.perkPending > 0 ? 'perk' : ''}" data-act="campsel" data-v="${g.id}"${tip(`${g.name}, ${CLASSES[g.cls].name}, power ${rating(g)}.${g.injury > 0 ? ` Wounded for ${g.injury} more day${g.injury === 1 ? '' : 's'}.` : g.fatigue > 75 ? ' Exhausted.' : g.perkPending > 0 ? ' Has a perk to choose.' : ''}\nHealth ${Math.round(g.hp)} of ${maxHp(g)}, fatigue ${Math.round(g.fatigue)}, spirits ${Math.round(g.morale)}.\nClick for his dossier.`)}>
     <canvas width="48" height="56" style="width:25px;height:29px" data-portrait="${g.id}"></canvas>
-    <div class="grow"><span class="t">${g.name} ${styleMark(g)}</span><small>${CLASSES[g.cls].name} &middot; power ${rating(g)}</small></div>
+    <div class="grow"><span class="t">${g.name} ${styleMark(g)}</span><small>${CLASSES[g.cls].name} &middot; power ${rating(g)}</small>${short ? `<small class="brief">${short}</small>` : ''}</div>
     <div class="chips">${state}</div>
     <div class="gauges"><div${tip('health')}>${bar('hp', g.hp, maxHp(g))}</div><div${tip('fatigue')}>${bar('fat', g.fatigue, 100)}</div><div${tip('morale')}>${bar('mor', g.morale, 100)}</div></div>
   </div>`;
@@ -3721,10 +3724,10 @@ function renderWilds() {
         <button data-act="scout"${tip(`Spend the day on the high ground: the fog lifts for a long way round${staffLvl('scout') ? ', further for your scout' : '; a scout would see further'}. The men get some rest.`)}>Scout</button>
         <button data-act="wildgo" data-v="home"${tip('Sets the column on the road back to the town gate, by the shortest way it can walk. It goes in when it gets there. You can still steer away, or click elsewhere, to change your mind.')}>Go home<span class="key">R</span></button><button data-act="bigmap"${tip('bigmap')}>${prov.big ? 'Close map' : 'Whole map'}<span class="key">M</span></button></div>
       ${F.note && F.note.day === G.day ? `<div class="dealmsg ${F.note.ok ? '' : 'bad'}" style="margin:0 0 6px">${F.note.text}</div>` : ''}
-      ${lead ? `<div class="lead"${tip('eagle')}><b class="gold">The eagle of the Seventeenth.</b> ${lead}</div>` : ''}
+      ${lead && M.story < 6 ? `<div class="lead"${tip('eagle')}><b class="gold">The eagle.</b> ${lead}</div>` : ''}
       ${journeys ? `<div class="lead"${tip('A journey you gave your word on, whose place you have not yet found on the map.')}><b class="gold">Promised.</b>${journeys}</div>` : ''}
       <div class="pane" data-pane="camp"><h2>Places known <small>click to go</small></h2><div class="panel list" id="placeList">${placesHtml()}</div>
-      <h2>The school <small>${fieldParty().length} of ${men.length} fit${men.some(g => g.injury > 0) ? ` &middot; <span class="bad">${men.filter(g => g.injury > 0).length} hurt</span>` : ''}${men.some(g => g.perkPending > 0) ? ' &middot; <span class="gold">perk</span>' : ''}</small></h2>
+      <h2>The school <small>${fieldParty().length} of ${men.length} fit${men.some(g => g.injury > 0) ? ` &middot; <span class="bad">${men.filter(g => g.injury > 0).length} hurt</span>` : ''}${men.some(g => g.perkPending > 0) ? ` &middot; <span class="gold">${men.filter(g => g.perkPending > 0).length === 1 ? 'perk: ' + men.find(g => g.perkPending > 0).name : men.filter(g => g.perkPending > 0).length + ' perks to choose'}</span>` : ''}</small></h2>
       <div class="panel list ${men.length > 5 ? 'twoup dense' : ''}">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
       <div class="listnote"${tip('fieldrules')}>${Math.round(wildExplored() * 100)}% walked &middot; ${M.cleared} places dealt with &middot; <span class="${safeRegions().length ? 'gold' : ''}"${tip(`A region is safe when every lair and outlaw camp in it has been dealt with. Each safe region pays ${SAFE_TOLL} denarii a day, at home or away, and the family keeps it.\n${Object.entries(regionTally()).map(([r, t]) => `${r}: ${t.done} of ${t.n}${t.done >= t.n ? ' - safe' : ''}`).join('\n')}`)}>${safeRegions().length} of ${Object.keys(regionTally()).length} regions safe${safeRegions().length ? ` (+${SAFE_TOLL * safeRegions().length} a day)` : ''}</span>${M.bounties ? ` &middot; ${M.bounties} bount${M.bounties === 1 ? 'y' : 'ies'} taken` : ''}</div></div>`;
   $('#camp').innerHTML = head + body;

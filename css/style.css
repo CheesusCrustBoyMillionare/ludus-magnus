@@ -1455,3 +1455,23 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .foughtbox small { display: block; margin-top: 3px; }
 .schoolbar .tally .sofar { flex-basis: 100%; }
 .lrow.done .end .good, .lrow.done .end .bad, .lrow.done .end .gold { opacity: 1; }
+
+/* the province panel: tags beside the names, danger in a word, and the close list of men still saying something */
+#camp .place .t .ptag { display: inline-block; width: auto; padding: 0 5px; margin-right: 6px; vertical-align: 1px; }
+#camp .pdanger { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 46px; }
+#camp .pdanger small { font-size: 9.5px; line-height: 1; color: #c98a80; }
+#camp .pdanger small.safe { color: #9fce86; }
+#camp .place .pdanger .skulls { min-width: 0; }
+#camp .nowlist .marchbar { display: block; height: 3px; margin-top: 2px; background: #0e0906; border: 1px solid var(--bronze-d); }
+#camp .nowlist .marchbar i { display: block; height: 100%; background: var(--gold); }
+#camp .nowlist .marchbar.low i { background: #e2695c; }
+#camp .nowlist b small i { font-style: normal; }
+#camp .stylemark.none { display: none; }
+#camp .grow-row .grow small.brief { display: none; }
+#camp .panel.list.dense .lrow .grow { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+#camp .panel.list.dense .lrow .grow .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#camp .panel.list.dense .lrow .grow small.brief { display: block; flex: none; font-size: 10.5px; white-space: nowrap; }
+#camp .panel.list.dense .lrow .grow small.brief b { color: var(--dim); font-weight: 400; }
+#camp .panel.list.dense .lrow .grow small.brief i { font-style: normal; }
+#camp .panel.list.dense .lrow .grow .t { flex: 1 1 auto; }
+#camp .panel.list.dense .lrow.hurt .gauges, #camp .panel.list.dense .lrow.perk .gauges { width: 30px; }
