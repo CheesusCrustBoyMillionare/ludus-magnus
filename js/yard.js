@@ -48,7 +48,7 @@ function yardWeather(T) {
 function yardPerson(ctx, X, Y, d, o) {
   const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
   const skin = o.skin || '#d9a57c', skinD = shade(skin, 0.76), tunicD = shade(o.tunic, 0.72), wood = '#7a5a2a';
-  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(X - 4, Y - 1, 14 + Math.round(sceneLow * 16), 2);
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); { const ext = 14 + Math.round(sceneLow * 16); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(sceneSun > 0 ? X - 4 : X + 4 - ext, Y - 1, ext, 2); }
   const st = o.moving ? (Math.sin(o.walk) > 0 ? 1 : -1) : 0;      // stride
   // the body rises a little in the middle of each stride; standing, it lifts now and then with a breath
   const ub = o.moving ? (Math.abs(Math.sin(o.walk)) < 0.4 ? 1 : 0) : (Math.sin(performance.now() / 1000 * 1.4 + X * 0.37) > 0.9 ? 1 : 0), U = (x, y, w, h, c) => P(x, y - ub, w, h, c);
@@ -124,6 +124,7 @@ function sceneRain(ctx, w, h, T, amt, n) {
 }
 
 // ---------- the sky, the far country, the light and the air, shared by every scene that has them ----------
+let sceneSun = 1;      // which way shadows fall: 1 to the right (the light is in the east, on the left), -1 to the left
 let sceneLow = 0;      // how low the sun stands, 0 at noon to 1 at the horizon: the scene that is drawing sets it, and shadows lengthen by it
 
 // The sky down to the horizon at y = H: graded from the zenith to the horizon in narrow strips with their edges
@@ -132,7 +133,7 @@ let sceneLow = 0;      // how low the sun stands, 0 at noon to 1 at the horizon:
 function sceneSkyDraw(ctx, T, sky, wx, H) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   const N = 20, low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, night = sky.night;
-  sceneLow = sky.sun ? low : 0.35;
+  sceneLow = sky.sun ? low : 0.35; sceneSun = (sky.sun || sky.moon || [0])[0] < 295 ? 1 : -1;
   for (let i = 0; i < N; i++) {
     const f = i / (N - 1), c = f < 0.5 ? mixHex(sky.bands[0], sky.bands[1], f * 2) : mixHex(sky.bands[1], sky.bands[2], (f - 0.5) * 2), y0 = Math.floor(i * H / N);
     R(0, y0, 590, Math.ceil(H / N) + 1, c);
@@ -216,6 +217,11 @@ function sceneGlow(ctx, x, y, r, rgb, a) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, `rgba(${rgb},${a.toFixed(3)})`); g.addColorStop(0.45, `rgba(${rgb},${(a * 0.45).toFixed(3)})`); g.addColorStop(1, `rgba(${rgb},0)`);
   ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = 'source-over';
+}
+// Moths about a light after dark: three of them, never still.
+function sceneMoths(ctx, T, x, y, a) {
+  if (!(a > 0.2)) return;
+  for (let q = 0; q < 3; q++) { const an = T * (2.3 + q * 0.9) + x * 0.7 + q * 2.1, r = 4 + q * 2 + Math.sin(T * 1.7 + q) * 2; ctx.fillStyle = `rgba(255,244,214,${(0.75 * a).toFixed(3)})`; ctx.fillRect(Math.round(x + Math.cos(an) * r), Math.round(y + Math.sin(an * 1.3) * r * 0.7), 1, 1); }
 }
 // The same light where it lies on the ground: a flattened pool.
 function scenePool(ctx, x, y, r, rgb, a) { ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.32); sceneGlow(ctx, 0, 0, r, rgb, a); ctx.restore(); }
@@ -340,8 +346,9 @@ function drawYard(cv, T) {
   R(0, 76, 590, GY - 76, 'rgba(24,14,8,.3)');      // the wall falls into shade so what stands before it shows
 
   // ---- generic building pieces ----
+  const casts = [];
   const walls = (x, w, h, c) => {
-    const y = GY - h, d = shade(c, 0.78);
+    const y = GY - h, d = shade(c, 0.78); casts.push([x, w, h]);
     R(x + w + 1, y + 6, 6 + Math.round(sky.shadow.len / 3), h - 6, SHADOW);                    // shadow thrown on the wall behind, longer as the sun gets low
     R(x - 1, y - 1, w + 2, h + 1, OUT);                       // outline
     R(x, y, w, h, c);
@@ -509,7 +516,11 @@ function drawYard(cv, T) {
     const oval = (cx, cy, rx, ry, c) => { ctx.fillStyle = c; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
     for (let i = 0; i < 12; i++) oval(30 + (i * 149) % 540, GY + 14 + (i * 37) % 40, 26 + (i % 4) * 10, 3 + (i % 3) * 2, i % 3 ? 'rgba(255,244,205,.08)' : 'rgba(90,60,20,.07)');      // lights and darks in the sand
     R(0, GY + 6, 590, 7, 'rgba(255,244,205,.10)'); for (let x = 0; x < 590; x += 7) R(x + (x % 3), GY + 8 + (x % 4), 3, 1, 'rgba(120,85,40,.14)');      // the way worn along the doors
-    R(0, GY, 590, 3 + Math.round(sky.shadow.len * 0.9), `rgba(50,28,8,${(0.1 + sky.shadow.len * 0.008).toFixed(3)})`);      // the buildings' shade, longer when the sun is low
+    R(0, GY, 590, 3, `rgba(50,28,8,${(0.1 + sky.shadow.len * 0.008).toFixed(3)})`);      // where the walls meet the ground
+    {                                           // and each building's shadow thrown out over the sand: long and slanting when the light is low, short at noon
+      const dark = sky.sun ? 1 : 0.45; ctx.fillStyle = `rgba(50,28,8,${((0.1 + sky.shadow.len * 0.007) * dark * (1 - wx.over * 0.6)).toFixed(3)})`;
+      for (const [bx, bw, bh] of casts) { const len = Math.round((2 + sky.shadow.len) * (0.45 + bh / 150)), dx = sceneSun * Math.round(len * (0.5 + sceneLow * 1.4)); ctx.beginPath(); ctx.moveTo(bx, GY); ctx.lineTo(bx + bw, GY); ctx.lineTo(bx + bw + dx, GY + len); ctx.lineTo(bx + dx, GY + len); ctx.closePath(); ctx.fill(); }
+    }
     for (let i = 0; i < 46; i++) {              // grass and weeds where the wall meets the ground
       const x = (i * 131) % 586, tall = i % 5 === 0;
       R(x, GY - (tall ? 4 : 2), 1, tall ? 5 : 3, '#5f7f3f'); R(x + 1, GY - 1, 1, 2, '#7a9a4b'); if (tall) { R(x - 1, GY - 2, 1, 3, '#4f6f34'); R(x, GY - 5, 1, 1, i % 2 ? '#e8a0a0' : '#f2e6a0'); }
@@ -764,6 +775,7 @@ function drawYard(cv, T) {
     ctx.globalAlpha = n; for (const [lx, ly] of lights) { R(lx, ly, 6, 7, '#ffd27a'); R(lx + 3, ly, 1, 7, '#b8802e'); } ctx.globalAlpha = 1;
     R(512 - 1, GY - 46, 3, 6, '#e2702a'); R(562 - 1, GY - 46, 3, 6, '#e2702a');
     for (const [lx, ly] of lights) { sceneGlow(ctx, lx + 3, ly + 3, 15, '255,190,90', 0.42 * n); scenePool(ctx, lx + 3, GY + 5, 22, '255,180,90', 0.12 * n); }
+    for (const [fx, fy] of fires) sceneMoths(ctx, T, fx, fy - 6, n);
     for (const [fx, fy, r] of fires) {
       const k = (0.85 + Math.sin(T * 8 + fx) * 0.15) * n;
       sceneGlow(ctx, fx, fy, r * 1.25, '255,150,60', 0.42 * k); scenePool(ctx, fx, GY + 8, r * 1.9, '255,165,80', 0.26 * k);

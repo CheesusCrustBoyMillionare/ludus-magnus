@@ -71,7 +71,11 @@ function drawPlace(cv, T, tab) {
       R(0, y, 590, 2, 'rgba(40,24,8,.3)'); R(0, y + 2, 590, 3, 'rgba(40,24,8,.10)');
     },
     // the shade a building throws on the ground before it: deeper and longer when the sun is low
-    shade: (x, y, w) => R(x, y, w, 3 + Math.round(sky.shadow.len * 0.8), `rgba(40,24,8,${(0.13 + sky.shadow.len * 0.008).toFixed(3)})`),
+    shade: (x, y, w) => {
+      const len = 3 + Math.round(sky.shadow.len * 0.9), dx = x <= 0 && w >= 590 ? 0 : sceneSun * Math.round(len * (0.5 + sceneLow * 1.4)), c2 = ctx;
+      c2.fillStyle = `rgba(40,24,8,${((0.13 + sky.shadow.len * 0.008) * (sky.sun ? 1 : 0.5) * (1 - wx.over * 0.5)).toFixed(3)})`;
+      c2.beginPath(); c2.moveTo(x, y); c2.lineTo(x + w, y); c2.lineTo(x + w + dx, y + len); c2.lineTo(x + dx, y + len); c2.closePath(); c2.fill();      // slanting away from the sun; a wall right across the picture throws a straight band
+    },
     pips: (l, n) => '●'.repeat(Math.max(0, Math.min(n, l))) + '○'.repeat(Math.max(0, n - l)),
     // courses of brick or dressed stone across a wall
     brick: (x, y, w, h, c) => { for (let r = 0; r * 6 < h; r++) { R(x, y + r * 6 + 5, w, 1, c); for (let q = (r % 2) * 9 + 4; q < w; q += 18) R(x + q, y + r * 6, 1, 5, c); } },
@@ -110,7 +114,7 @@ function drawPlace(cv, T, tab) {
   if (la > 0) for (const [lx, ly] of lamps) {
     ctx.globalAlpha = la; E.flame(lx, ly, 5);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
-    ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la);
+    ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la); if (!scene.indoor) sceneMoths(ctx, T, lx, ly - 6, la);
     if (scene.indoor) for (let q = 0; q < 4; q++) { const an = T * (0.25 + q * 0.07) + lx + q * 1.7, mx = lx + Math.cos(an) * (8 + q * 5), my = ly - 6 + Math.sin(an * 1.3) * (6 + q * 3); ctx.fillStyle = `rgba(255,236,190,${(0.25 + 0.2 * Math.sin(T * 1.1 + q + lx)).toFixed(3)})`; ctx.fillRect(Math.round(mx), Math.round(my), 1, 1); }      // dust turning in the lamplight
   }
   if (scene.indoor) {
