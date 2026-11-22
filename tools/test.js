@@ -117,7 +117,8 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   for (const act of ['menupage', 'menuset', 'menusave', 'menusaves', 'menuhelp', 'menuexit', 'fullscreen']) assert(main.includes('  ' + act + '('), 'the menu has no ' + act);
   // the quests window: a button in the province, a key, and a way to set out from it
   { const pv = read('js/province.js'); assert(pv.includes('function questsModal()') && pv.includes('data-act="quests"') && pv.includes('data-act="questgo"') && main.includes('  quests() {') && main.includes('  questgo(v) {') && main.includes("if (k === 'q') { e.preventDefault(); ACTIONS.quests(); }"), 'the quests window is not wired to its button, its key and its way out');
-    for (const kind of ['Quest', 'Done', 'Asking', 'Bounty', 'Journey', 'Eagle']) assert(pv.includes("card('" + kind + "'"), 'the quests window leaves out: ' + kind); }
+    for (const kind of ['quest', 'done', 'asking', 'bounty', 'journey', 'eagle']) assert(pv.includes("card('" + kind + "'"), 'the quests window leaves out: ' + kind);
+    assert(main.includes('  questdrop(v) {') && pv.includes('data-act="questdrop"') && main.includes('Open the quests window'), 'a quest cannot be given up from the window, or the window cannot be opened from the town'); }
   assert(main.includes('>Journey promised</span>${journeyGo(g)}') && main.includes('function journeyGo(g, label) {') && main.includes("if (!G.field || !g.quest"), 'a promised journey has no way to set out for it from where it is named');
   // a canvas is never painted onto itself: the browser copies the whole of it first, and that was the stutter at the start and end of a fight
   for (const f of ['combat.js', 'show.js', 'yard.js', 'village.js', 'province.js']) assert(!read('js/' + f).includes('drawImage(cv,') && !read('js/' + f).includes('drawImage(ctx.canvas'), f + ' draws a canvas onto itself');
@@ -1933,6 +1934,9 @@ test('quests: people at the fountain, landmarks, unique pieces, deadlines, and n
   G.tally.wins = 1; let came = 0, most = 0;
   for (let i = 0; i < 200; i++) { G.day++; const q = rollAsks(); if (q) came++; most = Math.max(most, asksNow().length); assert(asksNow().every(a => a.leaves >= G.day), 'those who have waited their three days are gone'); }
   assert(came >= 25 && came <= 110 && most <= 2, 'somebody new on about two days in five, never more than two waiting: ' + came + ', ' + most);
+  // a quest can be given up: it goes from the list and the map, and costs what letting it lapse would
+  { newGame(); G.tally.wins = 1; G.fame = 10; const q = errandNew('wolves'); G.asks = [q]; errandTake(q.id);
+    assert(errands().length === 1 && wildMap().marks['e' + q.id] && errandDrop(q.id) && !errands().length && !wildMap().marks['e' + q.id] && G.fame === 9 && !errandDrop(q.id) && !owed().length, 'given up: gone, one fame the worse, and not twice'); }
   // three in hand at most; and one left too long is lost, and talked of
   newGame(); G.tally.wins = 1; G.fame = 10;
   for (const k of ['wolves', 'bandits', 'heirloom', 'supplies']) { const q = errandNew(k); G.asks = [q]; errandTake(q.id); }

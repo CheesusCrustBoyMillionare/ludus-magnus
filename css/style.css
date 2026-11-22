@@ -1424,3 +1424,26 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .logtabs.about { margin-top: 3px; }
 .logtabs.about button { font-size: 10.5px; padding-top: 2px; padding-bottom: 2px; }
 .logtabs.about .copy { margin-left: auto; }
+
+/* the quests window, second pass: groups, chips, what presses, and the story folded away */
+.quests .qsum { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; padding: 5px 9px; margin-bottom: 8px; background: rgba(255, 248, 226, .4); border: 1px solid rgba(110, 72, 26, .35); }
+.quests .qsum .bad { color: #a3261b; } .quests .qsum .gold { color: #8a5a10; }
+.quests .qlist h3 { font: 700 11px var(--display); letter-spacing: .12em; text-transform: uppercase; color: #6b4410; margin: 6px 0 -2px; border-bottom: 1px solid rgba(110, 72, 26, .35); padding-bottom: 2px; }
+.quests .qlist h3 small { font-weight: 400; letter-spacing: .04em; text-transform: none; color: #6b573c; margin-left: 6px; }
+.quests .qlist h3:first-child { margin-top: 0; }
+.quests .qcard.urgent { box-shadow: inset 0 0 0 1px rgba(163, 38, 27, .55); }
+.quests .qhead { align-items: flex-start; }
+.quests .qt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.quests .qt b { font: 700 15px var(--display); letter-spacing: .04em; color: #2c1c10; }
+.quests .qt small { font-size: 12.5px; color: #5a4628; }
+.quests .qbtns { display: flex; gap: 4px; flex: none; }
+.quests .qchips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.quests .qchip { font-size: 11.5px; padding: 1px 7px; border: 1px solid rgba(110, 72, 26, .4); background: rgba(255, 255, 255, .35); color: #3a2a18; white-space: nowrap; }
+.quests .qchip.gold { border-color: #8a5a10; color: #6b4410; background: rgba(232, 181, 69, .16); }
+.quests .qchip.warn { border-color: #b0701a; color: #8a4e0c; background: rgba(226, 150, 40, .16); }
+.quests .qchip.bad { border-color: #a3261b; color: #a3261b; background: rgba(163, 38, 27, .1); font-weight: 700; }
+.quests .qchip.plain { background: none; border-color: transparent; padding-left: 2px; padding-right: 2px; }
+.quests .qchip .skulls { display: inline-flex; vertical-align: middle; }
+.quests .qmore { margin-top: 5px; }
+.quests .qmore summary { font-size: 11.5px; color: #6b4410; cursor: pointer; letter-spacing: .04em; }
+.quests .qmore .qbody { margin-top: 3px; }

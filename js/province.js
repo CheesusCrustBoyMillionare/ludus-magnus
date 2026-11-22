@@ -1248,30 +1248,52 @@ function provLand() {
       strew(9, (px, py, h2) => { if (py < cy + 6) return; R(px, py + 3, 5, 1, 'rgba(0,0,0,.16)'); R(px, py, 4, 3, '#e4dfcd'); R(px, py, 4, 1, '#f4f0e4'); R(px + 3, py + 1, 1, 2, '#a39a84'); });
       strew(26, (px, py, h2) => R(px, py, 1 + (h2 > 0.6 ? 1 : 0), 1, h2 > 0.5 ? '#f0ece0' : '#b8b2a0'));
       for (const off of [-2, 2]) for (let q = 16; q < RY + 6; q += 2) dot(cx + off + Math.round(Math.sin(q * 0.3) * 2), cy + q, 1, 1, 'rgba(120,104,74,.5)');
-    } else if (kind === 'corn') {                            // a farm's fields, plot by plot: standing wheat, barley, stubble with its stooks, plough-land, green corn coming, beans in rows
-      const PW2 = 30, PH2 = 17, plotOf = (px, py) => Math.floor((px - cx + 600) / PW2) + Math.floor((py - cy + 600) / PH2) * 41, crop = pl => Math.floor(lmV(pl, 94 + sd) * 6);
-      for (let py = cy - RY; py <= cy + RY; py++) for (let px = cx - RX; px <= cx + RX; px++) {
-        if (!ok(px, py)) continue;
-        const lx = (px - cx + 600) % PW2, ly = (py - cy + 600) % PH2, pl = plotOf(px, py), c = crop(pl), hz = lmV(pl * 7 + 1, 95 + sd) > 0.5;      // hz: which way its rows run
-        if (lx < 2 || ly < 2) {                              // the bounds between plots: a hedge on some, a baulk of trodden earth on the rest, with a gap for the cart
-          const hedge = lmV(pl * 3 + (lx < 2 ? 1 : 2), 96 + sd) > 0.55, gap = (lx < 2 ? ly : lx) > 6 && (lx < 2 ? ly : lx) < 10;
-          if (hedge && !gap) R(px, py, 1, 1, (px + py) % 3 ? '#4f7038' : '#5f8a3e'); else R(px, py, 1, 1, (px + py) % 4 ? 'rgba(160,136,92,.55)' : 'rgba(132,110,72,.55)');
-          continue;
+    } else if (kind === 'corn') {
+      // A farm's fields. No two plots are the same size: the bounds were walked out by men, not ruled. Each plot has one
+      // crop and one way its rows run; between plots a grass baulk is left, with a hedge along some and a gap for the
+      // cart. Wheat and barley stand a little tall, so each plot throws a line of shade along its south and east side.
+      const cols = [], rws = [];
+      for (let xx = -RX - 20, i = 0; xx < RX + 20; i++) { const w = 20 + Math.floor(lmV(i, 940 + sd) * 20); cols.push([xx, w]); xx += w; }
+      for (let yy = -RY - 14, i = 0; yy < RY + 14; i++) { const hh = 12 + Math.floor(lmV(i, 941 + sd) * 12); rws.push([yy, hh]); yy += hh; }
+      const CROP = ['wheat', 'wheat', 'barley', 'stubble', 'plough', 'green', 'beans', 'ley'];
+      const stand = [];                                      // what stands in the fields, set down after the crops
+      rws.forEach(([y0, hh], ri) => cols.forEach(([x0, w], ci) => {
+        const pl = ci + ri * 53, crop = CROP[Math.floor(lmV(pl, 942 + sd) * CROP.length)], hz = lmV(pl, 943 + sd) > 0.45, tone = 0.95 + lmV(pl, 944 + sd) * 0.1;
+        const hedgeN = lmV(pl, 945 + sd) > 0.5, hedgeW = lmV(pl, 946 + sd) > 0.6, T2 = c => tint(c, tone);
+        let any = false;
+        for (let ly = 0; ly < hh; ly++) for (let lx = 0; lx < w; lx++) {
+          const px = cx + x0 + lx, py = cy + y0 + ly; if (!ok(px, py)) continue; any = true;
+          if (lx < 2 || ly < 2) {                            // the baulk, and the hedge on it
+            const along = lx < 2 ? ly : lx, gate = along > 5 && along < 10, hedge = (lx < 2 ? hedgeW : hedgeN) && !gate;
+            if (hedge) { if ((lx < 2 ? lx : ly) === 0) R(px, py, 1, 1, along % 5 === 2 ? '#6f9a48' : along % 3 ? '#4a6e34' : '#55793a'); else R(px, py, 1, 1, 'rgba(30,40,20,.3)'); }
+            else if ((px + py) % 5 === 0) R(px, py, 1, 1, 'rgba(150,134,92,.35)');      // a trodden baulk: mostly the grass that was there
+            continue;
+          }
+          const row = hz ? ly : lx, across = hz ? lx : ly, n1 = lmV(px * 13 + py * 7, 947 + sd), shade2 = (ly === hh - 1 || lx === w - 1) && (crop === 'wheat' || crop === 'barley' || crop === 'green');
+          if (crop === 'ley') { if (n1 > 0.9) R(px, py, 1, 1, n1 > 0.96 ? '#f4f4f0' : '#8fb85a'); continue; }      // grass put down to rest: clover, and daisies in it
+          let c;
+          if (crop === 'wheat') c = shade2 ? '#a8924c' : n1 > 0.985 ? '#c8432e' : n1 > 0.9 ? '#e6d28c' : (row >> 1) % 2 ? '#d4bd6c' : '#cab262';             // ears catching the light, and a poppy here and there
+          else if (crop === 'barley') c = shade2 ? '#b3a66a' : n1 > 0.9 ? '#ece2a8' : (row >> 1) % 2 ? '#dccf90' : '#d2c484';
+          else if (crop === 'stubble') c = n1 > 0.8 ? '#a8925a' : (row >> 1) % 2 ? '#c8b272' : '#bfa868';
+          else if (crop === 'plough') c = row % 4 === 0 ? '#94744c' : row % 4 === 2 ? '#62492e' : '#7a5e3e';                                                 // ridge, slope and furrow
+          else if (crop === 'green') c = shade2 ? '#5f8238' : row % 3 === 0 ? '#927c4e' : n1 > 0.85 ? '#96bb5e' : '#84a950';                               // young corn in drills, the soil still showing between
+          else c = row % 4 === 1 && across % 4 < 2 ? (n1 > 0.5 ? '#4f8a3a' : '#69a04a') : row % 4 === 1 ? '#7a6240' : n1 > 0.8 ? '#7d6442' : '#8a7048';      // beans: a clump, a gap, a clump
+          R(px, py, 1, 1, T2(c));
         }
-        const row = hz ? ly : lx, n1 = lmV(px * 13 + py * 7, 97 + sd);
-        if (c === 0) R(px, py, 1, 1, row % 2 ? '#d9c070' : n1 > 0.88 ? '#ead58a' : '#cdb25c');                                          // wheat, standing
-        else if (c === 1) R(px, py, 1, 1, row % 2 ? '#e0d090' : n1 > 0.9 ? '#f0e4ac' : '#d2c07a');                                     // barley, paler
-        else if (c === 2) R(px, py, 1, 1, row % 3 === 0 ? '#b89a4a' : n1 > 0.85 ? '#d2bc7c' : '#c9b472');                              // stubble
-        else if (c === 3) R(px, py, 1, 1, row % 2 ? '#8a6a44' : n1 > 0.8 ? '#6f5334' : '#7a5c3a');                                     // plough-land: ridge and furrow
-        else if (c === 4) R(px, py, 1, 1, row % 2 ? '#7fb04e' : '#9a8050');                                                            // green corn, in drills
-        else R(px, py, 1, 1, row % 3 === 0 ? ((hz ? px : py) % 3 ? '#4f8a3a' : '#6aa04a') : '#8a7048');                                // beans, staked in rows
-      }
-      // what stands in them: stooks on the stubble, a rick by the gate, a scarecrow in the green corn, crows on the plough
-      strew(26, (px, py, h2, q) => { const c = crop(plotOf(px, py)), lx = (px - cx + 600) % PW2, ly = (py - cy + 600) % PH2; if (lx < 4 || ly < 5 || lx > PW2 - 4) return;
-        if (c === 2) { R(px - 1, py + 1, 4, 1, 'rgba(0,0,0,.18)'); R(px, py - 3, 2, 4, '#d9c070'); R(px - 1, py - 1, 4, 2, '#c9ae5a'); R(px, py - 4, 1, 1, '#ead58a'); }
-        else if (c === 3 && q % 2) { R(px, py, 2, 1, '#1c1310'); R(px + 1, py - 1, 1, 1, '#1c1310'); }
-        else if (c === 4 && q % 5 === 0) { R(px, py - 7, 1, 8, '#6b4f2c'); R(px - 2, py - 5, 5, 1, '#6b4f2c'); R(px - 1, py - 6, 3, 3, '#a8452e'); R(px, py - 8, 1, 2, '#d9c9a0'); R(px - 1, py - 9, 3, 1, '#8a6a3a'); }
-        else if (c <= 1 && q % 6 === 0) { R(px - 3, py + 1, 8, 1, 'rgba(0,0,0,.2)'); for (let q2 = 0; q2 < 5; q2++) R(px - 3 + Math.max(0, 2 - q2), py - 4 + q2, 7 - Math.max(0, 2 - q2) * 2, 1, q2 % 2 ? '#d9c070' : '#e6d088'); R(px, py - 6, 1, 2, '#6b4f2c'); } });
+        if (!any) return;
+        // one thing to a plot, by what grows there
+        const mx = cx + x0 + 4 + Math.floor(lmV(pl, 948 + sd) * Math.max(1, w - 8)), my = cy + y0 + 5 + Math.floor(lmV(pl, 949 + sd) * Math.max(1, hh - 7)), pick2 = lmV(pl, 950 + sd);
+        if (!ok(mx, my) || !ok(mx + 3, my) || !ok(mx - 3, my - 3)) return;
+        if (crop === 'stubble') for (let q = 0; q < 3; q++) { const sx2 = cx + x0 + 4 + Math.floor(lmV(pl * 5 + q, 951 + sd) * Math.max(1, w - 8)), sy2 = cy + y0 + 5 + Math.floor(lmV(pl * 5 + q, 952 + sd) * Math.max(1, hh - 7)); if (ok(sx2, sy2)) stand.push({ y: sy2, d: () => { R(sx2 - 1, sy2 + 1, 4, 1, 'rgba(0,0,0,.2)'); R(sx2, sy2 - 3, 2, 4, '#d9c070'); R(sx2 - 1, sy2 - 1, 4, 2, '#c4a956'); R(sx2, sy2 - 4, 1, 1, '#ecd98e'); } }); }      // stooks
+        else if (crop === 'plough' && pick2 > 0.4) stand.push({ y: my, d: () => { for (const [ox, oy] of [[0, 0], [4, -2], [-3, 1]]) { R(mx + ox, my + oy, 2, 1, '#1c1310'); R(mx + ox + 1, my + oy - 1, 1, 1, '#1c1310'); } } });                                                                                             // crows after the plough
+        else if (crop === 'green' && pick2 > 0.5) stand.push({ y: my, d: () => { R(mx - 2, my + 1, 5, 1, 'rgba(0,0,0,.2)'); R(mx, my - 7, 1, 8, '#6b4f2c'); R(mx - 3, my - 5, 7, 1, '#6b4f2c'); R(mx - 1, my - 6, 3, 4, '#a8452e'); R(mx - 3, my - 4, 1, 2, '#d9c9a0'); R(mx + 3, my - 4, 1, 2, '#d9c9a0'); R(mx, my - 9, 1, 2, '#e3c08c'); R(mx - 1, my - 10, 3, 1, '#8a6a3a'); } });      // a scarecrow, arms out
+        else if ((crop === 'wheat' || crop === 'barley') && pick2 > 0.72) stand.push({ y: my, d: () => { R(mx - 4, my + 1, 9, 1, 'rgba(0,0,0,.22)'); for (let q = 0; q < 6; q++) { const ww = q < 2 ? 3 + q * 2 : 7; R(mx - (ww >> 1), my - 5 + q, ww, 1, q % 2 ? '#d9c070' : '#e8d48a'); } R(mx + 2, my - 3, 1, 4, '#b89a4a'); R(mx, my - 7, 1, 2, '#6b4f2c'); } });      // a rick
+        else if (crop === 'ley' && pick2 > 0.35) stand.push({ y: my, d: () => { for (const [ox, oy] of [[0, 0], [6, 2], [-5, 3]]) { if (!ok(mx + ox, my + oy)) continue; R(mx + ox - 1, my + oy + 2, 5, 1, 'rgba(0,0,0,.18)'); R(mx + ox, my + oy, 4, 2, '#f1ead8'); R(mx + ox + 3, my + oy - 1, 2, 2, '#3a2a22'); R(mx + ox, my + oy + 2, 1, 1, '#3a2a22'); R(mx + ox + 3, my + oy + 2, 1, 1, '#3a2a22'); } } });      // sheep on the ley
+      }));
+      // a tree left standing where three or four bounds meet, here and there
+      rws.forEach(([y0], ri) => cols.forEach(([x0], ci) => { const tx2 = cx + x0, ty2 = cy + y0; if (lmV(ci * 7 + ri * 13, 953 + sd) < 0.9 || !ok(tx2, ty2) || !ok(tx2 + 3, ty2) || !ok(tx2 - 3, ty2 - 6)) return;
+        stand.push({ y: ty2 + 2, d: () => { R(tx2 - 3, ty2 + 2, 7, 1, 'rgba(0,0,0,.2)'); R(tx2, ty2 - 2, 1, 4, '#4a3320'); R(tx2 - 3, ty2 - 8, 7, 6, '#3f6a2e'); R(tx2 - 2, ty2 - 9, 5, 1, '#3f6a2e'); R(tx2 - 3, ty2 - 8, 3, 3, '#5f8f3a'); R(tx2 + 2, ty2 - 5, 2, 3, '#2f5226'); } }); }));
+      stand.sort((u, w2) => u.y - w2.y).forEach(o => o.d());
     } else if (kind === 'flowers') {                         // a meadow thick with what bees want, and thyme in grey patches
       strew(150, (px, py, h2, q) => R(px, py, 1, 1, ['#e8a0c0', '#f4f4f0', '#f2e06a', '#b89ae0', '#e86a6a', '#f2e06a'][q % 6]));
       strew(14, (px, py) => { R(px - 1, py, 4, 2, 'rgba(150,170,140,.5)'); R(px, py - 1, 2, 1, '#b89ae0'); });
@@ -1836,7 +1858,9 @@ function provLand() {
       'The white temple': ['swallow', 4, 24], 'The sacred grove': ['swallow', 3, 22], 'The mill': ['swallow', 4, 22], 'The old arena': ['swallow', 4, 26], 'The old arch': ['swallow', 2, 18], 'A villa in its garden': ['swallow', 3, 24], 'The broken aqueduct': ['swallow', 3, 24],
       'The drowned temple': ['heron', 1, 26], 'The causeway': ['heron', 1, 30], 'The huts on stilts': ['duck', 4, 30], 'The great oak': ['starling', 14, 26], 'The bee garden': ['swallow', 2, 20], 'The great quarry': ['kestrel', 1, 34] };
     for (const m of marks) { const b = LB[m.name]; if (b) prov.birds.push({ x: m.x + m.r, y: m.y - (b[0] === 'duck' ? 4 : 26), kind: b[0], n: b[1], r: b[2] }); } }      // gulls over the beacon, crows over the gallows, an eagle over its rock
-  const nearMark = (cx, cy) => marks.some(m => cx > m.x - 6 && cx < m.x + m.r * 2 + 4 && cy > m.y - m.r * 1.6 && cy < m.y + 16);
+  // nothing grows wild in a ploughed field or between the vines: the farm's own trees are set down with its plots
+  const inFields = (cx, cy) => marks.some(m => { const k = SET_OF[m.name]; if (k !== 'corn' && k !== 'vines') return false; const rx = m.r + (k === 'corn' ? 66 : 40), ry = k === 'corn' ? 48 : 31, dx = (cx - m.x - m.r) / rx, dy = (cy - m.y) / ry; return dx * dx + dy * dy < 0.92; });
+  const nearMark = (cx, cy) => marks.some(m => cx > m.x - 6 && cx < m.x + m.r * 2 + 4 && cy > m.y - m.r * 1.6 && cy < m.y + 16) || inFields(cx, cy);
 
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 60), b = h(tx, ty, 61);
@@ -3624,33 +3648,46 @@ function provFrame(ts) {
 // trail of the eagle: each with who asked, where it is, how far, how dangerous, how long is left and what it pays,
 // and a button to set out for it.
 function questsModal() {
-  const F = G.field, M = wildMap(), parts = [], dn = n => `${n} day${n === 1 ? '' : 's'}`;
+  const F = G.field, M = wildMap(), dn = n => `${n} day${n === 1 ? '' : 's'}`, from = F ? [F.x, F.y] : [WILD.TOWN.x + 22, WILD.TOWN.y];
+  // how long the march is, by the way the column would actually take
+  const march = (x, y) => { const path = wildRoute(from[0], from[1], x, y); return path ? marchDays(pathCost(from[0], from[1], path)) : null; };
+  const far = (x, y, n) => { const dir = F ? wayTo(x, y).replace(/^(today|about \d+ days?) ?/, '') : ''; return n === null ? 'no way there on foot' : `${n === 0 ? 'there today' : n === 1 ? 'a day’s march' : n + ' days’ march'}${dir && dir !== 'close by' ? ' ' + dir : ''}${F ? '' : ' from the gate'}`; };
   const go = (id, label) => F && siteById(id) ? `<button class="mini primary" data-act="questgo" data-v="${id}">${label || 'Set out'}</button>` : '';
-  const way = (x, y) => F ? ` &middot; ${wayTo(x, y)}` : '';
-  const sk = t => t ? `<span class="skulls">${'<i></i>'.repeat(t)}</span>` : '<span class="dim">no danger known</span>';
-  const card = (tag, cls, title, meta, body, btn) => `<div class="qcard ${cls}"><div class="qhead"><span class="ptag ${cls}">${tag}</span><b>${title}</b>${btn || ''}</div><div class="qmeta">${meta}</div>${body ? `<div class="qbody">${body}</div>` : ''}</div>`;
-  // quests from the people of the town
-  for (const q of errands()) {
-    const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1, mark = second ? q.mark2 : q.mark, x = second ? q.x2 : q.x, y = second ? q.y2 : q.y, left = Math.max(0, q.until - G.day), hint = goalHint(T);
-    const what = T.type === 'rescue' ? (second ? 'The trail leads here: there will be a fight.' : 'Ask here which way they were taken.') : T.type === 'fight' ? 'There will be a fight.' : T.type === 'fetch' ? `Search for ${T.thing || 'what was lost'}.` : T.cost ? `Carry the offering there, and add ${T.cost} denarii of your own.` : T.day ? 'It will take a day there.' : 'Carry it there.';
-    parts.push(card('Quest', 'quest', T.title(mark), `for ${q.giver.name} &middot; ${mark}, ${wildRegion(x, y)}${way(x, y)} &middot; ${sk(q.tier)} &middot; <span class="${left <= 3 ? 'bad' : ''}">${dn(left)} left</span> &middot; <b class="gold num">${q.pay}</b> denarii${q.relic ? ` &middot; <span class="gold">${RELICS[q.relic].name}</span>` : ''}`,
-      `${T.ask(q)}<div class="qnote">${what}${q.boss && T.lead ? ' ' + T.lead(q) : ''}${hint ? ` <span class="gold">It is ${hint}.</span>` : ''} The pay is at the fountain, when you are home.</div>`, go('e' + q.id)));
-  }
-  // done, and waiting to be paid; and people waiting at the fountain to ask
-  for (const q of owed()) parts.push(card('Done', 'done', ERRANDS[q.tpl].title(q.mark), `${q.giver.name} is waiting at the fountain in the square with <b class="gold num">${q.owedPay}</b> denarii${ERRANDS[q.tpl].next ? ', and has more to say' : ''}`, '', F ? '<button class="mini" data-act="questgo" data-v="home">Go home</button>' : ''));
-  for (const q of asksNow()) parts.push(card('Asking', 'asking', q.giver.name, `${GIVERS[q.giver.kind].what}, waiting by the fountain in the square for ${dn(Math.max(1, q.leaves - G.day + 1))} more`, '<span class="dim">Walk up to the fountain in the town to hear what is wanted.</span>', ''));
-  // the Magistrate's bounty
-  if (bountyLive()) { const b = G.bounty; parts.push(card('Bounty', 'bounty', b.name, `the Magistrate &middot; ${b.region}${way(b.x, b.y)} &middot; ${sk(b.tier)} &middot; <span class="${b.until - G.day <= 3 ? 'bad' : ''}">${dn(b.until - G.day)} left</span> &middot; <b class="gold num">${b.pay}</b> denarii`, 'A price is on their heads. Take the school there and bring them in; the Magistrate pays when it is done.', go('bounty'))); }
-  // journeys promised to your own men
-  for (const g of G.roster.filter(x => x.quest && QUESTS[x.quest.id])) { const Q = QUESTS[g.quest.id], id = questMarkId(g), st = siteById(id), waited = G.day - g.quest.since;
-    parts.push(card('Journey', 'journey', `${g.name}: ${lower(Q.name)}`, `${questWhere(g)}${st ? way(st.x, st.y) : ''}${st ? ' &middot; ' + sk(siteDanger(st)) : ''} &middot; <span class="${waited >= 10 ? 'bad' : ''}">promised ${dn(waited)} ago</span>${g.away ? ' &middot; <span class="bad">he is away on contract</span>' : ''}`,
-      `You gave him your word. Take the whole school there, and him with it: see it through and he comes back changed, and will never desert you.${g.quest.heard ? ' He has told you what it is, by the fire: you know what it will take.' : ''}${waited >= 10 ? ' <span class="bad">He is losing heart with the waiting.</span>' : ''}`, st && !g.away ? go(id) : '')); }
-  // the eagle
-  { const lead = eagleLead(); if (lead) { const st = wildSites().find(s => ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) && siteLive(s) && M.marks[s.id]); parts.push(card('Eagle', 'eagle', 'The eagle of the Seventeenth', st ? `${st.name}, ${wildRegion(st.x, st.y)}${way(st.x, st.y)} &middot; ${sk(siteDanger(st))}` : 'the trail of a lost legion', lead, st ? go(st.id) : '')); } }
-  const n = errands().length;
-  return `<div class="quests"><h2>Quests <small>${n} of 3 from the town in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small></h2>
-    ${parts.length ? `<div class="qlist">${parts.join('')}</div>` : '<p class="dim">Nothing is asked of the school just now. People with work wait by the fountain in the town square; the Magistrate posts a bounty at the games; and a man of yours who has proved himself may ask something of you in his own time.</p>'}
-    <div class="row"><button class="primary" data-act="close">Close <span class="key">Q</span></button></div></div>`;
+  const sk = t => t ? `<span class="skulls"${tip(`Danger ${t} of 5.`)}>${'<i></i>'.repeat(t)}</span>` : '';
+  const chip = (txt, cls, t) => `<span class="qchip ${cls || ''}"${t ? tip(t) : ''}>${txt}</span>`;
+  // time: what is left against what the road takes
+  const clock = (left, n) => { const tight = n !== null && n >= left, close = n !== null && !tight && left - n <= 2;
+    return chip(`${dn(Math.max(0, left))} left`, tight ? 'bad' : close || left <= 3 ? 'warn' : '', tight ? 'The march alone takes as long as you have: it may already be too late.' : close ? 'There is little time to spare beyond the march.' : 'How long they will wait for word.'); };
+  const card = (cls, title, sub, chips, body, btns, urgent) => `<div class="qcard ${cls}${urgent ? ' urgent' : ''}"><div class="qhead"><div class="qt"><b>${title}</b><small>${sub}</small></div><div class="qbtns">${btns || ''}</div></div><div class="qchips">${chips}</div>${body ? `<details class="qmore"><summary>What was said</summary><div class="qbody">${body}</div></details>` : ''}</div>`;
+  const groups = [];
+  // ---- from the town ----
+  { const rows = errands().map(q => {
+      const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1, mark = second ? q.mark2 : q.mark, x = second ? q.x2 : q.x, y = second ? q.y2 : q.y, left = Math.max(0, q.until - G.day), n = march(x, y), hint = goalHint(T), armed = ui.dropArm === q.id;
+      const what = T.type === 'rescue' ? (second ? 'The trail leads here: there will be a fight.' : 'Ask here which way they were taken.') : T.type === 'fight' ? 'There will be a fight.' : T.type === 'fetch' ? `Search for ${T.thing || 'what was lost'}${q.tries ? ` (looked ${q.tries === 1 ? 'once' : q.tries + ' times'} already)` : ''}.` : T.cost ? `Carry the offering there, and add ${T.cost} denarii of your own.` : T.day ? 'It will take a day there.' : 'Carry it there.';
+      const chips = clock(left, n) + chip(far(x, y, n)) + (q.tier ? chip(sk(q.tier), 'plain') : '') + chip(`<b class="num">${q.pay}</b> denarii`, 'gold', 'Paid at the fountain in the square, when you are home.') + (q.fame ? chip(`+${q.fame} fame`) : '') + (T.favor ? chip(`${PATRONS[T.favor[0]].name.replace(/^The /, '')} +${T.favor[1]}`, '', 'Favour, when it is paid.') : '')
+        + (q.relic ? chip(RELICS[q.relic].name, 'gold', RELICS[q.relic].note) : '') + (hint ? chip(hint, 'gold', 'Done this way, it pays or is spoken of more.') : '') + (T.type === 'rescue' ? chip(second ? 'second of two places' : 'first of two places') : '');
+      return { left, html: card('quest', T.title(mark), `for ${q.giver.name}, ${GIVERS[q.giver.kind].what} &middot; ${mark}, ${wildRegion(x, y)}`, chips, `${T.ask(q)}<div class="qnote">${what}${q.boss && T.lead ? ' ' + T.lead(q) : ''}</div>`,
+        go('e' + q.id) + `<button class="mini ${armed ? 'primary' : ''}" data-act="questdrop" data-v="${q.id}"${tip('Send word that it will not be done. It is talked of: one fame is lost, as if they had waited in vain. Asked twice.')}>${armed ? 'Sure?' : 'Give it up'}</button>`, left <= 3 || (n !== null && n >= left)) }; }).sort((u, v) => u.left - v.left);
+    const owe = owed().map(q => card('done', ERRANDS[q.tpl].title(q.mark), `${q.giver.name} is waiting at the fountain in the square`, chip(`<b class="num">${q.owedPay}</b> denarii to collect`, 'gold') + (q.owedFame ? chip(`+${q.owedFame} fame`) : '') + (q.well ? chip('done well', 'gold') : '') + (ERRANDS[q.tpl].next ? chip('has more to say', 'warn', 'There is something further to be asked, by the same person.') : '') + chip(`sends it round in ${dn(Math.max(0, 30 - (G.day - q.done)))}`, '', 'Left unclaimed a month, four parts in five are sent to your steward.'), '', F ? '<button class="mini" data-act="questgo" data-v="home">Go home</button>' : ''));
+    const ask = asksNow().map(q => card('asking', q.giver.name, `${GIVERS[q.giver.kind].what}, waiting by the fountain in the square`, chip(`waits ${dn(Math.max(1, q.leaves - G.day + 1))} more`, q.leaves - G.day <= 0 ? 'warn' : '') + chip('walk up to the fountain to hear it'), '', ''));
+    if (rows.length || owe.length || ask.length) groups.push([`From the town <small>${errands().length} of 3 in hand</small>`, owe.concat(rows.map(r => r.html), ask)]); }
+  // ---- the Magistrate's bounty ----
+  if (bountyLive()) { const b = G.bounty, n = march(b.x, b.y), left = b.until - G.day;
+    groups.push(['The Magistrate', [card('bounty', b.name, `a price on their heads &middot; ${b.region}`, clock(left, n) + chip(far(b.x, b.y, n)) + chip(sk(b.tier), 'plain') + chip(`<b class="num">${b.pay}</b> denarii`, 'gold', 'Paid by the Magistrate when it is done.'), 'Take the school there and bring them in. Nothing is lost if the time runs out, except the price.', go('bounty'), left <= 3 || (n !== null && n >= left))]]); }
+  // ---- journeys promised to your own men ----
+  { const rows = G.roster.filter(x => x.quest && QUESTS[x.quest.id]).map(g => { const Q = QUESTS[g.quest.id], id = questMarkId(g), st = siteById(id), waited = G.day - g.quest.since, n = st ? march(st.x, st.y) : null, next = 15 - (waited % 15);
+      return card('journey', `${g.name}: ${lower(Q.name)}`, questWhere(g), chip(`promised ${dn(waited)} ago`, waited >= 10 ? 'warn' : '') + (st ? chip(far(st.x, st.y, n)) + (siteDanger(st) ? chip(sk(siteDanger(st)), 'plain') : chip('no fight expected')) : chip('the place is not yet found', 'warn')) + chip(`loses heart in ${dn(next)}`, next <= 3 ? 'warn' : '', 'Every fifteen days he is kept waiting costs him 8 morale.') + (g.quest.heard ? chip('he has told you what it is', 'gold', 'Every price at the end of it is a quarter less.') : '') + (g.away ? chip('away on contract', 'bad') : '') + chip('never deserts, once it is done', 'gold'),
+        Q.ask(g, g.quest.mark || 'the place'), st && !g.away ? go(id) : '', waited >= 12); });
+    if (rows.length) groups.push(['Promised to your men', rows]); }
+  // ---- the eagle ----
+  { const lead = eagleLead(); if (lead) { const st = wildSites().find(s => ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) && siteLive(s) && M.marks[s.id]), n = st ? march(st.x, st.y) : null;
+      groups.push(['The lost eagle', [card('eagle', 'The eagle of the Seventeenth', st ? `${st.name}, ${wildRegion(st.x, st.y)}` : 'the trail of a lost legion', (st ? chip(far(st.x, st.y, n)) + (siteDanger(st) ? chip(sk(siteDanger(st)), 'plain') : '') : '') + chip(`step ${Math.min(5, M.story)} of 5`) + chip('no time limit'), lead, st ? go(st.id) : '')]]); } }
+  // ---- the head of it: what presses ----
+  const urgent = errands().filter(q => q.until - G.day <= 3).length + (bountyLive() && G.bounty.until - G.day <= 3 ? 1 : 0), toCollect = owed().reduce((s2, q) => s2 + q.owedPay, 0), promised = errands().reduce((s2, q) => s2 + q.pay, 0) + (bountyLive() ? G.bounty.pay : 0);
+  const head = `<div class="qsum">${urgent ? `<span class="bad"><b class="num">${urgent}</b> will not wait three days</span>` : '<span>nothing presses</span>'}${promised ? `<span><b class="gold num">${promised}</b> denarii promised for what is in hand</span>` : ''}${toCollect ? `<span class="gold"><b class="num">${toCollect}</b> waiting at the fountain</span>` : ''}<span><b class="num">${G.questsDone || 0}</b> done so far</span></div>`;
+  return `<div class="quests"><h2>Quests <small>${F ? 'from where the column stands' : 'from the town gate'}</small></h2>${head}
+    ${groups.length ? `<div class="qlist">${groups.map(([h2, cards]) => `<h3>${h2}</h3>${cards.join('')}`).join('')}</div>` : '<p class="dim">Nothing is asked of the school just now. People with work wait by the fountain in the town square; the Magistrate posts a bounty at the games; and a man of yours who has proved himself may ask something of you in his own time.</p>'}
+    <div class="row"><button class="primary" data-act="close">Close <span class="key">Q</span></button>${F ? '' : '<small class="dim" style="align-self:center">Out through the east gate, each of these can be set out for from here.</small>'}</div></div>`;
 }
 
 // ---------- the camp: who is with you, and what can be done without going home ----------

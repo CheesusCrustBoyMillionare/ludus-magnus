@@ -1523,6 +1523,13 @@ function errandDone(q, lines, res) {
 function errandTwist(q) { raiseEvent('wAfter_' + q.tpl, { o: q.id }); }
 const goalHint = T => !T.goal ? '' : T.goal.kind === 'clean' ? 'best done without a man of yours going down' : 'best done quickly';
 const owed = () => G.owed || (G.owed = []);
+// A matter taken on and given up: word is sent that it will not be done. It costs what letting it lapse would.
+function errandDrop(id) {
+  const q = errandById(id); if (!q) return false;
+  G.errands = errands().filter(e => e !== q); delete wildMap().marks['e' + q.id]; G.fame = Math.max(0, G.fame - 1);
+  log(`You send word to ${q.giver.name} that ${lower(ERRANDS[q.tpl].title(q.mark))} will not be done. It is talked of.`, 'bad');
+  return true;
+}
 // Home again: the purse, the thanks, and sometimes something more. Returns what is said.
 function errandPay(id, refuse) {
   const q = owed().find(o => o.id === id); if (!q) return ['Whoever it was has gone.'];

@@ -904,7 +904,7 @@ function questsHtml() {
   const waiting = asksNow().map(q => prow(`<div class="grow"><span class="t">${q.giver.name}</span><small>${GIVERS[q.giver.kind].what}, waiting by the fountain in the square &middot; ${Math.max(1, q.leaves - G.day + 1)} more day${q.leaves - G.day + 1 === 1 ? '' : 's'}</small></div><span class="end"><span class="chip gold">walk to the fountain</span></span>`)).join('');
   const paying = owed().map(q => prow(`<div class="grow"><span class="t good">${q.giver.name} is waiting to pay you</span><small>${ERRANDS[q.tpl].title(q.mark)}: done &middot; at the fountain in the square${ERRANDS[q.tpl].next ? ' &middot; and has more to say' : ''}</small></div><span class="end"><b class="gold num">${q.owedPay}</b></span>`)).join('');
   if (!mine && !waiting && !paying) return '';
-  return `<h2${tip('People of the town come to the fountain in the square with work of their own. Walk up to them on the town map to hear it. What you take on is marked on the map of the province, out through the east gate; you may have three such matters in hand.')}>Quests <small>${errands().length} of 3 in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small></h2><div class="panel list">${paying}${mine}${waiting}</div>`;
+  return `<h2${tip('People of the town come to the fountain in the square with work of their own. Walk up to them on the town map to hear it. What you take on is marked on the map of the province, out through the east gate; you may have three such matters in hand.')}>Quests <small>${errands().length} of 3 in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small> <button class="mini" data-act="quests" style="vertical-align:middle;margin-left:6px">Open the quests window</button></h2><div class="panel list">${paying}${mine}${waiting}</div>`;
 }
 function viewContracts() {
   const c = keepSel('csel', G.contracts), dg = daysToGames(), free = G.roster.filter(canSend).length, gone = G.roster.filter(g => g.away).length, asked = G.contracts.find(x => x.asked);
@@ -2773,7 +2773,8 @@ const ACTIONS = {
   pause() { if (fight && !fight.finished && !fight.B.over) { fight.paused = !fight.paused; paintSpeed(); } },
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
-  quests() { if (modalQueue.length) { if (modalQueue[0].startsWith('<div class="quests">')) closeModal(); return; } SFX.ui('scroll'); showModal(questsModal()); },
+  quests() { if (modalQueue.length) { if (modalQueue[0].startsWith('<div class="quests">')) closeModal(); return; } ui.dropArm = null; SFX.ui('scroll'); showModal(questsModal()); },
+  questdrop(v) { if (ui.dropArm !== +v) { ui.dropArm = +v; SFX.ui('warn'); } else { ui.dropArm = null; if (errandDrop(+v)) { SFX.ui('thud'); save(); render(); } } if (modalQueue.length && modalQueue[0].startsWith('<div class="quests">')) { modalQueue[0] = questsModal(); paintModal(); } },
   questgo(v) { if (modalQueue.length) closeModal(); if (ui.campSel) { ui.campSel = null; render(); } ACTIONS.wildgo(v); },
   wildgo(v) {
     const F = G.field; if (!F) return;
