@@ -112,10 +112,11 @@ function provLand() {
   // brow is bright, the flank falls through two middle tones into shade on the south-east, and the foot is dark;
   // the lines between the tones are broken, not ruled. It throws a soft shadow down and to the right, and has
   // no outline: its foot runs out into the ground. sh is its build: dome 0, ridge 1, cone 2, tor 3, table 4, scarp 5.
-  const hillMound = (cx, cy, rx, ry, sh, pal, rk, t) => {
-    const hi = tint(pal[1], t * 1.07), lt = tint(pal[1], t * 0.99), md = tint(pal[0], t), sd = tint(pal[2], t), dk = tint(pal[3] || pal[2], t * (pal[3] ? 1 : 0.86)), seed = cx * 7 + cy * 13;
+  const hillMound = (cx, cy, rx, ry, sh, pal, rk, t, gc) => {
+    // its colours are the ground's own, lifted where the light falls and lowered where it does not, with only a little of the hill country's hue: a hill is the same turf as the land it rises from
+    const body = gc ? mixHex(tint(pal[0], t), gc, 0.42) : tint(pal[0], t), hi = tint(body, 1.18), lt = tint(body, 1.09), md = body, sd = tint(body, 0.86), dk = tint(body, 0.76), seed = cx * 7 + cy * 13;
     const sry = Math.max(2, Math.round(ry * 0.4));
-    for (let dy = -sry; dy <= sry; dy++) { const w = Math.round(rx * 0.95 * Math.sqrt(1 - (dy * dy) / (sry * sry + 0.5))); if (w > 0) R(cx + Math.round(rx * 0.42) - w + Math.round(dy * 0.5), cy + 1 + dy, w * 2, 1, 'rgba(24,34,14,.11)'); }      // the shadow it throws
+    for (let dy = -sry; dy <= sry; dy++) { const w = Math.round(rx * 0.95 * Math.sqrt(1 - (dy * dy) / (sry * sry + 0.5))); if (w > 0) R(cx + Math.round(rx * 0.42) - w + Math.round(dy * 0.5), cy + 1 + dy, w * 2, 1, 'rgba(24,34,14,.09)'); }      // the shadow it throws
     for (let dy = -ry; dy <= 0; dy++) {
       const fr = (dy + ry) / Math.max(1, ry), dome = Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)), prof = sh === 2 ? 0.45 * dome + 0.55 * Math.pow(fr * 0.9 + 0.1, 0.8) : sh === 4 ? 0.7 + 0.3 * fr : dome;
       const w = Math.max(1, Math.round(rx * prof + (h(seed + dy, cy, 121) - 0.5) * 1.4)), up = (1 - fr) * 0.55, j = q => (h(seed + dy, q, 1350) - 0.5) * 0.14;
@@ -127,12 +128,14 @@ function provLand() {
       if (xb > x3) R(x3, cy + dy, xb - x3, 1, sd);
       if (xb > x4) R(Math.max(x3, x4), cy + dy, xb - Math.max(x3, x4), 1, dk);
       if (dy < 0 && dy > -ry) { if (x2 > xa + 1 && (dy + seed) % 2) R(x2, cy + dy, 1, 1, lt); if (x3 < xb - 1 && (dy + seed) % 2 === 0) R(x3 - 1, cy + dy, 1, 1, sd); }      // the tones broken into each other
+      if (gc && fr > 0.62) { const thin = (fr - 0.62) / 0.38 * 0.5; for (let px = xa; px < xb; px += 2) if (h(px, cy + dy, 1354) < thin) R(px, cy + dy, 2, 1, gc); }      // the lower slopes thin out into the ground they stand on
+      if (gc && fr > 0.25) { const eg = 1 + Math.round(fr * 2); if (h(seed, dy, 1355) > 0.4) R(xa, cy + dy, eg, 1, gc); if (h(dy, seed, 1356) > 0.4) R(xb - eg, cy + dy, eg, 1, gc); }                    // and its sides are bitten into, not cut clean
       if (dy === -ry || (dy === -ry + 1 && w > 3)) R(xa, cy + dy, Math.max(1, Math.round((xb - xa) * 0.6)), 1, hi);                                                              // the brow catching the light
       if (rk && sh === 4 && dy + ry >= 1 && dy + ry <= (ry > 5 ? 3 : 2)) { R(xa, cy + dy, w, 1, rk[0]); R(cx, cy + dy, w, 1, rk[1]); if (h(cx, dy, 913) > 0.5) R(xa + 1 + Math.floor(h(dy, cx, 914) * w), cy + dy, 1, 1, rk[1]); }
       if (rk && sh === 5 && fr > 0.45 && dy < 0) { const fw = Math.max(1, Math.round(w * (0.5 + h(cx, dy, 915) * 0.45))); R(xb - fw, cy + dy, fw, 1, (dy + cx) % 3 ? rk[1] : rk[0]); if (h(dy, cx, 916) > 0.7) R(xb - fw, cy + dy, 1, 1, rk[0]); }
     }
     for (let q = 0, n = Math.floor(rx * ry / 12); q < n; q++) { const fy = -Math.floor(h(seed, q, 1351) * ry * 0.85), fw = Math.round(rx * Math.sqrt(1 - (fy * fy) / (ry * ry + 0.5)) * 0.8), fx = cx - fw + Math.floor(h(q, seed, 1352) * fw * 2); R(fx, cy + fy, 1 + (q % 3 === 0 ? 1 : 0), 1, fx < cx ? 'rgba(255,255,220,.13)' : 'rgba(20,30,10,.13)'); }      // turf: flecks lighter on the lit side, darker on the other
-    for (let q = -rx + 1; q < rx; q += 2) if (h(seed, q, 1353) > 0.45) R(cx + q, cy + 1, 1 + (q % 4 === 0 ? 1 : 0), 1, q > rx * 0.2 ? dk : md);                                                                                                                                  // the foot, ragged, running out into the ground
+    for (let q = -rx - 2; q < rx + 3; q += 2) { const hq = h(seed, q, 1353); if (hq > 0.55) R(cx + q, cy + 1 + (hq > 0.85 ? 1 : 0), 1 + (q % 4 === 0 ? 1 : 0), 1, q > rx * 0.2 ? sd : md); }                                                                                                                                  // the foot, ragged, running out into the ground
     if (rk && sh === 3) { const tw = Math.max(3, Math.min(7, rx >> 1)); R(cx - (tw >> 1), cy - ry - 1, tw, 2, rk[1]); R(cx - (tw >> 1), cy - ry - 1, tw >> 1, 2, rk[0]); R(cx - (tw >> 1) + 1, cy - ry - 3, Math.max(2, tw - 2), 2, rk[1]); R(cx - (tw >> 1) + 1, cy - ry - 3, 1, 2, rk[0]); if (tw > 4) R(cx, cy - ry - 5, 2, 2, rk[0]); }
   };
   const hillDepth = (tx, ty) => { for (let r = 1; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) { const o = at(tx + dx, ty + dy); if (o !== T_HILL && o !== T_PEAK) return r; } return 4; };      // how far into the high ground
@@ -327,7 +330,7 @@ function provLand() {
       const rk = reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876'] : reg === 'The High Fells' ? ['#a2aab4', '#646c78'] : reg === 'The Barrow Downs' ? ['#e6e2d2', '#b4b09c'] : ['#aaa496', '#6b665c'];
       // a hill is a dome (0), a long ridge (1), a steep cone (2), a tor with rock on its crown (3), a flat-topped
       // table with a band of rock under the rim (4), or a scarp with a broken face to the south-east (5)
-      const mound = (cx, cy, rx, ry, sh) => hillMound(cx, cy, rx, ry, sh, pal, rk, t);
+      const gcol = col(k, tx, ty), mound = (cx, cy, rx, ry, sh) => hillMound(cx, cy, rx, ry, sh, pal, rk, t, gcol);
       const hd = hillDepth(tx, ty), quiet = h(tx, ty, 1360) > 0.5;
       if (a > (hd === 1 ? 0.6 : hd === 2 ? 0.66 : hd === 3 ? 0.72 : 0.76)) {
         const form = h(tx, ty, 911) < 0.6 ? zq(wildNoise(tx / 8, ty / 8, 910), 6) : Math.floor(h(tx, ty, 912) * 6);
@@ -1166,7 +1169,8 @@ function provLand() {
     } else if (dHill && e1 < (dHill === 1 ? 0.5 : 0.2)) {        // foothills
       const pal = reg === 'The Quarry Hills' ? ['#b9b083', '#cfc79c', '#8d8660'] : reg === 'The High Fells' ? ['#8f9a78', '#a6b08e', '#6c765a'] : reg === 'The Barrow Downs' ? ['#86a05a', '#9ab56c', '#64803f'] : ['#a3a866', '#b9be7c', '#7f8548'];
       const rx = 3 + Math.floor(e2 * (dHill === 1 ? 5 : 3)), ry = Math.max(2, Math.round(rx * 0.55)), cx = x + Math.floor(e3 * 10), cy = y + 3 + Math.floor(e2 * 7), t = tone(tx, ty);
-      feats.push({ y: cy - 6, d: () => hillMound(cx, cy, rx + 1, ry + 1, 0, pal, null, t) });
+      const gcol = col(k, tx, ty);
+      feats.push({ y: cy - 6, d: () => hillMound(cx, cy, rx + 1, ry + 1, 0, pal, null, t, gcol) });
     } else if (dMarsh && e1 < (dMarsh === 1 ? 0.55 : 0.2)) {     // wet ground at the marsh's edge
       feats.push({ y: y, d: () => {
         if (e2 > 0.5) { const pw = 3 + Math.floor(e3 * 4), px = x + Math.floor(e2 * (10 - pw)); R(px, y + 5, pw, 2, '#3d5a52'); R(px + 1, y + 4, Math.max(1, pw - 2), 1, '#3d5a52'); R(px + 1, y + 5, Math.max(1, pw - 2), 1, '#587a78'); }
