@@ -1486,8 +1486,10 @@ test('the province: every bridge runs straight, and the roads still meet across 
   }
   assert(comps.length >= 5, 'the roads cross water in five places: ' + comps.length);
   // the mill road: on from the old end of the south road, over its own bridge, to the barns
-  { const at2 = (x, y) => L.t[y * TW + x]; assert(WILD_BYROAD.length >= 6 && at2(122, 140) === T_ROAD && at2(108, 141) === T_BRIDGE && at2(109, 141) === T_BRIDGE && at2(107, 141) === T_ROAD && at2(110, 141) === T_ROAD && at2(101, 146) === T_ROAD && at2(92, 150) === T_ROAD && at2(86, 138) === T_ROAD, 'the mill road is not where it was laid');
-    const way = wildRoute(1225, 1405, 1015, 1465), on = way.filter(p => { const k = at2(Math.floor(p.x / 10), Math.floor(p.y / 10)); return k === T_ROAD || k === T_BRIDGE; }).length;
+  { const at2 = (x, y) => L.t[y * TW + x]; assert(WILD_BYROAD.length >= 6 && at2(119, 134) === T_ROAD && at2(122, 140) !== T_ROAD && at2(121, 138) !== T_ROAD && at2(108, 141) === T_BRIDGE && at2(109, 141) === T_BRIDGE && at2(107, 141) === T_ROAD && at2(110, 141) === T_ROAD && at2(101, 146) === T_ROAD && at2(92, 150) === T_ROAD && at2(86, 138) === T_ROAD, 'the mill road is not where it was laid');
+    // the turn is a curve, not a hairpin: going down it, the road never steps back east
+    { let x = 119, y = 134, steps = 0; while (y < 141 && steps++ < 30) { const next = [[0, 1], [-1, 1], [-1, 0], [1, 1]].map(([dx, dy]) => [x + dx, y + dy]).find(([nx, ny]) => at2(nx, ny) === T_ROAD); assert(next && next[0] <= x, 'the road turns back on itself at ' + x + ',' + y); x = next[0]; y = next[1]; } assert(y === 141 && x < 117, 'and comes round to the west: ' + x + ',' + y); }
+    const way = wildRoute(1195, 1345, 1015, 1465), on = way.filter(p => { const k = at2(Math.floor(p.x / 10), Math.floor(p.y / 10)); return k === T_ROAD || k === T_BRIDGE; }).length;
     assert(way.some(p => Math.floor(p.y / 10) === 141 && [108, 109].includes(Math.floor(p.x / 10))) && on / way.length > 0.85, 'from the old end of the road to the water-mill the column goes over the new bridge: ' + Math.round(on / way.length * 100) + '% by road'); }
   for (const comp of comps) {
     const xs = comp.map(q => q[0]), ys = comp.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), at = (x, y) => L.t[y * TW + x];

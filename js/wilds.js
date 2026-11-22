@@ -37,7 +37,7 @@ const WILD_ROADS = [
   [[84, 58], [96, 62]], [[150, 96], [146, 75]], [[200, 70], [186, 64]], [[100, 100], [112, 118], [122, 140]],
 ];
 // The mill road: on from where the south road used to end, over the river, to the water-mill and the barns.
-const WILD_BYROAD = [[122, 140], [112, 141], [106, 141], [101, 143], [101, 149], [94, 150], [89, 150], [86, 143], [86, 138]];
+const WILD_BYROAD = [[119, 134], [118, 137], [115, 140], [111, 141], [106, 141], [101, 143], [101, 149], [94, 150], [89, 150], [86, 143], [86, 138]];
 const WILD_RIVER = [[205, 18], [182, 44], [152, 60], [128, 86], [116, 108], [112, 132], [104, 156], [98, 179]];
 const WILD_REGIONS = [
   { name: 'The Salt Shore', x: 300, y: 1300 }, { name: 'Greywood', x: 900, y: 420 }, { name: 'The Quarry Hills', x: 1080, y: 170 },
@@ -324,10 +324,13 @@ function wildLand() {
   // under it is remembered, so that the landmarks can be set out as if it were not there and none of them moves for it.)
   const under = new Map();
   {
+    // the last of the old road, which ran on south-east past where the new one turns west and stopped there, is taken
+    // up: left in, it made the turn a hairpin
+    for (let y = 135; y <= 141; y++) for (let x = 119; x <= 124; x++) { const k = y * TW + x; if (t[k] === T_ROAD && !lane[k] && !spots.some(sp => sp.tx === x && sp.ty === y)) { under.set(k, T_ROAD); t[k] = T_GRASS; } }
     line(WILD_BYROAD, (x, y) => {
       const k = y * TW + x; if (x < 2 || y < 2 || x > TW - 3 || y > TH - 3 || spots.some(sp => sp.tx === x && sp.ty === y)) return;
       if (t[k] === T_ROAD || t[k] === T_BRIDGE || t[k] === T_PEAK) return;
-      under.set(k, t[k]); t[k] = t[k] === T_WATER ? T_BRIDGE : T_ROAD;
+      if (!under.has(k)) under.set(k, t[k]); t[k] = t[k] === T_WATER ? T_BRIDGE : T_ROAD;
     });
     reach.fill(0); reach[start] = 1; const q3 = [start];
     for (let k = 0; k < q3.length; k++) { const c = q3[k]; for (const n of [c - 1, c + 1, c - TW, c + TW]) if (!reach[n] && t[n] < T_WATER) { reach[n] = 1; q3.push(n); } }
