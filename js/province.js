@@ -681,6 +681,42 @@ function provLand() {
     const x = tx * 10, y = ty * 10, reg = wildRegion(x + 5, y + 5), kind = species(tx, ty, reg, h(tx, ty, 101)), sz = 2 + Math.floor(h(tx, ty, 102) * 3), f = 0.88 + h(tx, ty, 103) * 0.24, cx = x + 2 + Math.floor(h(tx, ty, 104) * 6), cy = y + 7;
     feats.push({ y: cy, d: () => tree(cx, cy, kind === 'dead' && h(tx, ty, 105) > 0.3 ? 'oak' : kind, sz, f) });
   }
+  // No kind of ground stops dead at the edge of its tile. Saplings and brush stand out from a wood, foothills run
+  // down from high ground, reeds and standing water creep out of a marsh, boulders lie below a range, and sand
+  // blows inland. Only what is drawn: the ground underfoot is what it was.
+  const nearKind = (tx, ty, kind) => { for (let r = 1; r <= 2; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && at(tx + dx, ty + dy) === kind) return r; return 0; };
+  for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {
+    const k = at(tx, ty);
+    if (k !== T_GRASS && k !== T_MEADOW && k !== T_HILL) continue;
+    if (k !== T_HILL && farmland(tx, ty)) continue;
+    const x = tx * 10, y = ty * 10, e1 = h(tx, ty, 820), e2 = h(tx, ty, 821), e3 = h(tx, ty, 822), reg = wildRegion(x + 5, y + 5);
+    if (nearMark(x + 5, y + 5)) continue;
+    const dPeak = nearKind(tx, ty, T_PEAK);
+    if (dPeak && e1 < (dPeak === 1 ? 0.5 : 0.22)) {              // rock come down off the range
+      const rock = reg === 'The High Fells' ? ['#a2aab4', '#646c78'] : reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876'] : reg === 'The Barrow Downs' ? ['#8c8676', '#4f4a3c'] : ['#aaa496', '#6b665c'];
+      const w = 3 + Math.floor(e2 * 5), hh = 2 + Math.floor(e3 * (dPeak === 1 ? 6 : 3)), cx = x + 1 + Math.floor(e3 * (9 - w)), cy = y + 5 + Math.floor(e2 * 4);
+      feats.push({ y: cy, d: () => { R(cx - 1, cy, w + 2, 1, 'rgba(0,0,0,.2)'); for (let q = 0; q < hh; q++) { const ww = Math.max(1, Math.round(w * (q + 1) / hh)); R(cx + ((w - ww) >> 1), cy - hh + q, Math.ceil(ww / 2), 1, rock[0]); R(cx + ((w - ww) >> 1) + Math.ceil(ww / 2), cy - hh + q, Math.floor(ww / 2), 1, rock[1]); } } });
+      continue;
+    }
+    if (k === T_HILL) continue;
+    const dFor = nearKind(tx, ty, T_FOREST), dHill = nearKind(tx, ty, T_HILL), dMarsh = nearKind(tx, ty, T_MARSH), dSand = nearKind(tx, ty, T_SAND);
+    if (dFor && e1 < (dFor === 1 ? 0.6 : 0.26)) {                // the wood's outliers: young trees, and brush
+      const cx = x + 1 + Math.floor(e2 * 8), cy = y + 3 + Math.floor(e3 * 6);
+      if (e2 < 0.6) { const kind = species(tx, ty, reg, h(tx, ty, 823)), f = 0.9 + h(tx, ty, 824) * 0.22; feats.push({ y: cy, d: () => tree(cx, cy, kind === 'dead' ? 'oak' : kind, dFor === 1 && e3 > 0.5 ? 3 : 2, f) }); }
+      else feats.push({ y: cy, d: () => { R(cx - 2, cy + 1, 5, 1, 'rgba(0,0,0,.18)'); R(cx - 2, cy - 2, 4 + Math.floor(e3 * 2), 3, '#4c7f38'); R(cx - 1, cy - 3, 2, 1, '#69a04a'); } });
+    } else if (dHill && e1 < (dHill === 1 ? 0.5 : 0.2)) {        // foothills
+      const pal = reg === 'The Quarry Hills' ? ['#b9b083', '#cfc79c', '#8d8660'] : reg === 'The High Fells' ? ['#8f9a78', '#a6b08e', '#6c765a'] : reg === 'The Barrow Downs' ? ['#86a05a', '#9ab56c', '#64803f'] : ['#a3a866', '#b9be7c', '#7f8548'];
+      const rx = 3 + Math.floor(e2 * (dHill === 1 ? 5 : 3)), ry = Math.max(2, Math.round(rx * 0.55)), cx = x + Math.floor(e3 * 10), cy = y + 3 + Math.floor(e2 * 7), t = tone(tx, ty);
+      feats.push({ y: cy - 6, d: () => { R(cx - rx, cy + 1, rx * 2 + 2, 1, 'rgba(0,0,0,.14)'); for (let dy = -ry; dy <= 0; dy++) { const w = Math.max(1, Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)))); R(cx - w, cy + dy, w * 2, 1, tint(pal[0], t)); if (dy < -ry * 0.3) R(cx - w + 1, cy + dy, Math.max(1, Math.round(w * 0.7)), 1, tint(pal[1], t)); R(cx + w - Math.max(1, Math.round(w * 0.3)), cy + dy, Math.max(1, Math.round(w * 0.3)), 1, tint(pal[2], t)); } } });
+    } else if (dMarsh && e1 < (dMarsh === 1 ? 0.55 : 0.2)) {     // wet ground at the marsh's edge
+      feats.push({ y: y, d: () => {
+        if (e2 > 0.5) { const pw = 3 + Math.floor(e3 * 4), px = x + Math.floor(e2 * (10 - pw)); R(px, y + 5, pw, 2, '#3d5a52'); R(px + 1, y + 4, Math.max(1, pw - 2), 1, '#3d5a52'); R(px + 1, y + 5, Math.max(1, pw - 2), 1, '#587a78'); }
+        for (let q = 0, n = 1 + Math.floor(e3 * 3); q < n; q++) { const rx0 = x + Math.floor(h(tx, ty, 825 + q) * 10), ry0 = y + 1 + Math.floor(h(tx, ty, 828 + q) * 5); R(rx0, ry0, 1, 3 + (q % 2), q % 2 ? '#8a9a4a' : '#9aaa5a'); if (q === 0) R(rx0, ry0 - 1, 1, 2, '#6b4a2a'); }
+      } });
+    } else if (dSand === 1 && e1 < 0.5) {                        // sand blown in over the grass
+      feats.push({ y: y, d: () => { for (let q = 0, n = 2 + Math.floor(e2 * 3); q < n; q++) { const sw = 2 + Math.floor(h(tx, ty, 831 + q) * 4); R(x + Math.floor(h(tx, ty, 834 + q) * (10 - sw)), y + 1 + Math.floor(h(tx, ty, 837 + q) * 8), sw, 1 + (q % 2), q % 2 ? '#d8c48a' : '#cdb97e'); } if (e3 > 0.6) { R(x + 4, y + 3, 1, 3, '#9aa860'); R(x + 5, y + 2, 1, 1, '#aab870'); } } });
+    }
+  }
   feats.sort((p1, p2) => p1.y - p2.y);
   for (const ft of feats) ft.d();
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) if (at(tx, ty) === T_FOREST && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood') R(tx * 10, ty * 10 - 4, 10, 12, 'rgba(128,132,136,.16)');      // an old wood, gone grey
@@ -751,6 +787,46 @@ function drawHerds(ctx, T, R, inView) {
       const x = Math.round(Bd.x + Math.cos(an) * r), y = Math.round(Bd.y + Math.sin(an) * r * 0.5), flap = Math.sin(T * (Bd.kind === 'eagle' ? 2 : 7) + i) > 0 ? 1 : 0, c = Bd.kind === 'gull' ? '#f4f4f0' : Bd.kind === 'eagle' ? '#4a3a2a' : '#1c1614', w = Bd.kind === 'eagle' ? 4 : 2;
       R(x - w, y - flap, w, 1, c); R(x + 1, y - flap, w, 1, c); R(x, y, 1, 1, c); if (Bd.kind === 'eagle') { R(x - w - 1, y - flap - 1, 1, 1, c); R(x + w + 1, y - flap - 1, 1, 1, c); R(x, y - 1, 1, 1, '#e8e2d2'); }
       R(x - 1, y + 14, 3, 1, 'rgba(0,0,0,.12)');
+    }
+  }
+}
+
+// The small life of the country, each kind where it belongs: butterflies over the meadows, mist lying on the mere,
+// fish rising, snow blowing off the high peaks, a bird crossing a wood. After dark, fireflies in the woods and
+// over the marsh. Each has its own spot in the world and stays near it; nothing is remembered.
+function drawAmbient(ctx, T, R, camX, camY, night) {
+  const G0 = 40;
+  for (let gy = Math.floor(camY / G0) * G0 - G0; gy < camY + PROV.VH + G0; gy += G0) for (let gx = Math.floor(camX / G0) * G0 - G0; gx < camX + PROV.VW + G0; gx += G0) {
+    const a = wildHash(gx, gy, 690), b = wildHash(gy, gx, 691), x0 = gx + a * 30, y0 = gy + b * 30;
+    if (x0 < 5 || y0 < 5 || x0 > WILD.W - 5 || y0 > WILD.H - 5 || !wildSeen(x0, y0)) continue;
+    const k = wildTile(x0, y0);
+    if (night) {
+      if ((k === T_FOREST || k === T_MARSH) && a > 0.35) for (let q = 0; q < 3; q++) {      // fireflies
+        const ph = a * 20 + q * 2.3, fx = x0 + Math.sin(T * 0.5 + ph) * 12 + q * 5, fy = y0 + Math.cos(T * 0.37 + ph) * 8 - q * 3;
+        if (Math.sin(T * 2.1 + ph * 3) > 0.2) { R(fx, fy, 1, 1, '#f8f0a0'); ctx.fillStyle = 'rgba(248,240,160,.25)'; ctx.fillRect(Math.round(fx) - 1, Math.round(fy) - 1, 3, 3); }
+      }
+      continue;
+    }
+    if (k === T_MEADOW && a > 0.45) {                // a butterfly, going from flower to flower
+      const ph = a * 30, bx = x0 + Math.sin(T * 0.8 + ph) * 12 + Math.sin(T * 2.7 + ph) * 3, by = y0 + Math.cos(T * 0.6 + ph) * 8 + Math.sin(T * 3.3 + ph) * 2, open = Math.sin(T * 14 + ph) > 0, c = ['#f4f4f0', '#f2d060', '#e8a0c0', '#a8c0f0'][Math.floor(b * 4)];
+      R(bx, by, 1, 1, '#2a1c14'); if (open) { R(bx - 1, by - 1, 1, 2, c); R(bx + 1, by - 1, 1, 2, c); } else R(bx, by - 1, 1, 1, c);
+    } else if (k === T_MARSH && a > 0.3) {           // mist lying low and moving
+      const mx = x0 + Math.sin(T * 0.12 + a * 9) * 18, w = 18 + Math.floor(b * 22);
+      ctx.fillStyle = 'rgba(220,230,225,.10)'; ctx.fillRect(Math.round(mx - w / 2), Math.round(y0), w, 3); ctx.fillRect(Math.round(mx - w / 2 + 5), Math.round(y0 - 2), w - 10, 2); ctx.fillRect(Math.round(mx - w / 2 + 3), Math.round(y0 + 3), w - 8, 1);
+    } else if (k === T_WATER && a > 0.55) {          // a fish rising: a ring that widens and is gone
+      const cyc = (T * 0.35 + a * 7) % 4;
+      if (cyc < 1) { const r = 1 + Math.floor(cyc * 4); ctx.fillStyle = `rgba(230,243,250,${(0.7 * (1 - cyc)).toFixed(2)})`; ctx.fillRect(Math.round(x0 - r), Math.round(y0), r * 2 + 1, 1); ctx.fillRect(Math.round(x0 - r + 1), Math.round(y0 - 1), Math.max(1, r * 2 - 1), 1); if (cyc < 0.2) { ctx.fillStyle = '#c9d2de'; ctx.fillRect(Math.round(x0), Math.round(y0 - 2), 1, 2); } }
+    } else if (k === T_PEAK && a > 0.5) {            // snow blowing off the tops
+      for (let q = 0; q < 4; q++) { const p2 = (T * 0.5 + a * 5 + q * 0.25) % 1; ctx.fillStyle = `rgba(244,246,250,${(0.6 * (1 - p2)).toFixed(2)})`; ctx.fillRect(Math.round(x0 + p2 * 26 + q * 3), Math.round(y0 - 14 - q * 4 + p2 * 6), 2, 1); }
+    } else if (k === T_FOREST && a > 0.7) {          // a bird going over the trees
+      const cyc = (T * 0.2 + a * 11) % 6;
+      if (cyc < 1) { const bx = x0 - 30 + cyc * 60, by = y0 - 10 - Math.sin(cyc * Math.PI) * 8, fl = Math.sin(T * 16 + a * 9) > 0 ? 1 : 0, c = b > 0.5 ? '#3a2a22' : '#5a6a8a'; R(bx - 1, by - fl, 1, 1, c); R(bx, by, 1, 1, c); R(bx + 1, by - fl, 1, 1, c); }
+    } else if (k === T_SAND && a > 0.75) {           // sandpipers, running at the water's edge
+      const run = Math.sin(T * 0.9 + a * 12) * 14;
+      for (let q = 0; q < 2 + Math.floor(b * 2); q++) { const sx = x0 + run + q * 4, sy = y0 + (q % 2) * 2; R(sx, sy, 2, 1, '#e8e2d2'); R(sx + (Math.cos(T * 0.9 + a * 12) > 0 ? 2 : -1), sy, 1, 1, '#3a2a22'); R(sx + (Math.sin(T * 18 + q) > 0 ? 0 : 1), sy + 1, 1, 1, '#3a2a22'); }
+    } else if ((k === T_GRASS || k === T_HILL) && a > 0.93) {      // a hare, sitting up, then off
+      const cyc = (T * 0.15 + a * 13) % 5, mv = cyc > 4, hx = x0 + (mv ? (cyc - 4) * 40 * (b > 0.5 ? 1 : -1) : 0), hop = mv && Math.sin(T * 14) > 0 ? 1 : 0;
+      R(hx, y0 - 2 - hop, 3, 2, '#9a8466'); R(hx + (b > 0.5 ? 3 : -1), y0 - 3 - hop, 1, 2, '#9a8466'); R(hx + (b > 0.5 ? 3 : -1), y0 - 5 - hop, 1, 2, '#8a7456'); R(hx + (b > 0.5 ? -1 : 3), y0 - 1 - hop, 1, 1, '#e8e2d2');
     }
   }
 }
@@ -1108,6 +1184,7 @@ function drawProvince(cv, T) {
   }
   drawHerds(ctx, T, R, inView);
   drawTraffic(ctx, T, R, inView);
+  drawAmbient(ctx, T, R, camX, camY, false);
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
     const wx2 = camX + ((i * 71 + T * 26) % (PROV.VW + 40)) - 20, wy2 = camY + (i * 47 + Math.floor(T * 0.5 + i) * 13) % PROV.VH, kk = wildTile(wx2, wy2);
@@ -1216,6 +1293,7 @@ function drawProvince(cv, T) {
   const sky = provSky(), wx = yardWeather(sceneClock());
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
   if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
+  if (sky.night > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
   if (sky.night > 0.25) {
     const la = Math.min(1, (sky.night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
     ctx.globalCompositeOperation = 'lighter';
