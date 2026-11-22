@@ -50,27 +50,38 @@ function yardPerson(ctx, X, Y, d, o) {
   const skin = o.skin || '#d9a57c', skinD = shade(skin, 0.76), tunicD = shade(o.tunic, 0.72), wood = '#7a5a2a';
   ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(X - 4, Y - 1, 14 + Math.round(sceneLow * 16), 2);
   const st = o.moving ? (Math.sin(o.walk) > 0 ? 1 : -1) : 0;      // stride
+  // the body rises a little in the middle of each stride; standing, it lifts now and then with a breath
+  const ub = o.moving ? (Math.abs(Math.sin(o.walk)) < 0.4 ? 1 : 0) : (Math.sin(performance.now() / 1000 * 1.4 + X * 0.37) > 0.9 ? 1 : 0), U = (x, y, w, h, c) => P(x, y - ub, w, h, c);
+  const tc = o.tunic || '#8a4a3a', hsh = (tc.charCodeAt(1) * 7 + tc.charCodeAt(3) * 13 + tc.charCodeAt(5) * 29 + (o.hair || '#3a2a1c').charCodeAt(2) * 5 + (o.skin || '#d9a57c').charCodeAt(4) * 3) % 420, plain = !o.item && !o.apron && !o.staff;
   P(-3 - st, -12, 3, 12 - (st > 0 ? 1 : 0), skinD); P(st, -12, 3, 12 - (st < 0 ? 1 : 0), skin);
   P(-3 - st, -2 - (st > 0 ? 1 : 0), 4, 2, '#6b4526'); P(st, -2 - (st < 0 ? 1 : 0), 5, 2, '#6b4526');
-  P(-4, -27, 8, 17, o.tunic); P(-4, -27, 2, 17, tunicD); P(-4, -18, 8, 1, '#6b4526');
-  if (o.apron) { P(-1, -26, 5, 15, o.apron); P(-1, -26, 1, 15, shade(o.apron, 0.8)); }
-  P(-1, -28, 3, 1, skinD);
-  P(-3, -35, 6, 7, skin); P(-3, -36, 6, 2, o.hair || '#3a2a1c'); P(-3, -34, 1, 3, o.hair || '#3a2a1c'); P(1, -33, 1, 1, '#1c1310');
+  U(-4, -27, 8, 17, o.tunic); U(-4, -27, 2, 17, tunicD); U(-4, -18, 8, 1, '#6b4526');
+  if (o.apron) { U(-1, -26, 5, 15, o.apron); U(-1, -26, 1, 15, shade(o.apron, 0.8)); }
+  U(-1, -28, 3, 1, skinD);
+  U(-3, -35, 6, 7, skin); U(-3, -36, 6, 2, o.hair || '#3a2a1c'); U(-3, -34, 1, 3, o.hair || '#3a2a1c'); U(1, -33, 1, 1, '#1c1310');
   if (o.item === 'hammer') {          // o.swing 0..1: raised to struck
     const up = o.swing < 0.5;
     const hx = up ? 3 : 8, hy = up ? -36 : -21;
-    for (let i = 0; i <= 4; i++) P(Math.round(1 + (hx - 1) * i / 4), Math.round(-26 + (hy + 26) * i / 4), 2, 2, skin);
-    P(hx, hy - 4, 1, 5, wood); P(hx - 2, hy - 6, 5, 3, '#8d9094'); P(hx - 2, hy - 6, 5, 1, '#c1c7cc');
+    for (let i = 0; i <= 4; i++) U(Math.round(1 + (hx - 1) * i / 4), Math.round(-26 + (hy + 26) * i / 4), 2, 2, skin);
+    U(hx, hy - 4, 1, 5, wood); U(hx - 2, hy - 6, 5, 3, '#8d9094'); U(hx - 2, hy - 6, 5, 1, '#c1c7cc');
   } else {
-    P(2, -26, 2, 8, skin); P(2, -19, 3, 2, skinD);
-    if (o.item === 'staff') { P(5, -38, 1, 38, wood); P(5, -38, 1, 3, '#a8452e'); }
-    if (o.item === 'ladle') { P(4, -20, 7, 1, wood); P(10, -20, 2, 2, '#8d9094'); }
-    if (o.item === 'bag') { P(-6, -24, 3, 8, '#f2ecd8'); P(-6, -24, 3, 1, '#c9c0aa'); }
-    if (o.item === 'scroll') { P(4, -21, 4, 2, '#f2ecd8'); }
-    if (o.item === 'bucket') { P(3, -18, 1, 4, '#3a2a1c'); P(1, -14, 6, 5, '#7a5a2a'); P(1, -14, 6, 1, '#5aa0d0'); P(1, -11, 6, 1, '#5e4426'); }
-    if (o.item === 'pot') { P(3, -22, 7, 5, '#2e2a28'); P(2, -23, 9, 1, '#4a4440'); P(4, -24, 5, 1, '#e8e0d0'); }
-    if (o.item === 'sword') { P(5, -36, 1, 15, '#c1c7cc'); P(4, -22, 3, 1, '#8a6230'); }
-    if (o.item === 'broom') { const b = o.sweep ? 2 : 0; P(5 + (b >> 1), -24, 1, 22, wood); P(3 + b, -3, 6, 3, '#c9a763'); P(3 + b, -1, 6, 1, '#a88a4a'); }
+    U(2 + st, -26, 2, 8, skin); U(2 + st * 2, -19, 3, 2, skinD);
+    if (o.item === 'staff') { U(5, -38, 1, 38, wood); U(5, -38, 1, 3, '#a8452e'); }
+    if (o.item === 'ladle') { U(4, -20, 7, 1, wood); U(10, -20, 2, 2, '#8d9094'); }
+    if (o.item === 'bag') { U(-6, -24, 3, 8, '#f2ecd8'); U(-6, -24, 3, 1, '#c9c0aa'); }
+    if (o.item === 'scroll') { U(4, -21, 4, 2, '#f2ecd8'); }
+    if (o.item === 'bucket') { U(3, -18, 1, 4, '#3a2a1c'); U(1, -14, 6, 5, '#7a5a2a'); U(1, -14, 6, 1, '#5aa0d0'); U(1, -11, 6, 1, '#5e4426'); }
+    if (o.item === 'pot') { U(3, -22, 7, 5, '#2e2a28'); U(2, -23, 9, 1, '#4a4440'); U(4, -24, 5, 1, '#e8e0d0'); }
+    if (o.item === 'sword') { U(5, -36, 1, 15, '#c1c7cc'); U(4, -22, 3, 1, '#8a6230'); }
+    if (o.item === 'broom') { const b = o.sweep ? 2 : 0; U(5 + (b >> 1), -24, 1, 22, wood); U(3 + b, -3, 6, 3, '#c9a763'); U(3 + b, -1, 6, 1, '#a88a4a'); }
+  }
+  if (plain) {                                   // townsfolk differ: a long gown, a beard, a bald head, a border on the hem, a cloak
+    const hair = o.hair || '#3a2a1c';
+    if (hsh % 4 === 0) { U(-4, -10, 8, 7, o.tunic); U(-4, -10, 2, 7, tunicD); U(-4, -4, 8, 1, shade(o.tunic, 1.25)); U(-4, -35, 1, 8, hair); U(-3, -37, 6, 1, hair); }
+    else if (hsh % 5 === 1) { U(0, -30, 3, 2, hair); U(2, -31, 1, 1, hair); }
+    else if (hsh % 7 === 2) { U(-2, -36, 5, 2, skin); U(-3, -35, 1, 1, hair); }
+    if (hsh % 3 === 0) U(-4, -12, 8, 1, shade(o.tunic, 1.3));
+    if (hsh % 6 === 3) { U(-5, -27, 3, 13, shade(o.tunic, 0.58)); U(-5, -27, 9, 2, shade(o.tunic, 0.58)); }
   }
 }
 
@@ -331,22 +342,37 @@ function drawYard(cv, T) {
   // ---- generic building pieces ----
   const walls = (x, w, h, c) => {
     const y = GY - h, d = shade(c, 0.78);
-    R(x + w + 1, y + 6, 6, h - 6, SHADOW);                    // shadow thrown on the wall behind
+    R(x + w + 1, y + 6, 6 + Math.round(sky.shadow.len / 3), h - 6, SHADOW);                    // shadow thrown on the wall behind, longer as the sun gets low
     R(x - 1, y - 1, w + 2, h + 1, OUT);                       // outline
-    R(x, y, w, h, c); R(x, y, 2, h, d); R(x + w - 2, y, 2, h, d);
+    R(x, y, w, h, c);
+    for (let q = 0, n = Math.floor(w * h / 240); q < n; q++) {      // the plaster: patched here, faded there
+      const px = x + 3 + Math.floor(wildHash(x, q, 1500) * Math.max(1, w - 14)), py = y + 7 + Math.floor(wildHash(q, x, 1501) * Math.max(1, h - 18)), pw = 4 + Math.floor(wildHash(x + q, 3, 1502) * 9), pc = q % 2 ? shade(c, 0.94) : shade(c, 1.06);
+      R(px, py, pw, 2 + (q % 3), pc); R(px + 1, py + 2 + (q % 3), Math.max(1, pw - 2), 1, pc);
+    }
+    R(x, y, 2, h, d); R(x + w - 2, y, 2, h, d);
     for (let yy = y + 7; yy < GY - 2; yy += 7) R(x + 2, yy, w - 4, 1, shade(c, 0.9));
+    R(x, y, w, 2, 'rgba(30,18,8,.28)'); R(x, y + 2, w, 2, 'rgba(30,18,8,.14)'); R(x, y + 4, w, 2, 'rgba(30,18,8,.06)');      // the shade under the eaves
+    for (let q = 0; q < 1 + Math.floor(w / 60); q++) {              // a crack running down from the roof line
+      let cx2 = x + 6 + Math.floor(wildHash(x, q, 1503) * Math.max(1, w - 12)); const cy2 = y + 6 + Math.floor(wildHash(q, x, 1504) * h * 0.3);
+      for (let i2 = 0; i2 < 7; i2++) { R(cx2, cy2 + i2, 1, 1, shade(c, 0.72)); if (wildHash(cx2, i2, 1505) > 0.5) cx2 += wildHash(i2, cx2, 1506) > 0.5 ? 1 : -1; }
+    }
+    R(x, GY - 7, w, 4, 'rgba(60,40,20,.10)'); for (let q = 0; q < w; q += 3) if (wildHash(x + q, 7, 1507) > 0.55) R(x + q, GY - 8 - Math.floor(wildHash(q, x, 1508) * 3), 2, 1, 'rgba(60,40,20,.14)');      // damp and dirt thrown up at the foot
     R(x, GY - 3, w, 3, d);
     return y;
   };
   const roof = (x, y, w, kind) => {
     if (kind === 'thatch') R(x - 4, y - 10, w + 8, 12, OUT); else if (kind === 'tile') R(x - 5, y - 13, w + 10, 15, OUT); else R(x - 3, y - 4, w + 6, 6, OUT);
-    if (kind === 'thatch') { R(x - 3, y - 6, w + 6, 7, '#9a7a42'); R(x - 1, y - 9, w + 2, 3, '#b8964e'); for (let xx = x - 2; xx < x + w + 3; xx += 5) R(xx, y - 6, 1, 7, '#7a5e30'); }
-    else if (kind === 'tile') { R(x - 4, y - 5, w + 8, 6, '#a8452e'); R(x - 1, y - 9, w + 2, 4, '#b8553a'); R(x + 5, y - 12, w - 10, 3, '#c9684a'); for (let xx = x - 3; xx < x + w + 4; xx += 4) R(xx, y - 5, 1, 6, '#7e3220'); }
+    if (kind === 'thatch') { R(x - 3, y - 6, w + 6, 7, '#9a7a42'); R(x - 1, y - 9, w + 2, 3, '#b8964e'); for (let xx = x - 2; xx < x + w + 3; xx += 5) R(xx, y - 6, 1, 7, '#7a5e30');
+      for (let xx = x - 3; xx < x + w + 3; xx += 2) { const q = wildHash(xx, y, 1510); R(xx, y - 8 + Math.floor(q * 7), 1, 2, q > 0.5 ? '#c8a85a' : '#86662f'); if (q > 0.35) R(xx, y + 1, 1, 1 + (q > 0.75 ? 1 : 0), '#9a7a42'); } R(x - 3, y + 1, w + 6, 1, 'rgba(0,0,0,.18)'); }      // straw, its eave ragged
+    else if (kind === 'tile') { R(x - 4, y - 5, w + 8, 6, '#a8452e'); R(x - 1, y - 9, w + 2, 4, '#b8553a'); R(x + 5, y - 12, w - 10, 3, '#c9684a');
+      for (let xx = x - 3; xx < x + w + 4; xx += 4) { R(xx, y - 5, 1, 6, '#7e3220'); R(xx + 1, y - 5, 1, 6, '#c0603f'); R(xx + 1, y + 1, 2, 1, '#c9684a'); }      // the ridges of the tiles catching the light, and their rounded ends at the eave
+      for (let xx = x + 1; xx < x + w; xx += 4) { R(xx, y - 9, 1, 4, '#963c28'); R(xx + 1, y - 9, 1, 4, '#c96a4c'); } R(x + 5, y - 13, w - 10, 1, '#de8060'); R(x - 4, y + 2, w + 8, 1, 'rgba(0,0,0,.22)');
+      for (let q = 0; q < 1 + Math.floor(w / 50); q++) R(x + 2 + Math.floor(wildHash(x, q, 1511) * (w - 8)), y - 3 - Math.floor(wildHash(q, x, 1512) * 5), 3, 1, '#6f8a4a'); }      // moss in a joint or two
     else { R(x - 2, y - 3, w + 4, 4, '#8a6a4a'); R(x - 2, y - 3, w + 4, 1, '#a8855e'); }
   };
-  const door = (x, w, h) => { R(x - 1, GY - h - 1, w + 2, h + 1, '#5a4334'); R(x, GY - h, w, h, '#241812'); R(x, GY - h, 1, h, '#3a2a1c'); };
-  const win = (x, y) => { R(x - 1, y - 1, 8, 9, '#5a4334'); R(x, y, 6, 7, '#241812'); R(x + 3, y, 1, 7, '#5a4334'); lights.push([x, y]); };
-  const column = (x, y, h) => { R(x, y, 5, h, '#f0e8d6'); R(x, y, 1, h, '#c9c0aa'); R(x - 1, y, 7, 2, '#f0e8d6'); R(x - 1, y + h - 2, 7, 2, '#d6ccb8'); };
+  const door = (x, w, h) => { R(x - 1, GY - h - 1, w + 2, h + 1, '#5a4334'); R(x - 1, GY - h - 1, w + 2, 1, '#7a6150'); R(x, GY - h, w, h, '#241812'); R(x, GY - h, 1, h, '#3a2a1c'); R(x + 1, GY - h, w - 1, 3, 'rgba(0,0,0,.3)'); R(x - 2, GY - 1, w + 4, 1, '#9a8a70'); };
+  const win = (x, y) => { R(x - 1, y - 1, 8, 9, '#5a4334'); R(x, y, 6, 7, '#241812'); R(x + 3, y, 1, 7, '#5a4334'); for (const sx of [-4, 7]) { R(x + sx, y - 1, 3, 9, '#6f5140'); R(x + sx, y - 1, 3, 1, '#8a6a54'); for (let q = 1; q < 8; q += 2) R(x + sx, y + q, 3, 1, '#57402f'); } R(x - 2, y + 8, 10, 1, '#c9bca0'); R(x - 2, y + 9, 10, 1, 'rgba(0,0,0,.2)'); lights.push([x, y]); };      // shutters folded back, and a sill
+  const column = (x, y, h) => { R(x, y, 5, h, '#f0e8d6'); R(x, y, 1, h, '#c9c0aa'); R(x + 2, y + 3, 1, h - 6, '#dcd2be'); R(x + 4, y + 2, 1, h - 4, '#fbf6ea'); R(x - 1, y, 7, 2, '#f0e8d6'); R(x - 2, y - 1, 9, 1, '#fbf6ea'); R(x - 1, y + h - 2, 7, 2, '#d6ccb8'); R(x - 2, y + h, 9, 1, 'rgba(0,0,0,.2)'); };
 
   // ---- barracks: more cells, then a second floor, then tiles and a colonnade ----
   {

@@ -58,8 +58,8 @@ function drawPlace(cv, T, tab) {
     }),
     lamp: (x, y) => lamps.push([x, y]),
     flame: (x, y, h, col) => { const fl = Math.sin(T * 12 + x) > 0 ? 1 : 0; R(x - 2, y - h - fl, 5, h + fl, col || '#e2702a'); R(x - 1, y - Math.round(h * 0.7) - fl, 3, Math.round(h * 0.7), '#f5c04a'); R(x, y - Math.round(h * 0.4), 1, Math.round(h * 0.4), '#fff0b0'); },
-    column: (x, y, h) => { R(x, y, 7, h, '#e8e2d2'); R(x + 5, y, 2, h, '#c9c2ae'); R(x + 2, y, 1, h, '#f8f4ea'); R(x - 2, y - 3, 11, 3, '#d8d2c0'); R(x - 2, y + h, 11, 3, '#c9c2ae'); },
-    tiles: (x, y, w, h) => { R(x, y, w, h, '#b5522e'); for (let i = 0; i < w; i += 6) R(x + i, y, 1, h, '#963f22'); R(x, y, w, 1, '#d06a3e'); },
+    column: (x, y, h) => { R(x, y, 7, h, '#e8e2d2'); R(x + 5, y, 2, h, '#c9c2ae'); R(x + 2, y, 1, h, '#f8f4ea'); R(x + 3, y + 2, 1, h - 4, '#d6cfbc'); R(x - 2, y - 3, 11, 3, '#d8d2c0'); R(x - 3, y - 4, 13, 1, '#f0ebde'); R(x - 2, y, 11, 1, 'rgba(0,0,0,.14)'); R(x - 2, y + h, 11, 3, '#c9c2ae'); R(x - 3, y + h + 2, 13, 1, '#b5ad98'); },
+    tiles: (x, y, w, h) => { R(x, y, w, h, '#b5522e'); for (let i = 0; i < w; i += 6) { R(x + i, y, 1, h, '#963f22'); R(x + i + 1, y, 1, h, '#c66444'); if (i + 3 < w) R(x + i + 2, y + h, 3, 1, '#c9684a'); } R(x, y, w, 1, '#d87650'); if (h > 4) R(x, y + (h >> 1), w, 1, 'rgba(60,20,8,.18)'); R(x, y + h + 1, w, 1, 'rgba(0,0,0,.22)'); },
     // the ground: stones laid in courses that widen toward you, their joints faint, worn pale down the middle where feet go
     paving: (y, c, d) => {
       R(0, y, 590, 190 - y, c);
@@ -109,6 +109,7 @@ function drawPlace(cv, T, tab) {
     ctx.globalAlpha = la; E.flame(lx, ly, 5);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
     ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la);
+    if (scene.indoor) for (let q = 0; q < 4; q++) { const an = T * (0.25 + q * 0.07) + lx + q * 1.7, mx = lx + Math.cos(an) * (8 + q * 5), my = ly - 6 + Math.sin(an * 1.3) * (6 + q * 3); ctx.fillStyle = `rgba(255,236,190,${(0.25 + 0.2 * Math.sin(T * 1.1 + q + lx)).toFixed(3)})`; ctx.fillRect(Math.round(mx), Math.round(my), 1, 1); }      // dust turning in the lamplight
   }
   if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneRain(ctx, 590, 190, T, wx.rain); sceneAir(ctx, T, sky, wx, 128, true); }
   late.forEach(f => f());
