@@ -437,6 +437,7 @@ function helpModal() {
       + sec('How it ends', 'A man goes down, or yields. The crowd then judges the fallen: a good show and a man who yielded are spared far more often. In a bout <b>to the death</b> there is no yielding and no mercy.')
       + sec('The cloth', '<b>Throw in the cloth</b> to make your worst-hurt man yield at once. Once a bout, and it asks twice.')
       + sec('The crowd', 'Telling blows, abilities and a close fight raise the crowd; a roused crowd pays more fame and spares more men. A dull fight gets cabbage stalks.')
+      + sec('Aiming', 'When the fight stops for one of yours, the ability goes to whoever he is aimed at: click a foe on the sand or in the panel, or press <b>T</b> for the next one. <b>All on him</b> (F) sets every man of yours on that foe until he is down. <b>Hold it</b> (W) keeps the charge and asks again in four seconds.')
       + sec('Watching', 'Pause, step, or run at half speed to look closely; rest the mouse on any fighter for what he is and how he stands. <b>Log</b> keeps every line of the fight. Cut-ins and the following camera can be switched off.')
       + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, a triumph with armed captives and a cheap market, Saturnalia with no deaths and generous bookmakers, the Games of Mars with a duel for each fighting style, or the eight-man Laurel Tournament, where you may back any man for the laurel before the first round, tend your own between rounds, or enter nobody and watch. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days for more fame from its bouts; win enough of them and the house keeps its <b>crown</b>, which adds fame to every bout after.'),
     town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every games day.')
@@ -2018,6 +2019,7 @@ function startFight(boutId, tourneyBout) {
       <p>Your men fight on their own, as they were trained and as their standing orders say. What you decide is their <b>abilities</b>.</p>
       <ul><li><b>The gold bar</b> under a man's health is his charge. It fills slowly by itself, and faster with every blow given or taken.</li>
       <li><b>When it is full, the fight stops</b> and you choose which of his abilities he uses: keys 1 to 4, or click. If you would rather they chose for themselves, switch <b>Abilities</b> to auto below the sand.</li>
+      <li><b>You also choose who it is for.</b> With more than one foe standing, click one on the sand or in the panel (or press T) to aim at him. <b>All on him</b> (F) sets your whole side on that man; <b>Hold it</b> (W) keeps the charge for a better moment.</li>
       <li><b>Styles.</b> Strength beats Agility, Agility beats Skill, Skill beats Strength. The marks on the bout card show whose style has the edge.</li>
       <li><b>Throw in the cloth</b> (key C): your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once a bout, and never in a fight to the death.</li></ul>
       <p>Below the sand you can run the fight faster, <b>pause</b> it (Space), or skip to the result. Rest the mouse on any fighter to see what he is and what he carries. The crowd's bar matters: an exciting fight earns more fame.</p>
@@ -2095,7 +2097,7 @@ function paintOrders() {
     sk.textContent = fight.armed === 'skip' ? 'Sure? Skip it' : 'Skip to result';
     sk.classList.toggle('armed', fight.armed === 'skip');
   }
-  const state = [canOrder(B, 'yield'), pick ? pick.g.id : 0, !!ui.autoCast, B.over, !!ui.noCut].join();
+  const state = [canOrder(B, 'yield'), pick ? pick.g.id : 0, !!ui.autoCast, B.over, !!ui.noCut, pick && pick.target ? B.fighters.indexOf(pick.target) : -1, B.marked ? B.fighters.indexOf(B.marked) : -1].join();
   if (state === fight.ordState) return;
   fight.ordState = state;
   $('#ordYield').disabled = !canOrder(B, 'yield');
@@ -2129,8 +2131,17 @@ function paintOrders() {
         <span class="foot"><span>${r.dmg ? `about <b>${r.dmg}</b> damage` : '&nbsp;'}</span>${n ? `<em>used ${n === 1 ? 'once' : n + ' times'}</em>` : ''}</span></button>`;
     };
     el.innerHTML = `<div class="phead">${side(pick)}<div class="pmid"><b>Choose</b>${tg ? (edge > 1 ? '<span class="good">&#9650; his style gives way to yours</span>' : edge < 1 ? '<span class="bad">&#9660; his style beats yours</span>' : '<span>neither style has the edge</span>') : '<span>no one in front of him</span>'}</div>${tg ? side(tg, true) : '<div class="pside foe"></div>'}</div>
+      ${(() => {      // who it is to be used on: every foe still standing, to click; and the whole side can be set on him
+        const foes = liveFoes(B, pick), mates = B.fighters.filter(x => x.team === 0 && !out(x)).length;
+        if (foes.length < 2 && !(tg && mates > 1)) return '';
+        const chips = foes.map(o => { const on = o === tg, nm = o.g.beast ? 'The ' + o.c.name.toLowerCase() : o.g.name, pct = Math.round(clamp(o.hp / o.maxHp, 0, 1) * 100), e = styleEdge(pick.style, o.style);
+          return `<button class="tchip ${on ? 'on' : ''} ${B.marked === o ? 'marked' : ''}" data-act="abtarget" data-v="${B.fighters.indexOf(o)}"${tip(`${nm}: ${Math.max(0, Math.round(o.hp))} of ${o.maxHp} health${o.snare > 0 ? ', netted' : ''}${o.stun > 0.3 ? ', stunned' : ''}${o.bleed > 0 ? ', bleeding' : ''}.${e > 1 ? '\nYour man\'s style beats his.' : e < 1 ? '\nHis style beats your man\'s.' : ''}${on ? '\nThe ability will be used on him.' : '\nClick to aim at him.'}`)}>${o.g.beast ? '' : styleMark(o.g)}<b>${nm}</b><i class="bar hp"><i style="width:${pct}%"></i></i>${e > 1 ? '<em class="good">&#9650;</em>' : e < 1 ? '<em class="bad">&#9660;</em>' : ''}</button>`; }).join('');
+        return `<div class="ptargets"><span class="lbl">${foes.length > 1 ? 'Aim at' : 'His mark'}</span>${foes.length > 1 ? chips : ''}
+          ${tg && mates > 1 ? `<button class="mini ${B.marked === tg ? 'primary' : ''}" data-act="abmark"${tip('Set the whole side on this man: every one of yours goes for him until he is down. Press again to take it off.')}>${B.marked === tg ? 'All are on him' : 'All on him'} <span class="k">F</span></button>` : ''}</div>`; })()}
       <div class="abrow">${pick.abl.map(card).join('')}</div>
-      <div class="pfoot"><span>Keys <b>1</b>&ndash;<b>${pick.abl.length}</b> choose</span><button class="mini" data-act="abpickai">Let him choose <span class="k">A</span></button></div>`;
+      <div class="pfoot"><span>Keys <b>1</b>&ndash;<b>${pick.abl.length}</b> choose${liveFoes(B, pick).length > 1 ? ' &middot; <b>T</b> next foe' : ''}</span>
+        <button class="mini" data-act="abhold"${tip('Hold the charge: he fights on with it full, and the fight stops for him again in four seconds. For when the moment is wrong: the foe is out of reach, a friend is about to stun him, the net is about to land.')}>Hold it <span class="k">W</span></button>
+        <button class="mini" data-act="abpickai">Let him choose <span class="k">A</span></button></div>`;
     paintResultFaces();
     SFX.ui('chime');
   }
@@ -2638,6 +2649,10 @@ const ACTIONS = {
   abpick(v) { if (fight && !fight.finished && pickAbility(fight.B, v)) paintOrders(); },
   fcam() { ui.fixedCam = !ui.fixedCam; try { localStorage.setItem('ludus-magnus-fixedcam', ui.fixedCam ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) fight.B.fixedCam = ui.fixedCam; paintSpeed(); },
   flog() { ui.flog = !ui.flog; if (fight) fight.logSig = ''; paintFightLog(); paintSpeed(); },
+  abtarget(v) { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && aimAt(B, B.fighters[+v])) { SFX.ui('tick'); paintOrders(); } },
+  abnext(v) { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && aimNext(B, +v || 1)) { SFX.ui('tick'); paintOrders(); } },
+  abmark() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && B.pick.target && markFoe(B, B.pick.target)) { SFX.ui('tick'); paintOrders(); } },
+  abhold() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && holdCharge(B)) paintOrders(); },
   abpickai() { const B = fight && !fight.finished ? fight.B : null; if (B && B.pick && !out(B.pick) && pickAbility(B, aiPickAbility(B, B.pick).id)) paintOrders(); },
   abauto() { ui.autoCast = !ui.autoCast; try { localStorage.setItem('ludus-magnus-autocast', ui.autoCast ? '1' : '0'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.ask = !ui.autoCast; fight.ordState = ''; paintOrders(); } },
   cutins() { ui.noCut = !ui.noCut; try { localStorage.setItem('ludus-magnus-cutins', ui.noCut ? '0' : '1'); } catch (e) { /* storage unavailable */ } if (fight) { fight.B.cutins = !ui.noCut; fight.ordState = ''; paintOrders(); } },
@@ -2709,6 +2724,7 @@ document.addEventListener('mousemove', e => {
 // A click on the sand while an ability is being announced cuts the announcement short.
 document.addEventListener('click', e => {
   if (!fight || !fight.B || e.target.id !== 'arenaCanvas') return;
+  if (fight.B.pick && !fight.finished) { const o = fight.B.inspect; if (o && aimAt(fight.B, o)) { SFX.ui('tick'); paintOrders(); } return; }      // choosing: a click on a foe aims the ability at him
   if (fight.B.fatal) { if (fight.B.fatal.t > 0.7) fight.B.fatal.t = fight.B.fatal.dur; }      // a click sends a death screen on, once the blow has fallen
   else if (fight.B.cut) fight.B.cut.t = fight.B.cut.dur;
   else if (fight.B.intro > 0.5) fight.B.intro = 0.5;               // and one during the entrance sends the card away
@@ -2855,6 +2871,9 @@ document.addEventListener('keydown', e => {
   const B = fight.B;
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
   else if (B.pick && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); ACTIONS.abpickai(); }
+  else if (B.pick && (e.key === 't' || e.key === 'T' || e.key === 'Tab')) { e.preventDefault(); ACTIONS.abnext(e.shiftKey ? -1 : 1); }
+  else if (B.pick && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); ACTIONS.abmark(); }
+  else if (B.pick && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); ACTIONS.abhold(); }
   else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); ACTIONS.flog(); }
   else if (e.key === '.') { e.preventDefault(); ACTIONS.fstep(); }
   else if (e.key === '[' || e.key === ']') { e.preventDefault(); const sp = [0.5, 1, 2, 4], i = clamp(sp.indexOf(fight.speed) + (e.key === ']' ? 1 : -1), 0, 3); ACTIONS.speed(sp[i]); }

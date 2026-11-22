@@ -269,7 +269,9 @@ function castAbility(B, f, ab) {
 }
 function castNow(B, f, ab) {
   const x = abilityFx(f.g, ab);
-  let t = f.target && !out(f.target) ? f.target : null;
+  let t = f.castAt && !out(f.castAt) ? f.castAt : f.target && !out(f.target) ? f.target : null;
+  f.castAt = null;
+  if (t && f.target !== t) { f.target = t; f.retarget = 1.5; }
   if (!t) for (const o of B.fighters) if (o.team !== f.team && !out(o) && (!t || Math.hypot(o.x - f.x, o.y - f.y) < Math.hypot(t.x - f.x, t.y - f.y))) t = o;
   f.charge = signatureOf(f.g) === ab ? SIG_CHARGE : 0; f.casts = (f.casts || 0) + 1; f.lastCast = ab.id; f.combo = null;
   { const up = practise(f.g, ab.id);          // it is his a little more each time; now and then it shows
@@ -405,12 +407,47 @@ function abilityRead(B, f, a) {
   }
   return { score: s, notes, dmg };
 }
+// ---------- aiming, marking and holding: what the player may say while the fight waits on him ----------
+// The foes still standing, left to right, for stepping through them.
+const liveFoes = (B, f) => B.fighters.filter(o => o.team !== f.team && !out(o)).sort((a, b) => a.x - b.x || a.y - b.y);
+// Aim the charged man at this foe: his ability will be used on him, and he keeps after him for a while.
+function aimAt(B, o) {
+  const f = B.pick;
+  if (!f || !o || o.team === f.team || out(o)) return false;
+  if (f.state === 'windup' && f.target !== o) { f.state = 'ready'; f.move = null; }
+  f.target = o; f.castAt = o; f.retarget = 4; f.facing = o.x >= f.x ? 1 : -1;
+  return true;
+}
+// The next foe along, or the one before.
+function aimNext(B, dir) {
+  const f = B.pick; if (!f) return false;
+  const foes = liveFoes(B, f); if (foes.length < 2) return false;
+  const i = foes.indexOf(f.target);
+  return aimAt(B, foes[(i + (dir || 1) + foes.length) % foes.length]);
+}
+// Set the whole side on one man: every one of yours leans hard towards him until he is down. The same again takes it off.
+function markFoe(B, o) {
+  if (!o || out(o) || o.team === 0) { B.marked = null; return false; }
+  B.marked = B.marked === o ? null : o;
+  if (B.marked) { feed(B, `Your men are set on ${o.g.beast ? 'the ' + o.c.name.toLowerCase() : o.g.name}`, 0, 'note'); for (const m of B.fighters) if (m.team === 0 && !out(m) && m !== B.pick) m.retarget = 0; }
+  return true;
+}
+// Hold the charge: he fights on with it full, and the fight stops for him again in a few seconds.
+const HOLD_TIME = 4;
+function holdCharge(B) {
+  const f = B.pick;
+  if (!f) return false;
+  f.holdT = HOLD_TIME; B.pick = null;
+  fxText(B, f, 'holds it', '#ffd24a');
+  return true;
+}
 // The player has chosen for the man the fight stopped for.
 function pickAbility(B, id) {
   const f = B.pick;
   if (!f) return false;
   const a = f.abl.find(x => x.id === id) || f.abl[0];
   B.pick = null;
+  if (f.target && !out(f.target)) f.castAt = f.target;      // whoever he was aimed at when the word was given
   if (!out(f)) castAbility(B, f, a);
   return true;
 }

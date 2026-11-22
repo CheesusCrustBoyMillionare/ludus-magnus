@@ -232,6 +232,7 @@ test('household: new buildings, new posts and the regimen each do what they say'
   G.regimen = 0; assert(trainRate(g) < r1 && trainTire(g, false) < t1 && moraleBase(1) === b1 + 3, 'a light one the reverse');
   G.regimen = 1;
   // the unctor: rest and drill
+  g.traits = g.traits.filter(t => t !== 'mender');      // a perk that changes rest would cloud it
   const rest0 = restGain(g)[1]; G.staff.unctor = { name: 'U', skill: 2, wage: 5 };
   assert(restGain(g)[1] === rest0 + 10 && Math.abs(trainTire(g, false) - t1 * 0.88) < 1e-9, 'the unctor eases rest and drill');
   // the armourer: only worn kit, and only your own men's
@@ -505,6 +506,7 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
   assert(!toggleAbility(g, 'thraex.str0') && !toggleAbility(g, 'nonsense'), 'he cannot carry what his style does not teach');
   // the charge: fills by itself and with blows, and is spent on an ability
   const a = makeGladiator(40, { cls: 'murmillo' }), b = makeGladiator(40, { cls: 'thraex' });
+  a.traits = a.traits.filter(t => t !== 'opener'); b.traits = b.traits.filter(t => t !== 'opener');      // a perk that starts a man half charged would cloud it
   let B = createBattle([a], [b], { noIntro: true });
   assert(B.fighters.every(f => f.charge === 0 && f.abl.length >= 1 && f.abl.length <= 4 && f.stam === undefined), 'they start uncharged, with their abilities, and no stamina');
   for (let i = 0; i < 30 && !B.over; i++) stepBattle(B, 1 / 30);
@@ -998,6 +1000,51 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
 }));
 
+test('the sand: aiming an ability, setting the side on one man, and holding a charge', () => game()(function () {
+  newGame();
+  const mk = (cls, stats) => { const g = makeGladiator(30, { cls }); g.stats = stats || { str: 12, agi: 12, skl: 12 }; g.traits = []; g.hp = maxHp(g); g.morale = 60; g.fatigue = 0; return g; };
+  const setup = () => { const B = createBattle([mk('murmillo'), mk('thraex')], [mk('murmillo'), mk('thraex'), mk('hoplomachus')], { noIntro: true, ask: true }); return B; };
+  const waitPick = B => { let n = 0; while (!B.pick && !B.over && n++ < 20000) { B.fighters.filter(q => q.team === 0).forEach(q => { q.charge = Math.max(q.charge, 99.5); q.hp = q.maxHp; }); stepBattle(B, 1 / 30); } return B.pick; };
+  // the fight stops for a charged man; he can be aimed at any foe still standing
+  let B = setup(), f = waitPick(B);
+  assert(f && f.team === 0 && f.charge >= 100, 'the fight stops for a man of yours');
+  const foes = liveFoes(B, f);
+  assert(foes.length === 3 && foes.every(o => o.team === 1) && foes[0].x <= foes[2].x, 'the foes still standing, in order');
+  const other = foes.find(o => o !== f.target);
+  assert(aimAt(B, other) && f.target === other && f.castAt === other && f.retarget > 3, 'he is aimed where he is told');
+  assert(!aimAt(B, f) && !aimAt(B, B.fighters.find(q => q.team === 0 && q !== f)) && !aimAt(B, null), 'only at a foe');
+  const before = f.target; assert(aimNext(B, 1) && f.target !== before && liveFoes(B, f).includes(f.target), 'the next foe along');
+  for (let i = 0; i < 3; i++) aimNext(B, 1); assert(f.target === foes[(foes.indexOf(before) + 4) % 3], 'and round again');
+  // the ability lands on the man he was aimed at, not whoever he happened to be fighting
+  const strike = f.abl.find(a => a.fx.mult && !a.fx.aoe && !a.fx.net) || f.abl.find(a => a.fx.mult);
+  aimAt(B, other); const hp0 = other.hp, othersHp = foes.filter(o => o !== other).map(o => o.hp);
+  B.cutins = false; other.dodge = 0; other.block = 0; f.acc = 1;
+  assert(pickAbility(B, strike.id) && !B.pick, 'the word is given');
+  assert(other.hp < hp0 && foes.filter(o => o !== other).every((o, i) => o.hp === othersHp[i] || strike.fx.aoe), 'the blow falls on the man chosen');
+  assert(f.castAt === null && f.target === other, 'and he stays on him');
+  // a man down cannot be aimed at
+  B = setup(); f = waitPick(B); const dead = liveFoes(B, f)[0]; dead.hp = 0; dead.down = true;
+  assert(!aimAt(B, dead) && liveFoes(B, f).length === 2, 'not at a man who is down');
+  // the whole side set on one man
+  B = setup(); f = waitPick(B); const mark = liveFoes(B, f)[2];
+  assert(markFoe(B, mark) && B.marked === mark, 'the side is set on a man');
+  B.pick = null; B.ask = false; B.fighters.forEach(q => { q.charge = 0; q.retarget = 0; });
+  for (let i = 0; i < 20; i++) stepBattle(B, 1 / 30);
+  assert(B.fighters.filter(q => q.team === 0 && !out(q)).every(q => q.target === mark), 'and every one of yours goes for him');
+  assert(markFoe(B, mark) && B.marked === null, 'the same again takes it off');
+  markFoe(B, mark); mark.hp = 0; mark.down = true; for (let i = 0; i < 3; i++) stepBattle(B, 1 / 30);
+  assert(B.marked === null, 'a marked man who falls is marked no longer');
+  assert(!markFoe(B, B.fighters.find(q => q.team === 0)), 'your own men cannot be marked');
+  // holding: he keeps the charge and fights on, and the fight stops for him again
+  B = setup(); f = waitPick(B);
+  assert(holdCharge(B) && !B.pick && f.holdT === HOLD_TIME && f.charge >= 100, 'he holds it');
+  B.fighters.forEach(q => { if (q !== f) q.charge = 0; });
+  let asked = 0, t = 0; while (t < 3.5) { stepBattle(B, 1 / 30); t += 1 / 30; if (B.pick === f) { asked = t; break; } B.fighters.forEach(q => { if (q !== f) q.charge = Math.min(q.charge, 50); q.hp = q.maxHp; }); f.charge = 100; }
+  assert(!asked, 'for a while nothing is asked of you');
+  while (t < 9 && B.pick !== f) { stepBattle(B, 1 / 30); t += 1 / 30; B.fighters.forEach(q => { if (q !== f) q.charge = Math.min(q.charge, 50); q.hp = q.maxHp; }); f.charge = 100; }
+  assert(B.pick === f, 'and then the fight stops for him again');
+}));
+
 test('perks: new perks, a craft for each style, another three, and unlearning', () => game()(function () {
   newGame(); G.denarii = 5000; const g = G.roster[0]; g.traits = []; g.rank = 0;
   // the pool: the common perks for anyone, the craft of his style only from Veteranus
@@ -1043,7 +1090,7 @@ test('perks: new perks, a craft for each style, another three, and unlearning', 
 }));
 
 test('abilities: mastery grows with use, and a signature comes round sooner', () => game()(function () {
-  newGame(); const g = G.roster[0]; g.stats = { str: 16, agi: 16, skl: 16 }; g.hp = maxHp(g);
+  newGame(); const g = G.roster[0]; g.traits = []; g.stats = { str: 16, agi: 16, skl: 16 }; g.hp = maxHp(g);
   const known = abilitiesKnown(g), ab = ABILITIES[g.cls].str[0], buffAb = Object.values(ABILITIES).flatMap(c => STATS.flatMap(k => c[k])).find(a => a.fx.buff && !a.fx.mult);
   assert(known.length === 9 && masteryRank(g, ab.id) === 0 && abilityFx(g, ab) === ab.fx, 'a new ability is as written');
   // use by use: Practised at 3, Honed at 8, Mastered at 15

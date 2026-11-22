@@ -398,6 +398,7 @@ function fighterAct(B, f, dt) {
   f.snare = Math.max(0, f.snare - dt);
   f.cd -= dt; f.retarget -= dt;
 
+  if (B.marked && out(B.marked)) B.marked = null;
   if (!f.target || out(f.target) || f.retarget <= 0) {
     // nearest first, but a man weighs more than distance: the one he hates, the one already hurt or
     // helpless, and above all the one who is cutting down a wounded friend
@@ -408,6 +409,7 @@ function fighterAct(B, f, dt) {
       if (!f.g.beast) {
         if (o === f.target) dd -= 6;
         if (o === f.hate) dd -= 30;
+        if (f.team === 0 && o === B.marked) dd -= 45;      // the man the lanista has set the whole side on
         if (o.hp < o.maxHp * 0.35) dd -= f.tactic === 'aggressive' || f.g.traits.includes('bloodthirsty') ? 22 : 9;
         if (o.snare > 0 || o.stun > 0.3) dd -= 8;
         const m = o.target;
@@ -435,9 +437,13 @@ function fighterAct(B, f, dt) {
 
   // charged: he uses one of the abilities he carries. One of yours, with you watching, waits for your word.
   if (f.charge >= 100) {
-    if (f.team === 0 && B.ask && !f.g.beast && f.abl.length > 1) { B.pick = f; return; }
-    castAbility(B, f, f.abl.length > 1 ? aiPickAbility(B, f) : f.abl[0]);
-    return;
+    const asks = f.team === 0 && B.ask && !f.g.beast && f.abl.length > 1;
+    if (asks && f.holdT > 0) f.holdT -= dt;      // told to hold it: he fights on, charged, until the word comes
+    else {
+      if (asks) { B.pick = f; return; }
+      castAbility(B, f, f.abl.length > 1 ? aiPickAbility(B, f) : f.abl[0]);
+      return;
+    }
   }
   if (dist > f.reach) {
     // when a friend already has him busy, come at his back instead of his shield
@@ -574,7 +580,7 @@ function stepBattle(B, dt) {
   if (B.heartT > 0.9 && B.fighters.some(f => f.team === 0 && !out(f) && !f.g.beast && f.hp < f.maxHp * 0.25)) { B.heartT = 0; snd(B, 'heart'); }
   B.exc = clamp(B.exc - 0.012 * dt, 0, 1);
   B.excSum += B.exc * dt;
-  for (const f of B.fighters) updateFighter(B, f, dt);
+  for (const f of B.fighters) { updateFighter(B, f, dt); if (B.pick) break; }      // the moment it stops for a man of yours, nobody else moves
   for (const p of B.projs) {
     p.t += dt;
     const k = Math.min(1, p.t / p.dur);
@@ -2245,6 +2251,24 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = t.col; ctx.fillText(t.str, t.x * Z, t.y * Z);
   }
   ctx.globalAlpha = 1;
+  {
+    const aim = B.pick && !out(B.pick) && B.pick.target && !out(B.pick.target) ? B.pick.target : null, pulse = 1 + Math.sin(performance.now() / 150) * 0.1;
+    const bracket = (o, col, r) => {
+      const x = o.x * Z, y = (o.y - o.tall * 0.3) * Z, sx = r * Z * pulse, sy = (o.tall * 0.42 + 2) * Z * pulse, arm = 3.5 * Z;
+      ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 2.2;
+      for (let pass = 0; pass < 2; pass++) {
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.beginPath(); ctx.moveTo(x + dx * sx - dx * arm, y + dy * sy); ctx.lineTo(x + dx * sx, y + dy * sy); ctx.lineTo(x + dx * sx, y + dy * sy - dy * arm); ctx.stroke(); }
+        ctx.strokeStyle = col; ctx.lineWidth = 1.1;
+      }
+    };
+    if (B.marked && !out(B.marked)) {
+      const o = B.marked, x = o.x * Z, y = (o.y - o.tall - 7 + Math.sin(performance.now() / 200) * 1.2) * Z;
+      bracket(o, '#ff5a4a', 9);
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.moveTo(x - 4.6, y - 0.6); ctx.lineTo(x + 4.6, y - 0.6); ctx.lineTo(x, y + 5.6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ff5a4a'; ctx.beginPath(); ctx.moveTo(x - 3.5, y); ctx.lineTo(x + 3.5, y); ctx.lineTo(x, y + 4.5); ctx.closePath(); ctx.fill();
+    }
+    if (aim) bracket(aim, '#ffd24a', 8);
+  }
   ctx.setTransform(SCALE * K, 0, 0, SCALE * K, 0, 0);
 
   drawHud(ctx, B);
@@ -2312,8 +2336,9 @@ function drawBattle(ctx, B) {
   }
   if (B.pick && !out(B.pick)) {                     // the man the fight has stopped for
     const f = B.pick;
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(100, 160, 120, 9);
-    ctx.fillStyle = '#ffd24a'; ctx.fillText(`${f.g.name.toUpperCase()} IS READY: CHOOSE`, 160, 166.5);
+    const many = B.fighters.filter(o => o.team !== f.team && !out(o)).length > 1;
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(many ? 76 : 100, 160, many ? 168 : 120, 9);
+    ctx.fillStyle = '#ffd24a'; ctx.fillText(`${f.g.name.toUpperCase()} IS READY: CHOOSE${many ? '  -  CLICK A FOE TO AIM AT HIM' : ''}`, 160, 166.5);
   }
 
   // the man the mouse is on: what he is, how he stands, and what he carries

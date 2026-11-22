@@ -1329,3 +1329,16 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 .trait { position: relative; }
 .trait .unlearn { float: right; padding: 0 6px; font-size: 9.5px; margin-left: 6px; opacity: .55; }
 .trait .unlearn:hover, .trait .unlearn.primary { opacity: 1; }
+
+/* ---- choosing an ability: who it is for ---- */
+#arenaPick .ptargets { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 7px; }
+#arenaPick .ptargets .lbl { font: 700 10px var(--display); letter-spacing: .12em; text-transform: uppercase; color: #6b573c; margin-right: 2px; }
+#arenaPick .tchip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; background: rgba(255, 250, 235, .55); border: 1px solid #a08a62; color: #2a1c14; font: 12px Georgia, serif; cursor: pointer; }
+#arenaPick .tchip b { font-weight: 700; white-space: nowrap; }
+#arenaPick .tchip .bar { display: inline-block; width: 34px; height: 5px; margin: 0; }
+#arenaPick .tchip em { font-style: normal; font-size: 9px; }
+#arenaPick .tchip:hover { border-color: #7a1f16; }
+#arenaPick .tchip.on { background: #f5d584; border-color: #7a1f16; box-shadow: 0 0 0 1px #7a1f16; }
+#arenaPick .tchip.marked { outline: 2px solid #c23b2e; outline-offset: 1px; }
+#arenaPick .ptargets button.mini { margin-left: auto; }
+#arenaPick .pfoot { gap: 6px; }
