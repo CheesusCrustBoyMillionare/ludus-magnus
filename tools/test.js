@@ -1367,6 +1367,14 @@ test('the province: the rainbow stands still, and the one at the end of it runs 
   assert(lep.state === 'sit' && lep.x === 100, 'left alone under a bright bow, he sits');
   ctx.setField(100 - ctx.LEP_SHY + 5, 100); ctx.lepStep(lep, 0.05, false);
   assert(lep.state === 'run' && lep.tx > 130, 'a man comes near: he is up, and it is the trees he makes for, away from the man');
+  assert(lep.drop === true, 'and a coin goes over the rim of the pot');
+  // the coin: it lies there until somebody walks over it, and is worth more far from the town
+  { const c2 = { Math, console }; vm.createContext(c2); const f2 = src.indexOf('const lepCoin'), t2 = src.indexOf('function drawCoin'); assert(f2 > 0 && t2 > f2, 'the coin can be found');
+    vm.runInContext('let G = { denarii: 100, field: { x: 0, y: 0 } }; const said = []; const log = s => said.push(s); const wildTier = (x, y) => x > 1000 ? 4 : 1; ' + src.slice(f2, t2) + ' ; this.G = G; this.said = said; this.lepCoin = lepCoin; this.coinTake = coinTake;', c2);
+    assert(c2.lepCoin(100, 100) === 15 && c2.lepCoin(2000, 100) === 30, 'one gold piece: 15 denarii near the town, 30 far out');
+    const coin = { x: 300, y: 300, v: 15, t: 0 };
+    assert(!c2.coinTake(coin) && c2.G.denarii === 100, 'it lies there while the school is elsewhere');
+    c2.G.field.x = 304; c2.G.field.y = 297; assert(c2.coinTake(coin) && c2.G.denarii === 115 && c2.said.length === 1 && c2.said[0].includes('15 denarii'), 'walked over, it is picked up, and noted'); }
   let steps = 0; while (lep.state === 'run' && steps++ < 400) ctx.lepStep(lep, 0.05, false);
   assert(lep.state === 'gone' && lep.x > 130 && steps < 200, 'and the wood takes him: ' + steps);
   lep = mk(); ctx.setField(-900, -900); ctx.lepStep(lep, 0.05, true);

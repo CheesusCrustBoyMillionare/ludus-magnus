@@ -2234,6 +2234,25 @@ function bowPlace(camX, camY) {
 // He sits by his pot until somebody comes near or the bow begins to go; then he is up, the pot under his arm, and into
 // the trees by the shortest way that is not toward you. Nobody has ever caught one.
 const LEP_SHY = 46, LEP_SPEED = 70;
+// The coin he lets fall. It lies in the grass where the pot stood until the school walks over it, however long the bow
+// has been gone: one gold piece, worth more the further from the town it was dropped.
+const lepCoin = (x, y) => 10 + 5 * wildTier(x, y);
+function coinTake(coin) {
+  const F = G && G.field;
+  if (!coin || !F || Math.hypot(F.x - coin.x, F.y - coin.y) > 9) return false;
+  G.denarii += coin.v;
+  log(`A single gold coin, lying in the grass of a clearing where nobody has been. It is worth ${coin.v} denarii, and it is very old.`, 'gold');
+  return true;
+}
+function drawCoin(ctx, T, coin, camX, camY) {
+  if (coinTake(coin)) { prov.coin = null; if (typeof SFX !== 'undefined') SFX.ui('coin'); if (typeof save === 'function') save(); if (typeof renderWilds === 'function') renderWilds(); return; }
+  if (!wildSeen(coin.x, coin.y) || coin.x < camX - 4 || coin.y < camY - 4 || coin.x > camX + PROV.VW + 4 || coin.y > camY + PROV.VH + 4) return;
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const age = T - coin.t, fall = age < 0.35 ? Math.round(Math.sin(age / 0.35 * Math.PI) * 5) : 0, x = Math.round(coin.x), y = Math.round(coin.y) - fall;      // it bounces once
+  R(x - 1, Math.round(coin.y) + 1, 3, 1, 'rgba(0,0,0,.22)');
+  R(x - 1, y - 1, 3, 2, '#e8b545'); R(x - 1, y - 1, 3, 1, '#f5d584'); R(x - 1, y, 1, 1, '#b8862a');
+  if (Math.sin(T * 4 + coin.x) > 0.75) { R(x, y - 3, 1, 1, '#fffbe0'); R(x - 2, y - 1, 1, 1, '#fffbe0'); R(x + 2, y - 1, 1, 1, '#fffbe0'); }      // so that it can be found
+}
 function lepStep(lep, dt, fading) {
   const F = G && G.field;
   if (lep.state === 'sit') {
@@ -2246,7 +2265,7 @@ function lepStep(lep, dt, fading) {
         const d = Math.hypot(dx, dy) * 10, toward = F ? Math.max(0, 60 - Math.hypot(x - F.x, y - F.y)) * 3 : 0, s = d + toward + (d < 18 ? 40 : 0);
         if (s < bs) { bs = s; best = { x, y }; }
       }
-      lep.tx = best ? best.x : lep.x + 60; lep.ty = best ? best.y : lep.y; lep.state = 'run'; lep.t = 0;
+      lep.tx = best ? best.x : lep.x + 60; lep.ty = best ? best.y : lep.y; lep.state = 'run'; lep.t = 0; lep.drop = true;      // and in his hurry, one coin goes over the rim
     }
     return;
   }
@@ -2261,6 +2280,7 @@ function lepStep(lep, dt, fading) {
 function drawLeprechaun(ctx, T, lep, fading, camX, camY) {
   const dt = lep.last ? Math.min(0.1, Math.max(0, T - lep.last)) : 0; lep.last = T;
   lepStep(lep, dt, fading);
+  if (lep.drop) { lep.drop = false; prov.coin = { x: lep.hx + 3, y: lep.hy + 2, v: lepCoin(lep.hx, lep.hy), t: T }; }
   if (lep.state === 'gone' || !wildSeen(lep.hx, lep.hy)) return;
   if (lep.x < camX - 12 || lep.y < camY - 16 || lep.x > camX + PROV.VW + 12 || lep.y > camY + PROV.VH + 12) return;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
@@ -2301,6 +2321,7 @@ function drawSky(ctx, T, camX, camY, sky, wx) {
       }
     }
   }
+  if (prov.coin) drawCoin(ctx, T, prov.coin, camX, camY);
   // The bow. It stands over one piece of country from the moment it shows until it has faded: the school can march
   // toward it, under it and past it. If there is a clearing in a wood near by, that is where it comes down, and
   // somebody is sitting there with what is always said to be at the end of one.
