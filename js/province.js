@@ -26,7 +26,8 @@ function provLand() {
   const deep = (tx, ty) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (!wet(at(tx + dx, ty + dy)) && at(tx + dx, ty + dy) !== T_BRIDGE) return false; return true; };
   const tx0 = Math.floor(WILD.TOWN.x / 10), ty0 = Math.floor(WILD.TOWN.y / 10);
   // farmland round the town: strips of wheat and green, cut into fields
-  const farm = (tx, ty) => { const d = Math.hypot(tx - tx0, ty - ty0); if (d < 3 || d > 10.5) return 0; const f = h(Math.floor(tx / 4), Math.floor(ty / 3), 70); return f > 0.4 ? (f > 0.72 ? 2 : 1) : 0; };
+  const inTown = (tx, ty, m) => tx * 10 + 5 > WILD.TOWN.x - 48 - (m || 0) && tx * 10 + 5 < WILD.TOWN.x + 23 + (m || 0) && ty * 10 + 5 > WILD.TOWN.y - 32 - (m || 0) && ty * 10 + 5 < WILD.TOWN.y + 17 + (m || 0);      // the ground the town stands on
+  const farm = (tx, ty) => { const d = Math.hypot(tx - tx0, ty - ty0); if (d < 3 || d > 10.5 || inTown(tx, ty, 4)) return 0; const f = h(Math.floor(tx / 4), Math.floor(ty / 3), 70); return f > 0.4 ? (f > 0.72 ? 2 : 1) : 0; };
   // every crossing is one of four kinds, and all the tiles of one crossing agree on which
   const span = {};
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
@@ -412,9 +413,10 @@ function provLand() {
     }
   }
   // ---- each part of the country has its own look ----
-  const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3;
+  const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3 || inTown(tx, ty, 4);
   prov.boats = [];
   prov.smokes = [];
+  prov.lights = [];
   // flocks and herds: each has a home with room to wander, and is drawn live, moving (see drawHerds)
   prov.herds = [];
   const roomFor = (tx, ty, kinds, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (!kinds.includes(at(tx + dx, ty + dy))) return false; return true; };
@@ -600,6 +602,27 @@ function provLand() {
   const on = (kinds, reg) => (tx, ty) => kinds.includes(at(tx, ty)) && kinds.includes(at(tx + 1, ty)) && kinds.includes(at(tx + 2, ty)) && kinds.includes(at(tx + 1, ty - 1)) && (!reg || wildRegion(tx * 10 + 5, ty * 10 + 5) === reg);
   const byRoad = (tx, ty) => [[0, 1], [0, -1], [1, 0], [-1, 0], [0, 2], [0, -2]].some(([dx, dy]) => at(tx + dx, ty + dy) === T_ROAD);
   const byWater = (tx, ty) => [[0, 1], [0, -1], [1, 0], [-1, 0], [2, 0], [-2, 0], [0, 2], [0, -2]].some(([dx, dy]) => wet(at(tx + dx, ty + dy)));
+  // A landmark does not sit on untouched grass. The ground about it is trodden, paved, strewn or scorched according
+  // to what it is, and where a road passes near, feet have worn a path across to it.
+  const APRON = { 'The great oak': 'worn', 'The old arch': 'worn', 'The wine press': 'worn', 'The mill': 'worn', 'The bee garden': 'worn', "The shepherds' fold": 'worn', 'The gallows': 'worn', 'The needle': 'worn', "The giant's table": 'worn',
+    'A villa in its garden': 'paved', 'The beacon': 'paved', 'The watchtower': 'paved', 'The great quarry': 'rubble', 'The unfinished columns': 'rubble', 'The broken aqueduct': 'rubble', 'The fallen colossus': 'rubble', 'The lime kiln': 'rubble',
+    'A burnt village': 'scorch', 'The ring of stones': 'ring' };
+  const apron = (x, y, r, name, tx, ty) => {
+    const kind = APRON[name], cx = x + r, cy = y + 8, v = q => wildHash(tx * 31 + ty, q, 1320);
+    if (kind) {
+      const rx = r + 7, ry = kind === 'ring' ? 12 : 6, c = kind === 'paved' ? 'rgba(196,188,166,.6)' : kind === 'rubble' ? 'rgba(190,184,164,.35)' : kind === 'scorch' ? 'rgba(40,34,28,.3)' : kind === 'ring' ? 'rgba(90,120,60,.3)' : 'rgba(150,126,82,.32)';
+      for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)) + (v(dy + 20) - 0.5) * 4); if (w > 0) R(cx - w + Math.round((v(dy + 60) - 0.5) * 3), cy + dy - (kind === 'ring' ? 5 : 0), w * 2, 1, c); }
+      if (kind === 'paved') for (let q = 0; q < 10; q++) { const fx = cx - rx + 3 + Math.floor(v(q) * (rx * 2 - 8)), fy = cy - 3 + Math.floor(v(q + 10) * 6); R(fx, fy, 3 + Math.floor(v(q + 30) * 3), 2, q % 2 ? 'rgba(226,220,200,.6)' : 'rgba(150,142,122,.5)'); }
+      else if (kind === 'rubble') for (let q = 0; q < 12; q++) R(cx - rx + 2 + Math.floor(v(q) * (rx * 2 - 4)), cy - 4 + Math.floor(v(q + 12) * 9), 1 + (q % 3 === 0 ? 1 : 0), 1, q % 2 ? '#f0ece0' : '#b8b2a0');
+      else if (kind === 'worn') for (let q = 0; q < 5; q++) R(cx - rx + 3 + Math.floor(v(q) * (rx * 2 - 6)), cy - 3 + Math.floor(v(q + 12) * 7), 2, 1, q % 2 ? 'rgba(120,98,60,.5)' : 'rgba(190,170,120,.5)');
+      else if (kind === 'scorch') for (let q = 0; q < 8; q++) R(cx - rx + 3 + Math.floor(v(q) * (rx * 2 - 6)), cy - 4 + Math.floor(v(q + 12) * 8), 2, 1, q % 3 ? '#1c1814' : '#8a8478');
+      else if (kind === 'ring') for (let an = 0; an < Math.PI * 2; an += 0.09) { R(Math.round(cx + Math.cos(an) * (rx + 3)), Math.round(cy - 5 + Math.sin(an) * (ry + 1)), 2, 1, Math.sin(an) > 0 ? 'rgba(40,60,30,.35)' : 'rgba(190,210,140,.3)'); }      // the bank and ditch thrown up round it
+    }
+    // the path: to the nearest road within reach, across open ground only
+    let best = null, bd = 1e9;
+    for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 12; dx++) if (at(tx + dx, ty + dy) === T_ROAD) { const d = Math.hypot(dx - 1, dy - 1); if (d < bd) { bd = d; best = [(tx + dx) * 10 + 5, (ty + dy) * 10 + 5]; } }
+    if (best && bd > 1.5) { const n = Math.ceil(Math.hypot(best[0] - cx, best[1] - (cy + 2)) / 2); let wob = 0; for (let q = 0; q <= n; q++) { const f = q / n, px = cx + (best[0] - cx) * f, py = cy + 2 + (best[1] - cy - 2) * f, k2 = at(Math.floor(px / 10), Math.floor(py / 10)); wob += (v(q + 100) - 0.5) * 1.2; wob *= 0.9; if (k2 !== T_GRASS && k2 !== T_MEADOW && k2 !== T_HILL && k2 !== T_SAND) continue; if (v(q + 300) > 0.12) R(Math.round(px + wob * 3 * Math.sin(f * Math.PI)), Math.round(py), 2, 2, q % 3 ? 'rgba(158,134,88,.5)' : 'rgba(184,160,112,.5)'); } }
+  };
   const setDown = (seed, ok, r, name, draw) => {
     for (let n = 0; n < 9000; n++) {
       const tx = 4 + Math.floor(wildHash(n, seed, 700) * (TW - 9)), ty = 4 + Math.floor(wildHash(seed, n, 701) * (TH - 8));
@@ -608,6 +631,7 @@ function provLand() {
       const x = tx * 10, y = ty * 10;
       if (marks.some(m => Math.hypot(m.x - x, m.y - y) < 110)) continue;
       marks.push({ x, y, r, name });
+      feats.push({ y: y - 60, d: () => apron(x, y, r, name, tx, ty) });
       feats.push({ y: y + 10, d: () => draw(x, y) });
       return true;
     }
@@ -794,6 +818,7 @@ function provLand() {
     else { P(x - 1, y - rh, w + 2, rh, roof[0]); P(x, y - rh - 1, w, 1, roof[1]); P(x - 1, y - 1, w + 2, 1, tint(roof[0], 0.82)); }
     const dx = x + 1 + Math.floor(v(17) * (w - 3)); P(dx, y + hh - 3, 2, 3, '#3a2416');
     if (w > 8) P(dx > x + w / 2 ? x + 1 : x + w - 3, y + 1, 2, 2, '#3a2a1c');
+    if (P.at && o.smoke !== false) prov.lights.push({ x: P.at(dx + 1), y: y + hh - 2 });
     if (o.smoke !== false && v(18) > 0.4) { const ch = x + 1 + Math.floor(v(19) * (w - 3)); P(ch, y - rh - 2, 2, 3, '#8a8478'); if (P.at) prov.smokes.push({ x: P.at(ch + 1), y: y - rh - 3 }); }
     return { w, hh, rh };
   };
@@ -830,9 +855,9 @@ function provLand() {
     (x, y, P, v) => { P(x, y + 9, 10, 1, 'rgba(0,0,0,.2)'); P(x + 1, y + 3, 1, 6, '#5a4326'); P(x + 8, y + 3, 1, 6, '#5a4326'); P(x, y + 2, 10, 2, '#3a322c'); P(x, y + 2, 10, 1, '#5a5046'); P(x + 2, y + 6, 3, 3, '#6e6a62'); P(x + 3, y + 7, 1, 1, '#e2702a'); P(x + 6, y + 7, 2, 1, '#3a3a40'); P(x + 6, y + 8, 1, 1, '#3a3a40'); },      // a smithy under a lean-to
     (x, y, P, v) => { P(x + 2, y + 9, 6, 1, 'rgba(0,0,0,.2)'); P(x + 3, y + 4, 4, 5, '#e8e2d2'); P(x + 6, y + 4, 1, 5, '#c9c2ae'); P(x + 2, y + 3, 6, 1, '#d8d2c0'); P(x + 2, y + 8, 6, 1, '#d8d2c0'); P(x + 4, y + 2, 2, 1, v(1) > 0.5 ? '#e2702a' : '#5a8a46'); P(x + 4, y + 6, 1, 1, '#c23b2e'); },      // an altar by the way in
   ];
-  for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
-    const tx = tx0 + dx, ty = ty0 + dy, d = Math.hypot(dx, dy), k = at(tx, ty);
-    if (d < 2.6 || d > 5.4 || (k !== T_GRASS && k !== T_MEADOW) || farm(tx, ty) || h(tx, ty, 1150) > 0.62) continue;
+  for (let dy = -7; dy <= 6; dy++) for (let dx = -9; dx <= 6; dx++) {
+    const tx = tx0 + dx, ty = ty0 + dy, k = at(tx, ty);
+    if (inTown(tx, ty, 5) || !inTown(tx, ty, 30) || (k !== T_GRASS && k !== T_MEADOW) || farm(tx, ty) || h(tx, ty, 1150) > 0.62) continue;
     const kind = Math.floor(h(tx, ty, 1151) * OUT.length), x = tx * 10, y = ty * 10, flip = h(tx, ty, 1152) > 0.5, P = (px, py, w, hh, c) => R(flip ? 2 * x + 10 - px - w : px, py, w, hh, c), v = q => h(tx, ty, 1153 + q);
     P.at = px => flip ? 2 * x + 10 - px : px;
     feats.push({ y: y + 9, d: () => OUT[kind](x, y, P, v) });
@@ -1186,6 +1211,104 @@ function drawHerds(ctx, T, R, inView) {
   }
 }
 
+// The town. It is drawn live, because it grows: the arena gets bigger as the school's name does. A wall with towers
+// and a gate wherever a road comes in; inside, two great streets crossing at the forum, the temple on its podium,
+// the baths, houses in rows, the amphitheatre, and in the south-west corner your own school under its red flag.
+function drawTown(ctx, T, R, tx, ty, tr, night) {
+  const X0 = tx - 44, X1 = tx + 19, Y0 = ty - 26, Y1 = ty + 12, W = X1 - X0, gx = Math.floor(tx / 10) * 10 + 5, hv = q => wildHash(q, 77, 1400), lit = night > 0.3;
+  const wall = '#b8ab94', wl = '#d8cdb6', wd = '#8f846e', road = k => k === T_ROAD || k === T_BRIDGE;
+  const flag = (fx, fy, c) => { const wv = Math.sin(T * 5 + fx) > 0 ? 1 : 0; R(fx, fy - 7, 1, 7, '#5a4326'); R(fx + 1, fy - 7 + wv, 3, 3, c); R(fx + 4, fy - 6 - wv + 1, 2, 2, shade(c, 0.85)); };
+  const tower = (x, y) => { R(x, y, 7, 11, '#c9bca8'); R(x, y, 2, 11, '#e0d6c4'); R(x + 5, y, 2, 11, '#a89c88'); for (let q = 0; q < 7; q += 2) R(x + q, y - 2, 1, 2, '#c9bca8'); R(x + 3, y + 4, 1, 3, lit ? '#f5c04a' : '#3a2a1c'); R(x, y + 11, 7, 1, wd); };
+  const house = (x, y, w, i) => { const wc = ['#e2d2a8', '#f0e8d6', '#d8c9a2', '#e8dcc0'][Math.floor(hv(i) * 4)], rc = ['#a8482a', '#b5522e', '#9a4228', '#b8603a', '#8a6a3a'][Math.floor(hv(i + 40) * 5)]; R(x, y, w, 4, wc); R(x + w - 1, y, 1, 4, shade(wc, 0.85)); R(x - 1, y - 2, w + 2, 2, rc); R(x, y - 3, w, 1, shade(rc, 1.2)); R(x + 1 + Math.floor(hv(i + 80) * (w - 3)), y + 2, 1, 2, '#3a2416'); if (w > 5) R(x + w - 3, y + 1, 1, 1, lit && hv(i + 120) > 0.35 ? '#f5c04a' : '#3a2a1c'); };
+  R(X0 - 2, Y1 + 3, W + 5, 3, 'rgba(0,0,0,.25)');
+  // the ground inside, the north wall behind everything, and the streets
+  R(X0, Y0, W, Y1 - Y0, '#cdbfa0'); for (let q = 0; q < 26; q++) R(X0 + 2 + Math.floor(hv(q + 200) * (W - 5)), Y0 + 4 + Math.floor(hv(q + 230) * (Y1 - Y0 - 8)), 2, 1, q % 2 ? '#bfb192' : '#d8cbae');
+  R(X0 - 2, Y0 - 3, W + 4, 5, wall); R(X0 - 2, Y0 - 3, W + 4, 1, wl); R(X0 - 2, Y0 + 1, W + 4, 1, wd); for (let q = 0; q < W + 4; q += 4) R(X0 - 2 + q, Y0 - 5, 2, 2, wl);
+  R(X0, ty - 1, W, 3, '#b3a688'); R(gx - 1, Y0 + 2, 3, Y1 - Y0 - 3, '#b3a688'); for (let q = 0; q < W; q += 5) R(X0 + q, ty, 2, 1, '#a39678'); for (let q = 3; q < Y1 - Y0 - 3; q += 5) R(gx, Y0 + q, 1, 2, '#a39678');
+  // houses along the north wall and in the south quarters
+  for (let q = 0; q < 3; q++) house(tx - 14 + q * 6 - (q === 2 ? 1 : 0), Y0 + 6, 5, q);
+  for (let q = 0; q < 4; q++) house(tx - 23 + q * 7, ty + 6, 5 + (q % 2), 10 + q);
+  // the amphitheatre: a ring that grows with your fame
+  { const rx = Math.min(13, 7 + tr), ry = Math.min(8, 4 + Math.floor(tr / 2)), ax = tx - 29, ay = ty - 13;
+    for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.4))); R(ax - w, ay + dy, w * 2 + 1, 1, dy < 0 ? '#e0d6c4' : '#c9bca8'); if (Math.abs(dy) < ry - 1) { R(ax - w + 2, ay + dy, w * 2 - 3, 1, '#b8a888'); if (Math.abs(dy) < ry - 2) R(ax - w + 3, ay + dy, w * 2 - 5, 1, '#d9b877'); } }
+    R(ax - rx, ay + ry + 1, rx * 2 + 1, 2, '#a89c88'); for (let q = -rx + 1; q < rx; q += 2) R(ax + q, ay + ry + 1, 1, 2, '#5a4a3a'); R(ax - rx, ay + ry + 3, rx * 2 + 1, 1, 'rgba(0,0,0,.25)');
+    if (tr >= 2) { flag(ax - rx + 1, ay - ry + 2, '#c9a21e'); flag(ax + rx - 2, ay - ry + 2, '#c9a21e'); }
+    if (tr >= 3) for (let q = -rx + 3; q < rx - 2; q += 4) R(ax + q, ay - ry + 1, 2, 1, '#c23b2e'); }
+  // the forum: a square with a colonnade along its back, a column in the middle, stalls under awnings, a fountain
+  { const fx = tx - 13, fy = ty - 10; R(fx, fy, 15, 8, '#dccfae'); R(fx, fy, 15, 1, '#b8ab94'); for (let q = 0; q < 15; q += 2) R(fx + q, fy + 1, 1, 3, '#f0e8d6'); R(fx, fy - 2, 15, 2, '#b5522e'); R(fx, fy - 2, 15, 1, '#d06a3e');
+    R(fx + 7, fy + 2, 1, 5, '#e8e2d2'); R(fx + 6, fy + 6, 3, 1, '#c9c2ae'); R(fx + 7, fy + 1, 1, 1, tr >= 3 ? '#e8b545' : '#b98a34');
+    for (let q = 0; q < 3; q++) { R(fx + 1 + q * 2 + (q === 2 ? 7 : 0), fy + 5, 2, 2, ['#b93a2e', '#f1ead8', '#3a6ea8'][q]); R(fx + 1 + q * 2 + (q === 2 ? 7 : 0), fy + 7, 2, 1, '#8a6a3a'); }
+    const sp = Math.sin(T * 6) > 0 ? 1 : 0; R(fx + 10, fy + 3, 3, 2, '#8f8676'); R(fx + 11, fy + 3, 1, 1, '#6fa8c8'); R(fx + 11, fy + 1 + sp, 1, 2 - sp, '#cfe6f2'); }
+  // the temple on its podium, gold at the gable
+  { const px = tx + 8, py = ty - 20; R(px - 1, py + 10, 12, 2, '#c9c2ae'); R(px, py + 3, 10, 7, '#e8e2d2'); for (let q = 0; q < 5; q++) R(px + q * 2 + (q > 2 ? 1 : 0), py + 4, 1, 6, '#c9c2ae'); for (let q = 0; q < 3; q++) R(px + q, py + 2 - q, 10 - q * 2, 1, q === 0 ? '#d8d2c0' : '#e8e2d2'); R(px + 4, py - 1, 2, 1, '#e8b545'); R(px + 4, py + 7, 2, 3, '#3a2416'); R(px + 2, py + 12, 6, 1, '#b5ad9c'); if (lit) R(px + 4, py + 8, 2, 1, '#f5c04a'); }
+  // the baths, under a dome, the hot room steaming
+  { const bx = tx + 8, by = ty + 3; R(bx, by + 2, 9, 5, '#e2d6b8'); R(bx + 8, by + 2, 1, 5, '#c4b898'); for (let q = 0; q < 3; q++) R(bx + 1 + q, by + 1 - q, 7 - q * 2, 1, q ? '#c8683e' : '#b5522e'); R(bx + 2, by + 4, 1, 2, '#3a2a1c'); R(bx + 5, by + 4, 1, 2, lit ? '#f5c04a' : '#3a2a1c'); R(bx, by + 7, 9, 1, '#a89c88'); }
+  // a block of flats, a granary, and trees in a garden
+  R(tx + 8, ty - 6, 5, 4, '#d8c9a2'); R(tx + 8, ty - 9, 5, 3, '#c9b890'); R(tx + 7, ty - 10, 7, 1, '#a8482a'); for (let q = 0; q < 2; q++) { R(tx + 9 + q * 2, ty - 8, 1, 1, lit ? '#f5c04a' : '#3a2a1c'); R(tx + 9 + q * 2, ty - 5, 1, 1, '#3a2a1c'); }
+  R(tx + 14, ty - 6, 4, 4, '#b8ab94'); R(tx + 14, ty - 7, 4, 1, '#8a6a3a'); for (let q = 0; q < 4; q += 2) R(tx + 14 + q, ty - 5, 1, 3, '#8f846e');
+  for (const [cxx, cyy] of [[-40, -22], [-37, -21], [-16, -14], [1, 8]]) { R(tx + cxx, ty + cyy + 3, 1, 2, '#4a3320'); R(tx + cxx - 1, ty + cyy, 3, 3, '#35602b'); R(tx + cxx - 1, ty + cyy, 1, 1, '#4c7f38'); }
+  // your own school: a yard walled about, the barracks along two sides, and the red flag over the gate
+  { const lx = tx - 42, ly = ty + 2; R(lx, ly, 15, 9, '#d9c79c'); R(lx, ly, 15, 2, '#a8452e'); R(lx, ly, 15, 1, '#c25a3a'); R(lx, ly + 2, 3, 7, '#d2bf98'); R(lx, ly + 2, 1, 7, '#a8452e'); R(lx + 4, ly + 3, 10, 5, '#d9b877'); R(lx + 14, ly + 2, 1, 7, '#b8ab94'); R(lx, ly + 8, 15, 1, '#b8ab94');
+    R(lx + 8, ly + 5, 1, 2, '#6b4f2c'); R(lx + 7, ly + 5, 3, 1, '#6b4f2c'); const sw = Math.sin(T * 3) > 0 ? 1 : 0; R(lx + 5 + sw, ly + 5, 1, 2, '#d9a57c'); R(lx + 11 - sw, ly + 5, 1, 2, '#d9a57c'); R(lx + 5 + sw, ly + 6, 1, 1, '#8a2a20'); R(lx + 11 - sw, ly + 6, 1, 1, '#2f5a8a');
+    flag(lx + 13, ly + 1, '#c23b2e'); }
+  // people about in the streets
+  for (let q = 0; q < 5; q++) { const along = q < 3, ph = (T * (0.05 + hv(q + 300) * 0.04) + hv(q + 310)) % 1, back = Math.floor(T * 0.05 + q) % 2, f = back ? 1 - ph : ph, px = along ? X0 + 3 + f * (W - 8) : gx + (q % 2 ? 1 : -1), py = along ? ty + (q % 2 ? 1 : -1) : Y0 + 5 + f * (Y1 - Y0 - 12); R(Math.round(px), Math.round(py) - 2, 1, 1, '#d9a57c'); R(Math.round(px), Math.round(py) - 1, 1, 2, ['#8a4a3a', '#e8e2d2', '#4a6a8a', '#7a7a3a', '#8a2a6a'][q]); }
+  // the side walls, the south wall in front of it all, the towers, and a gate wherever a road comes in
+  R(X0 - 2, Y0 - 3, 3, Y1 - Y0 + 5, wall); R(X0 - 2, Y0 - 3, 1, Y1 - Y0 + 5, wl); R(X1 - 1, Y0 - 3, 3, Y1 - Y0 + 5, wall); R(X1 + 1, Y0 - 3, 1, Y1 - Y0 + 5, wd);
+  R(X0 - 2, Y1 - 2, W + 4, 6, '#b0a48c'); R(X0 - 2, Y1 - 2, W + 4, 1, wl); R(X0 - 2, Y1 + 3, W + 4, 1, wd); for (let q = 0; q < W + 4; q += 6) { R(X0 - 2 + q, Y1, 1, 3, '#a09478'); R(X0 + 1 + q, Y1 + 1, 1, 2, '#a09478'); } for (let q = 0; q < W + 4; q += 4) R(X0 - 2 + q, Y1 - 4, 2, 2, wl);
+  tower(X0 - 4, Y0 - 5); tower(X1 - 2, Y0 - 5); tower(X0 - 4, Y1 - 7); tower(X1 - 2, Y1 - 7); tower(tx - 16, Y1 - 7);
+  flag(X1 + 1, Y0 - 6, '#a02d22'); flag(X0 - 1, Y1 - 8, '#a02d22');
+  const fl = Math.sin(T * 11) > 0 ? 1 : 0, torch = (qx, qy) => { if (lit) { R(qx, qy - 1 - fl, 1, 2 + fl, '#f5c04a'); R(qx, qy - 2 - fl, 1, 1, '#fff0b0'); } };
+  R(X1 - 3, ty - 6, 6, 10, wd); R(X1 - 3, ty - 7, 6, 1, wl); R(X1 - 2, ty - 2, 5, 6, '#3a2416'); R(X1 - 2, ty - 3, 5, 1, '#5a4326'); for (let q = 0; q < 6; q += 2) R(X1 - 3 + q, ty - 9, 1, 2, wl); torch(X1 + 3, ty - 3); torch(X1 + 3, ty + 4);      // the east gate
+  if (road(wildTile(gx, Y1 + 8))) { R(gx - 4, Y1 - 5, 9, 9, wd); R(gx - 4, Y1 - 6, 9, 1, wl); R(gx - 2, Y1 - 1, 5, 5, '#3a2416'); R(gx - 2, Y1 - 2, 5, 1, '#5a4326'); R(gx - 1, Y1 - 3, 3, 1, '#5a4326'); for (let q = 0; q < 9; q += 2) R(gx - 4 + q, Y1 - 8, 1, 2, wl); torch(gx - 4, Y1 + 1); torch(gx + 4, Y1 + 1); }      // the south gate
+  if (road(wildTile(gx, Y0 - 9))) { R(gx - 3, Y0 - 5, 7, 7, wd); R(gx - 2, Y0 - 2, 5, 4, '#3a2416'); for (let q = 0; q < 7; q += 2) R(gx - 3 + q, Y0 - 7, 1, 2, wl); }                                                                                                             // the north gate
+  if (road(wildTile(X0 - 8, ty))) { R(X0 - 3, ty - 6, 5, 10, wd); R(X0 - 3, ty - 7, 5, 1, wl); R(X0 - 3, ty - 2, 4, 6, '#3a2416'); for (let q = 0; q < 5; q += 2) R(X0 - 3 + q, ty - 9, 1, 2, wl); torch(X0 - 4, ty - 3); }                                                           // the west gate
+}
+
+// What moves at the landmarks. The land is painted once; these are drawn over it each frame: the beacon's fire, the
+// mill wheel going round, steam off the hot spring, a flag on the watchtower, men at their work. After dark the
+// windows of every house out in the country show a light.
+function drawMarks(ctx, T, R, inView, night, smoke) {
+  const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(${c},${a})`; for (let q = 0; q < 3; q++) { const rr = r - q * (r / 3.5); ctx.fillRect(Math.round(gx - rr), Math.round(gy - rr * 0.7), Math.round(rr * 2), Math.round(rr * 1.4)); } ctx.globalCompositeOperation = 'source-over'; };
+  const man = (mx, my, o) => vilPerson(ctx, mx, my, Object.assign({ face: 'right', walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c' }, o));
+  const pace = (x0, x1, sp, ph) => { const u = (T * sp + ph) % 2, f = u < 1 ? u : 2 - u; return { x: Math.round(x0 + (x1 - x0) * f), face: (u < 1) === (x1 > x0) ? 'right' : 'left' }; };
+  for (const m of (prov.marks || [])) {
+    if (m.dw || !inView(m.x, m.y, 70) || !wildSeen(m.x + m.r, m.y)) continue;
+    const x = m.x, y = m.y, n = m.name;
+    if (n === 'The beacon') { R(x + 6, y - 33 - fl, 5, 5 + fl, '#f5c04a'); R(x + 7, y - 35 - fl, 3, 3, '#fff0b0'); R(x + 8 - fl, y - 37, 1, 2, '#e2702a'); if (lit) { glow(x + 8, y - 31, 30, '255,190,90', 0.08); const an = T * 0.6; ctx.fillStyle = 'rgba(255,230,160,.10)'; for (let q = 4; q < 60; q += 3) ctx.fillRect(Math.round(x + 8 + Math.cos(an) * q), Math.round(y - 31 + Math.sin(an) * q * 0.5), 3 + (q >> 3), 2 + (q >> 4)); } }
+    else if (n === 'The mill') { const ph = Math.floor(T * 3) % 4, cx = x + 4, cy = y + 4; R(x, y, 8, 8, '#3d6d92'); for (let q = 0; q < 4; q++) { const an = (q + ph / 4) * Math.PI / 2 + 0.2; for (let rr = 1; rr < 6; rr++) R(Math.round(cx + Math.cos(an) * rr), Math.round(cy + Math.sin(an) * rr), 1, 1, rr === 5 ? '#c9a763' : '#7a5a34'); } R(cx, cy, 1, 1, '#c9a763'); for (let q = 0; q < 3; q++) { const p2 = (T * 1.5 + q * 0.33) % 1; R(x - 3 + q * 5 + p2 * 3, y + 10 - Math.sin(p2 * Math.PI) * 3, 2, 1, '#e6f3fa'); } if (lit) R(x + 23, y - 2, 3, 3, '#f5c04a'); smoke(x + 26, y - 13, 3); }
+    else if (n === 'The hot spring') { for (let q = 0; q < 6; q++) { const p2 = (T * 0.25 + q * 0.17) % 1; ctx.globalAlpha = 0.55 * (1 - p2); R(x + 4 + q * 3 + Math.sin(p2 * 6 + q) * 2, y + 2 - p2 * 16, 2 + Math.round(p2 * 3), 2, '#ffffff'); } ctx.globalAlpha = 1; if (Math.sin(T * 2) > 0.6) R(x + 8 + Math.floor(T) % 5, y + 5, 1, 1, '#d8f4f0'); }
+    else if (n === 'The lime kiln') { R(x + 8, y + 6 - fl, 4, 4 + fl, '#e2702a'); R(x + 9, y + 7, 2, 2, fl ? '#fff0b0' : '#f5c04a'); smoke(x + 10, y - 12, 4); if (lit) glow(x + 10, y + 8, 14, '255,150,70', 0.09); }
+    else if (n === 'The charcoal burners') { smoke(x + 10, y - 3, 4); if (lit) { R(x + 9, y + 9, 2, 1, '#e2702a'); glow(x + 10, y + 6, 12, '255,130,60', 0.06); } const pc = pace(x + 20, x + 30, 0.12, 0.3); man(pc.x, y + 12, { face: pc.face, tunic: '#5a4a3a' }); }
+    else if (n === 'The watchtower') { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(x + 10, y - 30, 1, 10, '#5a4326'); R(x + 11, y - 30 + wv, 4, 3, '#a8261c'); R(x + 15, y - 29 - wv + 1, 2, 2, '#8a2018'); if (lit) { R(x + 9, y - 10, 2, 3, '#f5c04a'); R(x + 6, y - 22 - fl, 1, 2 + fl, '#f5c04a'); glow(x + 6, y - 22, 12, '255,180,90', 0.07); } const pc = pace(x + 5, x + 13, 0.1, 0); R(pc.x, y - 22, 1, 1, '#d9a57c'); R(pc.x, y - 21, 1, 2, '#a8261c'); R(pc.x + (pc.face === 'right' ? 1 : -1), y - 24, 1, 4, '#c1c7cc'); }
+    else if (n === 'The bee garden') { for (let q = 0; q < 8; q++) { const an = T * (2 + q % 3) + q * 1.7; R(x + 3 + q * 3.4 + Math.cos(an) * 3, y - 1 + Math.sin(an * 1.3) * 3, 1, 1, q % 3 ? '#2a1c14' : '#e8c040'); } const pc = pace(x - 4, x + 32, 0.05, 0.5); man(pc.x, y + 14, { face: pc.face, tunic: '#e8e2d2', hair: '#c9c2b2' }); }
+    else if (n === 'The great oak') { for (let q = 0; q < 2; q++) { const p2 = (T * 0.14 + q * 0.5) % 1.5; if (p2 < 1) R(x + 6 + q * 14 + Math.sin(p2 * 9) * 4, y - 12 + p2 * 22, Math.sin(p2 * 18) > 0 ? 2 : 1, 1, q ? '#8ab04a' : '#b8a040'); } const sw = Math.round(Math.sin(T * 1.6) * 2); R(x + 24 + sw, y + 2, 4, 2, '#8a4a3a'); R(x + 25 + sw, y, 2, 2, '#d9a57c'); }      // somebody on the swing
+    else if (n === 'A villa in its garden') { const sp = Math.sin(T * 6) > 0 ? 1 : 0; R(x + 17, y + 13, 5, 2, '#b8ab94'); R(x + 18, y + 13, 3, 1, '#6fa8c8'); R(x + 19, y + 10 + sp, 1, 3 - sp, '#cfe6f2'); R(x + 18 - sp, y + 11, 1, 1, '#cfe6f2'); R(x + 20 + sp, y + 11, 1, 1, '#cfe6f2'); if (lit) { for (const wx of [4, 28]) R(x + wx, y - 2, 5, 5, '#f5c04a'); glow(x + 19, y, 26, '255,200,110', 0.05); } smoke(x + 32, y - 15, 3); const pc = pace(x - 2, x + 12, 0.08, 0.2); man(pc.x, y + 16, { face: pc.face, tunic: '#6a5a3a' }); }
+    else if (n === 'The wine press') { const st = Math.sin(T * 4) > 0 ? 1 : 0; R(x + 6, y - 2 - st, 2, 2, '#d9a57c'); R(x + 6, y - st, 2, 4, '#8a6a4a'); R(x + 10, y - 2 - (1 - st), 2, 2, '#d9a57c'); R(x + 10, y - (1 - st), 2, 4, '#6a5a3a'); if (Math.sin(T * 3) > 0.5) R(x + 16, y + 6, 1, 3, '#7a2a4a'); }      // two men treading the grapes
+    else if (n === 'The great quarry') { const up = (Math.sin(T * 0.5) + 1) / 2; R(x + 17, y - 16, 1, 4 + Math.round(up * 6), '#c9b890'); R(x + 15, y - 12 + Math.round(up * 6), 5, 4, '#f0ece0'); R(x + 15, y - 12 + Math.round(up * 6), 5, 1, '#ffffff'); const hit = Math.sin(T * 5) > 0.3; man(x + 6, y + 14, { face: 'right', moving: false, tunic: '#7a6a4a' }); R(x + 10, y + (hit ? 6 : 2), 3, 1, '#6b4f2c'); R(x + 12, y + (hit ? 5 : 1), 2, 2, '#8f8a84'); if (hit) { R(x + 14, y + 8, 1, 1, '#f0ece0'); R(x + 16, y + 6, 1, 1, '#f0ece0'); } }
+    else if (n === "The fishers' huts") { smoke(x + 5, y - 5, 3); if (lit) { R(x + 4, y + 5, 3, 5, '#f5c04a'); R(x + 17, y + 5, 3, 5, '#e8a040'); glow(x + 12, y + 6, 18, '255,190,100', 0.05); } const sw = Math.sin(T * 1.2) > 0 ? 1 : 0; R(x + 24 + sw, y + 1, 2, 1, '#c8c0a8'); }
+    else if (n === 'The huts on stilts') { smoke(x + 18, y - 10, 3); if (lit) { for (const [hx, hy] of [[0, 0], [14, -3], [26, 1]]) R(x + hx + 3, y + hy, 3, 3, '#f5c04a'); glow(x + 16, y, 22, '255,190,100', 0.05); for (const [hx, hy] of [[0, 0], [14, -3], [26, 1]]) R(x + hx + 3, y + hy + 12, 3, 1, 'rgba(245,192,74,.35)'); } }
+    else if (n === "The hunters' lodge") { smoke(x + 19, y - 14, 3); if (lit) { R(x + 9, y + 2, 5, 8, '#e8a040'); glow(x + 11, y + 6, 14, '255,170,90', 0.06); } }
+    else if (n === 'A burnt village') { for (let q = 0; q < 3; q++) { const p2 = (T * 0.12 + q * 0.33) % 1; ctx.globalAlpha = 0.3 * (1 - p2); R(x + 4 + q * 13 + Math.sin(p2 * 5 + q) * 3, y - p2 * 20, 2, 2, '#b8b4ac'); } ctx.globalAlpha = 1; if (lit) for (let q = 0; q < 4; q++) if (Math.sin(T * 3 + q * 2.2) > 0.2) R(x + 3 + q * 9, y + 7 + (q % 2), 1, 1, '#e2702a'); }
+    else if (n === 'The drowned temple') { if (lit) for (let q = 0; q < 3; q++) { const wx = x + 6 + q * 9 + Math.sin(T * 0.4 + q * 2) * 6, wy = y - 2 + Math.cos(T * 0.3 + q) * 4; if (Math.sin(T * 1.7 + q * 2.4) > -0.2) { R(wx, wy, 2, 2, '#b8f0d8'); glow(wx + 1, wy + 1, 7, '150,240,200', 0.07); } } else { const p2 = (T * 0.4) % 1; ctx.globalAlpha = 0.5 * (1 - p2); R(x + 10 - p2 * 4, y + 7, 4 + Math.round(p2 * 8), 1, '#7a9a98'); ctx.globalAlpha = 1; } }
+    else if (n === 'The ring of stones') { if (lit) { glow(x + 16, y + 3, 18, '170,190,255', 0.045); if (Math.sin(T * 0.8) > 0.3) R(x + 15, y + 1, 2, 1, '#d8e0ff'); } }
+    else if (n === 'The wolf stone') { if (lit) { R(x + 7, y - 4, 2, 2, '#e23a2a'); R(x + 10, y - 4, 2, 2, '#e23a2a'); glow(x + 9, y - 3, 8, '255,70,50', 0.08); } }
+    else if (n === "The shepherds' fold") { smoke(x + 31, y - 10, 3); if (lit) R(x + 30, y - 2, 2, 4, '#f5c04a'); for (let q = 0; q < 3; q++) { const bob = Math.sin(T * 1.3 + q * 2) > 0.5 ? 1 : 0; R(x + [4, 10, 19][q] + 3, y + [0, 3, 4][q] + bob, 1, 1, '#2a1c14'); } }
+    else if (n === 'The causeway') { if (lit) { R(x + 33, y - 7 - fl, 3, 2 + fl, '#f5c04a'); glow(x + 34, y - 6, 12, '255,190,100', 0.07); } }
+    else if (n === 'The broken aqueduct') { for (let q = 0; q < 4; q++) { const p2 = (T * 0.9 + q * 0.25) % 1; R(x + 29, y - 17 + p2 * 24, 1, 2, '#9ccbe8'); } R(x + 26, y + 8, 7, 2, '#5a9cc6'); R(x + 27, y + 8, 4, 1, '#b4d6ea'); const sp = Math.sin(T * 9) > 0 ? 1 : 0; R(x + 28 - sp, y + 7, 1, 1, '#e6f3fa'); R(x + 30 + sp, y + 7, 1, 1, '#e6f3fa'); }
+    else if (n === 'A wreck on the strand') { const p2 = (T * 0.3) % 1; ctx.globalAlpha = 0.6 * Math.sin(p2 * Math.PI); R(x - 4 + p2 * 4, y + 11, 36, 1, '#e6f3fa'); ctx.globalAlpha = 1; const sw = Math.sin(T * 2) > 0 ? 1 : 0; R(x + 28 + sw, y - 7, 5, 3, '#c9c0aa'); }
+    else if (n === 'An old battlefield') { for (const [bx, by, ph] of [[9, -4, 0], [27, -3, 2], [20, 3, 4]]) { const peck = Math.sin(T * 3 + ph) > 0.4 ? 1 : 0; R(x + bx + 2, y + by + peck, 1, 1, '#1c1310'); } const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(x + 11 + wv, y - 3, 3, 2, '#8a2a20'); }
+    else if (n === 'The gallows') { const sw = Math.round(Math.sin(T * 1.1) * 1); R(x + 15 + sw, y - 9, 3, 3, '#c9b890'); R(x + 16 + sw, y - 6, 1, 3, '#8a7a5c'); }
+    else if (n === 'The old arch') { if (lit) { for (const px of [-2, 24]) { R(x + px, y + 2 - fl, 1, 2 + fl, '#f5c04a'); R(x + px, y + 4, 1, 5, '#5a4326'); } glow(x + 11, y + 2, 20, '255,190,100', 0.04); } const pc = pace(x - 14, x + 36, 0.03, 0.7); if (Math.floor(T * 0.03 + 0.7) % 3 === 0) man(pc.x, y + 12, { face: pc.face, tunic: '#9a9a8a' }); }
+    else if (n === 'The eagle rock') { if (Math.sin(T * 0.7) > 0.6) R(x + 7, y - 26, 4, 1, '#e8e2d2'); }
+    else if (n === 'The bog oak') { if (lit && Math.sin(T * 0.9) > 0) { R(x + 13, y - 6, 1, 1, '#e8d040'); R(x + 14, y - 5, 1, 1, '#e8d040'); } }
+  }
+  if (lit) {                                     // lights in the windows, out in the country
+    const la = Math.min(1, (night - 0.3) * 3);
+    for (const l of (prov.lights || [])) { if (!inView(l.x, l.y, 20) || !wildSeen(l.x, l.y) || wildHash(l.x, l.y, 1330) < 0.2) continue; ctx.globalAlpha = la; R(l.x - 1, l.y - 1, 2, 2, wildHash(l.y, l.x, 1331) > 0.5 ? '#f5c04a' : '#e8a040'); ctx.globalAlpha = 1; glow(l.x, l.y, 9, '255,180,90', (0.05 * la).toFixed(3)); }
+  }
+}
+
 // What passes overhead. The shadows of clouds cross the whole province on the wind, each cloud its own shape, more
 // of them and darker when the sky is heavy. When rain stops there is a rainbow for a while; in heavy rain, lightning.
 function drawSky(ctx, T, camX, camY, sky, wx) {
@@ -1279,7 +1402,7 @@ function drawTraffic(ctx, T, R, inView) {
       const speed = kind === 'rider' ? 3.4 : kind === 'runner' ? 2.8 : kind === 'cart' ? 1.1 : kind === 'oxwagon' ? 0.8 : kind === 'litter' ? 1.2 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
       const sraw = (T * speed + hv(2) * len * 2) % (len * 2), idx = sraw <= len ? sraw : len * 2 - sraw, dir = sraw <= len ? 1 : -1;
       const i0 = Math.min(len - 1, Math.floor(idx)), fr = idx - i0, a = way[i0], b = way[i0 + 1], x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
-      if (!inView(x, y, 30) || !wildSeen(x, y) || Math.hypot(x - WILD.TOWN.x, y - WILD.TOWN.y) < 24) continue;
+      if (!inView(x, y, 30) || !wildSeen(x, y) || (x > WILD.TOWN.x - 50 && x < WILD.TOWN.x + 24 && y > WILD.TOWN.y - 32 && y < WILD.TOWN.y + 18)) continue;
       const dx = (b[0] - a[0]) * dir, dy = (b[1] - a[1]) * dir, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, walk = T * 9 + j * 3, step = Math.sin(walk) > 0 ? 1 : 0;
       const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: true, tunic, hair: hair || '#3a2a1c' }, extra));
       const beast = (bx, by, c, big) => { const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
@@ -1427,6 +1550,9 @@ const dayPart = () => clamp(((G.field && G.field.march) || 0) / marchDay(), 0, 1
 const HOURS = [[0.1, 'DAWN'], [0.38, 'MORNING'], [0.6, 'MIDDAY'], [0.86, 'AFTERNOON'], [2, 'DUSK']];
 const hourWord = () => HOURS.find(h => dayPart() < h[0])[1];
 // The light for that hour, from the same sky as the yard's (its day runs dawn to dusk over the first 0.7 of its clock).
+// How dark it is out there, 0 to 1. The day on the march runs dawn to dusk, so lamps are lit as dusk comes on, and
+// again in the short night when camp is made.
+function provDark() { const nk = (performance.now() - (prov.night || -1e9)) / 1700; return Math.max(provSky().night * 2.4, nk >= 0 && nk < 1 ? Math.sin(nk * Math.PI) : 0); }
 function provSky() { return yardSky((((0.05 + dayPart() * 0.6) - 0.2 + 1) % 1) * YARD_DAY); }
 // The dial: the sun on its arc from dawn to dusk, the hour in a word, the day, and what is left of today's march.
 function provDial(ctx, x, y) {
@@ -1473,7 +1599,7 @@ function provHover() {
   const x = prov.big ? m.u * WILD.W : prov.camX + m.u * PROV.VW, y = prov.big ? m.v * WILD.H : prov.camY + m.v * PROV.VH, reach = prov.big ? 46 : 15;
   let best = null, bd = reach;
   for (const st of wildSites()) { if (!siteKnown(st)) continue; const d = Math.hypot(st.x - x, st.y - y); if (d < bd) { bd = d; best = st; } }
-  if (!best && Math.hypot(WILD.TOWN.x - x, WILD.TOWN.y - y) < reach + 8) return { home: true, x: WILD.TOWN.x, y: WILD.TOWN.y };
+  if (!best && (Math.hypot(WILD.TOWN.x - x, WILD.TOWN.y - y) < reach + 8 || (x > WILD.TOWN.x - 46 && x < WILD.TOWN.x + 21 && y > WILD.TOWN.y - 30 && y < WILD.TOWN.y + 14))) return { home: true, x: WILD.TOWN.x, y: WILD.TOWN.y };
   if (!best && !prov.big) {                     // a landmark, once it has been seen
     const m = (prov.marks || []).find(q => x > q.x - 4 && x < q.x + q.r * 2 + 4 && y > q.y - q.r * 1.6 && y < q.y + 14 && wildSeen(q.x + q.r, q.y));
     if (m) return { landmark: true, name: m.name, dw: m.dw, x: m.x + m.r, y: m.y - 6 };
@@ -1659,21 +1785,7 @@ function drawProvince(cv, T) {
 
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
-  if (inView(tx, ty, 40)) {
-    const tr = tier();
-    R(tx - 19, ty + 9, 40, 3, 'rgba(0,0,0,.25)'); R(tx - 18, ty - 12, 36, 21, '#b8ab94'); R(tx - 18, ty - 12, 36, 2, '#d8cdb6'); R(tx - 18, ty + 7, 36, 2, '#8f846e');
-    for (let i = -18; i < 18; i += 4) R(tx + i, ty - 14, 2, 2, '#d8cdb6');
-    for (const [cx, cy] of [[-20, -15], [16, -15], [-20, 5]]) { R(tx + cx, ty + cy, 5, 7, '#c9bca8'); R(tx + cx, ty + cy, 5, 1, '#e0d6c4'); R(tx + cx, ty + cy - 2, 1, 2, '#c9bca8'); R(tx + cx + 2, ty + cy - 2, 1, 2, '#c9bca8'); R(tx + cx + 4, ty + cy - 2, 1, 2, '#c9bca8'); R(tx + cx + 2, ty + cy + 3, 1, 2, '#3a2a1c'); }      // towers at the corners
-    // the arena: a ring that grows with your fame
-    { const rx = 5 + tr, ry = 3 + Math.floor(tr / 2), ax = tx - 9, ay = ty - 4; for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.4))); R(ax - w, ay + dy, w * 2 + 1, 1, dy < 0 ? '#e0d6c4' : '#c9bca8'); if (Math.abs(dy) < ry - 1) R(ax - w + 2, ay + dy, w * 2 - 3, 1, '#d9b877'); } R(ax - rx, ay + ry + 1, rx * 2 + 1, 1, '#8f846e'); }
-    // the temple, the market and the houses
-    R(tx + 2, ty - 9, 10, 6, '#e8e2d2'); for (let i = 0; i < 4; i++) R(tx + 3 + i * 3, ty - 8, 1, 5, '#c9c2ae'); for (let i = 0; i < 3; i++) R(tx + 3 + i, ty - 11 - i, 8 - i * 2, 1, '#d8d2c0'); R(tx + 6, ty - 13, 2, 1, '#e8b545');
-    R(tx - 2, ty + 1, 7, 4, '#d8c9a2'); R(tx - 3, ty - 1, 9, 2, '#b5522e'); R(tx + 6, ty + 1, 6, 4, '#e2c98f'); R(tx + 5, ty, 8, 1, '#a8482a'); for (let i = 0; i < 4; i++) R(tx - 14 + i * 3, ty + 3, 2, 2, i % 2 ? '#b93a2e' : '#f1ead8');
-    // your own ludus, under its red flag
-    R(tx - 16, ty + 2, 8, 5, '#d2bf98'); R(tx - 17, ty, 10, 2, '#a8452e'); R(tx - 13, ty - 4, 1, 4, '#5a4326'); R(tx - 12, ty - 4, 3, 2, '#c23b2e');
-    // the east gate
-    R(tx + 14, ty - 5, 5, 9, '#8f846e'); R(tx + 15, ty - 2, 4, 6, '#3a2416'); R(tx + 15, ty - 9, 1, 5, '#5a4326'); R(tx + 16, ty - 9, 4, 3, '#a02d22'); R(tx + 14, ty - 6, 5, 1, '#d8cdb6');
-  }
+  if (inView(tx, ty, 70)) drawTown(ctx, T, R, tx, ty, tier(), provDark());
   // places: the ones you have come upon, and anything a clue has marked
   const sites = wildSites();
   for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; provIcon(ctx, s, T, siteDone(s)); }
@@ -1708,7 +1820,8 @@ function drawProvince(cv, T) {
   }
   // smoke from the town's hearths, and from any camp you can see
   const smoke = (sx, sy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(sx + Math.sin(q * 5 + i) * 3 + q * 6, sy - q * 22, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
-  if (inView(tx, ty, 60)) { smoke(tx - 9, ty - 10, 4); smoke(tx + 6, ty - 11, 3); }
+  if (inView(tx, ty, 70)) { smoke(tx + 12, ty + 1, 4); smoke(tx - 18, ty + 2, 3); smoke(tx - 6, ty - 22, 3); }
+  drawMarks(ctx, T, R, inView, provDark(), smoke);
   for (const sm of (prov.smokes || [])) if (inView(sm.x, sm.y, 30) && wildSeen(sm.x, sm.y)) smoke(sm.x, sm.y, 3);      // every hearth out in the country
   for (const s of sites) if ((s.kind === 'camp' || s.kind === 'chief' || s.kind === 'slavers' || s.kind === 'hamlet') && inView(s.x, s.y, 40) && wildSeen(s.x, s.y) && siteShown(s) && !siteDone(s)) smoke(s.x, s.y - 4, 3);
   // birds over the country, and the shadows of clouds going by
@@ -1759,7 +1872,7 @@ function drawProvince(cv, T) {
   drawSky(ctx, T, camX, camY, sky, wx);
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
   if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
-  if (sky.night > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
+  if (provDark() > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
   if (sky.night > 0.25) {
     const la = Math.min(1, (sky.night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
     ctx.globalCompositeOperation = 'lighter';
@@ -1773,7 +1886,7 @@ function drawProvince(cv, T) {
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   // a name on the map, with a red pip for each skull of danger
   const tag = (x, y, text, col, bg, pips) => { const tw = Math.ceil(ctx.measureText(text).width), w = tw + 6 + (pips ? pips * 5 + 2 : 0); R(x - w / 2, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); ctx.textAlign = 'left'; ctx.fillStyle = col || '#f2e6cc'; ctx.fillText(text, x - w / 2 + 3, y); ctx.textAlign = 'center'; for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
-  if (inView(tx, ty, 60)) tag(tx, ty - 18, 'HOME', '#2a1a0c', '#f5d584');
+  if (inView(tx, ty, 70)) tag(tx - 12, ty - 38, 'HOME', '#2a1a0c', '#f5d584');
   for (const s of sites) {
     if (!inView(s.x, s.y, 40)) continue;
     const seen = wildSeen(s.x, s.y), mark = M.marks[s.id] && !siteDone(s);
