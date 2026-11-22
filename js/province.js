@@ -733,6 +733,350 @@ function provLand() {
     for (let dy = -10; dy <= 10; dy++) for (let dx = -10; dx <= 12; dx++) if (at(tx + dx, ty + dy) === T_ROAD) { const d = Math.hypot(dx - 1, dy - 1); if (d < bd) { bd = d; best = [(tx + dx) * 10 + 5, (ty + dy) * 10 + 5]; } }
     if (best && bd > 1.5) { const n = Math.ceil(Math.hypot(best[0] - cx, best[1] - (cy + 2)) / 2); let wob = 0; for (let q = 0; q <= n; q++) { const f = q / n, px = cx + (best[0] - cx) * f, py = cy + 2 + (best[1] - cy - 2) * f, k2 = at(Math.floor(px / 10), Math.floor(py / 10)); wob += (v(q + 100) - 0.5) * 1.2; wob *= 0.9; if (k2 !== T_GRASS && k2 !== T_MEADOW && k2 !== T_HILL && k2 !== T_SAND) continue; if (v(q + 300) > 0.12) R(Math.round(px + wob * 3 * Math.sin(f * Math.PI)), Math.round(py), 2, 2, q % 3 ? 'rgba(158,134,88,.5)' : 'rgba(184,160,112,.5)'); } }
   };
+  // ---- every landmark, dressed: what lies under it (u: a shadow thrown, the ground worn or stained) and what was
+  // added over it (o: the light and dark of its form, what it is made of, and what stands about it). The thing
+  // itself is drawn between the two, where it always was, so whatever moves on it still sits where it should. ----
+  const lmV = (q, k2) => wildHash(q, k2, 2000);
+  const lmDab = (x0, y0, w, hh, n, cols, sd) => { for (let q = 0; q < n; q++) R(x0 + Math.floor(lmV(q, sd) * w), y0 + Math.floor(lmV(q, sd + 1) * hh), 1 + Math.floor(lmV(q, sd + 2) * 2), 1, cols[q % cols.length]); };
+  const lmSoft = (cx, cy, rx, ry, c, sd) => { for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)) + (lmV(dy + 40, sd || 3) - 0.5) * 3); if (w > 0) R(cx - w + Math.round((lmV(dy + 80, sd || 3) - 0.5) * 2), cy + dy, w * 2, 1, c); } };
+  const lmSdw = (x0, y0, w, n) => { for (let i = 0; i < n; i++) R(x0 + i * 2, y0 + i, w, 1, 'rgba(0,0,0,.09)'); };      // a shadow lying away to the south and east
+  const DRESS = {
+    'The great oak': {
+      u: (x, y) => { lmSoft(x + 18, y + 10, 21, 4, 'rgba(20,40,10,.16)', 5); lmDab(x - 2, y + 7, 36, 6, 9, ['#8a6a3a', '#b89040', '#6b4f2c'], 6); },
+      o: (x, y) => {
+        lmDab(x + 4, y - 24, 20, 14, 16, ['#4c7f38', '#274a20', '#69a04a', '#2d5524'], 7); R(x + 4, y - 7, 22, 1, '#274a20'); R(x + 2, y - 21, 1, 8, '#69a04a'); R(x + 9, y - 28, 6, 1, '#86b860');
+        R(x + 21, y - 22, 6, 12, 'rgba(10,30,10,.18)'); R(x + 10, y + 9, 3, 1, '#4a3320'); R(x + 18, y + 9, 4, 1, '#3a2818'); R(x + 14, y + 1, 1, 6, '#3a2818'); R(x + 15, y - 4, 2, 2, '#2a1c14');      // roots, the grain of the bark, a hollow
+        R(x + 12, y - 5, 2, 4, '#4a3320'); R(x + 17, y - 6, 3, 2, '#4a3320'); R(x + 19, y - 8, 2, 2, '#4a3320');                                                                                   // the boughs going up into it
+        R(x + 4, y + 6, 8, 1, '#a8834a'); R(x + 4, y + 7, 1, 2, '#6b4f2c'); R(x + 11, y + 7, 1, 2, '#6b4f2c');                                                                                      // a bench in its shade
+      } },
+    'A villa in its garden': {
+      u: (x, y) => { lmSoft(x + 19, y + 13, 26, 4, 'rgba(214,204,176,.55)', 8); lmSdw(x + 38, y - 4, 5, 6);
+        for (const bx of [-12, 43]) { R(x + bx, y + 1, 7, 8, '#4f7f38'); R(x + bx, y + 1, 7, 1, '#69a04a'); lmDab(x + bx, y + 2, 6, 6, 5, ['#c23b2e', '#f2e6a0', '#e8a0c0'], bx + 30); } },      // gravel before the door, and a bed of flowers at either end
+      o: (x, y) => {
+        R(x + 26, y - 13, 14, 7, 'rgba(60,20,10,.16)'); R(x - 2, y - 7, 42, 1, '#7a3018'); R(x, y - 5, 38, 1, 'rgba(60,40,20,.25)'); R(x + 30, y - 4, 8, 14, 'rgba(60,40,20,.10)');
+        R(x + 14, y - 2, 10, 2, '#d6ccb8'); R(x + 16, y - 4, 6, 2, '#d6ccb8'); R(x + 18, y - 5, 2, 1, '#d6ccb8'); R(x + 13, y + 10, 12, 1, '#f0e8d6'); R(x + 18, y + 2, 1, 8, '#5a3a22');      // a pediment over the door, the step, the two leaves of it
+        for (const wx of [4, 28]) { R(x + wx - 1, y - 2, 1, 5, '#5a8a6a'); R(x + wx + 5, y - 2, 1, 5, '#5a8a6a'); R(x + wx - 1, y + 3, 7, 1, '#d6ccb8'); }                                  // shutters
+        for (const px of [10, 26]) { R(x + px, y + 8, 2, 2, '#b5522e'); R(x + px - 1, y + 5, 4, 3, '#4c7f38'); R(x + px, y + 4, 2, 1, '#69a04a'); }                                          // bay trees in pots
+        R(x + 33, y - 17, 3, 5, '#d8cdb6'); R(x + 33, y - 17, 3, 1, '#8f8676'); for (let q = -10; q < 50; q += 6) R(x + q, y + 9, 1, 2, '#8f8676');                                            // a chimney, and the posts of the garden wall
+      } },
+    'The old arch': {
+      u: (x, y) => { R(x + 3, y + 8, 18, 4, 'rgba(196,188,166,.55)'); lmSdw(x + 23, y + 2, 6, 8); lmSdw(x + 6, y + 9, 4, 3); },
+      o: (x, y) => {
+        R(x - 2, y - 22, 27, 1, '#f8f4ea'); R(x - 1, y - 15, 25, 1, '#b5aa94'); R(x + 4, y - 20, 15, 4, '#cfc8b4'); for (let q = 0; q < 6; q++) R(x + 5 + q * 2 + (q > 2 ? 1 : 0), y - 19 + (q % 2), 1, 2, '#8f8876');      // the cornice, and what is left of the words cut under it
+        for (const px of [0, 17]) { R(x + px - 1, y + 8, 8, 2, '#c9c2ae'); R(x + px - 1, y + 8, 8, 1, '#e8e2d2'); R(x + px - 1, y - 15, 8, 1, '#f0e8d6'); R(x + px + 2, y - 9, 2, 6, '#c2baa4'); R(x + px + 2, y - 9, 1, 6, '#e8e2d2'); for (let q = -10; q < 8; q += 5) R(x + px, y + q, 6, 1, '#c2baa4'); }
+        R(x + 6, y - 12, 11, 1, '#9a9280'); R(x + 6, y - 11, 1, 3, '#b5aa94'); R(x + 16, y - 11, 1, 3, '#9a9280'); R(x + 7, y - 12, 1, 1, '#d8d2c0'); R(x + 15, y - 12, 1, 1, '#d8d2c0');      // the soffit in shade, and the spring of the vault
+        R(x + 21, y - 4, 2, 9, '#5f8f3a'); R(x + 22, y - 9, 1, 5, '#5f8f3a'); R(x + 20, y + 2, 1, 3, '#7aa84a'); R(x + 23, y - 13, 1, 4, '#4f7a30'); R(x + 3, y - 2, 1, 4, '#8f8876'); R(x + 2, y + 1, 1, 2, '#8f8876');      // ivy up one pier, a crack down the other
+        R(x + 8, y - 26, 2, 1, '#8a6420'); R(x + 13, y - 26, 2, 1, '#8a6420'); R(x - 3, y + 9, 2, 1, '#6f9a48'); R(x + 24, y + 9, 3, 1, '#6f9a48');
+      } },
+    'The wine press': {
+      u: (x, y) => { lmSoft(x + 14, y + 10, 22, 3, 'rgba(120,60,90,.16)', 9); for (let q = 0; q < 5; q++) { R(x - 8 + q * 9, y - 12, 1, 6, '#6b4f2c'); R(x - 10 + q * 9, y - 13, 6, 3, '#557a36'); R(x - 9 + q * 9, y - 11, 1, 1, '#6a3a7a'); R(x - 6 + q * 9, y - 12, 1, 1, '#6a3a7a'); } },      // the vines it serves, behind
+      o: (x, y) => {
+        R(x - 2, y - 8, 2, 18, '#6b4f2c'); R(x - 2, y - 8, 1, 18, '#8a6a3a'); R(x + 18, y - 8, 2, 11, '#5a4326'); R(x - 2, y - 9, 22, 1, '#94703f'); for (let q = 0; q < 5; q++) R(x + 8, y - 6 + q * 2, 2, 1, '#94703f');      // the frame, and the thread of the screw
+        for (let q = 4; q < 16; q += 4) R(x + q, y + 3, 1, 7, '#9a8f7a'); R(x + 2, y + 9, 14, 1, '#8f8676'); R(x + 5, y + 4, 8, 1, '#9a3a5a'); R(x + 16, y + 8, 3, 1, '#7a2a4a'); R(x + 14, y + 2, 2, 8, 'rgba(0,0,0,.14)');      // the stones of the vat, the must in it, and where it runs out
+        for (const bx of [20, 26]) { R(x + bx, y + 3, 5, 1, '#94703f'); R(x + bx + 4, y + 4, 1, 6, '#5e4426'); R(x + bx + 2, y + 6, 1, 1, '#2a1c14'); }
+        for (const gx of [-9, -15]) { R(x + gx, y + 6, 5, 4, '#a8834a'); R(x + gx, y + 6, 5, 1, '#c9a763'); R(x + gx + 1, y + 5, 3, 1, '#5a2a4a'); R(x + gx + 2, y + 4, 1, 1, '#7a3a6a'); }      // baskets of grapes waiting
+        R(x + 36, y + 5, 3, 5, '#b8703c'); R(x + 37, y + 3, 1, 2, '#b8703c'); R(x + 36, y + 5, 3, 1, '#d08a54'); lmDab(x + 2, y + 10, 18, 2, 5, ['#7a2a4a', '#5a2a4a'], 10);
+      } },
+    'The fallen colossus': {
+      u: (x, y) => { lmSoft(x + 20, y + 10, 30, 3, 'rgba(0,0,0,.14)', 11); R(x + 42, y - 2, 14, 10, '#b5af9b'); R(x + 42, y - 2, 14, 1, '#e4dfcd'); R(x + 54, y - 1, 2, 9, '#8f8a78'); R(x + 41, y + 8, 16, 2, '#a8a290');      // the plinth it stood on
+        R(x + 44, y - 8, 4, 6, '#c9c3ae'); R(x + 50, y - 6, 4, 4, '#c9c3ae'); R(x + 44, y - 8, 1, 6, '#e4dfcd'); R(x + 50, y - 6, 1, 4, '#e4dfcd'); R(x + 44, y - 9, 4, 1, '#8f8a78'); },      // and its feet, still on it
+      o: (x, y) => {
+        R(x, y - 4, 10, 2, '#b5af9b'); for (let q = 0; q < 5; q++) R(x + q * 2, y - 5 + (q % 2), 2, 1, '#d8d2c0');                                              // the curls of its hair
+        R(x + 2, y + 1, 5, 1, '#8f8a78'); R(x + 5, y + 2, 1, 3, '#b5af9b'); R(x + 4, y + 5, 2, 1, '#8f8a78'); R(x + 3, y + 7, 4, 1, '#6d6858'); R(x + 10, y + 1, 2, 8, 'rgba(0,0,0,.14)');      // brow, nose, the line of the mouth
+        R(x + 7, y - 1, 1, 5, '#6d6858'); R(x + 8, y + 3, 1, 3, '#6d6858'); R(x + 22, y + 5, 8, 1, '#a8a290'); R(x + 24, y + 4, 1, 4, '#8f8a78'); R(x + 20, y + 8, 12, 1, '#8f8a78');          // a crack through the face, and the folds of the robe
+        R(x + 16, y - 2, 4, 4, '#c9c3ae'); R(x + 16, y - 2, 4, 1, '#e4dfcd'); R(x + 36, y + 7, 6, 3, '#b5af9b'); R(x + 36, y + 7, 6, 1, '#d8d2c0');
+        lmDab(x, y - 2, 32, 11, 7, ['#9aa85a', '#c9b860', '#7a8a4a'], 12); R(x + 13, y + 9, 5, 1, '#6f9a48'); R(x + 30, y + 9, 5, 1, '#6f9a48'); R(x + 46, y + 9, 3, 1, '#6f9a48');
+      } },
+    'An old battlefield': {
+      u: (x, y) => { lmSoft(x + 18, y + 6, 26, 6, 'rgba(90,70,40,.16)', 13); lmSoft(x + 20, y - 8, 12, 4, '#7fa850', 14); R(x + 12, y - 5, 16, 1, 'rgba(0,0,0,.16)'); for (let q = 0; q < 4; q++) R(x + 17 + q * 2 - (q > 1 ? 1 : 0), y - 13 + (q % 2), 3, 2, q % 2 ? '#a8a290' : '#b8b2a0'); },      // the mound where they were buried, and the cairn on it
+      o: (x, y) => {
+        R(x - 6, y - 12, 1, 22, '#5a4326'); R(x - 5, y - 12, 5, 4, '#8a2a20'); R(x - 5, y - 8, 3, 2, '#8a2a20'); R(x - 2, y - 9, 2, 1, '#6a1c16'); R(x - 6, y - 13, 1, 1, '#b98a34');      // a standard, what is left of it
+        R(x + 38, y + 3, 6, 6, '#6b4f2c'); R(x + 39, y + 4, 4, 4, '#8f7a5a'); R(x + 40, y + 5, 2, 2, '#3a2a1c'); R(x + 41, y + 3, 1, 6, '#6b4f2c'); R(x + 38, y + 6, 6, 1, '#6b4f2c');      // a chariot wheel, sunk to the axle
+        lmDab(x, y + 4, 36, 7, 8, ['#e8e2d2', '#c1c7cc', '#f1ead8'], 15); R(x + 16, y + 9, 2, 1, '#b98a34'); R(x + 8, y + 9, 3, 1, '#8f8a84'); R(x + 29, y + 4, 1, 3, '#8f8a84');
+        lmDab(x - 4, y - 2, 44, 13, 12, ['#c23b2e', '#d8382a'], 16);                                                                                                                           // poppies
+      } },
+    'The bee garden': {
+      u: (x, y) => { lmSoft(x + 15, y + 6, 24, 9, 'rgba(160,190,90,.22)', 17); lmDab(x - 8, y - 4, 46, 20, 26, ['#b9a0e0', '#f2e6a0', '#e8a0c0', '#f4f4f0', '#9a7ad0'], 18);
+        for (let q = -6; q < 38; q += 4) { R(x + q, y - 5, 1, 6, '#8a6a3a'); } R(x - 6, y - 4, 44, 1, '#a8834a'); R(x - 6, y - 1, 44, 1, '#94703f'); },      // a wattle fence against the wind
+      o: (x, y) => {
+        for (let q = 0; q < 5; q++) { const hx = x + 1 + q * 6; R(hx + 1, y, 3, 1, '#c9a050'); R(hx + 2, y - 1, 1, 1, '#b89040'); R(hx, y + 2, 1, 5, '#e6c478'); R(hx + 4, y + 2, 1, 5, '#a88030'); R(hx, y + 4, 5, 1, '#c9a050'); }      // each skep bound in its rings of straw
+        R(x, y + 7, 30, 1, '#94703f'); R(x + 34, y - 1, 9, 9, '#cdbd94'); R(x + 34, y - 1, 2, 9, '#e0d2ac'); R(x + 33, y - 5, 11, 4, '#9a7a42'); R(x + 33, y - 5, 11, 1, '#b8964e'); R(x + 37, y + 3, 3, 5, '#3a2416');      // the bee-man's hut
+        for (let q = 0; q < 7; q++) { R(x - 4 + q * 6, y + 12, 4, 2, '#6f8a5a'); R(x - 3 + q * 6, y + 11, 2, 1, '#9a7ad0'); R(x - 4 + q * 6, y + 12, 1, 1, '#b9a0e0'); }                    // lavender, in a row before them
+        R(x - 9, y + 5, 3, 4, '#b8703c'); R(x - 9, y + 5, 3, 1, '#d08a54');
+      } },
+    'The mill': {
+      u: (x, y) => { for (let q = 0; q < 16; q++) { R(x - 18 + q, y + 10 - Math.round(q * 0.1), 1, 3, q % 3 ? '#5a9cc6' : '#8fc3e0'); } R(x - 18, y + 8, 16, 1, '#b5aa94'); R(x - 18, y + 12, 16, 1, '#8f8676'); lmSdw(x + 28, y - 4, 5, 7); },      // the race that brings the water to the wheel
+      o: (x, y) => {
+        for (let q = 9; q < 30; q += 3) R(x + q, y - 11, 1, 5, '#6f4424'); R(x + 8, y - 7, 22, 1, '#5e3a1e'); R(x + 24, y - 12, 6, 6, 'rgba(40,20,10,.18)'); R(x + 24, y - 16, 3, 5, '#b5aa94'); R(x + 24, y - 16, 3, 1, '#8f8676');      // the roof in its courses, and a chimney
+        lmDab(x + 11, y - 4, 16, 13, 9, ['#c9b88c', '#e6d8b0', '#b8a67c'], 19); R(x + 24, y - 5, 4, 15, 'rgba(60,40,20,.12)'); R(x + 22, y - 3, 5, 1, '#8a6a3a'); R(x + 16, y + 1, 7, 1, '#8a6a3a');
+        R(x - 2, y - 2, 12, 1, '#7a5a34'); R(x - 2, y + 9, 12, 1, '#3a2a1c'); for (const [px, py] of [[-3, 0], [9, 0], [-3, 7], [9, 7]]) R(x + px, y + py, 2, 2, '#94703f');                                                              // the paddles of the wheel
+        R(x - 6, y + 10, 8, 2, '#e6f3fa'); R(x - 9, y + 12, 6, 1, '#cfe6f2');                                                                                                                                                             // white water off the tail of it
+        for (const [sx, sy] of [[29, 6], [32, 7], [30, 3]]) { R(x + sx, y + sy, 4, 3, '#d8c9a0'); R(x + sx, y + sy, 4, 1, '#efe2bc'); R(x + sx + 1, y + sy - 1, 2, 1, '#b8a67c'); }                                                       // sacks of flour by the door
+        R(x + 36, y + 4, 2, 6, '#b5ad9c'); R(x + 35, y + 5, 4, 4, '#b5ad9c'); R(x + 36, y + 6, 2, 2, '#6d6858'); R(x + 35, y + 5, 1, 4, '#d6cfbc');                                                                                      // a worn stone, leaned against the wall
+      } },
+    'A wreck on the strand': {
+      u: (x, y) => { lmSoft(x + 15, y + 8, 22, 4, 'rgba(150,130,90,.3)', 20); R(x - 6, y + 10, 8, 2, '#8fc3e0'); R(x - 5, y + 10, 5, 1, '#cfe6f2'); },      // wet sand under her, and a pool the tide left
+      o: (x, y) => {
+        for (let q = 0; q < 3; q++) { R(x + 2, y + 3 - q * 2, 12 - q * 2, 1, q % 2 ? '#7a5a34' : '#6b4f2c'); R(x + 18 + q, y + 4 - q, 10 - q * 2, 1, '#5a4326'); }                    // what planking is still on her
+        R(x - 2, y + 7, 10, 2, '#e2d2a0'); R(x + 20, y + 8, 12, 1, '#e2d2a0'); R(x - 2, y + 7, 10, 1, '#f0e2b4');                                                                    // sand drifted against the hull
+        lmDab(x + 2, y - 3, 28, 9, 8, ['#5f7a4a', '#3d5a3a', '#8a9a6a'], 21); R(x + 6, y - 6, 1, 1, '#f4f4f0'); R(x + 14, y - 6, 1, 1, '#f4f4f0'); R(x + 22, y - 9, 1, 1, '#f4f4f0');      // weed on her timbers, gulls on her ribs
+        R(x + 28, y - 4, 4, 1, '#a39a84'); R(x + 30, y - 3, 3, 3, '#b5ad9c');
+        R(x - 8, y + 2, 1, 6, '#3a3a3a'); R(x - 10, y + 7, 5, 1, '#3a3a3a'); R(x - 10, y + 6, 1, 1, '#3a3a3a'); R(x - 6, y + 6, 1, 1, '#3a3a3a'); R(x - 9, y + 1, 3, 1, '#3a3a3a');      // her anchor, in the sand where it was let go
+        for (const [ax, ay] of [[34, 6], [38, 8], [36, 3]]) { R(x + ax, y + ay, 2, 3, '#b8703c'); R(x + ax, y + ay, 2, 1, '#d08a54'); } R(x + 41, y + 6, 4, 3, '#7a5a34'); R(x + 41, y + 6, 4, 1, '#94703f');      // what she carried
+      } },
+    'The beacon': {
+      u: (x, y) => { lmSdw(x + 14, y - 2, 6, 10); for (const [rx0, ry0, rw] of [[-4, 8, 5], [16, 9, 4], [-1, 10, 3]]) { R(x + rx0, y + ry0, rw, 2, '#8f8a80'); R(x + rx0, y + ry0, rw, 1, '#b5ad9c'); } },
+      o: (x, y) => {
+        for (let q = -21; q < 6; q += 4) { R(x + 5, y + q, 6, 1, '#d8d2c0'); R(x + 5 + ((q + 21) % 8 ? 2 : 4), y + q - 2, 1, 2, '#d8d2c0'); }                                         // the courses of the stone
+        R(x + 4, y - 14, 9, 1, '#c25a3e'); R(x + 4, y - 4, 9, 1, '#c25a3e'); R(x + 11, y - 14, 2, 3, '#8a3622'); R(x + 11, y - 4, 2, 3, '#8a3622'); R(x + 7, y - 19, 2, 3, '#3a2a1c'); R(x + 7, y - 9, 2, 3, '#3a2a1c');
+        R(x + 1, y - 28, 15, 1, '#a8834a'); for (let q = 1; q < 16; q += 2) R(x + q, y - 30, 1, 2, '#6b4f2c'); R(x + 1, y - 31, 15, 1, '#6b4f2c'); R(x + 3, y - 25, 11, 1, '#5e4426');      // the gallery round the lamp, and its rail
+        R(x + 6, y, 5, 1, '#c9c2ae'); R(x + 2, y + 9, 14, 1, '#6d6860'); R(x + 5, y + 10, 8, 1, '#b5ad9c');
+        R(x + 18, y + 1, 10, 9, '#e8e2d2'); R(x + 18, y + 1, 2, 9, '#f8f4ea'); R(x + 17, y - 3, 12, 4, '#b5522e'); R(x + 17, y - 3, 12, 1, '#d06a3e'); R(x + 21, y + 5, 3, 5, '#3a2416'); R(x + 25, y + 3, 2, 2, '#3a2a1c');      // the keeper's house
+        for (let q = 0; q < 3; q++) R(x + 30, y + 8 - q * 2, 5 - q, 2, q % 2 ? '#7a5a34' : '#6b4f2c');                                                                                // and the wood he burns
+      } },
+    'The bones of a whale': {
+      u: (x, y) => { for (let q = 0; q < 6; q++) { const hh = 6 + Math.round(Math.sin((q + 0.5) / 6 * Math.PI) * 6); for (let i = 0; i < hh; i += 2) R(x + 6 + q * 4 + i, y + 7 + Math.round(i * 0.4), 2, 1, 'rgba(60,40,10,.14)'); R(x + 6 + q * 4, y + 6 - hh + 2, 1, hh - 2, '#d8d0bc'); } },      // the far ribs, and the shadow of the near ones on the sand
+      o: (x, y) => {
+        for (let q = 0; q < 10; q++) R(x + 1 + q * 3, y + 4, 2, 1, '#ffffff'); for (const [tx2, ty2, tw] of [[30, 5, 4], [35, 6, 3], [39, 6, 2], [42, 7, 2]]) { R(x + tx2, y + ty2, tw, 2, '#e8e2d2'); R(x + tx2, y + ty2, tw, 1, '#ffffff'); }      // the knuckles of the spine, running out to the tail
+        R(x - 12, y + 7, 12, 1, '#f1ead8'); R(x - 13, y + 6, 3, 1, '#f1ead8'); R(x - 11, y + 9, 10, 1, '#e0d8c4'); R(x - 3, y + 2, 2, 2, '#8f8676'); R(x - 6, y + 6, 6, 1, '#d8d0bc'); R(x + 1, y + 2, 1, 4, '#d8d0bc');      // the long jaws, and the socket of the eye
+        for (let q = 0; q < 6; q++) R(x + 5 + q * 4, y + 5 - (6 + Math.round(Math.sin((q + 0.5) / 6 * Math.PI) * 6)), 1, 3, '#ffffff');
+        R(x + 12, y + 8, 6, 1, '#e2d2a0'); R(x + 24, y + 8, 5, 1, '#e2d2a0'); R(x + 20, y + 9, 2, 1, '#c23b2e'); R(x + 8, y - 8, 2, 1, '#f4f4f0'); R(x + 9, y - 7, 1, 1, '#e3b04a');      // sand blown over it, a crab, a gull
+      } },
+    "The fishers' huts": {
+      u: (x, y) => { lmSoft(x + 18, y + 10, 26, 3, 'rgba(120,100,60,.2)', 22); R(x - 14, y + 8, 12, 3, '#5e4426'); R(x - 14, y + 8, 12, 1, '#8a6a3a'); R(x - 15, y + 9, 1, 1, '#5e4426'); R(x - 2, y + 9, 1, 1, '#5e4426'); R(x - 12, y + 6, 8, 1, '#c9b890'); R(x - 13, y + 11, 12, 1, 'rgba(0,0,0,.2)'); },      // a second boat, hauled out, her oars laid across
+      o: (x, y) => {
+        for (const hx of [0, 13]) { for (let q = 0; q < 12; q += 2) R(x + hx - 1 + q, y - 2 + (q % 4 ? 0 : 1), 1, 3, '#7a5e30'); R(x + hx - 1, y + 1, 12, 1, '#6b5028'); R(x + hx + 7, y + 2, 3, 8, 'rgba(60,40,20,.14)'); R(x + hx + 1, y + 4, 2, 2, '#3a2a1c'); R(x + hx, y + 2, 1, 8, '#e6d8b0'); }      // thatch, and the shade down one side of each
+        R(x + 27, y + 7, 10, 1, '#94703f'); R(x + 29, y + 5, 2, 1, '#d8d2c0'); R(x + 33, y + 5, 3, 1, '#8a6a3a'); R(x + 31, y - 3, 3, 2, '#c9c0aa');
+        for (const px of [42, 52]) R(x + px, y - 2, 1, 12, '#6b4f2c'); R(x + 42, y - 1, 11, 1, '#8a6a3a'); R(x + 42, y + 3, 11, 1, '#8a6a3a'); for (let q = 0; q < 5; q++) { R(x + 43 + q * 2, y, 1, 2, q % 2 ? '#c1c7cc' : '#e8e2d2'); R(x + 44 + q * 2 - (q > 3 ? 2 : 0), y + 4, 1, 2, '#c1c7cc'); }      // fish, split and hung to dry
+        for (const [bx, by] of [[9, 8], [24, 9], [38, 8]]) { R(x + bx, y + by, 3, 2, '#a8834a'); R(x + bx, y + by, 3, 1, '#c9a763'); } lmDab(x + 24, y + 10, 14, 2, 5, ['#c9a21e', '#c23b2e'], 23);      // baskets, and the floats of a net
+      } },
+    'The charcoal burners': {
+      u: (x, y) => { lmSoft(x + 10, y + 7, 20, 6, 'rgba(30,26,22,.3)', 24); for (const [lx, ly] of [[-12, 3], [-12, 7]]) { R(x + lx, y + ly, 10, 3, '#7a5a34'); R(x + lx, y + ly, 10, 1, '#94703f'); for (let q = 0; q < 10; q += 3) R(x + lx + q, y + ly + 1, 2, 2, '#c9a763'); } },      // black ground, and the cordwood stacked ready
+      o: (x, y) => {
+        lmDab(x + 3, y, 14, 9, 9, ['#4a443a', '#2a2620', '#5a6a3a'], 25); R(x + 2, y + 2, 2, 8, '#4a443a'); R(x + 15, y + 3, 3, 7, '#241f1a'); R(x + 7, y - 3, 6, 1, '#5a5348');      // the turf it is clamped under
+        for (const [vx, vy] of [[5, 7], [10, 8], [14, 6], [8, 3]]) { R(x + vx, y + vy, 1, 1, '#e2702a'); } R(x + 9, y - 3, 2, 1, '#8a8478');                                    // the vents, with the fire showing in them
+        R(x + 21, y - 4, 8, 1, '#7a6a52'); R(x + 23, y + 5, 3, 5, '#2a1c14'); R(x + 27, y + 4, 1, 6, '#5e4426');
+        for (const [sx, sy] of [[30, 6], [33, 7], [31, 3]]) { R(x + sx, y + sy, 3, 3, '#2a2620'); R(x + sx, y + sy, 3, 1, '#4a443a'); }                                          // sacks of what they make
+        R(x - 4, y - 4, 4, 3, '#8a6a3a'); R(x - 4, y - 4, 4, 1, '#c9a763'); R(x - 2, y - 8, 1, 4, '#6b4f2c'); R(x - 3, y - 9, 3, 1, '#8f8a84'); R(x + 36, y + 2, 1, 8, '#6b4f2c'); R(x + 35, y + 1, 3, 1, '#8f8a84');      // an axe in a stump, a rake
+      } },
+    "The hunters' lodge": {
+      u: (x, y) => { lmSoft(x + 12, y + 10, 22, 3, 'rgba(150,126,82,.4)', 26); lmSdw(x + 24, y - 4, 4, 6); },
+      o: (x, y) => {
+        for (const cx of [2, 21]) for (let q = -1; q < 10; q += 3) { R(x + cx - 1, y + q, 2, 2, '#94703f'); R(x + cx - 1, y + q, 2, 1, '#b8904f'); }                              // the ends of the logs at each corner
+        for (let q = 1; q < 24; q += 3) R(x + q, y - 7, 1, 5, '#4a3c2e'); R(x, y - 3, 24, 1, '#3a2e22'); R(x + 16, y - 8, 8, 6, 'rgba(20,10,0,.16)'); R(x + 18, y - 12, 3, 1, '#b5aea4');
+        R(x + 16, y + 1, 4, 4, '#2a1c14'); R(x + 17, y + 1, 1, 4, '#8a6a3a'); R(x + 15, y + 5, 6, 1, '#94703f'); R(x + 9, y + 2, 1, 8, '#4a3320'); R(x + 6, y - 3, 2, 1, '#e8e2d2'); R(x + 15, y - 3, 2, 1, '#e8e2d2');      // a window, and the spread of the antlers
+        R(x - 10, y - 2, 1, 12, '#6b4f2c'); R(x - 3, y - 2, 1, 12, '#6b4f2c'); R(x - 10, y - 2, 8, 1, '#6b4f2c'); R(x - 8, y, 4, 7, '#b8905a'); R(x - 8, y, 4, 1, '#d0a870'); R(x - 7, y + 2, 2, 3, '#a07848');                 // a hide stretched on a frame
+        R(x + 30, y - 6, 1, 16, '#6b4f2c'); R(x + 30, y - 6, 8, 1, '#6b4f2c'); R(x + 33, y - 5, 2, 5, '#8a6a4a'); R(x + 36, y - 5, 2, 4, '#b8a890'); R(x + 33, y, 2, 1, '#5e4426');                                         // game hung up out of reach
+        R(x + 4, y + 9, 3, 2, '#7a6a52'); R(x + 3, y + 8, 2, 2, '#7a6a52'); R(x + 6, y + 10, 1, 1, '#3a2a1c');                                                                                                         // a dog asleep by the door
+      } },
+    'A burnt village': {
+      u: (x, y) => { lmSoft(x + 18, y + 6, 28, 7, 'rgba(40,34,28,.22)', 27); lmDab(x - 4, y, 46, 12, 12, ['#8a8478', '#b5aea4', '#5a544c'], 28); },      // ash, lying where it fell
+      o: (x, y) => {
+        for (const [bx, by, l, d] of [[2, 2, 8, 1], [16, 0, 9, -1], [30, 3, 6, 1], [20, 5, 7, 1]]) for (let q = 0; q < l; q++) R(x + bx + q, y + by + Math.round(q * 0.5) * d + (d < 0 ? 4 : 0), 1, 2, '#1c1612');      // roof timbers, come down across the rooms
+        R(x + 20, y - 9, 3, 12, '#6a645c'); R(x + 20, y - 9, 1, 12, '#8a8478'); R(x + 19, y - 10, 5, 1, '#5a544c'); R(x + 21, y + 1, 2, 2, '#120c0a');                                                              // one hearth and its chimney, still standing
+        for (const [hx, hw] of [[0, 9], [13, 11], [28, 8]]) { R(x + hx, y + 9, hw, 1, '#4a443a'); R(x + hx + 1, y + 4, 1, 3, '#4a443a'); }
+        R(x + 40, y + 3, 6, 5, '#8f8a80'); R(x + 40, y + 3, 6, 1, '#b5aea4'); R(x + 41, y + 4, 4, 3, '#1c2a30'); R(x + 39, y - 3, 1, 7, '#2a241e'); R(x + 46, y - 3, 1, 7, '#2a241e'); R(x + 39, y - 3, 8, 1, '#2a241e');      // the well
+        R(x - 8, y - 8, 2, 18, '#1c1612'); R(x - 11, y - 6, 3, 1, '#1c1612'); R(x - 6, y - 10, 4, 1, '#1c1612'); R(x - 10, y - 2, 2, 1, '#1c1612');                                                                  // a tree that burned with it
+        for (const [gx, gy] of [[5, 10], [18, 11], [33, 10], [-4, 9], [26, 11]]) { R(x + gx, y + gy, 1, 2, '#6f9a48'); R(x + gx + 1, y + gy, 1, 1, '#8ab04a'); }                                                    // and green coming up through it
+      } },
+    'The lime kiln': {
+      u: (x, y) => { lmSoft(x + 12, y + 9, 24, 4, 'rgba(240,236,224,.4)', 29); for (let i = 0; i < 10; i++) R(x - 10 + i, y + 9 - i, 12 - i, 1, i % 2 ? '#a89a78' : '#b8a888'); R(x - 10, y + 10, 12, 1, 'rgba(0,0,0,.2)'); },      // lime dust on everything, and the ramp they charge it from
+      o: (x, y) => {
+        for (let q = -2; q < 10; q += 3) { R(x + 4, y + q, 14, 1, '#a39a84'); R(x + 6 + ((q + 2) % 6 ? 3 : 7), y + q - 2, 1, 2, '#a39a84'); } R(x + 15, y - 4, 3, 14, 'rgba(40,30,20,.16)'); R(x + 2, y + 1, 16, 1, '#5a5a5a'); R(x + 2, y - 4, 16, 1, '#d8cdb6');      // its courses, and an iron band round its belly
+        R(x + 6, y + 2, 8, 1, '#8f8676'); R(x + 6, y + 3, 1, 7, '#8f8676'); R(x + 13, y + 3, 1, 7, '#8f8676'); R(x + 5, y - 12, 10, 1, '#6d6658'); R(x + 7, y - 11, 6, 1, '#2a1c14');                                                                            // the arch of the draw-hole, and the black of its throat
+        for (const [cx, cy, cw] of [[-12, 4, 4], [-8, 6, 3], [-13, 7, 5]]) { R(x + cx, y + cy, cw, 3, '#d8d4c6'); R(x + cx, y + cy, cw, 1, '#f0ece0'); }                                                                                                    // stone waiting to be burned
+        R(x + 20, y + 4, 4, 1, '#ffffff'); R(x + 26, y + 8, 5, 2, '#f0ece0'); R(x + 28, y + 5, 3, 4, '#8a6a3a'); R(x + 28, y + 5, 3, 1, '#a8834a'); R(x + 31, y + 6, 4, 1, '#6b4f2c'); R(x + 28, y + 9, 2, 2, '#3a2a1c');                                    // and a barrow for what comes out
+      } },
+    'The unfinished columns': {
+      u: (x, y) => { lmSoft(x + 16, y + 9, 26, 3, 'rgba(232,226,208,.4)', 30); R(x - 10, y - 8, 22, 7, '#cfc5a8'); R(x - 10, y - 8, 22, 1, '#f1ead6'); R(x - 10, y - 2, 22, 1, '#9c9278'); R(x - 6, y - 6, 14, 3, '#e2d9c0'); R(x - 6, y - 6, 14, 1, '#ffffff'); for (let q = -4; q < 8; q += 4) R(x + q, y - 6, 1, 3, '#b9ae90'); lmSdw(x + 34, y - 2, 4, 8); },      // the bed of rock, with one still lying in it uncut
+      o: (x, y) => {
+        for (const [cx, cy, l] of [[0, 4, 22], [6, 8, 26], [14, 0, 18]]) { R(x + cx, y + cy + 1, l, 1, '#d8d4c6'); R(x + cx, y + cy + 2, l, 1, '#b8b2a0'); R(x + cx - 1, y + cy, 1, 3, '#c4bfae'); R(x + cx, y + cy + 3, l, 1, 'rgba(60,54,40,.25)'); }      // each drum round, with the light along the top of it
+        R(x + 31, y - 9, 1, 18, '#d8d4c6'); R(x + 33, y - 10, 1, 20, '#b8b2a0'); R(x + 29, y - 13, 6, 3, '#e8e4d8'); R(x + 29, y - 13, 6, 1, '#ffffff'); R(x + 34, y - 13, 1, 3, '#b8b2a0'); R(x + 29, y + 8, 6, 2, '#d8d4c6'); R(x + 29, y + 8, 6, 1, '#f8f6ee');      // the one they stood up: its flutes, and the block left rough for the capital
+        for (const lx of [8, 16, 24]) { R(x + lx, y + 11, 3, 1, '#6b4f2c'); R(x + lx, y + 11, 1, 1, '#94703f'); }                                                                                                                                               // the rollers it was moving on
+        R(x + 38, y + 5, 5, 4, '#e8e4d8'); R(x + 38, y + 5, 5, 1, '#ffffff'); R(x + 42, y + 6, 1, 3, '#b8b2a0'); R(x + 37, y + 3, 1, 3, '#5a5a5a'); R(x + 36, y + 2, 3, 1, '#8f8a84'); lmDab(x - 4, y + 9, 40, 3, 8, ['#f8f6ee', '#c4bfae'], 31);                      // a mallet left on a block, and chips
+      } },
+    'The watchtower': {
+      u: (x, y) => { lmSdw(x + 16, y - 6, 6, 14); for (let q = -8; q < 30; q += 4) if (q < 2 || q > 16) { R(x + q, y + 8, 3, 3, '#8f8a80'); R(x + q, y + 8, 3, 1, '#b5aea4'); } },      // a ring of wall round its foot
+      o: (x, y) => {
+        for (let q = -14; q < 10; q += 5) { R(x + 6 + ((q + 14) % 10 ? 2 : 5), y + q - 2, 1, 2, '#85817a'); R(x + 6 + ((q + 14) % 10 ? 6 : 1), y + q + 1, 1, 2, '#85817a'); } R(x + 12, y - 18, 2, 28, 'rgba(0,0,0,.10)');
+        R(x + 3, y - 18, 14, 1, '#77736a'); R(x + 3, y - 19, 14, 1, '#bdb8ac'); R(x + 7, y - 21, 2, 2, '#77736a'); R(x + 12, y - 21, 1, 3, '#77736a');                                                            // the string course under the battlements
+        R(x + 9, y - 3, 2, 3, '#2a241e'); R(x + 6, y - 12, 1, 3, '#2a241e'); R(x + 8, y + 2, 4, 1, '#bdb8ac'); R(x + 7, y + 3, 1, 7, '#85817a'); R(x + 12, y + 3, 1, 7, '#5a564e');                                  // more slits, and the frame of the door
+        R(x + 14, y - 23, 3, 2, '#3a3a3a'); R(x + 15, y - 21, 1, 3, '#3a3a3a'); R(x + 14, y - 24, 3, 1, '#e2702a');                                                                                                  // the iron basket they light at night
+        R(x + 18, y + 1, 10, 8, '#7a5a34'); R(x + 17, y - 2, 12, 3, '#5a4a3a'); R(x + 17, y - 2, 12, 1, '#7a6a52'); R(x + 20, y + 3, 6, 6, '#2a1c14'); R(x + 21, y + 5, 3, 2, '#8a6a4a'); R(x + 23, y + 4, 2, 2, '#8a6a4a');      // a lean-to for the horse
+        R(x - 6, y + 2, 1, 7, '#5a4326'); R(x - 5, y + 2, 4, 1, '#5a4326'); R(x - 4, y + 3, 2, 3, '#c1c7cc');
+      } },
+    'The hot spring': {
+      u: (x, y) => { lmSoft(x + 14, y + 7, 24, 6, 'rgba(236,232,220,.5)', 32); },
+      o: (x, y) => {
+        R(x, y + 2, 2, 8, '#fbfaf4'); R(x + 20, y + 4, 2, 6, '#d8d4c8'); lmDab(x, y, 22, 3, 6, ['#e0b070', '#c9d8a0', '#e8c890'], 33); R(x + 3, y + 8, 16, 1, '#4aa49c'); R(x + 8, y + 4, 5, 1, '#c8f0ea');      // the crust of it, stained by what is in the water
+        for (const [px, py, pw] of [[22, 6, 7], [27, 9, 8], [33, 11, 6]]) { R(x + px - 1, y + py, pw + 2, 3, '#f2efe6'); R(x + px, y + py, pw, 2, '#7fd0c8'); R(x + px, y + py, pw - 2, 1, '#a8e4dc'); R(x + px - 1, y + py + 3, pw + 2, 1, '#d8d4c8'); }      // it runs off down the slope from basin to basin
+        for (const [sx, sy] of [[-5, 7], [-2, 10], [24, 2]]) { R(x + sx, y + sy, 4, 3, '#a2aab4'); R(x + sx, y + sy, 4, 1, '#c8ced6'); }
+        R(x - 8, y + 2, 1, 6, '#6b4f2c'); R(x - 8, y + 2, 5, 1, '#6b4f2c'); R(x - 7, y + 3, 3, 3, '#f1ead8'); R(x - 3, y + 2, 1, 6, '#6b4f2c');                                                                  // somebody's linen, on a rail
+      } },
+    'The eagle rock': {
+      u: (x, y) => { lmSdw(x + 14, y - 2, 6, 12); for (let q = 0; q < 16; q++) { const w = 1 + Math.round(q * 0.3); R(x + 20 - w, y - 6 + q, w, 1, '#a2aab4'); R(x + 20, y - 6 + q, w + 1, 1, '#646c78'); } },      // a lesser crag beside the great one
+      o: (x, y) => {
+        for (let q = 4; q < 28; q += 5) { const w = 2 + Math.round(q * 0.22); R(x + 8 - w, y - 20 + q, Math.max(1, w - 2), 1, '#c8ced6'); R(x + 9, y - 19 + q, Math.max(1, w - 1), 1, '#4a515c'); }      // ledges in the light, and the cracks between them
+        R(x + 7, y - 20, 1, 7, '#e8e2d2'); R(x + 6, y - 15, 1, 3, '#e8e2d2'); R(x + 4, y - 22, 9, 1, '#5e4426'); R(x + 3, y - 23, 2, 1, '#8a6a3a'); R(x + 12, y - 23, 2, 1, '#8a6a3a');                            // the white below the nest, and the sticks of it
+        R(x + 2, y - 4, 4, 3, '#2d5236'); R(x + 3, y - 6, 2, 2, '#3a6442'); R(x + 4, y - 1, 1, 2, '#4a3320'); R(x + 13, y + 2, 3, 2, '#2d5236'); R(x + 14, y, 1, 2, '#3a6442');                                // a pine or two, holding on
+        lmDab(x - 4, y + 7, 30, 4, 9, ['#a2aab4', '#7d8692', '#c8ced6'], 34); R(x + 1, y + 9, 3, 1, '#efe8d8'); R(x + 3, y + 8, 1, 1, '#efe8d8');                                                                  // scree, and what the eagles dropped
+      } },
+    'The ring of stones': {
+      u: (x, y) => { lmSoft(x + 16, y + 3, 12, 5, 'rgba(160,150,100,.25)', 35); for (let an = 0; an < Math.PI * 2; an += 0.5) R(Math.round(x + 16 + Math.cos(an) * 9), Math.round(y + 4 + Math.sin(an) * 4), 1, 1, an % 1 ? '#f4f4f0' : '#c9a21e'); R(x + 36, y + 8, 9, 3, '#a8a290'); R(x + 36, y + 8, 9, 1, '#c9c3ae'); R(x + 36, y + 11, 10, 1, 'rgba(0,0,0,.2)'); },      // the ground trodden inside it, a ring of pale caps in the grass, and one stone long fallen
+      o: (x, y) => {
+        const cx = x + 16, cy = y + 3;
+        for (let q = 0; q < 9; q++) { const an = q / 9 * Math.PI * 2 + 0.3, sx = Math.round(cx + Math.cos(an) * 15), sy = Math.round(cy + Math.sin(an) * 7), hh = 6 + (q * 3) % 4; R(sx + 1, sy - hh + 1, 1, hh, '#8a8474'); if (q % 2) R(sx - 1, sy - hh, 2, 1, '#8aa04a'); if (q % 3 === 0) R(sx, sy - hh + 3, 1, 2, '#6d6858'); for (let i = 0; i < 4; i++) R(sx + 2 + i, sy + 1 + Math.round(i * 0.4), 2, 1, 'rgba(0,0,0,.10)'); }
+        R(cx + 11, cy - 14, 8, 1, '#c9c3ae'); R(cx + 11, cy - 11, 8, 1, '#6d6858'); R(cx - 4, cy + 2, 8, 1, '#6d6858'); R(cx - 2, cy - 1, 2, 1, '#c23b2e'); R(cx + 1, cy - 1, 2, 1, '#f2e6a0'); R(cx - 1, cy - 2, 1, 1, '#6f9a48');      // the lintel, and what was left on the altar this morning
+      } },
+    "The giant's table": {
+      u: (x, y) => { lmSdw(x + 24, y - 8, 6, 10); for (let an = 0; an < Math.PI * 2; an += 0.45) { const sx = Math.round(x + 12 + Math.cos(an) * 22), sy = Math.round(y + 7 + Math.sin(an) * 5); R(sx, sy, 3, 2, an % 0.9 < 0.45 ? '#9a9484' : '#857f70'); R(sx, sy, 3, 1, '#bdb8a8'); } },      // the kerb of the cairn that once covered it
+      o: (x, y) => {
+        R(x + 7, y - 5, 9, 15, 'rgba(0,0,0,.3)'); R(x + 6, y - 6, 1, 16, '#6d6858'); R(x + 16, y - 5, 1, 15, '#a8a290'); R(x + 20, y - 5, 1, 15, '#5f5a4c');      // the dark of the chamber between the uprights
+        R(x - 2, y - 7, 28, 1, '#8a8474'); R(x + 22, y - 11, 4, 6, 'rgba(0,0,0,.14)'); lmDab(x - 1, y - 11, 26, 4, 8, ['#c9a23a', '#8aa04a', '#d8d2c0', '#e0b050'], 36); R(x + 4, y - 12, 4, 1, '#6f9a48'); R(x + 19, y - 12, 3, 1, '#86b058');      // lichen, gold and grey, on the capstone
+        R(x + 10, y - 9, 1, 1, '#6d6858'); R(x + 14, y - 8, 1, 1, '#6d6858'); R(x + 3, y + 2, 2, 1, '#bdb8a8'); R(x + 17, y + 4, 2, 1, '#6d6858'); lmDab(x - 8, y + 6, 40, 6, 12, ['#b070c0', '#9a5aa8', '#c890d0'], 37);                          // cups cut in it, and heather all round
+      } },
+    'The needle': {
+      u: (x, y) => { for (let i = 0; i < 20; i++) R(x + 8 + i * 2, y + 9 + Math.round(i * 0.35), 3, 1, 'rgba(0,0,0,.10)'); R(x - 2, y + 7, 15, 4, '#8f8876'); R(x - 2, y + 7, 15, 1, '#b5af9b'); R(x, y + 5, 11, 2, '#a8a290'); R(x, y + 5, 11, 1, '#cfc9b6'); R(x + 9, y + 5, 2, 6, '#6d6858'); },      // its long shadow, and the steps it stands on
+      o: (x, y) => {
+        R(x + 5, y - 25, 1, 1, '#e8b545'); R(x + 4, y - 24, 3, 1, '#c9a23a'); R(x + 5, y - 21, 1, 30, '#b8b2a0'); R(x + 6, y - 21, 1, 26, '#8f8876');
+        for (let q = 0; q < 5; q++) R(x + 4, y - 20 + q * 5, 1, 2, '#857f70'); lmDab(x + 3, y - 10, 4, 14, 4, ['#8aa04a', '#c9a23a'], 38);                              // more of what is cut on it, and lichen low down
+        R(x + 2, y - 3, 7, 1, '#c23b2e'); R(x + 8, y - 2, 1, 4, '#c23b2e'); R(x + 2, y - 7, 7, 1, '#f1ead8'); R(x + 2, y - 6, 1, 3, '#f1ead8');                            // ribbons tied round it by those who came asking
+        R(x - 1, y + 9, 3, 2, '#b8703c'); R(x - 1, y + 9, 3, 1, '#d08a54'); R(x + 10, y + 9, 2, 1, '#c23b2e'); R(x + 4, y + 10, 2, 1, '#f2e6a0'); R(x + 7, y + 10, 1, 1, '#e8a0c0');
+      } },
+    'The drowned temple': {
+      u: (x, y) => { lmSoft(x + 15, y + 8, 26, 6, '#2e4842', 39); lmSoft(x + 15, y + 8, 20, 4, '#28403a', 40); },
+      o: (x, y) => {
+        for (const [px, hh] of [[1, 16], [9, 11], [18, 18], [26, 8]]) { for (let q = 0; q < Math.min(5, hh >> 1); q++) R(x + px + (q % 2), y + 7 + q, 3, 1, 'rgba(216,210,192,.28)'); R(x + px + 1, y + 7 - hh, 1, hh - 1, '#c2baa4'); R(x + px - 1, y + 6 - hh, 6, 1, '#a8a290'); R(x + px, y + 2, 4, 1, '#7a8a5a'); }      // each column again in the water, the flutes down it, and the green line where the water stands
+        R(x + 16, y - 12, 14, 1, '#a8a290'); R(x + 20, y - 14, 1, 2, '#a8a290'); R(x + 25, y - 14, 1, 2, '#a8a290'); R(x + 9, y - 6, 4, 1, '#e8e2d2');
+        R(x + 2, y + 10, 26, 1, '#587a78'); R(x + 5, y + 12, 20, 1, '#48686a'); R(x + 13, y + 7, 5, 2, '#b5aa94'); R(x + 13, y + 7, 5, 1, '#d8d2c0'); R(x + 32, y + 4, 6, 3, '#c9c2ae'); R(x + 32, y + 4, 6, 1, '#e8e2d2'); R(x + 33, y + 7, 5, 1, '#587a78');      // its steps, under water, and what has fallen
+        for (const [rx0, ry0] of [[-4, 3], [-2, 5], [30, 8], [36, 9], [34, 1]]) { R(x + rx0, y + ry0 - 4, 1, 5, '#8a9a4a'); R(x + rx0 + 1, y + ry0 - 3, 1, 4, '#6a7a3a'); R(x + rx0, y + ry0 - 5, 1, 1, '#5a4326'); }                                              // reeds
+        R(x + 6, y + 11, 3, 1, '#5f8f4a'); R(x + 21, y + 9, 3, 1, '#5f8f4a'); R(x + 22, y + 9, 1, 1, '#f4d0d8'); R(x + 34, y - 4, 1, 4, '#f4f4f0'); R(x + 35, y - 5, 2, 1, '#f4f4f0'); R(x + 34, y, 1, 3, '#3a3a3a');                                                // lilies, and a heron fishing off the fallen stone
+      } },
+    'The causeway': {
+      u: (x, y) => { lmSoft(x + 16, y + 9, 24, 4, '#2e4842', 41); for (let q = 0; q < 9; q++) R(x + q * 4, y + 8 + Math.round(Math.sin(q * 0.9) * 2), 3, 1, 'rgba(0,0,0,.25)'); },
+      o: (x, y) => {
+        for (let q = 0; q < 9; q += 2) { const px = x + q * 4, py = y + 4 + Math.round(Math.sin(q * 0.9) * 2); R(px + 1, py - 5, 1, 5, '#4a4038'); R(px + 1, py - 6, 1, 1, '#7a6a52'); } for (let q = 0; q < 34; q += 2) R(x + 1 + q, y - 2 + Math.round(Math.sin(q * 0.22) * 2) + (q % 8 < 4 ? 1 : 0), 2, 1, '#8a7a5a');      // posts, and the rope from one to the next
+        for (let q = 0; q < 9; q++) { const px = x + q * 4, py = y + 4 + Math.round(Math.sin(q * 0.9) * 2); R(px + 1, py + 1, 1, 1, '#7a6a4a'); R(px, py + 2, 3, 1, '#7a6a4a'); }
+        R(x + 6, y + 12, 10, 2, '#3a322a'); R(x + 6, y + 12, 10, 1, '#5a4a3a'); R(x + 5, y + 12, 1, 1, '#3a322a'); R(x + 16, y + 11, 1, 2, '#3a322a'); R(x + 9, y + 10, 1, 2, '#8a7a5a');                                                                                // a punt tied under it
+        for (const [rx0, ry0] of [[-6, 6], [-4, 9], [38, 8], [40, 5], [22, 13]]) { R(x + rx0, y + ry0 - 4, 1, 5, '#8a9a4a'); R(x + rx0 + 1, y + ry0 - 3, 1, 4, '#6a7a3a'); R(x + rx0, y + ry0 - 5, 1, 1, '#5a4326'); }
+        R(x + 33, y - 8, 3, 1, '#4a4038'); R(x - 4, y - 5, 3, 2, '#7a2a20');
+      } },
+    'The bog oak': {
+      u: (x, y) => { lmSoft(x + 14, y + 9, 20, 4, '#2e4842', 42); lmDab(x - 2, y + 7, 32, 5, 9, ['#5a7a3a', '#4a6a34', '#7a8a4a'], 43); },      // black water standing round its foot, and the green on it
+      o: (x, y) => {
+        for (const [rx0, rl, d] of [[9, 6, -1], [18, 7, 1], [12, 4, -1]]) for (let q = 0; q < rl; q++) R(x + rx0 + d * q, y + 9 + Math.round(q * 0.3), 1, 1, '#3a322a');                                                      // its roots, going out into the wet
+        R(x + 14, y - 14, 1, 22, '#241e18'); R(x + 13, y - 2, 1, 4, '#57493c'); R(x + 15, y + 2, 1, 4, '#57493c');
+        for (const [mx, my, ml] of [[6, -15, 4], [22, -18, 5], [8, -7, 3], [21, -11, 4], [10, -20, 3], [19, -22, 3]]) { R(x + mx, y + my, 1, ml, '#7a8a6a'); R(x + mx + 1, y + my, 1, ml - 1, '#5f6f52'); }            // grey moss hanging from every bough
+        R(x + 4, y - 17, 1, 3, '#7a2a20'); R(x + 24, y - 20, 1, 3, '#d8d2c0'); R(x + 17, y - 12, 1, 3, '#c9a21e'); R(x + 11, y + 6, 2, 2, '#efe8d8'); R(x + 12, y + 7, 1, 1, '#2a1c14');                              // rags tied on it, and a skull set in the roots
+      } },
+    'The huts on stilts': {
+      u: (x, y) => { lmSoft(x + 18, y + 9, 26, 5, '#2e4842', 44); for (const [hx, hy] of [[0, 0], [14, -3], [26, 1]]) for (let q = 0; q < 3; q++) R(x + hx + 1 + (q % 2), y + hy + 11 + q, 7, 1, 'rgba(138,122,90,.22)'); },      // the water under them, and the huts again in it
+      o: (x, y) => {
+        for (const [hx, hy] of [[0, 0], [14, -3], [26, 1]]) { for (let q = 0; q < 11; q += 2) R(x + hx - 1 + q, y + hy - 6 + (q % 4 ? 0 : 1), 1, 2, '#544628'); R(x + hx + 6, y + hy - 3, 3, 6, 'rgba(40,30,10,.16)'); R(x + hx, y + hy - 3, 1, 6, '#a39270'); R(x + hx + 4, y + hy + 4, 1, 7, '#3a322a'); R(x + hx - 1, y + hy + 4, 11, 1, '#8a7a5a'); }
+        for (let q = 0; q < 6; q++) R(x + 10, y + 4 + q, 3, 1, q % 2 ? '#6b5a44' : '#8a7a5a'); R(x + 9, y + 4, 1, 7, '#4a4038'); R(x + 13, y + 4, 1, 7, '#4a4038');                                                // a ladder down to the water
+        R(x + 9, y, 6, 1, '#8a7a5a'); R(x + 23, y + 1, 4, 1, '#8a7a5a'); for (let q = 0; q < 4; q++) R(x + 10 + q * 4 - (q > 1 ? 2 : 0), y - 1 + (q % 2), 1, 3, q % 2 ? '#c1c7cc' : '#e8e2d2');                    // a rail along the walk, and fish hung from it
+        R(x + 38, y + 5, 4, 5, '#8a7a52'); R(x + 38, y + 5, 4, 1, '#a89a70'); R(x + 39, y + 7, 2, 1, '#544628'); R(x + 4, y + 10, 8, 1, '#8a7a5a'); R(x + 7, y + 7, 1, 3, '#a39270');                              // a trap of withies, and the pole of the canoe
+        for (const [rx0, ry0] of [[-6, 8], [-3, 11], [40, 12], [44, 9]]) { R(x + rx0, y + ry0 - 4, 1, 5, '#8a9a4a'); R(x + rx0 + 1, y + ry0 - 3, 1, 4, '#6a7a3a'); }
+      } },
+    'The wolf stone': {
+      u: (x, y) => { lmSdw(x + 14, y + 2, 5, 8); for (let an = 0; an < Math.PI * 2; an += 0.6) { const sx = Math.round(x + 9 + Math.cos(an) * 14), sy = Math.round(y + 8 + Math.sin(an) * 4); R(sx, sy, 2, 2, '#8a8a86'); R(sx, sy, 2, 1, '#a8a8a2'); } },      // small stones set round it by somebody
+      o: (x, y) => {
+        R(x + 5, y - 9, 8, 1, '#a8a8a2'); R(x + 11, y - 6, 2, 16, 'rgba(0,0,0,.14)'); R(x + 12, y - 13, 1, 4, '#66665f'); R(x + 5, y - 12, 1, 3, '#a8a8a2');
+        R(x + 6, y - 1, 7, 1, '#66665f'); R(x + 7, y + 2, 1, 1, '#efe8d8'); R(x + 9, y + 2, 1, 1, '#efe8d8'); R(x + 11, y + 2, 1, 1, '#efe8d8'); R(x + 8, y - 2, 3, 1, '#4a4a46'); R(x + 9, y - 1, 1, 2, '#2a241e');      // the muzzle, and the teeth
+        for (const [cx, cy] of [[4, 4], [5, 6], [4, 8]]) R(x + cx, y + cy, 3, 1, '#66665f'); for (let q = 0; q < 3; q++) R(x + 12 + (q % 2), y + 4 + q * 2, 2, 1, '#a8a8a2');                                                // old marks cut down its flanks
+        lmDab(x + 3, y - 10, 11, 18, 6, ['#6f8a5a', '#8aa06a', '#5a7248'], 45); R(x + 1, y + 9, 4, 1, '#efe8d8'); R(x + 16, y + 9, 3, 1, '#efe8d8'); R(x + 18, y + 8, 1, 1, '#efe8d8'); R(x + 20, y + 6, 2, 3, '#7a2a20');      // moss, bones, and a rag on a stick
+      } },
+    "The shepherds' fold": {
+      u: (x, y) => { R(x + 1, y - 2, 24, 10, 'rgba(150,126,82,.4)'); lmDab(x + 2, y - 1, 22, 8, 8, ['#8a6a3a', '#c9a763', '#6b4f2c'], 46); },      // the ground inside, trodden bare
+      o: (x, y) => {
+        for (let q = 0; q < 26; q += 2) { R(x + q, y + 7 + (q % 4 ? 1 : 0), 2, 1, '#d6ccb8'); R(x + q, y + 10, 2, 1, '#7d7566'); R(x + q, y - 5 + (q % 4 ? 0 : 1), 2, 1, '#d6ccb8'); } for (let q = -4; q < 10; q += 2) R(x - 2, y + q, 1, 2, '#d6ccb8');      // the wall, stone on stone, with the light along its top
+        R(x + 25, y + 1, 1, 5, '#6b4f2c'); R(x + 25, y + 2, 2, 1, '#8a6a3a'); R(x + 25, y + 4, 2, 1, '#8a6a3a');                                                                                                                                          // a hurdle across the gap
+        R(x + 2, y - 3, 6, 2, '#d9c070'); R(x + 2, y - 3, 6, 1, '#e6d088'); R(x + 3, y - 1, 1, 2, '#6b4f2c'); R(x + 6, y - 1, 1, 2, '#6b4f2c'); R(x + 18, y + 6, 5, 2, '#6b4f2c'); R(x + 19, y + 6, 3, 1, '#6fa8c8');                                      // a rack of hay, and the trough
+        for (let q = 27; q < 35; q += 2) R(x + q, y - 8, 1, 2, '#7a5e30'); R(x + 27, y - 6, 8, 1, '#6b5028'); R(x + 32, y - 5, 2, 7, 'rgba(60,40,20,.14)'); R(x + 28, y - 6, 1, 8, '#e0d2ac');
+        R(x + 36, y + 6, 4, 2, '#3a322c'); R(x + 39, y + 5, 2, 2, '#3a322c'); R(x + 40, y + 4, 1, 1, '#3a322c'); R(x + 36, y + 8, 1, 1, '#2a1c14'); R(x + 38, y + 8, 1, 1, '#2a1c14'); R(x + 35, y - 4, 1, 12, '#8a6a3a'); R(x + 35, y - 5, 2, 1, '#8a6a3a');      // the dog, and a crook leaned by the door
+      } },
+    'The gallows': {
+      u: (x, y) => { lmSoft(x + 9, y + 9, 16, 3, 'rgba(110,90,60,.4)', 47); lmSdw(x + 6, y + 6, 14, 5); },
+      o: (x, y) => {
+        R(x - 2, y + 5, 16, 5, '#6b4f2c'); R(x - 2, y + 5, 16, 1, '#94703f'); for (let q = 0; q < 16; q += 4) R(x - 2 + q, y + 6, 1, 4, '#4a3620'); R(x - 2, y + 9, 16, 1, '#3a2a1c'); R(x + 14, y + 7, 3, 3, '#5a4326'); R(x + 17, y + 9, 3, 1, '#5a4326');      // the scaffold under it, and the steps up
+        R(x + 4, y - 18, 1, 23, '#7a5a34'); R(x + 4, y - 19, 15, 1, '#7a5a34'); R(x + 18, y - 18, 1, 3, '#5a4326'); for (let q = 0; q < 4; q++) R(x + 3 - q, y + 1 + q, 1, 2, '#5a4326');                                                                    // a second brace, on the other side
+        R(x + 15, y - 9, 3, 1, '#8a7a5a'); R(x + 15, y - 7, 3, 1, '#8a7a5a'); R(x + 14, y - 9, 1, 4, '#8a7a5a'); R(x + 18, y - 9, 1, 4, '#8a7a5a');                                                                                                          // the cage
+        R(x + 22, y - 4, 1, 14, '#5a4326'); R(x + 20, y - 4, 6, 4, '#d8c9a0'); R(x + 21, y - 3, 4, 1, '#8a6a3a'); R(x + 21, y - 1, 3, 1, '#8a6a3a');                                                                                                        // a board, with what he did written on it
+        R(x + 8, y + 10, 2, 1, '#efe8d8'); R(x + 11, y + 11, 3, 1, '#efe8d8'); R(x - 4, y + 10, 2, 2, '#efe8d8'); R(x - 4, y + 11, 1, 1, '#2a1c14');
+      } },
+    'The broken aqueduct': {
+      u: (x, y) => { lmSdw(x + 28, y - 8, 5, 10); lmDab(x + 26, y + 5, 22, 6, 12, ['#c9c2ae', '#b5ad9c', '#e4dfcd'], 48); },
+      o: (x, y) => {
+        for (const [px, top] of [[0, -16], [12, -16], [24, -16], [36, -4]]) { for (let q = top + 4; q < 9; q += 4) R(x + px, y + q, 4, 1, '#b5ad9c'); R(x + px - 1, y + 9, 6, 1, '#b5ad9c'); if (top < -10) R(x + px - 1, y - 13, 6, 1, '#e4dfcd'); }      // the courses of each pier, its footing and its impost
+        for (const ax of [4, 16]) { R(x + ax, y - 16, 8, 1, '#8f8676'); R(x + ax + 1, y - 15, 6, 1, '#b5ad9c'); R(x + ax + 2, y - 14, 4, 1, '#9a9280'); }                                                                                              // the arches, in shade underneath
+        R(x + 1, y - 19, 27, 1, '#6fa8c8'); R(x + 3, y - 19, 3, 1, '#9ccbe8'); R(x + 14, y - 19, 4, 1, '#9ccbe8'); R(x, y - 21, 28, 1, '#f8f4ea'); R(x + 28, y - 20, 2, 1, '#6fa8c8');                                                                   // water still running in what is left of the channel
+        for (const [bx, by, bw] of [[31, 3, 5], [35, 6, 6], [42, 5, 4], [45, 8, 5], [30, 8, 3]]) { R(x + bx, y + by, bw, 3, '#c9c2ae'); R(x + bx, y + by, bw, 1, '#e4dfcd'); R(x + bx + bw - 1, y + by + 1, 1, 2, '#a39a84'); }                           // where the rest of it lies
+        R(x + 25, y - 12, 2, 9, '#5f8f3a'); R(x + 26, y - 16, 1, 4, '#5f8f3a'); R(x + 37, y - 6, 2, 3, '#7aa84a'); R(x + 1, y - 2, 1, 6, '#5f8f3a'); R(x + 28, y + 9, 6, 2, '#5a9cc6'); R(x + 29, y + 9, 3, 1, '#b4d6ea');                              // ivy, and the pool the leak has made
+      } },
+    'The salt pans': {
+      u: (x, y) => { lmSoft(x + 22, y + 3, 30, 11, 'rgba(184,162,106,.5)', 49); R(x - 12, y - 1, 12, 2, '#6fa8c8'); R(x - 12, y - 1, 12, 1, '#b4d6ea'); R(x - 12, y - 2, 12, 1, '#a08a52'); R(x - 12, y + 1, 12, 1, '#a08a52'); },      // the channel that lets the sea in
+      o: (x, y) => {
+        for (let q = 1; q < 4; q++) { R(x + q * 11 - 1, y - 2, 1, 3, '#6b4f2c'); R(x + q * 11 - 1, y + 6, 1, 3, '#6b4f2c'); } R(x, y + 2, 43, 1, '#a08a52'); R(x - 1, y - 6, 44, 1, '#cdb87e'); R(x - 1, y + 10, 44, 1, '#94804a');      // the banks between the pans, and the sluices in them
+        lmDab(x, y - 5, 43, 15, 14, ['#ffffff', '#f8f8f4', '#dfeaea'], 50); for (let q = 0; q < 4; q++) R(x + q * 11 + 1, y - 4 + (q % 2) * 8, 3, 1, 'rgba(255,255,255,.5)');                                                              // salt coming out white along the edges
+        R(x - 8, y - 8, 7, 7, '#6b4f2c'); R(x - 7, y - 7, 5, 5, '#3a6a80'); R(x - 5, y - 8, 1, 7, '#8a6a3a'); R(x - 8, y - 5, 7, 1, '#8a6a3a'); R(x - 9, y - 1, 9, 1, '#5e4426');                                                           // the wheel that lifts the water
+        R(x + 46, y - 4, 2, 3, '#e0d2ac'); R(x + 45, y - 11, 11, 1, '#d0c070'); R(x + 53, y - 8, 2, 7, 'rgba(60,40,20,.14)'); for (const [sx, sy] of [[57, -3], [60, -2], [58, -6]]) { R(x + sx, y + sy, 4, 3, '#d8c9a0'); R(x + sx, y + sy, 4, 1, '#efe2bc'); }      // sacks of it by the store
+        R(x + 30, y + 11, 1, 5, '#8a6a3a'); R(x + 28, y + 11, 5, 1, '#8a6a3a'); R(x + 12, y + 11, 6, 1, '#8a6a3a'); R(x + 12, y + 12, 1, 2, '#6b4f2c');                                                                                      // a rake, and a board to scrape with
+      } },
+    'The sacred grove': {
+      u: (x, y) => { lmSoft(x + 19, y + 6, 14, 5, 'rgba(196,188,166,.4)', 51); for (const [sx, sy] of [[17, 11], [20, 13], [17, 15], [21, 17]]) { R(x + sx, y + sy, 4, 2, '#b8b0a0'); R(x + sx, y + sy, 4, 1, '#d8d2c0'); } },      // the way in, stone by stone
+      o: (x, y) => {
+        R(x + 14, y + 4, 11, 1, '#8f8676'); R(x + 15, y + 5, 2, 3, '#a39a84'); R(x + 21, y + 5, 2, 3, '#a39a84'); R(x + 13, y + 9, 13, 1, '#8f8676'); for (let q = 0; q < 6; q++) R(x + 14 + q * 2, y + 2 + (q % 2), 1, 1, q % 2 ? '#c23b2e' : '#5f8f3a');      // the altar carved, and a garland laid along it
+        R(x + 19, y - 8, 3, 9, '#d8d2c0'); R(x + 19, y - 8, 1, 9, '#f0e8d6'); R(x + 21, y - 8, 1, 9, '#a39a84'); R(x + 18, y - 11, 5, 3, '#d8d2c0'); R(x + 18, y - 11, 5, 1, '#f0e8d6'); R(x + 19, y - 10, 1, 1, '#6d6858'); R(x + 21, y - 10, 1, 1, '#6d6858'); R(x + 18, y - 12, 5, 1, '#5f8f3a');      // the god of the place, on his post, crowned with leaves
+        for (const [bx, by] of [[11, 8], [27, 8]]) { R(x + bx, y + by, 3, 2, '#b8703c'); R(x + bx, y + by, 3, 1, '#d08a54'); R(x + bx + 1, y + by - 1, 1, 1, '#f1ead8'); }                                                                                    // bowls of milk
+        lmDab(x + 2, y + 4, 36, 8, 8, ['#f4f4f0', '#c9a21e', '#b9a0e0'], 52); R(x + 6, y + 9, 2, 1, '#f4f4f0'); R(x + 7, y + 8, 1, 1, '#f4f4f0'); R(x + 31, y + 10, 2, 1, '#f4f4f0'); R(x + 5, y + 10, 1, 1, '#b5522e'); R(x + 33, y + 10, 1, 1, '#b5522e');      // flowers, and two white doves
+      } },
+    'The white temple': {
+      u: (x, y) => { lmSoft(x + 18, y + 10, 30, 4, 'rgba(240,236,224,.5)', 53); lmSdw(x + 34, y - 10, 6, 12); },
+      o: (x, y) => {
+        R(x + 30, y - 12, 2, 16, 'rgba(60,54,40,.14)'); R(x + 8, y - 10, 20, 2, 'rgba(60,54,40,.22)'); R(x + 16, y - 6, 5, 1, '#b98a34'); R(x + 18, y - 5, 1, 9, '#5a3a22'); R(x + 17, y - 2, 1, 1, '#e8b545'); R(x + 19, y - 2, 1, 1, '#e8b545');      // the porch in shade behind its columns, and the bronze doors
+        for (let q = 0; q < 6; q++) { const cxq = x + 4 + q * 5 + (q > 2 ? 1 : 0); R(cxq - 1, y + 3, 5, 1, '#e0dccf'); R(cxq + 1, y - 11, 1, 14, '#e0dccf'); }                                                                                    // each column on its base, with its flutes
+        R(x + 12, y - 21, 12, 2, '#e8e4d8'); R(x + 16, y - 22, 4, 1, '#e8e4d8'); R(x + 14, y - 20, 2, 1, '#c4bfae'); R(x + 18, y - 21, 1, 2, '#c4bfae'); R(x + 21, y - 20, 2, 1, '#c4bfae'); R(x + 2, y - 14, 32, 1, '#c4bfae');                      // figures in the gable
+        for (const sx of [-4, 37]) { R(x + sx, y + 4, 4, 6, '#e0dccf'); R(x + sx, y + 4, 4, 1, '#ffffff'); R(x + sx + 1, y - 3, 2, 7, '#f0ece0'); R(x + sx + 1, y - 5, 2, 2, '#f8f6ee'); R(x + sx + 3, y - 2, 1, 4, '#c4bfae'); }                    // a figure on a plinth to either side of the steps
+        for (let q = 0; q < 3; q++) R(x + 14 + q, y + 4 + q * 2, 8 - q * 2, 1, '#c4bfae'); R(x + 14, y + 13, 8, 1, 'rgba(60,54,40,.25)'); R(x + 16, y + 9, 4, 1, '#7a2a20');
+      } },
+    'The barrow of kings': {
+      u: (x, y) => { lmSoft(x + 24, y + 9, 34, 5, 'rgba(40,60,20,.22)', 54); lmSoft(x + 24, y + 13, 12, 3, 'rgba(196,188,166,.45)', 55); },      // the ditch round it, and the forecourt worn pale
+      o: (x, y) => {
+        for (let dy = -15; dy <= -2; dy++) { const w = Math.round(25 * Math.sqrt(1 - (dy * dy) / 232)); if (dy % 3 === 0) R(x + 24 - w + 3, y + 9 + dy, Math.max(1, w * 2 - 8), 1, 'rgba(40,70,20,.14)'); } lmDab(x + 4, y - 4, 40, 11, 14, ['#86ac58', '#4f7434', '#f4f4f0', '#f2e6a0', '#98bc68'], 56);      // the mound in its bands, with daisies on it
+        R(x + 23, y - 12, 3, 7, '#a8a290'); R(x + 23, y - 12, 1, 7, '#cfc9b6'); R(x + 25, y - 11, 1, 6, '#6d6858');                                                                                                                                         // one stone set up on the crown of it
+        R(x + 19, y, 1, 1, '#6d6858'); R(x + 19, y + 3, 1, 1, '#6d6858'); R(x + 29, y + 1, 1, 1, '#5f5a4c'); R(x + 29, y + 4, 1, 1, '#5f5a4c'); R(x + 20, y - 5, 2, 1, '#6d6858'); R(x + 24, y - 5, 2, 1, '#6d6858'); R(x + 28, y - 5, 2, 1, '#6d6858'); R(x + 16, y - 3, 17, 1, '#8f8876');      // what is cut on the door-stones and the lintel
+        R(x + 22, y - 2, 5, 11, 'rgba(0,0,0,.35)'); R(x + 9, y - 5, 1, 14, '#8f8876'); R(x + 40, y - 3, 1, 12, '#6d6858');
+        for (const [sx, sy] of [[20, 11], [25, 12], [22, 14], [27, 15]]) { R(x + sx, y + sy, 4, 2, '#b8b2a0'); R(x + sx, y + sy, 4, 1, '#d8d2c0'); } R(x + 17, y + 9, 2, 2, '#b8703c'); R(x + 30, y + 9, 2, 2, '#b8703c');                                    // flags laid up to the door, and jars left there
+      } },
+    'The fort': {
+      u: (x, y) => { lmSoft(x + 24, y - 1, 34, 16, 'rgba(70,60,30,.22)', 57); lmSoft(x + 24, y - 1, 30, 14, 'rgba(110,96,60,.2)', 58); },      // the ditch dug round it
+      o: (x, y) => {
+        for (const [tx2, ty2] of [[-4, -22], [44, -22], [-4, 2], [44, 2]]) { R(x + tx2, y + ty2, 8, 9, '#7a5a34'); R(x + tx2, y + ty2, 8, 1, '#94703f'); R(x + tx2 + 6, y + ty2 + 1, 2, 8, '#5a4326'); for (let q = 0; q < 8; q += 2) R(x + tx2 + q, y + ty2 - 2, 1, 2, '#6b4f2c'); R(x + tx2 + 2, y + ty2 + 3, 3, 3, '#2a1c14'); }      // a tower at every corner
+        for (let r0 = 0; r0 < 2; r0++) for (let q = 0; q < 4; q++) { const tx3 = x + 5 + q * 10, ty3 = y - 8 + r0 * 8; R(tx3 + 4, ty3 + 1, 3, 3, 'rgba(40,30,10,.18)'); R(tx3, ty3 + 4, 7, 1, 'rgba(0,0,0,.18)'); }                                                                                          // each tent with a dark side
+        R(x + 22, y - 2, 4, 2, '#3a342c'); R(x + 23, y - 3, 2, 1, '#e2702a'); R(x + 20, y - 1, 1, 1, '#8f8a84'); R(x + 27, y - 1, 1, 1, '#8f8a84'); for (const sx of [8, 12, 36, 40]) { R(x + sx, y + 3, 2, 3, sx % 8 ? '#a8261c' : '#c9a21e'); R(x + sx, y + 3, 2, 1, '#e8e2d2'); }                          // the cook-fire, and shields stacked by the gate
+        R(x + 17, y - 5, 15, 1, '#94703f'); R(x + 21, y + 1, 7, 9, '#5a4326'); R(x + 24, y + 1, 1, 9, '#3a2a1c'); for (let q = 2; q < 9; q += 3) R(x + 21, y + q, 7, 1, '#3a2a1c');                                                                                                                           // the gate itself, shut
+        for (const [hx, c] of [[52, '#8a6a4a'], [59, '#6f5a48'], [55, '#b8a890']]) { const hy = hx === 55 ? 9 : 5; R(x + hx, y + hy + 4, 6, 1, 'rgba(0,0,0,.2)'); R(x + hx, y + hy, 5, 3, c); R(x + hx + 4, y + hy - 2, 2, 3, c); R(x + hx + 1, y + hy + 3, 1, 1, '#3a2a1c'); R(x + hx + 3, y + hy + 3, 1, 1, '#3a2a1c'); } R(x + 51, y + 3, 14, 1, '#6b4f2c');      // horses on a picket line outside
+      } },
+    'The old arena': {
+      u: (x, y) => { lmSoft(x + 22, y + 2, 30, 13, 'rgba(120,110,70,.2)', 59); },
+      o: (x, y) => {
+        const cx = x + 22, cy = y;
+        for (const [rr, ry, c] of [[19, 8.6, '#b5ad9c'], [17, 7.6, '#c9c2ae'], [16, 7, '#a39a84']]) for (let an = Math.PI * 1.08; an < Math.PI * 1.92; an += 0.07) { if (wildHash(Math.floor(an * 5), 3, 1342) < 0.28) continue; R(Math.round(cx + Math.cos(an) * rr), Math.round(cy + Math.sin(an) * ry), 2, 1, c); }      // the tiers of seats, where they still stand
+        for (let an = 0.25; an < Math.PI - 0.2; an += 0.35) { if (wildHash(Math.floor(an * 5), 3, 1342) < 0.28) continue; R(Math.round(cx + Math.cos(an) * 22), Math.round(cy + Math.sin(an) * 10) - 1, 1, 2, '#3a342c'); }                                                                                     // the arches of the outer wall, each a dark mouth
+        R(cx - 3, cy + 9, 7, 4, '#c9c2ae'); R(cx - 3, cy + 9, 7, 1, '#f0e8d6'); R(cx - 1, cy + 10, 3, 3, '#2a241e'); R(cx - 4, cy + 8, 9, 1, '#d8d2c0');                                                                                                                                                       // the gate the men came in by
+        lmDab(cx - 13, cy - 5, 26, 10, 10, ['#c8bc8c', '#98905c', '#6f9a48'], 60); R(cx - 6, cy - 1, 1, 4, '#8a6a3a'); R(cx - 7, cy - 1, 3, 1, '#8a6a3a'); R(cx + 3, cy + 2, 5, 2, '#f1ead8'); R(cx + 7, cy + 1, 2, 2, '#f1ead8'); R(cx + 3, cy + 4, 1, 1, '#2a1c14'); R(cx + 6, cy + 4, 1, 1, '#2a1c14');      // a post still in the sand, and a sheep grazing where men died
+        for (const [bx, by] of [[-8, 11], [44, 6], [47, 9], [-6, -6]]) { R(x + bx, y + by, 4, 3, '#c9c2ae'); R(x + bx, y + by, 4, 1, '#e8e2d2'); } R(x + 12, y - 12, 3, 1, '#6f9a48'); R(x + 36, y - 9, 2, 3, '#5f8f3a');
+      } },
+    'The ferry': {
+      u: (x, y) => { lmSoft(x + 8, y + 10, 16, 3, 'rgba(150,126,82,.4)', 61); lmSdw(x + 14, y, 4, 6); for (let q = 0; q < 9; q++) R(x + 23 + q * 2, y + 11, 2, 1, 'rgba(0,20,40,.25)'); },
+      o: (x, y) => {
+        for (let q = 0; q < 16; q += 3) R(x - 1 + q, y - 7, 1, 5, '#6f4424'); R(x - 1, y - 3, 16, 1, '#5e3a1e'); R(x + 10, y - 2, 4, 12, 'rgba(60,40,20,.12)'); R(x, y - 2, 1, 12, '#efe2bc'); R(x + 9, y - 1, 5, 1, '#8a6a3a'); R(x + 4, y + 3, 6, 1, '#8a6a3a'); R(x + 11, y - 12, 3, 5, '#b5aa94'); R(x + 11, y - 12, 3, 1, '#8f8676');      // the roof, the shade, a chimney
+        R(x + 22, y + 5, 18, 1, '#c9a763'); for (const px of [22, 30, 39]) { R(x + px, y + 2, 1, 4, '#5a4326'); R(x + px, y + 1, 1, 1, '#8a6a3a'); } R(x + 22, y + 3, 18, 1, '#8a7a5a'); R(x + 39, y - 2, 1, 4, '#5a4326'); R(x + 38, y - 4, 3, 2, '#f5c04a');      // a rail along the jetty, and a lamp at the end of it
+        for (const [bx, by] of [[24, 3], [27, 4]]) { R(x + bx, y + by, 3, 3, '#7a5a34'); R(x + bx, y + by, 3, 1, '#94703f'); R(x + bx, y + by + 1, 3, 1, '#3a2a1c'); } R(x - 6, y + 6, 6, 1, '#a8834a'); R(x - 6, y + 7, 1, 3, '#6b4f2c'); R(x - 1, y + 7, 1, 3, '#6b4f2c');      // casks waiting to cross, and a bench for those who are
+        for (const [rx0, ry0] of [[16, 12], [20, 13], [14, 14]]) { R(x + rx0, y + ry0 - 4, 1, 5, '#8a9a4a'); R(x + rx0 + 1, y + ry0 - 3, 1, 4, '#6a7a3a'); R(x + rx0, y + ry0 - 5, 1, 1, '#5a4326'); } R(x + 17, y - 9, 3, 1, '#5a4326');
+      } },
+  };
+
   const setDown = (seed, ok, r, name, draw) => {
     const tryAt = (tx, ty) => {
       if (!ok(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 13) return false;
@@ -741,8 +1085,9 @@ function provLand() {
       if (marks.some(m => Math.hypot(m.x - x, m.y - y) < 110)) return false;
       marks.push({ x, y, r, name });
       feats.push({ y: y - 60, d: () => apron(x, y, r, name, tx, ty) });
-      feats.push({ y: y + 10, d: () => draw(x, y) });
-      if (TALL.includes(name)) overs.push({ x0: x - 12, x1: x + 56, y0: y - 34, base: y + 10, d: () => draw(x, y) });
+      const dr = DRESS[name] || {}, whole = () => { if (dr.u) dr.u(x, y); draw(x, y); if (dr.o) dr.o(x, y); };      // what lies under it, the thing itself, and what was added to it since
+      feats.push({ y: y + 10, d: whole });
+      if (TALL.includes(name)) overs.push({ x0: x - 12, x1: x + 56, y0: y - 34, base: y + 10, d: whole });
       return true;
     };
     for (let n = 0; n < 9000; n++) if (tryAt(4 + Math.floor(wildHash(n, seed, 700) * (TW - 9)), 4 + Math.floor(wildHash(seed, n, 701) * (TH - 8)))) return true;

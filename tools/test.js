@@ -704,6 +704,29 @@ test('tournament: the bracket, bets on the laurel, tending between rounds, watch
   assert(T.state === 'done' && T.champion !== 'you' && T.bet.settled && !T.bet.won, 'out in the first round, and the stake with him');
   assert(!badNumber(G), 'the tournament left a bad number');
 }));
+test('the tournament: the men your man meets in later rounds carry what the earlier rounds cost them', () => game()(function () {
+  const fresh = () => { newGame(); G.fame = 120; G.day = 30; G.denarii = 2000; G.festival = { day: 30, type: 'tourney' }; genBouts(); return G.tourney; };
+  const won = (mine, foes) => { const B = fight(mine, foes); B.winner = 0; B.fighters.forEach(f => { if (f.team === 0) { f.fate = null; f.hp = f.maxHp; } }); return B; };
+  let semi = 0, fin = 0, n = 0, low = 1, whole = 0;
+  for (let i = 0; i < 40; i++) {
+    const T = fresh(), g = G.roster[0]; STATS.forEach(k => { g.stats[k] += 14; }); g.hp = maxHp(g);
+    for (const e of T.field) { const r = tRival(e); r.hp = 1; r.fatigue = 90; }      // whatever state they were in before, they come to the lists whole
+    assert(enterTourney(g.id) && T.field.every(e => { const r = tRival(e); return r.hp === maxHp(r) && r.fatigue === 0; }), 'everybody starts the first round whole');
+    applyBoutResult(T.bout, won([g], boutEnemies(T.bout)), 0, 1);
+    const s = tRival(T.alive[1]), hs = tHealth(s); semi += hs; low = Math.min(low, hs); if (hs >= 0.999) whole++;
+    assert(boutEnemies(T.bout)[0] === s, 'the man in the semi-final is the one who came through');
+    applyBoutResult(T.bout, won([g], boutEnemies(T.bout)), 0, 1);
+    const f = tRival(T.alive[1]), hf = tHealth(f); fin += hf; low = Math.min(low, hf); n++;
+    assert(T.log.some(l => /% of his health/.test(l)), 'and you are told how he stands');
+  }
+  semi /= n; fin /= n;
+  assert(semi > 0.6 && semi < 0.95, 'a semi-finalist is marked but far from finished: ' + semi.toFixed(2));
+  assert(fin < semi && fin > 0.45, 'a finalist has two rounds in him and shows it: ' + fin.toFixed(2));
+  assert(low >= 0.12 && whole < n * 0.2, 'nobody is carried in, and hardly anybody comes through untouched: ' + low.toFixed(2) + ', ' + whole);
+  // watched from the stands it is the same: it runs to the end, and the winner has not come through whole
+  const T2 = fresh(); assert(watchTourney() && T2.state === 'done' && tHealth(tRival({ hid: T2.championHouse, gid: T2.championGid })) < 1, 'the champion paid for it');
+  assert(!badNumber(G), 'no bad numbers');
+}));
 
 test('tournament: enter, fight through, and resolve without the player', () => game()(function () {
   let champs = 0;

@@ -1450,7 +1450,8 @@ function tourneyPanel() {
     const key = tKey(e), g = e.you ? me : tRival(e), next = cols[r + 1], outNow = next && !next.some(x => tKey(x) === key), o = odds[key];
     const name = e.you ? (me ? me.name : open ? 'your man?' : 'your man') : e.name;
     const what = e.you ? (me ? `${me.name}, yours: ${CLASSES[me.cls].name}, might ${might(me)}.` : 'The place kept for your man, if you enter one.')
-      : g ? `${e.name} of ${houseDef(e.hid).name}: ${CLASSES[g.cls].name}, might ${might(g)}, ${g.wins}W ${g.losses}L.` : `${e.name} of ${houseDef(e.hid).name}.`;
+      : g ? `${e.name} of ${houseDef(e.hid).name}: ${CLASSES[g.cls].name}, might ${might(g)}, ${g.wins}W ${g.losses}L.${T.state === 'running' && !outNow && tHealth(g) < 0.995 ? `
+What the rounds have cost him: he has ${Math.round(tHealth(g) * 100)}% of his health left.` : ''}` : `${e.name} of ${houseDef(e.hid).name}.`;
     const held = !e.you && G.laurels && G.laurels.length && G.laurels[G.laurels.length - 1].gid === e.gid && G.laurels[G.laurels.length - 1].day !== G.day;
     return `<div class="bent ${e.you ? 'you' : ''} ${outNow ? 'out' : ''} ${canBet && ui.tbet === key ? 'sel' : ''}" ${canBet && o ? `data-act="tbetpick" data-v="${key}"` : ''}${tip(what + (held ? '\nHe took the laurel last time.' : '') + (o && r === 0 && T.state !== 'done' ? `\nThe bookmakers give him ${asPct(o.p)} for the laurel, and pay x${o.pay}.${canBet ? ' Click to back him.' : ''}` : ''))}>${e.you ? '' : swatch(e.hid)}<span>${name}</span>${held ? '<i>&#9733;</i>' : ''}${g && r === 0 ? `<b class="num">${might(g)}</b>` : ''}</div>`;
   };

@@ -1410,6 +1410,7 @@ function enterTourney(gid) {
   G.denarii -= T.fee; T.entrant = g.id; T.state = 'running';
   g.foughtDay = G.day;                     // he is kept out of the ordinary bouts
   const f = T.field;                       // strongest first; the favourite sits in the far half of the draw
+  tFresh(T);
   T.alive = tourneyDraw(T); T.rounds = [T.alive.map(tSnap)];
   log(`${g.name} is entered in the Laurel Tournament.`, 'gold');
   nextTourneyBout();
@@ -1425,20 +1426,45 @@ function nextTourneyBout() {
   };
 }
 
+// A man in the lists carries what each round cost him into the next, as yours does. How much of himself he has left:
+const tHealth = g => g ? clamp(g.hp / maxHp(g), 0, 1) : 1;
+// what he is worth in a fight as he stands: a hurt, tired man is less than his name
+const tPower = g => power(g) * (0.55 + 0.45 * tHealth(g)) * (1 - clamp(g.fatigue || 0, 0, 100) / 400);
+// What winning cost him. The nearer the other man was to his match, the more of him it took; nobody wins a round
+// of the Laurel without a mark, and nobody who won it was carried out.
+function tWear(g, foePower) {
+  if (!g) return;
+  const share = foePower / (tPower(g) + foePower), took = clamp(share * rand(0.7, 1.5), 0.08, 0.8) * maxHp(g);
+  g.hp = Math.max(Math.round(maxHp(g) * 0.12), Math.round(g.hp - took));
+  g.fatigue = clamp((g.fatigue || 0) + 18 + share * 20, 0, 100);
+}
+// Between rounds every house does for its man what you do for yours: wine and a bandage (35% of what he has lost
+// comes back), and time for one thing more, the surgeon if he is hurt and a rest if he is not.
+function tMend(g) {
+  if (!g) return;
+  const mh = maxHp(g);
+  g.hp = Math.min(mh, Math.round(g.hp + (mh - g.hp) * 0.35));
+  if (g.hp < mh * 0.8) g.hp = Math.min(mh, Math.round(g.hp + (mh - g.hp) * 0.3)); else g.fatigue = clamp((g.fatigue || 0) - 30, 0, 100);
+}
+// Everybody comes to the first round whole.
+function tFresh(T) { for (const e of T.field) { const g = tRival(e); if (g) { g.hp = maxHp(g); g.fatigue = 0; } } }
 function simMatch(a, b) {
   const ga = tRival(a), gb = tRival(b);
   if (!ga) return b;
   if (!gb) return a;
-  const pa = Math.pow(power(ga), 4), pb = Math.pow(power(gb), 4);
+  const ea = tPower(ga), eb = tPower(gb), pa = Math.pow(ea, 4), pb = Math.pow(eb, 4);
   const aWins = Math.random() < pa / (pa + pb);
   (aWins ? ga : gb).wins++; (aWins ? gb : ga).losses++;
+  tWear(aWins ? ga : gb, aWins ? eb : ea);
   return aWins ? a : b;
 }
 
 function advanceTourney(win, lines) {
   const T = G.tourney, me = byId(T.entrant), rn = ROUND_NAMES[T.round];
   const next = [win ? { you: true } : T.alive[1]];
+  if (!win) tWear(tRival(T.alive[1]), me ? power(me) : 0);      // the man who beat yours did not do it for nothing
   for (let i = 2; i + 1 < T.alive.length; i += 2) next.push(simMatch(T.alive[i], T.alive[i + 1]));
+  if (next.length > 1) for (const e of next) if (!e.you) tMend(tRival(e));      // and then the same short rest for every man still in it
   const others = next.slice(1).map(e => e.name).join(', ');
   T.log.push(`${rn}: ${!win ? 'your man is out' : next.length === 1 ? 'your man wins it' : 'your man goes through'}${others ? '. Also through: ' + others : ''}.`);
   T.alive = next; T.round++; T.bout = null; T.tended = false;
@@ -1458,11 +1484,13 @@ function advanceTourney(win, lines) {
   }
   if (me) { me.hp = Math.min(maxHp(me), me.hp + (maxHp(me) - me.hp) * 0.35); me.injury = 0; }   // a little wine and a bandage between rounds
   nextTourneyBout();
+  { const og = tRival(T.alive[1]), hl = Math.round(tHealth(og) * 100); if (og) { T.log.push(`${T.alive[1].name} comes to the ${ROUND_NAMES[T.round].toLowerCase()} ${hl >= 95 ? 'almost untouched' : hl >= 75 ? 'marked but strong' : hl >= 50 ? 'carrying wounds' : 'badly hurt'}: ${hl}% of his health.`); lines.push(`Your man meets <b>${T.alive[1].name}</b> next, who is ${hl >= 95 ? 'almost untouched' : hl >= 75 ? 'marked but strong' : hl >= 50 ? 'carrying wounds' : 'badly hurt'} (${hl}% of his health).`); } }
 }
 
 // Plays out whatever is left of the tournament without the player.
 function finishTourneyOffscreen() {
   const T = G.tourney;
+  if (!T.alive) tFresh(T);
   let alive = (T.alive || T.field).filter(e => !e.you);
   T.rounds = T.rounds || [];
   if (!T.rounds.length) T.rounds.push(alive.map(tSnap));
@@ -1471,6 +1499,7 @@ function finishTourneyOffscreen() {
     for (let i = 0; i + 1 < alive.length; i += 2) nx.push(simMatch(alive[i], alive[i + 1]));
     if (alive.length % 2) nx.push(alive[alive.length - 1]);
     alive = nx; T.rounds.push(alive.map(tSnap));
+    if (alive.length > 1) alive.forEach(e => tMend(tRival(e)));
   }
   const c = alive[0];
   T.state = 'done'; T.bout = null; T.champion = c.name; T.championHouse = c.hid; T.championGid = c.gid;
