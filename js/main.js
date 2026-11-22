@@ -621,7 +621,7 @@ const ratingLine = (g, hide) => `<span${tip('rating')}>Power <b class="num">${ra
 function statusChips(g) {
   let s = '';
   if (g.away) s += `<span class="chip gold"${tip('away')}>Away ${daysLeft(jobOf(g))}d</span>`;
-  if (g.quest && QUESTS[g.quest.id]) s += `<span class="chip gold"${tip('quest')}>Journey promised</span>`;
+  if (g.quest && QUESTS[g.quest.id]) s += `<span class="chip gold"${tip('quest')}>Journey promised</span>${journeyGo(g)}`;
   if (g.wish) s += `<span class="chip red"${tip('vow')}>Vow</span>`;
   if (g.perkPending > 0) s += `<span class="chip gold"${tip('perk')}>Perk to choose</span>`;
   if (g.injury > 0) s += `<span class="chip red"${tip('injured')}>Injured ${g.injury}d</span>`;
@@ -942,11 +942,18 @@ function viewContracts() {
 }
 
 // A fighter's own journey, in his dossier: what you promised him, and where it is.
+// Out in the province, a man's promised journey can be set out for from wherever it is named: the way is laid to the
+// place, by the roads. (Nothing in the town: there is no column to send.)
+function journeyGo(g, label) {
+  if (!G.field || !g.quest || !QUESTS[g.quest.id] || g.away || typeof questMarkId !== 'function') return '';
+  const id = questMarkId(g), st = siteById(id); if (!st) return '';
+  return `<button class="mini primary jgo" data-act="questgo" data-v="${id}"${tip(`Sets the column on the road to ${questWhere(g)}: ${wayTo(st.x, st.y)}. You can still steer away, or click elsewhere, to change your mind.`)}>${label || 'Set out'}</button>`;
+}
 function questBlock(g) {
   if (!g.quest || !QUESTS[g.quest.id]) return '';
   const Q = QUESTS[g.quest.id], waited = G.day - g.quest.since;
   return `<hr class="sep"><div${tip('quest')}><b class="gold">${Q.name}</b></div>
-    <div style="font-size:13px">You gave him your word. The place is ${questWhere(g)}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${g.quest.heard ? ' He has told you what it is, by the fire: you know what it will take.' : ''}${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>`;
+    <div style="font-size:13px">You gave him your word. The place is ${questWhere(g)}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${g.quest.heard ? ' He has told you what it is, by the fire: you know what it will take.' : ''}${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>${journeyGo(g, 'Set out for it') ? `<div class="row" style="margin-top:6px">${journeyGo(g, 'Set out for it')}</div>` : ''}`;
 }
 
 // What came of the outings that ended this morning.
@@ -2754,7 +2761,7 @@ const ACTIONS = {
   leavearena() { SFX.stop(); SFX.music(G.field ? 'wild' : 'ludus'); $('#arena').hidden = true; fight = null; closeModal(); nextEvent(); render(); showReports(); if (G.pendingEvent) showEvent(); checkEnd(); },
   wildclick(v, w, el, e) { provClick(el, e); },
   quests() { if (modalQueue.length) { if (modalQueue[0].startsWith('<div class="quests">')) closeModal(); return; } SFX.ui('scroll'); showModal(questsModal()); },
-  questgo(v) { closeModal(); ACTIONS.wildgo(v); },
+  questgo(v) { if (modalQueue.length) closeModal(); if (ui.campSel) { ui.campSel = null; render(); } ACTIONS.wildgo(v); },
   wildgo(v) {
     const F = G.field; if (!F) return;
     const st = v === 'home' ? { x: WILD.TOWN.x + 12, y: WILD.TOWN.y } : siteById(v); if (!st) return;      // home: right up to the gate, so that arriving takes you in

@@ -1416,3 +1416,6 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 .quests .qbody { font-size: 13.5px; line-height: 1.4; margin-top: 5px; }
 .quests .qnote { margin-top: 4px; font-size: 12.5px; color: #5a4628; }
 .quests .qcard button.mini { flex: none; }
+
+/* setting out for a journey, from beside its chip */
+button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vertical-align: top; }

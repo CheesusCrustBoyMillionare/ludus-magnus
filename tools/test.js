@@ -118,6 +118,7 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   // the quests window: a button in the province, a key, and a way to set out from it
   { const pv = read('js/province.js'); assert(pv.includes('function questsModal()') && pv.includes('data-act="quests"') && pv.includes('data-act="questgo"') && main.includes('  quests() {') && main.includes('  questgo(v) {') && main.includes("if (k === 'q') { e.preventDefault(); ACTIONS.quests(); }"), 'the quests window is not wired to its button, its key and its way out');
     for (const kind of ['Quest', 'Done', 'Asking', 'Bounty', 'Journey', 'Eagle']) assert(pv.includes("card('" + kind + "'"), 'the quests window leaves out: ' + kind); }
+  assert(main.includes('>Journey promised</span>${journeyGo(g)}') && main.includes('function journeyGo(g, label) {') && main.includes("if (!G.field || !g.quest"), 'a promised journey has no way to set out for it from where it is named');
   // a canvas is never painted onto itself: the browser copies the whole of it first, and that was the stutter at the start and end of a fight
   for (const f of ['combat.js', 'show.js', 'yard.js', 'village.js', 'province.js']) assert(!read('js/' + f).includes('drawImage(cv,') && !read('js/' + f).includes('drawImage(ctx.canvas'), f + ' draws a canvas onto itself');
   return acts.length + ' actions, ' + tipKeys.length + ' tooltips';
