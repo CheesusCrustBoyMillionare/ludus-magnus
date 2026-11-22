@@ -716,7 +716,9 @@ function villageFrame(ts) {
   const cv = document.getElementById('village');
   if (!cv || !G) { vil.raf = 0; return; }
   const arena = document.getElementById('arena');
-  if (ts - vil.last > 15 && !(arena && !arena.hidden)) { vil.last = ts; try { drawVillage(cv, ts / 1000); } catch (e) { console.error(e); vil.raf = 0; return; } }
+  const wilds = document.getElementById('wilds');
+  if (wilds && !wilds.hidden && !(arena && !arena.hidden)) { /* under the map of the province: not seen, so not painted */ }
+  else if (ts - vil.last > 15 && !(arena && !arena.hidden)) { vil.last = ts; try { drawVillage(cv, ts / 1000); } catch (e) { console.error(e); vil.raf = 0; return; } }
   else if (arena && !arena.hidden) { villageStill(); vil.prev = 0; if (typeof SFX !== 'undefined') SFX.ambience(0, 0); }
   vil.raf = requestAnimationFrame(villageFrame);
 }

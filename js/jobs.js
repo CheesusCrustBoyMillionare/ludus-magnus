@@ -5,7 +5,7 @@
 // G.contracts  offers on the board, replaced every games day
 // G.jobs       outings under way; each fighter on one carries g.away = the job's id
 // G.reports    what came of an outing, waiting to be shown to the player
-// g.quest      a fighter's own journey: { id, step, since, tries }
+// g.quest      a fighter's own journey: { id, since, heard } and, where it ends at a landmark, { mark, x, y, tier }
 
 // ---------- contracts ----------
 // days: shortest and longest. w: how much each stat counts. cls / likes / hates: who suits the work.
@@ -292,7 +292,7 @@ function genContracts() {
 
 // One event on the road, somewhere in the middle of the work.
 function planEvent(J, D, days) {
-  J.eventDay = days >= 2 && (D.events || []).length && chance(0.75) ? G.day + rint(1, days - 1) : 0;
+  J.eventDay = days >= 2 && (D.events || []).length && chance(0.4) ? G.day + rint(1, days - 1) : 0;      // most work passes without a word from the road
 }
 
 function sendContract(cid, ids, terms) {
@@ -439,11 +439,22 @@ function jobsTick() {
   for (const J of G.jobs.slice()) {
     if (G.day >= J.end) { finishJob(J); continue; }
     if (J.eventDay === G.day) {
-      const D = jobDef(J), ids = (D.events || []).filter(id => FIELD_EVENTS[id].can(J));
-      if (ids.length) { const id = pick(ids); raiseEvent(id, FIELD_EVENTS[id].make(J)); }
+      const id = fieldEventFor(J);
+      if (id) { G.fieldSeen = (G.fieldSeen || []).concat(id).slice(-FIELD_MEMORY); G.fieldLast = G.day; raiseEvent(id, FIELD_EVENTS[id].make(J)); }
     }
   }
   if (!isGamesDay() && chance(0.07) && EVENTS.quest.can()) raiseEvent('quest', EVENTS.quest.make());
+}
+
+// Which matter, if any, comes up from this outing today. Word from the road never comes two days running, however many
+// are away; and nothing that has come up lately comes up again until a good many other things have.
+const FIELD_GAP = 3, FIELD_MEMORY = 8;
+function fieldEventFor(J) {
+  if (G.fieldLast && G.day - G.fieldLast < FIELD_GAP) return null;
+  const D = jobDef(J), seen = G.fieldSeen || [];
+  const ids = (D.events || []).concat(Object.keys(FIELD_EVENTS).filter(id => FIELD_EVENTS[id].fits && FIELD_EVENTS[id].fits(D)))
+    .filter((id, i, all) => all.indexOf(id) === i && !seen.includes(id) && FIELD_EVENTS[id].can(J));
+  return ids.length ? pick(ids) : null;
 }
 
 // ---------- events: more than one may now be waiting ----------
@@ -607,6 +618,147 @@ const FIELD_EVENTS = {
       { label: () => 'He keeps to his work', run: c => onJob(c, J => { J.edge += 0.06; return 'The crowd drifts off. The employer notices that he stayed where he was put.'; }) },
     ],
   },
+  // ---- more from the road. These are not tied to one kind of work: `fits` says which kinds they can come up on. ----
+  shortpay: {
+    title: 'A light purse', fits: () => true,
+    can: J => J.kind === 'contract' && J.pay > 0,
+    make: J => fieldCtx(J),
+    text: c => `The employer has let <b>${gn(c.g)}</b> know that money is tight this month, and that part of what was agreed might be paid in wine: good wine, he says. ${gn(c.g)} asks whether the house takes wine.`,
+    opts: [
+      { label: () => 'Coin, as agreed', run: c => onJob(c, J => { favor(J.patron, -1); return `It will be coin. The employer pays as a man pays who has been made to. ${PATRONS[J.patron].name}: favour -1.`; }) },
+      { label: () => 'Take the wine for a fifth of it', run: c => onJob(c, (J, men) => { J.pay = round5(J.pay * 0.8); men.forEach(x => evMor(x, 8)); home().forEach(x => evMor(x, 3)); return `Four amphorae come home on a cart. The pay will be ${J.pay} denarii, and there is not a sour face in the barracks.`; }) },
+      { label: () => 'Let him argue it out himself', run: c => onJob(c, (J, men, g) => {
+        if (chance(clamp(0.3 + g.stats.skl * 0.025, 0.3, 0.8))) { J.pay = round5(J.pay * 1.1); return `${g.name} says very little, and stands rather close while he says it. The pay will be ${J.pay} denarii, in coin.`; }
+        J.edge -= 0.12; return `${g.name} is a better swordsman than he is a bargainer. Nothing is changed but the employer's temper.`;
+      }) },
+    ],
+  },
+  sickness: {
+    title: 'Bad water', fits: D => !!D.travel,
+    can: () => true,
+    make: J => fieldCtx(J, { cost: 20 + tier() * 15 }),
+    text: c => `<b>${jn(jobById(c.job))}</b> drank from a well that the local people have more sense than to use, and ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'have' : 'has'} been paying for it since midnight. A woman in the village sells a cure for ${c.cost} denarii.`,
+    opts: [
+      { label: c => `Buy the cure (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'It is mostly charcoal and mint. By noon they are on the road again, pale and uncomplaining.'; }) },
+      { label: () => 'Lie up a day', run: c => onJob(c, (J, men) => { J.end++; men.forEach(x => { x.fatigue = clamp(x.fatigue - 10, 0, 100); }); return 'A day in a barn with a bucket. They will be home a day later than agreed.'; }) },
+      { label: () => 'They march as they are', run: c => onJob(c, (J, men) => { J.edge -= 0.1; men.forEach(x => { x.fatigue = clamp(x.fatigue + 20, 0, 100); evMor(x, -5); }); return 'They march, stopping often. The work will get what is left of them.'; }) },
+    ],
+  },
+  stranger: {
+    title: 'A man going the same way', fits: D => !!D.travel,
+    can: () => true,
+    make: J => fieldCtx(J, { stake: 15 + tier() * 15 }),
+    text: c => `A lean man with a soldier's walk has fallen in beside <b>${jn(jobById(c.job))}</b> and asks to keep company as far as the next town. He is good talk, and he looks at the baggage a little too often.`,
+    opts: [
+      { label: () => 'He is welcome', run: c => onJob(c, (J, men) => {
+        if (chance(0.6)) { J.edge += 0.06; men.forEach(x => { x.xp++; evMor(x, 3); }); return 'He was twenty years with the legions, knows every mile of this road, and shows them a trick with a shield rim before he goes his way.'; }
+        G.denarii -= c.stake; return `He is gone before dawn, and so is ${c.stake} denarii of the travelling money.`;
+      }) },
+      { label: () => 'He walks alone', run: c => onJob(c, () => 'He shrugs and drops back. Nobody will ever know which kind he was.') },
+    ],
+  },
+  sidebout: {
+    title: 'A private wager', fits: D => D.danger > 0 || !!D.glory,
+    can: J => J.kind === 'contract',
+    make: J => fieldCtx(J, { pay: 40 + tier() * 35 }),
+    text: c => `A man with rings on his thumbs has seen <b>${gn(c.g)}</b> and wants him to fight his cook's son tonight, in a courtyard, for ${c.pay} denarii to the winner. The cook's son is said to be very large.`,
+    opts: [
+      { label: () => 'Let him fight', run: c => onJob(c, (J, men, g) => {
+        if (chance(clamp(0.4 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.35, 0.85))) { G.denarii += c.pay; g.xp += 2; evMor(g, 8); return `The cook's son was very large and very slow. <b>${c.pay}</b> denarii come home, and ${g.name} has a story.`; }
+        J.edge -= 0.1; fieldWound(g, rint(2, 3)); return `The cook's son had done this before. ${g.name} will do the rest of his work with one eye shut.`;
+      }) },
+      { label: () => 'He is there to work', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -3); return `${g.name} sends his regrets. His employer hears that he did, and approves.`; }) },
+    ],
+  },
+  admirer: {
+    title: 'A letter, scented', fits: D => !D.travel,
+    can: J => J.kind === 'contract',
+    make: J => fieldCtx(J, { gift: 25 + tier() * 25 }),
+    text: c => `Somebody in the employer's household has been leaving figs, and now a letter, where <b>${gn(c.g)}</b> will find them. He cannot read it. He has a fair idea what it says.`,
+    opts: [
+      { label: () => 'He is to find it has all been a mistake', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -5); return `${g.name} returns the letter unopened, by way of the steward, which is the safest insult there is.`; }) },
+      { label: () => 'What he does after dark is his own affair', run: c => onJob(c, (J, men, g) => {
+        if (chance(0.6)) { G.denarii += c.gift; evMor(g, 12); return `Nothing is ever said. ${g.name} comes off duty whistling, and a purse of ${c.gift} denarii reaches the house from a hand nobody names.`; }
+        J.edge -= 0.3; favor(J.patron, -3); return `It is the employer's wife, and the employer is not a fool. ${PATRONS[J.patron].name}: favour -3.`;
+      }) },
+    ],
+  },
+  thief: {
+    title: 'A hand in the baggage', fits: () => true,
+    can: () => true,
+    make: J => fieldCtx(J),
+    text: c => `<b>${gn(c.g)}</b> woke with a hand in his pack and has the owner of it by the wrist: a boy of ten or so, all ribs, who has not made a sound.`,
+    opts: [
+      { label: () => 'Give him to the watch', run: c => onJob(c, () => { favor('magistrate', 2); return 'The watch are glad of somebody to be seen catching. The Magistrate: favour +2.'; }) },
+      { label: () => 'A clip round the ear, and let him run', run: c => onJob(c, () => 'He runs. He will try an easier pack tomorrow.') },
+      { label: () => 'Feed him', run: c => onJob(c, (J, men, g) => {
+        evMor(g, 5);
+        if (chance(0.35)) { J.edge += 0.1; return `He eats like a dog, watching the door. Then he tells ${g.name} who in this town is asking about him, and why. It is worth knowing.`; }
+        return `He eats like a dog, watching the door, and is gone with the bread that was left. ${g.name} seems the better for it.`;
+      }) },
+    ],
+  },
+  washout: {
+    title: 'The bridge is down', fits: D => !!D.travel,
+    can: () => true,
+    make: J => fieldCtx(J, { cost: 15 + tier() * 15 }),
+    text: c => `Three days of rain in the hills, and the bridge <b>${jn(jobById(c.job))}</b> meant to cross is somewhere downstream. A man with a flat boat will take them over for ${c.cost} denarii, which is robbery.`,
+    opts: [
+      { label: c => `Pay the boatman (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'He poles them across, singing. It is a good boat.'; }) },
+      { label: () => 'Ford it higher up', run: c => onJob(c, (J, men, g) => {
+        if (chance(clamp(0.35 + g.stats.agi * 0.03, 0.35, 0.85))) { men.forEach(x => { x.fatigue = clamp(x.fatigue + 10, 0, 100); }); return 'Chest-deep and very cold, with the packs held overhead. They are across, and no time lost.'; }
+        J.edge -= 0.08; fieldWound(g, rint(1, 3)); return `The river took ${g.name}'s feet from under him and put him against a rock. He is across, and the worse for it.`;
+      }) },
+      { label: () => 'Wait for the water to fall', run: c => onJob(c, J => { J.end++; return 'A day watching brown water. They will be home a day later than agreed.'; }) },
+    ],
+  },
+  oldfoe: {
+    title: 'A face from the sand', fits: () => true,
+    can: () => true,
+    make: J => fieldCtx(J),
+    text: c => `The man who keeps the tavern nearest the work has a wooden sword over his door and knows <b>${gn(c.g)}</b> by sight: he fought in this province for eleven years. He has put a jug on the table and pulled out a stool.`,
+    opts: [
+      { label: () => 'Sit down with him', run: c => onJob(c, (J, men, g) => { g.xp += 2; evMor(g, 6); men.forEach(x => { x.fatigue = clamp(x.fatigue + 8, 0, 100); }); return `It goes on until the lamp is out. ${g.name} comes away with a sore head and two things about footwork he had never been told.`; }) },
+      { label: () => 'Another time', run: c => onJob(c, J => { J.edge += 0.05; return 'The old man nods: he remembers what it was to be on somebody else\'s time.'; }) },
+    ],
+  },
+  omen: {
+    title: 'A bad sign', fits: () => true,
+    can: () => true,
+    make: J => fieldCtx(J, { cost: 10 + tier() * 5 }),
+    text: c => `An owl sat on the roof-tree all day in full sun, where <b>${jn(jobById(c.job))}</b> could not help but see it. Nothing has been said. A good deal is being thought.`,
+    opts: [
+      { label: c => `A cock to the household gods (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, (J, men) => { G.denarii -= c.cost; men.forEach(x => evMor(x, 6)); return 'The blood goes on the threshold and the bird goes in the pot. Everybody feels a great deal better.'; }) },
+      { label: () => 'It is a bird', run: c => onJob(c, (J, men) => {
+        if (men.some(x => x.traits.includes('blessed')) || chance(0.55)) return 'It is a bird. By evening it has gone, and nothing has happened to anybody.';
+        J.edge -= 0.06; men.forEach(x => evMor(x, -8)); return 'It is a bird; but they do the rest of the work looking over their shoulders.';
+      }) },
+    ],
+  },
+  staylonger: {
+    title: 'Two days more', fits: D => !D.travel,
+    can: J => J.kind === 'contract' && J.pay > 0,
+    make: J => fieldCtx(J, { more: round5(Math.max(15, (jobById(J.id) || J).pay * 0.35)) }),
+    text: c => `The employer is pleased with <b>${jn(jobById(c.job))}</b>, and asks to keep ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'} two days beyond what was agreed, for ${c.more} denarii more.`,
+    opts: [
+      { label: c => `Two days more (+${c.more})`, run: c => onJob(c, J => { J.end += 2; J.pay += c.more; return `It is agreed. They will be home two days later, and the pay will be ${J.pay} denarii.`; }) },
+      { label: () => 'They are wanted at home', run: c => onJob(c, () => 'The employer is sorry, and says so civilly.') },
+    ],
+  },
+  brawl: {
+    title: 'Words in the street', fits: D => D.danger > 0,
+    can: () => true,
+    make: J => fieldCtx(J),
+    text: c => `Some young men of the town, with wine in them, have decided that <b>${gn(c.g)}</b> does not look so much, and have said so across the width of the street. There are five of them.`,
+    opts: [
+      { label: () => 'He walks on', run: c => onJob(c, (J, men, g) => { evMor(g, -4); return `${g.name} walks on. It is harder than fighting, and he says so afterwards.`; }) },
+      { label: () => 'He may teach them better', run: c => onJob(c, (J, men, g) => {
+        const f = 2 + 2 * tier();
+        if (chance(0.7)) { G.fame += f; g.fame += f; evMor(g, 8); return `It takes about as long as it takes to say. Nobody is badly hurt, and the town talks of nothing else. Fame +${f}.`; }
+        favor('magistrate', -3); J.edge -= 0.1; return 'One of them is the son of a town councillor, and has a broken jaw. The Magistrate hears of it: favour -3.';
+      }) },
+    ],
+  },
 };
 // raised only for an outing; asked without one, they answer for the first that is under way
 for (const id in FIELD_EVENTS) {
@@ -628,15 +780,59 @@ const QUESTS = {
     ask: g => `The night before he was first sent onto the sand, <b>${g.name}</b> swore that if he lived he would carry an offering to the shrine his people keep on the southern shore. He has lived. He asks you to take him there to pay what he owes.` },
   master: { name: 'The old master', finale: 'questMaster', where: 'the beekeeper\'s hut, off the north road',
     ask: g => `Every ${CLASSES[g.cls].name} has heard of the old champion who won the wooden sword thirty years ago and went up into the hills to keep bees. <b>${g.name}</b> believes he is still alive, and asks you to take him there to learn what the old man knows.` },
+  // These four end at one of the landmarks of the province, chosen when he asks. A place of that kind is always to be found.
+  grave: { name: 'A friend left on the road', finale: 'questGrave', where: 'a place out in the province', marks: ['An old battlefield', 'The gallows', 'A burnt village', 'The causeway'],
+    ask: (g, m) => `<b>${g.name}</b> came into this province in a coffle of forty. The man chained next to him, who shared his water for two hundred miles, died on the march and was rolled into a ditch by ${lower(m)}. He knows the spot. He asks you to take him there, to do what should have been done.`,
+    at: g => `<b>${g.name}</b> walks straight to it, as if he had been here yesterday: a ditch, a thorn bush, and what the foxes have left. He asks for a spade, and for the day.`,
+    after: g => `${g.name} digs alone, and will not be helped. By evening it is done, all but the last of it.`,
+    fire: g => `"He was a potter. He talked the whole way about a kiln he was going to build. I never learned what his people do for their dead, so I shall have to guess."` },
+  beast: { name: 'The beast that marked him', finale: 'questBeast', where: 'a place out in the province', marks: ['The eagle rock', 'The wolf stone', "The giant's table", 'The great waterfall', 'The hot spring'], bg: 'rock',
+    foes: (g, t) => [questBeast(greatKind(Math.max(3, t)), t, 'The one that marked him', 1.5)].concat(lesser('wolf', t, 1 + Math.floor(t / 2))),
+    ask: (g, m) => `<b>${g.name}</b> has four white lines across his ribs that no arena gave him. He was a boy with his father's goats when it came, and his father did not come home. A hunter in the market swears the same animal, old now and with the same torn ear, lies up at ${lower(m)}. He asks you to take the school there, and him with it.`,
+    at: g => `The ground is all bones and droppings, and something very large is watching from the rocks with one torn ear laid back. <b>${g.name}</b> has gone white, and has not stopped walking.`,
+    won: g => `It is dead. ${g.name} sits down beside it and puts his hand on the torn ear, and for a long time nobody speaks to him.`,
+    fire: g => `"I ran. I was nine, and I ran, and I heard him the whole way down the hill. I have not run from anything since. That is all the courage I have: it is only that."` },
+  child: { name: 'A child he has never seen', finale: 'questChild', where: 'a place out in the province', marks: ["The fishers' huts", 'The mill', 'The huts on stilts', "The shepherds' fold", 'The bee garden', 'The charcoal burners'],
+    ask: (g, m) => `A carter has brought <b>${g.name}</b> a message scratched on a potsherd. The woman he was taken from is alive, at ${lower(m)}, and there is a child of four with his eyes. He asks you to take the school that way, and to let him stand at the door once.`,
+    at: g => `A woman is hanging out washing, and stops with her arms up. A small child looks round her skirt at the armed men, and then at <b>${g.name}</b>, who has taken off his helmet and does not seem to know what to do with it.`,
+    after: g => `The school camps out of sight. ${g.name} comes back after dark and asks to speak with you about money.`,
+    fire: g => `"I do not know if it is a boy or a girl. The potsherd did not say. I have been carving a horse, and now I think: what if she does not like horses?"` },
+  betrayer: { name: 'The man who sold him', finale: 'questBetrayer', where: 'a place out in the province', marks: ['A villa in its garden', 'The wine press', 'The mill', 'The lime kiln'], bg: 'ruin',
+    foes: (g, t) => [questBoss(t, "His cousin's captain", { traits: ['watchful'], tactic: 'defensive' })].concat(wildMen(t, Math.max(2, wildCount(t) - 2))),
+    ask: (g, m) => `<b>${g.name}</b> was not taken in war. He was sold, for a debt that was not his, by a cousin who put his seal to the bill and kept the farm. The cousin has done well since: he has a place at ${lower(m)} now, and hired men on the gate. ${g.name} asks you to take him to that gate.`,
+    at: g => `A good wall, a new roof, and hired men on the gate who have been told to expect somebody. A face shows at an upper window and is gone. <b>${g.name}</b> says, quite quietly, that it has put on weight.`,
+    won: g => `The hired men are down or over the wall. The cousin is found under a bed.`,
+    fire: g => `"We were boys together. He taught me to swim. I have gone over it a thousand times, and I still cannot find the day he began to hate me. Perhaps he never did. Perhaps it was only the money."` },
 };
+// what the first four say at the fire
+Object.assign(QUESTS.brother, { fire: g => `"He is the clever one. He could reckon before he could walk. They will have him breaking stone, with those hands. If he is alive he will have counted every day."` });
+Object.assign(QUESTS.village, { fire: g => `"He had a ring on every finger and he laughed the whole time. I would know that laugh in the dark. I have been afraid, all these years, that somebody else would kill him first."` });
+Object.assign(QUESTS.shrine, { fire: g => `"I did not think the god was listening. I said it the way you say anything, the night before. Then I lived, and the man beside me did not, and now I do not like to walk under a clear sky."` });
+Object.assign(QUESTS.master, { fire: g => `"They say he never lost his footing once in forty fights. I lose mine twice a morning. If he will not teach me I shall sit outside his door until he does, and you may come and fetch me in the spring."` });
 
-function endQuest(g, how) { g.quest = null; g.questDone = how; }
+const questDef = g => (g && g.quest && QUESTS[g.quest.id]) || null;
+// Where his journey ends, in words: a fixed place, or the landmark that was named when he asked.
+function questWhere(g) { const Q = questDef(g); return !Q ? '' : Q.marks && g.quest.mark ? `${lower(g.quest.mark)}, in ${wildRegion(g.quest.x, g.quest.y)}` : Q.where; }
+const questMarkId = g => (QUESTS[g.quest.id].marks ? 'j' + g.id : questPlace(g.quest.id));
+// A landmark for a journey of this kind: one about as dangerous as the school can bear, where there will be a fight.
+function questSpot(q) {
+  const Q = QUESTS[q], spots = (Q.marks || []).map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p).map(o => Object.assign(o, { t: clamp(wildTier(o.p.x, o.p.y), 1, 5) }));
+  if (!spots.length) return null;
+  const aim = clamp(tier() + 1, 1, 5), near = Math.min(...spots.map(o => Math.abs(o.t - aim))), o = pick(spots.filter(x => Math.abs(x.t - aim) === near));
+  return { mark: o.m, x: o.p.x, y: o.p.y, tier: o.t };
+}
+// The places such journeys make on the map, for as long as they are promised.
+const journeySites = () => G.roster.filter(g => questDef(g) && questDef(g).marks && g.quest.x != null)
+  .map(g => ({ id: 'j' + g.id, kind: 'errand_journey', x: g.quest.x, y: g.quest.y, tier: questDef(g).foes ? g.quest.tier : 0, name: questDef(g).name, fixed: true, journey: g.id }));
+
+function endQuest(g, how) { if (typeof wildMap === 'function' && G.dynasty) delete wildMap().marks['j' + g.id]; g.quest = null; g.questDone = how; }
 
 // What every finished journey leaves behind: a man who knows what you did for him.
 function questReward(g, trait, story) {
   const Q = QUESTS[g.quest.id];
   if (trait && !g.traits.includes(trait)) g.traits.push(trait);
   g.grateful = true; g.morale = 100; g.xp += 3;
+  home().forEach(x => { if (x !== g) x.morale = clamp(x.morale + 3, 0, 100); });      // the others have watched to see whether the house keeps its word
   addStory(g, story);
   log(`${g.name} has finished what he set out to do: ${Q.name}.`, 'gold');
   endQuest(g, g.quest.id);
@@ -662,15 +858,21 @@ Object.assign(EVENTS, FIELD_EVENTS, {
     title: 'He asks to speak with you',
     auto: true,                      // offered on its own roll, so that it comes round often enough
     can: () => G.roster.some(questReady) && questsFree().length > 0,
-    make: () => ({ g: pick(G.roster.filter(questReady)).id, q: pick(questsFree()) }),
-    text: c => { const g = byId(c.g); return g ? QUESTS[c.q].ask(g) + ` That is ${QUESTS[c.q].where}: the whole school would have to march out with him, and miss whatever games fell while it was away.` : 'A fighter wants a word.'; },
+    make: () => { const q = pick(questsFree()), sp = QUESTS[q].marks ? questSpot(q) : null; return Object.assign({ g: pick(G.roster.filter(questReady)).id, q }, sp || {}); },
+    text: c => { const g = byId(c.g), Q = QUESTS[c.q]; return g ? Q.ask(g, c.mark || 'a place you know') + ` That is ${Q.marks && c.mark ? `${lower(c.mark)}, in ${wildRegion(c.x, c.y)}` : Q.where}: the whole school would have to march out with him, and miss whatever games fell while it was away.` : 'A fighter wants a word.'; },
     opts: [
       { label: () => 'Give your word', run: c => {
         const g = byId(c.g); if (!g) return 'The moment has passed.';
         g.quest = { id: c.q, since: G.day }; g.morale = clamp(g.morale + 10, 0, 100);
-        wildMark(questPlace(c.q), 'journey');
+        if (QUESTS[c.q].marks) { const sp = c.mark ? c : questSpot(c.q); if (!sp) { g.quest = null; return 'Nobody can say where the place is. It will have to wait.'; } Object.assign(g.quest, { mark: sp.mark, x: sp.x, y: sp.y, tier: sp.tier }); }
+        wildMark(questMarkId(g), 'journey');
         addStory(g, `Was promised his journey: ${QUESTS[c.q].name.toLowerCase()}.`);
-        return `${g.name} takes you at your word. The place is marked on your map of the province: ${QUESTS[c.q].where}. Do not make him wait long.`;
+        return `${g.name} takes you at your word. The place is marked on your map of the province: ${questWhere(g)}. Do not make him wait long.`;
+      } },
+      { label: () => 'Not this season. Ask me again', run: c => {
+        const g = byId(c.g); if (!g) return 'The moment has passed.';
+        g.questAsk = G.day + 20; g.morale = clamp(g.morale - 3, 0, 100);
+        return `${g.name} looks at you a moment, to see whether it is a no. He decides it is not, and goes back to the post. He will ask again.`;
       } },
       { label: () => 'Refuse', run: c => {
         const g = byId(c.g); if (g) { g.questDone = 'refused'; g.morale = clamp(g.morale - 12, 0, 100); addStory(g, `Asked leave of the house, and was refused.`); }
@@ -761,7 +963,92 @@ Object.assign(EVENTS, FIELD_EVENTS, {
       }) },
     ],
   },
+  questGrave: {
+    title: 'The last of it', auto: true, can: finaleCan('grave'), make: finaleMake('grave'),
+    text: c => `The grave is dug and filled. <b>${gn(c.g)}</b> stands over it with the dead man's neck-chain in his hand, which he found in the ditch, and asks how the house would have it ended. Proper funeral games, with a bout fought over the grave, would cost ${c.cost} denarii.`,
+    opts: [
+      { label: c => `Funeral games in the house's name (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
+        const f = 8 + 5 * tier(); G.denarii -= c.cost; G.fame += f; g.fame += f; home().forEach(x => { x.morale = clamp(x.morale + 6, 0, 100); });
+        questReward(g, 'atpeace', 'Buried the man he was chained to, with funeral games in the house\'s name.');
+        return `A pyre, a bout to first blood, wine for forty. The farms for miles round come to watch a potter buried like a senator. ${g.name} fights the bout himself, and wins it. Fame +${f}.`;
+      }) },
+      { label: () => 'A coin, a handful of earth, and his name said aloud', run: c => questMan(c, g => {
+        questReward(g, 'atpeace', 'Buried the man he was chained to, and said his name over him.');
+        return `${g.name} says the name three times, as his own people do, and puts the chain in with him. He walks back to the column without looking round.`;
+      }) },
+      { label: () => 'He keeps the chain, and fights for two', run: c => questMan(c, g => {
+        questReward(g, 'twoshares', 'Buried the man he was chained to, and kept the chain.');
+        return `${g.name} winds the chain twice round his sword wrist and has the smith close it. He says the potter can see the arena from there.`;
+      }) },
+    ],
+  },
+  questBeast: {
+    title: 'Its hide', auto: true, can: finaleCan('beast'), make: finaleMake('beast'),
+    text: c => `The beast that marked <b>${gn(c.g)}</b> is skinned, and the hide is the largest your men have seen. A dealer would give ${c.cost} denarii for it and the skull. ${gn(c.g)} has not asked for it. He is waiting to hear.`,
+    opts: [
+      { label: () => 'It is his. He wears it onto the sand', run: c => questMan(c, g => {
+        const f = 6 + 4 * tier(); G.fame += f; g.fame += f;
+        questReward(g, 'beastslayer', 'Killed the beast that marked him as a boy, and wears its hide.');
+        return `${g.name} goes into the arena with the torn ear hanging over his shoulder, and the crowd is told why. Fame +${f}.`;
+      }) },
+      { label: () => 'Hang it in the temple of Nemesis', run: c => questMan(c, g => {
+        favor('temple', 8);
+        questReward(g, 'blessed', 'Killed the beast that marked him as a boy, and gave its hide to Nemesis.');
+        return `It hangs over the altar, where a goddess of debts paid can see it. The priests have never been given anything like it. Temple favour +8.`;
+      }) },
+      { label: c => `Sell it (+${c.cost})`, run: c => questMan(c, g => {
+        G.denarii += c.cost; g.morale = clamp(g.morale - 20, 0, 100);
+        addStory(g, 'Killed the beast that marked him, and saw its hide sold.'); endQuest(g, 'failed');
+        return `The dealer counts out the money. ${g.name} watches the hide rolled and corded and put on a mule. He killed it; that much is his.`;
+      }) },
+    ],
+  },
+  questChild: {
+    title: 'At the door', auto: true, can: finaleCan('child'), make: finaleMake('child'),
+    text: c => `It is a girl. <b>${gn(c.g)}</b> has given her the horse. The woman has a hut, a debt to the man who owns it, and nothing else. ${c.cost} denarii would buy them a holding of their own, and ${gn(c.g)} knows the house has no reason to spend it.`,
+    opts: [
+      { label: c => `Buy them the holding (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
+        G.denarii -= c.cost;
+        questReward(g, 'atpeace', 'Found his daughter, and saw her and her mother settled on land of their own.');
+        return `Four iugera, a well, and a deed in the woman's name. ${g.name} does not thank you. He cannot, yet.`;
+      }) },
+      { label: () => 'His own winnings, sent to them after every games', run: c => questMan(c, g => {
+        questReward(g, 'provider', 'Found his daughter. Somebody eats by what he wins.');
+        return `It is agreed with the carter. ${g.name} has something to lose now, and fights like a man who knows it.`;
+      }) },
+      { label: () => 'He has seen them. March', run: c => questMan(c, g => {
+        g.morale = clamp(g.morale - 25, 0, 100); addStory(g, 'Stood at his daughter\'s door once, and was marched away.'); endQuest(g, 'failed');
+        return `${g.name} falls in. The child waves until the column is out of sight; he does not turn round, and it costs him something not to.`;
+      }) },
+    ],
+  },
+  questBetrayer: {
+    title: 'Under the bed', auto: true, can: finaleCan('betrayer'), make: finaleMake('betrayer'),
+    text: c => `<b>${gn(c.g)}</b>'s cousin is on his knees among his own broken crockery, offering the farm, the deeds, his daughters. He is a citizen, and the Magistrate will ask questions if he dies. ${gn(c.g)} is holding him by the hair and looking at you.`,
+    opts: [
+      { label: () => 'It is his to settle', run: c => questMan(c, g => {
+        g.kills++; favor('magistrate', -5);
+        questReward(g, 'bloodoath', 'Killed the cousin who sold him.');
+        return `It is done in the yard, where the household can see. The Magistrate hears that a citizen has been killed by somebody's gladiator, and remembers whose. Favour -5.`;
+      }) },
+      { label: c => `He signs over everything he has (+${c.cost * 2})`, run: c => questMan(c, g => {
+        G.denarii += c.cost * 2;
+        questReward(g, null, 'Took back from his cousin, by deed and seal, what he was sold for.');
+        return `The cousin signs until his hand shakes too much to hold the pen. The farm that ${g.name} was sold to pay for comes to the house, and is sold again by nightfall. The cousin leaves the province on foot.`;
+      }) },
+      { label: () => 'He lets him go, in front of them all', run: c => questMan(c, g => {
+        const f = 5 + 3 * tier(); favor('temple', 6); G.fame += f; g.fame += f;
+        questReward(g, 'atpeace', 'Had the cousin who sold him under his hand, and let him live.');
+        return `${g.name} opens his hand. He says, so that the whole household hears, what was done to him and by whom; and then he walks out of the gate. The cousin will live a long time, here, among people who know. Temple favour +6, fame +${f}.`;
+      }) },
+    ],
+  },
 });
 
-function questReady(g) { return !g.away && g.injury <= 0 && !g.quest && !g.questDone && (g.rank >= 1 || g.wins >= 3); }
-function questsFree() { return Object.keys(QUESTS).filter(q => !G.roster.some(g => (g.quest && g.quest.id === q) || g.questDone === q)); }
+function questReady(g) { return !g.away && g.injury <= 0 && !g.quest && !g.questDone && !(g.questAsk > G.day) && (g.rank >= 1 || g.wins >= 3); }
+// A journey nobody here has made or been promised, and whose place is still there to go to: the quarry, the camp, the shrine
+// and the old man are each visited once, but a landmark can be the end of one journey after another.
+function questsFree() {
+  return Object.keys(QUESTS).filter(q => !G.roster.some(g => (g.quest && g.quest.id === q) || g.questDone === q)
+    && (QUESTS[q].marks ? !!questSpot(q) : !wildMap().done[questPlace(q)]));
+}

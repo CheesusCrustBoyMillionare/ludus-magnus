@@ -1342,3 +1342,17 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 #arenaPick .tchip.marked { outline: 2px solid #c23b2e; outline-offset: 1px; }
 #arenaPick .ptargets button.mini { margin-left: auto; }
 #arenaPick .pfoot { gap: 6px; }
+
+/* the menu (Esc) */
+#modalBox.menubox { max-width: 440px; }
+.menu h2 { text-align: center; }
+.menu .mlist { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.menu .mitem { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; width: 100%; text-align: left; padding: 9px 13px; }
+.menu .mitem b { font-weight: 600; white-space: nowrap; }
+#modalBox .menu .mitem small { color: inherit; opacity: .72; font-size: 12px; text-align: right; }
+.menu .mitem.off b { opacity: .6; }
+.menu .mitem.warn { outline: 2px solid #a3261b; }
+.menu .mnote { font-size: 12px; text-align: center; margin-top: 12px; }
+.menu .mstats { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+.menu .mstats td { padding: 5px 2px; border-bottom: 1px solid rgba(110, 72, 26, .3); }
+.menu .mstats td:last-child { text-align: right; font-weight: 600; }

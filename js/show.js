@@ -381,10 +381,13 @@ function showBack(ctx, B, T) {
   }
   // heat: by day the foot of the wall and the far sand swim a little
   if (!B.wild && B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
-    const cv = ctx.canvas;
-    for (let y = 80; y < 100; y++) {
+    // The rows are taken from the painted backdrop, not from the picture as it stands: drawing a canvas onto itself
+    // makes the browser copy the whole of it first, every time, and at twenty rows a frame that was most of the cost
+    // of a frame whenever the view was drawn back (the entrance, the verdict, and a fixed view throughout).
+    const bg = B._bg;
+    if (bg) for (let y = 80; y < 100; y++) {
       const a = Math.sin(T * 3.1 + y * 0.83) * (1 - (y - 80) / 26);
-      if (Math.abs(a) > 0.62) { const k = cv.width / 1280; ctx.drawImage(cv, 0, y * FINE * k, cv.width, FINE * k, a > 0 ? 1 : -1, y, 428, 1); }
+      if (Math.abs(a) > 0.62) ctx.drawImage(bg, 0, y, 428, 1, a > 0 ? 1 : -1, y, 428, 1);
     }
   }
 }

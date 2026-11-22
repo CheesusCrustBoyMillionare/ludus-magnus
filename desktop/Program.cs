@@ -141,6 +141,8 @@ class MainForm : Form
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.AreBrowserAcceleratorKeysEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
+            // "Exit the game" in the menu asks the page to close itself: that closes the window.
+            core.WindowCloseRequested += delegate(object s3, object a3) { Close(); };
             web.Source = new Uri("https://ludus.game/index.html");
         }
         catch (Exception ex)

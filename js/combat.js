@@ -50,6 +50,8 @@ function makeFighter(g, team, i, n, fld) {
   if (has('watchful')) { dodge += 0.03; if (c.shield) block += 0.03; }
   if (has('oldschool')) acc += 0.05;
   if (has('bloodoath')) dmg *= 1.08;
+  if (has('twoshares')) { dmg *= 1.04; acc += 0.03; }
+  if (has('provider')) { dodge += 0.03; crit += 0.03; }
   if (has('pitfighter') && n === 1) dmg *= 1.08;
   if (has('reaver') && fld.wild) dmg *= 1.1;
   if (has('eaglesworn')) dmg *= 1.05;
@@ -1229,7 +1231,11 @@ function drawOutro(ctx, B, T) {
   // the light of it: gold spreading for a win, the day going dark for a loss
   if (won) {
     ctx.globalAlpha = 0.5 * e;
-    for (let i = 0; i < 12; i++) { const an = i / 12 * 6.283 + T * 0.15, w = 0.07; ctx.fillStyle = i % 2 ? 'rgba(255,226,122,.16)' : 'rgba(255,246,220,.10)'; ctx.beginPath(); ctx.moveTo(160, 54); ctx.lineTo(160 + Math.cos(an - w) * 260, 54 + Math.sin(an - w) * 260); ctx.lineTo(160 + Math.cos(an + w) * 260, 54 + Math.sin(an + w) * 260); ctx.closePath(); ctx.fill(); }
+    for (const odd of [0, 1]) {               // the rays, each colour laid in one stroke of the brush
+      ctx.fillStyle = odd ? 'rgba(255,226,122,.16)' : 'rgba(255,246,220,.10)'; ctx.beginPath();
+      for (let i = odd; i < 12; i += 2) { const an = i / 12 * 6.283 + T * 0.15, w = 0.07; ctx.moveTo(160, 54); ctx.lineTo(160 + Math.cos(an - w) * 260, 54 + Math.sin(an - w) * 260); ctx.lineTo(160 + Math.cos(an + w) * 260, 54 + Math.sin(an + w) * 260); ctx.closePath(); }
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
   } else {
     const g = ctx.createRadialGradient(160, 96, 40, 160, 96, 190); g.addColorStop(0, 'rgba(20,4,4,0)'); g.addColorStop(1, `rgba(20,4,4,${(0.6 * e).toFixed(3)})`); ctx.fillStyle = g; ctx.fillRect(0, 0, 320, 180);

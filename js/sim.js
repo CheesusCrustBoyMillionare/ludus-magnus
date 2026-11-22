@@ -441,7 +441,7 @@ function migrate() {
   // journeys are places on the map now: anyone who was away on one alone is brought home, and his place marked
   if (G.field === undefined) G.field = null;
   G.jobs = G.jobs.filter(J => J.kind !== 'quest');
-  G.roster.forEach(g => { if (g.away && !G.jobs.some(J => J.id === g.away)) g.away = null; if (g.quest && QUESTS[g.quest.id]) wildMark(questPlace(g.quest.id), 'journey'); else if (g.quest) g.quest = null; });
+  G.roster.forEach(g => { if (g.away && !G.jobs.some(J => J.id === g.away)) g.away = null; if (g.quest && QUESTS[g.quest.id] && (!QUESTS[g.quest.id].marks || g.quest.x != null)) wildMark(questMarkId(g), 'journey'); else if (g.quest) g.quest = null; });
   wildMap();
 }
 

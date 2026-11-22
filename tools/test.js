@@ -112,6 +112,11 @@ test('interface wiring: every button, field and tooltip has a handler', () => {
   for (const k of tipKeys) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
   for (const k of ['str', 'agi', 'skl', 'rating', 'style', 'charge', 'abilities'].concat(['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders'])) assert(new RegExp('\\n  ' + k + ':').test(tips), 'no tooltip text for "' + k + '"');
   for (const s of ['data.js', 'sim.js', 'combat.js', 'show.js', 'sfx.js', 'yard.js', 'art.js', 'main.js']) assert(html.includes('js/' + s), 'index.html does not load ' + s);
+  // the menu: Esc opens it, the fight screen has a button for it, and the exe closes when the page asks to
+  assert(main.includes('  menu() {') && main.includes("e.key !== 'Escape'") && html.includes('data-act="menu"') && read('desktop/Program.cs').includes('WindowCloseRequested'), 'the menu is wired to Esc, to the fight screen and to the window');
+  for (const act of ['menupage', 'menuset', 'menusave', 'menusaves', 'menuhelp', 'menuexit', 'fullscreen']) assert(main.includes('  ' + act + '('), 'the menu has no ' + act);
+  // a canvas is never painted onto itself: the browser copies the whole of it first, and that was the stutter at the start and end of a fight
+  for (const f of ['combat.js', 'show.js', 'yard.js', 'village.js', 'province.js']) assert(!read('js/' + f).includes('drawImage(cv,') && !read('js/' + f).includes('drawImage(ctx.canvas'), f + ' draws a canvas onto itself');
   return acts.length + ' actions, ' + tipKeys.length + ' tooltips';
 });
 
@@ -977,9 +982,30 @@ test('contracts: the board, who suits the work, going away and coming home', () 
   return [hurt, dead, ran].join('/') + ' hurt/dead/fled of 300 failed hunts';
 }));
 
+test('contracts: word from the road is uncommon, never two days running, and not the same thing over again', () => game()(function () {
+  newGame();
+  assert(Object.keys(FIELD_EVENTS).length === 20 && Object.keys(FIELD_EVENTS).filter(id => FIELD_EVENTS[id].fits).length === 11, 'twenty things can happen on the road, eleven of them on more than one kind of work');
+  // every kind of work has a good many things that can come up on it
+  for (const k in CONTRACTS) { const n = (CONTRACTS[k].events || []).concat(Object.keys(FIELD_EVENTS).filter(id => FIELD_EVENTS[id].fits && FIELD_EVENTS[id].fits(CONTRACTS[k]))).filter((id, i, all) => all.indexOf(id) === i).length; assert(n >= 9, k + ' has only ' + n + ' things that can happen on it'); }
+  // fewer than half of outings bring any word at all
+  { let n = 0; const J = {}; for (let i = 0; i < 2000; i++) { planEvent(J, CONTRACTS.caravan, 4); if (J.eventDay) n++; } assert(n > 600 && n < 1000, 'about two outings in five: ' + n + ' of 2000'); }
+  // one outing after another: nothing comes up twice within eight, and never within three days of the last
+  G.contracts[0].type = 'caravan'; G.contracts[0].size = 1; G.contracts[0].patron = 'guild'; G.contracts[0].land = 'Gaul';
+  assert(sendContract(G.contracts[0].id, [G.roster[0].id]), 'a man is sent out');
+  const J = G.jobs[0], got = [];
+  for (let i = 0; i < 40; i++) { G.day += 3; const id = fieldEventFor(J); assert(id && FIELD_EVENTS[id], 'something comes up'); assert(!got.slice(-8).includes(id), id + ' came up again too soon: ' + got.slice(-8)); got.push(id); G.fieldSeen = (G.fieldSeen || []).concat(id).slice(-FIELD_MEMORY); G.fieldLast = G.day; assert(!fieldEventFor(J), 'nothing more the same day'); G.day++; assert(!fieldEventFor(J), 'nor the day after'); }
+  assert(new Set(got).size >= 12, 'a grain caravan sees a dozen different things: ' + new Set(got).size);
+  // through the morning's own reckoning, too
+  G.fieldLast = 0; G.fieldSeen = []; G.pendingEvent = null; G.eventQueue = []; J.end = G.day + 50; J.eventDay = G.day; jobsTick();
+  const first = G.pendingEvent; assert(first && FIELD_EVENTS[first.id] && G.fieldLast === G.day && G.fieldSeen.length === 1, 'the morning brings word, and it is remembered');
+  G.pendingEvent = null; G.day++; J.eventDay = G.day; jobsTick(); assert(!G.pendingEvent, 'and none the next morning');
+}));
+
 test('journeys: asked for, promised, and ended at a place in the province', () => game()(function () {
   newGame();
-  for (const q in QUESTS) assert(EVENTS[QUESTS[q].finale] && questPlace(q) && wildSites().some(s => s.kind === questPlace(q)) && QUESTS[q].where.length > 10, q + ' has an ending and a place');
+  for (const q in QUESTS) assert(EVENTS[QUESTS[q].finale] && EVENTS[QUESTS[q].finale].opts.length >= 2 && QUESTS[q].where.length > 10 && QUESTS[q].fire(G.roster[0]).length > 60
+    && (QUESTS[q].marks ? QUESTS[q].marks.every(m => LANDMARKS.includes(m)) && questSpot(q) : questPlace(q) && wildSites().some(s => s.kind === questPlace(q))), q + ' has an ending and a place');
+  assert(Object.keys(QUESTS).length === 8 && Object.keys(QUESTS).filter(q => QUESTS[q].marks).length === 4, 'eight journeys, four of them to a landmark');
   assert(!EVENTS.quest.can(), 'raw recruits have no standing to ask');
   const g = G.roster[0]; g.wins = 4; g.rank = 1; G.tally.wins = 1;
   assert(EVENTS.quest.can(), 'a proven man may ask');
@@ -1014,6 +1040,44 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
     assert(!k.quest && k.questDone === q, q + ' is finished');
     if (q === 'brother') { const bro = G.roster[G.roster.length - 1]; assert(G.roster.length === n + 1 && bro.origin === k.origin && bondBetween(k, bro).type === 'friend' && k.traits.includes('atpeace'), 'his brother swears the oath beside him'); }
   }
+  // four more end at a landmark, named when he asks; each of their endings can be chosen
+  for (const q of ['grave', 'beast', 'child', 'betrayer']) for (let opt = 0; opt < EVENTS[QUESTS[q].finale].opts.length; opt++) {
+    newGame(); G.tally.wins = 1; G.denarii = 5000; G.fac.barracks = 2;
+    const k = G.roster[0]; k.wins = 4; k.rank = 1;
+    const c = Object.assign({ g: k.id, q }, questSpot(q));
+    assert(c.mark && QUESTS[q].marks.includes(c.mark), q + ' names a landmark');
+    const asked = EVENTS.quest.text(c); assert(asked.includes(lower(c.mark)) && !/undefined|NaN/.test(asked), q + ' is asked for, by the name of the place: ' + asked);
+    G.pendingEvent = { id: 'quest', c }; answerEvent(0);
+    const st = wildSites().find(x => x.journey === k.id);
+    assert(k.quest && k.quest.mark === c.mark && st && st.x === c.x && st.y === c.y && siteLive(st) && siteShown(st) && wildMap().marks[st.id] && questWhere(k).includes(lower(c.mark)) && SITE_EVENT[st.kind] === 'wJourney', q + ': promised, and the landmark is marked');
+    assert(!questsFree().includes(q) && wildEnter(), 'the school marches out');
+    // the night before, he will say what it is; a lanista who has listened pays a quarter less at the end
+    assert(EVENTS.wFireside.can(), 'he sits apart from the fire'); G.pendingEvent = { id: 'wFireside', c: EVENTS.wFireside.make() };
+    const said = answerEvent(0); assert(k.quest.heard && !EVENTS.wFireside.can() && said.length > 120 && !/undefined|NaN/.test(said), q + ': he says what it is: ' + said);
+    const full = round5(80 + tier() * 70), day = G.day;
+    assert(wildVisit(st) && G.pendingEvent.id === 'wJourney' && G.pendingEvent.c.g === k.id && !/undefined|NaN/.test(EVENTS.wJourney.text(G.pendingEvent.c)), q + ': walking up to it raises his journey');
+    answerEvent(0);
+    if (QUESTS[q].foes) { const F = G.field.fight; assert(F && F.win === 'journey' && F.g === k.id && F.foes.length >= 2 && F.foes[0].boss && F.foes.every(f => f.name && f.hp > 0), q + ' comes to a fight');
+      G.field.fight = null; const lines = WILD_WINS.journey(F); assert(lines.join(' ').length > 20 && !/undefined|NaN/.test(lines.join(' ')), q + ' is won'); }
+    else assert(G.day === day + 1 && !G.field.fight, q + ' takes the day, and no blood');
+    assert(G.pendingEvent && G.pendingEvent.id === QUESTS[q].finale && G.pendingEvent.c.cost === round5(full * 0.75), q + ': then the choice, at the price of a man who listened');
+    const purse = G.denarii, out = answerEvent(opt);
+    assert(typeof out === 'string' && out.length > 40 && !/undefined|NaN/.test(out) && !k.quest && k.questDone && !wildSites().some(x => x.journey) && !wildMap().marks['j' + k.id] && !badNumber(G), q + ' ending ' + opt + ': ' + out);
+    if (k.questDone === q) assert(k.grateful && k.morale === 100 && !flightRisk(k), q + ' ending ' + opt + ' binds him to the house');
+    if (q === 'grave' && opt === 2) assert(k.traits.includes('twoshares') && TRAITS.twoshares.special, 'he fights for two');
+    if (q === 'child' && opt === 1) assert(k.traits.includes('provider') && G.denarii === purse, 'somebody is waiting, and it cost the house nothing');
+    if (q === 'betrayer' && opt === 1) assert(G.denarii === purse + round5(full * 0.75) * 2, 'the farm comes to the house');
+  }
+  // the new marks of a journey tell in a fight
+  { newGame(); const a = makeGladiator(30), b = JSON.parse(JSON.stringify(a)), d = JSON.parse(JSON.stringify(a)); a.traits = []; b.traits = ['twoshares']; d.traits = ['provider'];
+    const A = createBattle([a], [makeGladiator(30)], { noIntro: true }).fighters[0], B2 = createBattle([b], [makeGladiator(30)], { noIntro: true }).fighters[0], D = createBattle([d], [makeGladiator(30)], { noIntro: true }).fighters[0];
+    assert(B2.dmg > A.dmg && B2.acc > A.acc && D.dodge > A.dodge && D.crit > A.crit, 'fights for two hits harder and truer; somebody waiting is harder to hit'); }
+  // a place that has been the end of one journey is not promised to another man; and he may be put off once
+  newGame(); G.tally.wins = 1; { const k = G.roster[0]; k.wins = 4; k.rank = 1;
+    wildMap().done.quarry = 1; assert(!questsFree().includes('brother') && questsFree().includes('village') && questsFree().includes('grave'), 'the quarry gate opens once');
+    G.pendingEvent = { id: 'quest', c: { g: k.id, q: 'shrine' } }; const m = k.morale; answerEvent(1);
+    assert(!k.quest && !k.questDone && k.morale === m - 3 && !questReady(k), 'put off, he waits');
+    G.day += 21; assert(questReady(k), 'and asks again'); }
   // a place with nobody's journey in it says nothing
   newGame(); G.tally.wins = 1; wildEnter();
   assert(!siteLive(wildSites().find(x => x.kind === 'quarry')) && !wildVisit(wildSites().find(x => x.kind === 'quarry')), 'the quarries are only stone to a school with no brother in them');

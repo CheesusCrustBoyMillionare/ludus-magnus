@@ -142,16 +142,58 @@ function fitScenes() {
   }
 }
 fitScenes();
-function hideTip() { tipTarget = null; const el = $('#tip'); if (el) el.hidden = true; }
+function hideTip() { tipTarget = null; clsTip = null; const el = $('#tip'); if (el) el.hidden = true; }
 document.addEventListener('mouseover', e => {
   const el = e.target.closest ? e.target.closest('[data-tip]') : null;
   if (el === tipTarget) return;
   tipTarget = el;
+  if (clsTip) return;                                     // a type's name is under the mouse: that is being explained
   const box = $('#tip');
   if (!el) { box.hidden = true; return; }
   box.textContent = el.dataset.tip; box.hidden = false; placeTip(e);
 });
-document.addEventListener('mousemove', e => { if (tipTarget) placeTip(e); });
+// The name of a gladiator's type explains itself wherever it is written: in a list, on a card, in the middle of a sentence.
+// The word under the mouse is read from the page, so nothing that prints a type's name has to say so.
+const CLASS_WORDS = (() => { const o = {}; for (const k in CLASSES) { const n = CLASSES[k].name.toLowerCase(); o[n] = k; o[n + 's'] = k; } return Object.assign(o, { murmillones: 'murmillo', thraeces: 'thraex', retiarii: 'retiarius', hoplomachi: 'hoplomachus', dimachaeri: 'dimachaerus' }); })();
+function classTip(k) {
+  const c = CLASSES[k], pc = v => Math.round(v * 100) + '%', lean = Object.keys(c.bias).sort((a, b) => c.bias[b] - c.bias[a])[0];
+  return `${c.name}\n${c.desc}\n${c.shield ? 'Blocks ' + pc(c.block) : 'No shield'}, dodges ${pc(c.dodge)}, armour ${c.armor}, reach ${c.reach}. Leans to ${STAT_NAMES[lean].toLowerCase()}.`;
+}
+function classAt(e) {
+  const t = e.target;
+  if (!t || !t.closest || t.tagName === 'CANVAS' || t.closest('input, textarea, #tip')) return null;
+  let node = null, off = 0;
+  if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r) { node = r.startContainer; off = r.startOffset; } }
+  else if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(e.clientX, e.clientY); if (p) { node = p.offsetNode; off = p.offset; } }
+  if (!node || node.nodeType !== 3) return null;
+  const s = node.data, letter = ch => /[A-Za-z]/.test(ch || '');
+  let a = Math.min(off, s.length), b = a;
+  while (a > 0 && letter(s[a - 1])) a--;
+  while (b < s.length && letter(s[b])) b++;
+  const k = CLASS_WORDS[s.slice(a, b).toLowerCase()];
+  if (!k) return null;
+  // the caret snaps to the nearest letter even from the empty end of a line: the mouse must really be on the word
+  const rg = document.createRange(); rg.setStart(node, a); rg.setEnd(node, b);
+  const z = ui.z || 1, on = (r, m) => e.clientX >= r.left * m - 1 && e.clientX <= r.right * m + 1 && e.clientY >= r.top * m - 1 && e.clientY <= r.bottom * m + 1;
+  return [...rg.getClientRects()].some(r => on(r, 1) || on(r, z)) ? { k, el: node.parentElement } : null;
+}
+let clsTip = null, tipMove = null;
+document.addEventListener('mousemove', e => {
+  const waiting = !!tipMove;                 // looked at once a frame, however fast the mouse is moving
+  tipMove = e;
+  if (waiting) return;
+  requestAnimationFrame(() => {
+    const ev = tipMove, box = $('#tip'), hit = classAt(ev);
+    tipMove = null;
+    if (hit && hit.el !== tipTarget) {                    // unless the word is itself a thing with a tooltip of its own
+      if (clsTip !== hit.k) { clsTip = hit.k; box.textContent = classTip(hit.k); box.hidden = false; }
+      placeTip(ev);
+    } else if (clsTip) {
+      clsTip = null;
+      if (tipTarget && tipTarget.isConnected) { box.textContent = tipTarget.dataset.tip; box.hidden = false; placeTip(ev); } else box.hidden = true;
+    } else if (tipTarget) placeTip(ev);
+  });
+});
 
 // ---------- the steward: a first-week tutorial ----------
 // A step with "until" completes itself when the player does the thing; the others wait for Next.
@@ -245,7 +287,7 @@ const HINTS = [
   { id: 'away', when: () => G.jobs.length > 0,
     text: () => 'Men are away from the house. The <b>Contracts</b> screen shows who, and when they are back. Word may come from the road asking what they should do; I will bring it to you.' },
   { id: 'quest', when: () => G.roster.find(g => g.quest && QUESTS[g.quest.id] && !g.away),
-    text: g => `You gave <b>${g.name}</b> your word. The place is ${QUESTS[g.quest.id].where}, out through the east gate, and it is marked on the map of the province. Take the whole school there; do not leave him waiting for weeks.` },
+    text: g => `You gave <b>${g.name}</b> your word. The place is ${questWhere(g)}, out through the east gate, and it is marked on the map of the province. Take the whole school there; do not leave him waiting for weeks.` },
   { id: 'gate', when: () => gateOpen() && !G.field,
     text: () => 'The <b>east gate</b> will open for you now, at the end of the upper street. Beyond it is the province: lairs, outlaws, old tombs, and stranger things. The whole school marches out together, a day passes for each day\'s march, and each place you go into costs a day. Mind the games: they are held without you if you are away.' },
   { id: 'asked', when: () => G.contracts.find(c => c.asked),
@@ -489,6 +531,7 @@ function paintModal() {
   $('#modalBox').classList.toggle('helpbox', modalQueue[0].startsWith('<div class="help">'));
   $('#modalBox').classList.toggle('perkwide', modalQueue[0].startsWith('<div class="perkbox">'));
   $('#modalBox').classList.toggle('savebox', modalQueue[0].startsWith('<div class="saves">'));
+  $('#modalBox').classList.toggle('menubox', modalQueue[0].startsWith('<div class="menu">'));
   paintHelpMarks();
   if (typeof paintResultFaces === 'function') paintResultFaces();
   m.hidden = false;
@@ -526,7 +569,7 @@ function renderTop() {
     <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
     <button data-act="skipdays"${tip('skip')} ${dg > 1 ? '' : 'disabled'}>To the games<span class="key">G</span></button>`;
   const sw = (act, label, on, key) => `<button class="${on ? '' : 'off'}" data-act="${act}"${tip(key)}>${label}</button>`;
-  $('#sidefoot').innerHTML = `<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>
+  $('#sidefoot').innerHTML = `<button class="wide" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out.')}>Menu <span class="key">Esc</span></button>${canFull() ? `<button class="wide" data-act="fullscreen"${tip('Fills the whole screen with the game, or gives the screen back. Esc also leaves it.')}>${isFull() ? 'Leave full screen' : 'Full screen'}</button>` : ''}<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>
     ${sw('yardtoggle', 'Yard', !ui.noyard, 'yardbtn')}${sw('mute', 'Sound', !SFX.muted, 'sound')}${sw('musictoggle', 'Music', SFX.musicOn, 'music')}`;
 }
 
@@ -876,7 +919,7 @@ function viewContracts() {
       <div class="bestodds"${tip(`Day ${Math.min(len, G.day - J.start)} of ${len}.`)}>${bar('prog', G.day - J.start, len)}</div>
       <span class="end">${jobMen(J).map(g => `<span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span>`).join('')}</span>`); }).join('')
     || '<div class="listnote">Every man is in the yard.</div>';
-  const waiting = G.roster.filter(g => g.quest && QUESTS[g.quest.id]).map(g => prow(`<div class="grow"><span class="t">${QUESTS[g.quest.id].name}</span><small>${QUESTS[g.quest.id].where} &middot; take the school there</small></div>
+  const waiting = G.roster.filter(g => g.quest && QUESTS[g.quest.id]).map(g => prow(`<div class="grow"><span class="t">${QUESTS[g.quest.id].name}</span><small>${questWhere(g)} &middot; take the school there</small></div>
       <span class="end"><span class="chip pick" data-act="dossier" data-v="${g.id}">${g.name}</span></span>`)).join('');
   return `<div class="fill even">
     <div><h2>Work on offer <small>until the next games</small></h2>
@@ -902,7 +945,7 @@ function questBlock(g) {
   if (!g.quest || !QUESTS[g.quest.id]) return '';
   const Q = QUESTS[g.quest.id], waited = G.day - g.quest.since;
   return `<hr class="sep"><div${tip('quest')}><b class="gold">${Q.name}</b></div>
-    <div style="font-size:13px">You gave him your word. The place is ${Q.where}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>`;
+    <div style="font-size:13px">You gave him your word. The place is ${questWhere(g)}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${g.quest.heard ? ' He has told you what it is, by the fire: you know what it will take.' : ''}${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>`;
 }
 
 // What came of the outings that ended this morning.
@@ -2955,6 +2998,103 @@ document.addEventListener('keydown', e => {
   ui.dev = !ui.dev; ui.devMsg = '';
   renderDev();
 });
+
+// ---------- the menu: Esc, from anywhere ----------
+// Settings, saving, the figures of the house, help, the whole screen (in a browser) and the way out.
+
+const DESKTOP = location.hostname === 'ludus.game';          // inside the exe, which answers for that name
+const canFull = () => !DESKTOP && !!(document.documentElement.requestFullscreen && document.fullscreenEnabled);
+const isFull = () => !!document.fullscreenElement;
+const menuOpen = () => modalQueue.length > 0 && modalQueue[0].startsWith('<div class="menu">');
+function menuStats() {
+  const rows = [], add = (a, b) => rows.push([a, b]), num = n => (+n || 0).toLocaleString('en');
+  const w = G.tally.wins, l = G.tally.losses, men = G.roster, best = men.slice().sort((a, b) => b.wins - a.wins)[0];
+  add('Day', num(G.day) + (G.dynasty.gen > 1 ? `, ${ordinal(G.dynasty.gen)} generation` : ''));
+  add('Standing', `${TIERS[tier()].name}, ${num(G.fame)} fame`);
+  add('Purse', `${num(G.denarii)} denarii`);
+  add('Bouts won and lost', `${num(w)} and ${num(l)}${w + l ? ` (${Math.round(100 * w / (w + l))}% won)` : ''}`);
+  add('Fighters in the school', `${men.length} of ${capacity()}`);
+  add('Kills by the men you have now', num(men.reduce((n, g) => n + (g.kills || 0), 0)));
+  if (best && best.wins) add('Most victories', `${best.name}, ${best.wins}`);
+  add('Men lost on the sand', num((G.fallen || []).length));
+  add('Quests done for the town', num(G.questsDone || 0));
+  add('Journeys seen through', num(men.filter(g => QUESTS[g.questDone]).length));
+  try { const M = wildMap(); add('Places dealt with in the province', num(M.cleared || 0)); add('Regions made safe', num(Object.keys(M.safe || {}).length)); add('Unique pieces found', num((M.relics || []).length)); } catch (e) { /* no map yet */ }
+  try { add('Legacy', num(legacyScore())); } catch (e) { /* not reckoned yet */ }
+  return `<table class="mstats">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
+}
+function menuModal() {
+  const page = ui.menuPage || 'main', inFight = !!(fight && !fight.finished);
+  const item = (act, label, note, o) => `<button class="mitem${o && o.cls ? ' ' + o.cls : ''}" data-act="${act}"${o && o.v ? ` data-v="${o.v}"` : ''}${o && o.off ? ' disabled' : ''}><b>${label}</b>${note ? `<small>${note}</small>` : ''}</button>`;
+  const back = item('menupage', 'Back', '', { v: 'main' });
+  if (page === 'settings') {
+    const sw = (act, label, on, yes, no) => item('menuset', label, on ? yes || 'on' : no || 'off', { v: act, cls: on ? 'on' : 'off' });
+    return `<div class="menu"><h2>Settings</h2><div class="mlist">
+      ${sw('mute', 'Sound', !SFX.muted)}
+      ${sw('musictoggle', 'Music', SFX.musicOn)}
+      ${canFull() ? sw('fullscreen', 'Full screen', isFull()) : ''}
+      ${sw('yardtoggle', 'The picture of the yard', !ui.noyard, 'shown', 'hidden')}
+      ${sw('abauto', 'Abilities in a fight', !ui.autoCast, 'ask me each time', 'they choose for themselves')}
+      ${sw('cutins', 'Cut-ins when an ability is used', !ui.noCut)}
+      ${sw('fcam', 'The view of a fight', !ui.fixedCam, 'follows the fighting', 'the whole arena, fixed')}
+      ${back}</div><p class="dim mnote">These are kept on this ${DESKTOP ? 'computer' : 'browser'}, for every campaign.</p></div>`;
+  }
+  if (page === 'stats') return `<div class="menu"><h2>The house in figures</h2>${menuStats()}<div class="mlist">${back}</div></div>`;
+  const info = slotInfo(slot);
+  return `<div class="menu"><h2>Ludus Magnus</h2><div class="mlist">
+    ${item('close', 'Back to the game', 'Esc')}
+    ${item('menusave', 'Save now', inFight ? 'not while a fight is on' : ui.menuMsg || `slot ${slot}${info && info.label ? ', ' + esc(info.label) : ''}: kept at every step`, { off: inFight })}
+    ${item('menusaves', 'Saves', inFight ? 'not while a fight is on' : 'load, copy, or begin another campaign', { off: inFight })}
+    ${item('menupage', 'Settings', 'sound, music, how fights are shown', { v: 'settings' })}
+    ${item('menupage', 'The house in figures', `day ${G.day}, ${G.tally.wins} won`, { v: 'stats' })}
+    ${item('menuhelp', 'Help and keys', 'H')}
+    ${canFull() ? item('fullscreen', isFull() ? 'Leave full screen' : 'Full screen', '') : ''}
+    ${item('menuexit', ui.exitArm ? 'Press again to leave' : DESKTOP ? 'Exit the game' : 'Save and leave', ui.exitArm ? (inFight ? 'this fight will be lost as it stands' : 'your campaign is saved first') : '', { cls: ui.exitArm ? 'warn' : '' })}
+    </div></div>`;
+}
+function repaintMenu() { if (menuOpen()) { modalQueue[0] = menuModal(); paintModal(); } }
+Object.assign(ACTIONS, {
+  menu() {
+    if (modalQueue.length) return;
+    ui.menuPage = 'main'; ui.menuMsg = ''; ui.exitArm = false;
+    if (fight && !fight.finished && !fight.B.over && !fight.paused) { fight.paused = true; paintSpeed(); }      // the sand waits
+    SFX.ui('scroll'); showModal(menuModal());
+  },
+  menupage(v) { ui.menuPage = v; ui.exitArm = false; repaintMenu(); },
+  menuset(v) { if (ACTIONS[v]) ACTIONS[v](); repaintMenu(); },
+  menusave() { if (fight && !fight.finished) return; save(); ui.menuMsg = `saved to slot ${slot}, just now`; ui.exitArm = false; SFX.ui('coin'); repaintMenu(); },
+  menusaves() { closeModal(); ACTIONS.saves(); },
+  menuhelp() { closeModal(); ACTIONS.help(); },
+  menuexit() {
+    if (!ui.exitArm) { ui.exitArm = true; repaintMenu(); return; }
+    ui.exitArm = false;
+    if (!(fight && !fight.finished)) save();
+    if (DESKTOP) { window.close(); return; }
+    if (isFull()) document.exitFullscreen().catch(() => { /* already out */ });
+    modalQueue[0] = `<div class="menu"><h2>Saved</h2><p>Your campaign is kept in this browser, in slot ${slot}. You can close this tab now; it will be here when you come back.</p>${okBtn('Back to the game')}</div>`;
+    paintModal();
+    try { window.close(); } catch (e) { /* a tab the player opened is his own to close */ }
+  },
+  fullscreen() {
+    if (!canFull()) return;
+    const p = isFull() ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    if (p && p.catch) p.catch(() => { /* refused by the browser: nothing to do */ });
+  },
+});
+document.addEventListener('fullscreenchange', () => { if (G) renderTop(); repaintMenu(); });
+// Esc opens it when nothing else is open. (When something is, Esc shuts that: see the keys below.)
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G) return;
+  if (menuOpen()) {                           // in the menu, Esc goes back a page, and from the first page back to the game
+    e.preventDefault(); e.stopPropagation();
+    if (ui.menuPage && ui.menuPage !== 'main' && $('#modalBox .mlist')) ACTIONS.menupage('main'); else ACTIONS.close();
+    return;
+  }
+  if (!$('#modal').hidden || modalQueue.length) return;
+  if (G.field && $('#arena').hidden && typeof prov !== 'undefined' && prov.big) return;      // the whole map is up: Esc folds it
+  e.preventDefault(); e.stopPropagation();
+  ACTIONS.menu();
+}, true);
 
 // ---------- noticing a newer published version ----------
 // The page carries a build mark (see tools/stamp.js). Every so often the game fetches the page

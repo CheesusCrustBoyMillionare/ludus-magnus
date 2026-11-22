@@ -233,7 +233,7 @@ const siteDone = s => !!wildMap().done[s.id];
 function siteLive(s) {
   if (siteDone(s)) return false;
   const M = wildMap();
-  if (QUEST_SITE[s.kind]) return !!questAt(s);
+  if (QUEST_SITE[s.kind] || s.journey) return !!questAt(s);
   if (s.kind === 'deserter') return M.story === 1;
   if (s.kind === 'battlefield') return M.story === 2;
   if (s.kind === 'chief') return M.story === 3;
@@ -435,8 +435,15 @@ const WILD_WINS = {
   pack(F) { const c = coinFor(8, F.tier), lines = [F.beasts ? `Pelts worth <b class="gold num">${c}</b> denarii.` : `Their purses hold <b class="gold num">${c}</b> denarii.`]; G.denarii += c; G.fame += F.tier; return lines; },
   slavers(F) {
     const g = byId(F.g); siteFinish('slavers');
-    if (g && g.quest) raiseEvent('questVillage', { g: g.id, cost: 80 + tier() * 70 });
+    if (g && g.quest) raiseEvent('questVillage', { g: g.id, cost: journeyCost(g) });
     return ['The camp is ash.'];
+  },
+  // a journey that ended in a fight at a landmark: now the choice
+  journey(F) {
+    const g = byId(F.g), Q = questDef(g);
+    if (!Q) return ['It is done, though the man it was done for is not here to see it.'];
+    raiseEvent(Q.finale, { g: g.id, cost: F.cost || journeyCost(g) });
+    return [Q.won ? Q.won(g) : 'It is done.'];
   },
   battlefield() {
     const M = wildMap(); M.story = 3; siteFinish('battlefield'); wildMark('chief', 'eagle');
@@ -524,7 +531,9 @@ function applyWildResult(B) {
 const QUEST_SITE = { quarry: 'brother', slavers: 'village', vow: 'shrine', master: 'master' };
 const questPlace = q => Object.keys(QUEST_SITE).find(k => QUEST_SITE[k] === q);
 // The fighter whose journey ends at this place, if he is with the school.
-const questAt = s => G.roster.find(g => g.quest && g.quest.id === QUEST_SITE[s.kind] && !g.away) || null;
+const questAt = s => G.roster.find(g => g.quest && !g.away && (s.journey ? g.id === s.journey : g.quest.id === QUEST_SITE[s.kind])) || null;
+const journeyFight = c => { const g = byId(c.g), Q = questDef(g); return site(c).kind === 'slavers' || !!(Q && Q.marks && Q.foes); };
+const journeyCost = g => round5((80 + tier() * 70) * (g.quest && g.quest.heard ? 0.75 : 1));      // a lanista who has listened knows what he is walking into
 
 // ---------- what you find when you walk up to a place ----------
 const site = c => siteById(c.sid) || { name: 'this place', tier: 1, kind: '' };
@@ -716,11 +725,13 @@ const WILD_EVENTS = {
   },
   // ---- your fighters' own journeys ----
   wJourney: {
-    title: 'What he came for', can: () => !!G.field && wildSites().some(s => QUEST_SITE[s.kind] && questAt(s)),
-    make: () => { const s = wildSites().find(x => QUEST_SITE[x.kind] && questAt(x)); return { sid: s.id, g: questAt(s).id }; },
+    title: 'What he came for', can: () => !!G.field && wildSites().some(s => (QUEST_SITE[s.kind] || s.journey) && questAt(s)),
+    make: () => { const s = wildSites().find(x => (QUEST_SITE[x.kind] || x.journey) && questAt(x)); return { sid: s.id, g: questAt(s).id }; },
     text: c => {
       const g = byId(c.g), k = site(c).kind;
       if (!g) return 'There is nothing here for you now.';
+      const Q = questDef(g);
+      if (Q && Q.marks) return Q.at(g) + (Q.foes ? ` <span class="bad">${skulls(site(c).tier)}</span> Your fit men come to strength <b class="num">${yours()}</b>.` : '') + ' It will take the day.';
       return {
         quarry: `The quarries: a white wound in the hill, gangs of grey men, overseers with whips. <b>${g.name}</b> has not taken his eyes off the gate since it came in sight. His brother is in there. It will take the day to find out the price.`,
         slavers: `The camp is where the trail said: a dozen tents, a horse line, and the captain who burned <b>${g.name}</b>'s village grown fat by his fire. There are about five of them under arms <span class="bad">${skulls(3)}</span>. ${g.name} is already loosening his sword. Your fit men come to strength <b class="num">${yours()}</b>. It will take the day.`,
@@ -729,9 +740,15 @@ const WILD_EVENTS = {
       }[k];
     },
     opts: [
-      { label: () => 'Go with him', ok: c => site(c).kind !== 'slavers' || canFightNow(), run: c => {
-        const g = byId(c.g), s = site(c), cost = 80 + tier() * 70;
+      { label: () => 'Go with him', ok: c => !journeyFight(c) || canFightNow(), run: c => {
+        const g = byId(c.g), s = site(c);
         if (!g || !g.quest) return 'He is not here to see it.';
+        const cost = journeyCost(g), Q = questDef(g);
+        if (Q && Q.marks) {
+          if (Q.foes) return wildFight(Q.name, Q.foes(g, clamp(s.tier || g.quest.tier || 1, 1, 5)), Q.bg || 'forest', 'journey', { day: true, g: g.id, cost, tier: s.tier });
+          aDay(); raiseEvent(Q.finale, { g: g.id, cost });
+          return Q.after(g);
+        }
         if (s.kind === 'slavers') return wildFight('The slavers\' camp', wildMen(3, 5), 'camp', 'slavers', { sid: s.id, day: true, g: g.id });
         siteFinish(s.id); aDay();
         raiseEvent(QUESTS[g.quest.id].finale, { g: g.id, cost });
@@ -779,11 +796,22 @@ const WILD_EVENTS = {
     ],
   },
 };
+// ---- the night before: he says what it is, if he is asked ----
+const firesideMan = () => G.roster.find(g => questDef(g) && !g.away && !g.quest.talked) || null;
+WILD_EVENTS.wFireside = {
+  title: 'By the fire', can: () => !!G.field && !!firesideMan(), make: () => ({ g: firesideMan().id }),
+  text: c => `The column has made camp. <b>${gn(c.g)}</b> has not eaten, and sits a little way off from the others with his back to the fire, looking the way the road goes tomorrow.`,
+  opts: [
+    { label: () => 'Sit down by him, and ask', run: c => { const g = byId(c.g), Q = questDef(g); if (!Q) return 'He is asleep, or seems to be.'; g.quest.talked = true; g.quest.heard = true; evMor(g, 8); return `It is a long time before he answers. ${Q.fire ? Q.fire(g) : '"It is nothing. It is a thing I have to do."'} You know now what you are walking into, and what it will take to end it.`; } },
+    { label: () => 'Send him his supper and a cup of wine', run: c => { const g = byId(c.g); if (!g || !g.quest) return 'He is asleep, or seems to be.'; g.quest.talked = true; evMor(g, 4); return `${g.name} eats it. Later he is heard laughing at something by the fire with the others.`; } },
+    { label: () => 'Leave him to it', run: c => { const g = byId(c.g); if (g && g.quest) g.quest.talked = true; return 'A man is entitled to his own thoughts on a night like this.'; } },
+  ],
+};
 for (const id in WILD_EVENTS) Object.assign(WILD_EVENTS[id], { auto: true, wild: true });
 Object.assign(EVENTS, WILD_EVENTS);
 
 const SITE_EVENT = { bounty: 'wBounty', lair: 'wLair', camp: 'wCamp', ruin: 'wRuin', shrine: 'wShrine', hermit: 'wHermit', hamlet: 'wHamlet', healer: 'wHealer', merchant: 'wMerchant', cache: 'wCache', herb: 'wHerb',
-  deserter: 'wDeserter', battlefield: 'wBattlefield', chief: 'wChief', barrow: 'wBarrow', quarry: 'wJourney', slavers: 'wJourney', vow: 'wJourney', master: 'wJourney' };
+  deserter: 'wDeserter', battlefield: 'wBattlefield', chief: 'wChief', barrow: 'wBarrow', quarry: 'wJourney', slavers: 'wJourney', vow: 'wJourney', master: 'wJourney', errand_journey: 'wJourney' };
 // Raises whatever is found at a place. Called by the map when the school walks up to it.
 function wildVisit(s) {
   if (!siteLive(s) || G.pendingEvent) return false;
@@ -1116,7 +1144,7 @@ const errandOf = sid => errandById(+String(sid).slice(1));
 const errandSites = () => errands().map(q => {
   const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1;
   return { id: 'e' + q.id, kind: 'errand_' + (T.type === 'rescue' ? (second ? 'fight' : 'clue') : T.type), x: second ? q.x2 : q.x, y: second ? q.y2 : q.y, tier: q.tier, name: T.title(second ? q.mark2 : q.mark), fixed: true, errand: q.id };
-});
+}).concat(journeySites());      // and the landmarks where your own men's journeys end
 // A new matter for the fountain, of about the right weight for the school as it stands. Null if nothing suits today.
 function errandNew(only, giver) {
   const want = clamp(tier() + 1 + (chance(0.35) ? 1 : 0), 1, 5), taken = asksNow().concat(errands()).map(q => q.tpl), M = wildMap();
@@ -1392,7 +1420,7 @@ for (const id in ROAD_EVENTS) Object.assign(ROAD_EVENTS[id], { auto: true, wild:
 Object.assign(EVENTS, ROAD_EVENTS);
 // What stops the column on the road: one of eleven things, and never the same one twice running.
 function roadEventId() {
-  const all = ['wAmbush', 'wAmbush', 'wTraveller', 'wFind'].concat(Object.keys(ROAD_EVENTS)).filter(id => EVENTS[id] && EVENTS[id].can());
+  const all = ['wAmbush', 'wAmbush', 'wTraveller', 'wFind', 'wFireside', 'wFireside'].concat(Object.keys(ROAD_EVENTS)).filter(id => EVENTS[id] && EVENTS[id].can());
   const seen = G.field.roadSeen || (G.field.roadSeen = []), fresh = all.filter(id => !seen.includes(id));
   const id = pick(fresh.length ? fresh : all);
   seen.push(id); if (seen.length > 5) seen.shift();

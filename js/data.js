@@ -101,6 +101,8 @@ const TRAITS = {
   // earned by finishing a journey of his own
   atpeace:     { name: 'At peace',     good: true, special: true, desc: 'The thing that ate at him is settled. Morale never falls below 60, and he will never desert.' },
   bloodoath:   { name: 'Blood-debt paid', good: true, special: true, desc: 'He has killed the men he lived to kill. +8% damage.' },
+  twoshares:   { name: 'Fights for two', good: true, special: true, desc: 'Wears a dead man\'s chain on his sword wrist. +4% damage and +3% accuracy.' },
+  provider:    { name: 'Somebody waiting', good: true, special: true, desc: 'A child eats by what he wins. +3% to dodge, and telling blows come 3% more often.' },
   oldschool:   { name: 'Old school',   good: true, special: true, desc: 'Taught by a master of the old style. +5% accuracy.' },
   // earned out in the province
   gravewise:   { name: 'Grave-wise',   good: true, special: true, desc: 'Knows where the dead kept their silver. While he is with the school, ruins and tombs give up half as much again.' },
