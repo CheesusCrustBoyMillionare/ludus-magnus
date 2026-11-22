@@ -36,7 +36,7 @@ const CONTRACTS = {
     fail: n => `The boy went crying to his mother on the second day, and ${n} was shown the gate.`,
   },
   procession: {
-    name: 'The goddess\'s procession', patron: 'temple', tier: 0, days: [1, 2], size: 1, danger: 0, pay: 0.6, fame: 4,
+    name: 'The goddess\'s procession', patron: 'temple', tier: 0, days: [1, 2], size: 1, danger: 0, pay: 0.6, fame: 2,
     w: { str: 0.3, agi: 0, end: 0.4, skl: 0.3 }, cls: ['murmillo', 'hoplomachus'], likes: ['showy', 'laureate', 'blessed', 'steady'], hates: ['nervous'],
     trait: 'blessed', events: ['crowd', 'insult', 'windfall'],
     text: () => 'The priests of Nemesis carry her image through the streets and want an armed man walking before it, in full harness, from dawn until the lamps are lit.',
@@ -84,7 +84,7 @@ const CONTRACTS = {
     fail: n => `The offerings were stolen at an inn while ${n} slept. The priestess walked the last day alone.`,
   },
   statue: {
-    name: 'A sculptor\'s model', patron: 'magistrate', tier: 1, days: [3, 4], size: 1, danger: 0, pay: 0.9, fame: 6, glory: true,
+    name: 'A sculptor\'s model', patron: 'magistrate', tier: 1, days: [3, 4], size: 1, danger: 0, pay: 0.9, fame: 3, glory: true,
     w: { str: 0.5, agi: 0, end: 0.5, skl: 0 }, cls: [], likes: ['showy', 'laureate', 'ironhide'], hates: ['frail', 'nervous'],
     trait: null, events: ['insult', 'crowd', 'windfall'],
     text: () => 'The Magistrate is putting a bronze gladiator in the forum and his Greek sculptor wants a living one to work from: a man the town already knows, who can stand still for two days.',
@@ -92,7 +92,7 @@ const CONTRACTS = {
     fail: n => `The sculptor threw down his tools on the first afternoon. ${n}, he says, has the bearing of a mule-driver.`,
   },
   wedding: {
-    name: 'Swords at a wedding', patron: 'magistrate', tier: 0, days: [1, 2], size: 2, danger: 0.15, pay: 0.9, fame: 3, glory: true,
+    name: 'Swords at a wedding', patron: 'magistrate', tier: 0, days: [1, 2], size: 2, danger: 0.15, pay: 0.9, fame: 2, glory: true,
     w: { str: 0, agi: 0.4, end: 0, skl: 0.6 }, cls: ['thraex', 'dimachaerus'], likes: ['showy', 'laureate', 'disciplined'], hates: ['brute', 'bloodthirsty'],
     trait: null, events: ['crowd', 'insult', 'windfall'],
     text: () => 'A councillor is marrying off his daughter and wants a bout between the courses: two men, blunted steel, a great deal of noise, and nobody hurt badly enough to spoil the dinner.',
@@ -116,7 +116,7 @@ const CONTRACTS = {
     fail: n => `A votive of solid silver walked out of the treasury under ${n}'s nose, in a basket of loaves.`,
   },
   exhibition: {
-    name: 'An exhibition in the next town', patron: 'guild', tier: 1, days: [3, 4], size: 2, danger: 0.3, pay: 1.1, fame: 5, travel: true, glory: true,
+    name: 'An exhibition in the next town', patron: 'guild', tier: 1, days: [3, 4], size: 2, danger: 0.3, pay: 1.1, fame: 3, travel: true, glory: true,
     w: { str: 0.3, agi: 0.3, end: 0, skl: 0.4 }, cls: [], likes: ['showy', 'laureate', 'quick'], hates: ['nervous', 'lazy'],
     trait: null, events: ['crowd', 'rivals', 'dice', 'windfall'],
     text: c => `A town on the road to ${c.land} has no school of its own and a fair coming. The Guild is selling it a day of games, and wants two of yours to be most of them.`,
@@ -148,12 +148,44 @@ const CONTRACTS = {
     fail: n => `The pirates took the silver and left the oil. ${n} rowed home in the ship's boat.`,
   },
   drill: {
-    name: 'Auxiliaries to drill', patron: 'magistrate', tier: 2, days: [5, 7], size: 2, danger: 0, pay: 1.1, fame: 4,
+    name: 'Auxiliaries to drill', patron: 'magistrate', tier: 2, days: [5, 7], size: 2, danger: 0, pay: 1.1, fame: 2,
     w: { str: 0.3, agi: 0, end: 0, skl: 0.7 }, cls: ['murmillo', 'thraex'], likes: ['disciplined', 'drillmaster', 'steady', 'oldschool'], hates: ['lazy', 'embittered', 'brute'],
     trait: 'drillmaster', events: ['insult', 'crowd', 'windfall'],
     text: () => 'A cohort of raw auxiliaries is camped outside the walls, and their centurion has seen your men fight. He asks the Magistrate for two of them, for a week, to teach farm boys which end of a sword to hold.',
     win: n => `The cohort marched north in step, and its centurion says it is ${n}'s doing. The Magistrate was thanked by a legate, and remembers who earned it.`,
     fail: n => `${n} treated free soldiers like new slaves. On the third day the cohort refused to parade.`,
+  },
+  vintage: {
+    name: 'The vintage watch', patron: 'guild', tier: 0, days: [3, 4], size: 2, danger: 0.3, pay: 0.9,
+    w: { str: 0.4, agi: 0.2, end: 0.2, skl: 0.2 }, cls: ['murmillo', 'hoplomachus'], likes: ['watchful', 'steady', 'disciplined', 'tireless'], hates: ['lazy', 'nervous'],
+    trait: 'watchful', events: ['bribe', 'dice', 'wound'],
+    text: () => 'The grapes are in and the must is in the vats, and for four nights every thief in the district knows exactly where a year\'s money is standing. A Guild vintner wants two men who will stay awake and stay sober, which he admits is asking a good deal.',
+    win: n => `Somebody tried the back wall on the second night and went home over it faster than he came. ${n} did not touch a drop until it was over.`,
+    fail: n => `Six jars of the first pressing went out through a hole in the hedge while ${n} was asleep in the press-house. They had been sampling.`,
+  },
+  pyre: {
+    name: 'Blood for a great man\'s pyre', patron: 'temple', tier: 1, days: [1, 2], size: 2, danger: 0.55, pay: 1.3, fame: 3, glory: true, scar: 'cut',
+    w: { str: 0.3, agi: 0.2, end: 0, skl: 0.5 }, cls: ['thraex', 'murmillo', 'dimachaerus'], likes: ['showy', 'steady', 'blessed', 'duelist'], hates: ['nervous', 'embittered'],
+    trait: 'blessed', events: ['crowd', 'insult', 'omen'],
+    text: () => 'A man who was three times duumvir is to be burned at dusk, and his sons mean to do it in the old way: two pairs fighting beside the pyre, so that he does not go down with nothing. The priests want men who will give a death its due and not make a butcher\'s yard of it.',
+    win: n => `${n} fought by firelight in front of the whole town standing silent, and when it was done the eldest son put a coin in each man's hand himself.`,
+    fail: n => `It was clumsy, and long, and the widow turned her face away. ${n} came home by the back streets.`,
+  },
+  runaway: {
+    name: 'A steward gone with the plate', patron: 'magistrate', tier: 1, days: [3, 5], size: 1, danger: 0.4, pay: 1.2, travel: true,
+    w: { str: 0.2, agi: 0.4, end: 0.2, skl: 0.2 }, cls: ['retiarius', 'thraex'], likes: ['keen', 'travelled', 'tireless', 'watchful'], hates: ['lazy', 'brute'],
+    trait: 'travelled', events: ['ambush', 'bribe', 'homesick'],
+    text: c => `A magistrate's steward has gone off toward ${c.land} with the household silver and a kitchen girl. The household wants the silver, and wants it quietly; what becomes of the steward they leave to the man who finds him.`,
+    win: n => `${n} found them at an inn two days out, the silver under the bed. It came home in a sack, and nobody in the town is any the wiser.`,
+    fail: n => `${n} followed the wrong cart for two days. By now the silver is spoons in somebody else's house.`,
+  },
+  taxchest: {
+    name: 'The tax chest', patron: 'magistrate', tier: 2, days: [4, 6], size: 3, danger: 0.65, pay: 1.4, travel: true, scar: 'cut',
+    w: { str: 0.4, agi: 0.2, end: 0.2, skl: 0.2 }, cls: ['murmillo', 'hoplomachus'], likes: ['guarded', 'steady', 'disciplined', 'shieldmate', 'travelled'], hates: ['nervous', 'lazy', 'embittered'],
+    trait: 'watchful', events: ['ambush', 'bribe', 'wound', 'rivals'],
+    text: c => `A year's taxes for the district go to the coast by way of ${c.land}, in one chest, on one cart, and the soldiers who should carry it are away putting down a rising. The Magistrate will have three of your men walk beside it, and will hold their owner answerable for every coin.`,
+    win: n => `They were tried twice on the road and once at an inn. ${n} delivered the chest with the seals whole, and the quaestor's receipt is on your table.`,
+    fail: n => `The cart went into a ravine, the chest burst, and by the time ${n} had driven the hill-men off, a third of it was gone into the scrub.`,
   },
 };
 
@@ -167,6 +199,11 @@ for (const k in CONTRACTS) {
 
 // The going rate: about half of what the same men would win at the games over the same days.
 const JOB_RATE = 0.1;
+// What work away from the sand is worth besides the money. It is a living, not a road to glory: a man learns far less
+// on somebody's doorstep than at the post or in the arena, and the town talks of it far less than of a bout.
+const JOB_XP = 1;                 // to each man who comes home from work done well (a bout won gives 5); nothing for work that failed
+const JOB_PROG = 0.15;            // of a day's training in the skill the work leans on, for each day away
+const contractFame = D => (D.fame ? Math.round(D.fame * (1 + tier() * 0.5)) : 0);
 const DANGER_WORD = d => d <= 0 ? 'No danger' : d < 0.4 ? 'Some danger' : d < 0.65 ? 'Dangerous' : 'Deadly work';
 const jobNeed = (t, diff) => ENEMY_BUDGET[t] / 4 * diff;
 const jobById = id => (G.jobs || []).find(j => j.id === +id) || null;
@@ -361,7 +398,9 @@ function finishJob(J) {
   if (!all.length) return;
   const title = jobTitle(J), names = namesOf(all), lines = [];
   const p = jobOdds(D, J.need, all, J.edge, J.land);
-  const win = !J.abandon && chance(p);
+  const roll = Math.random(), win = !J.abandon && roll < p;
+  const well = win && roll < Math.min(p, 0.95) - 0.5;            // men well suited to it sometimes do better than was asked
+  const half = !win && !J.abandon && roll < p + 0.12;            // and a near thing is not a whole failure
   const top = STATS.slice().sort((a, b) => (D.w[b] || 0) - (D.w[a] || 0))[0];
   const days = Math.max(1, J.end - J.start);
   let back = [];
@@ -388,8 +427,8 @@ function finishJob(J) {
     g.fatigue = clamp(Math.max(g.fatigue * 0.5, 25 + 40 * D.danger), 0, 100);
     g.morale = clamp(g.morale + (J.abandon ? -4 : win ? 6 : -6), g.traits.includes('atpeace') ? 60 : 0, 100);
     if (!J.abandon) {
-      g.xp += win ? 2 : 1;
-      addProg(g, top, 0.4 * days * g.pot[top]);
+      if (win) g.xp += JOB_XP;
+      addProg(g, top, JOB_PROG * days * g.pot[top]);
     }
   }
 
@@ -399,9 +438,10 @@ function finishJob(J) {
   } else {
     lines.unshift((win ? D.win : D.fail)(names, J));
     if (win) {
-      G.denarii += J.pay; favor(J.patron, J.favor); workMove(J.asked ? 6 : 4);
+      if (well) { const more = Math.max(5, round5(J.pay * 0.15)); J.pay += more; J.favor += 1; lines.push(`<span class="gold">It was better done than was asked, and the employer says so with ${more} denarii over the price.</span>`); }
+      G.denarii += J.pay; favor(J.patron, J.favor); workMove((J.asked ? 6 : 4) + (well ? 1 : 0));
       let gain = `<b class="gold">+${J.pay} denarii.</b> ${PATRONS[J.patron].name}: favour +${J.favor}.`;
-      if (D.fame) { const f = D.fame * (1 + tier()); G.fame += f; back.forEach(g => { g.fame += Math.round(f / back.length); }); gain += ` Fame +${f}.`; }
+      if (D.fame) { const f = contractFame(D); G.fame += f; back.forEach(g => { g.fame += Math.round(f / back.length); }); gain += ` Fame +${f}.`; }
       for (const k in (D.anger || {})) { favor(k, D.anger[k]); gain += ` ${PATRONS[k].name}: favour ${D.anger[k]}.`; }
       lines.push(gain);
       if (D.feud) { const H = pick(G.houses); feud(H, D.feud); lines.push(`<span class="dim">${houseDef(H.id).name} had a man in the same pit, and will remember who beat him.</span>`); }
@@ -413,6 +453,12 @@ function finishJob(J) {
         }
       }
       log(`${names} ${back.length === 1 ? 'returns' : 'return'} from contract (${D.name}): ${J.pay} denarii.`, 'good');
+    } else if (half) {
+      const part = round5(J.pay * 0.5);
+      G.denarii += part; workMove(-2);
+      lines.push(`It was not all lost. ${PATRONS[J.patron].name} pays half, <b class="gold">${part} denarii</b>, and says no more about it: no favour gained, and none lost.`);
+      back.forEach(g => addStory(g, `Half did the work on contract: ${D.name}.`));
+      log(`${names} ${back.length === 1 ? 'returns' : 'return'} from contract (${D.name}) with half the pay: ${part} denarii.`);
     } else {
       const loss = (J.asked || J.bribed ? 6 : 4) + (J.terms === 'advance' ? 2 : 0);
       favor(J.patron, -loss); workMove(-6);
@@ -488,7 +534,7 @@ const FIELD_EVENTS = {
     opts: [
       { label: () => 'Tell them to cut their way through', run: c => onJob(c, (J, men, g) => {
         if (chance(clamp(jobOdds(jobDef(J), J.need, men, 0.1, J.land), 0.2, 0.9))) {
-          J.edge += 0.1; men.forEach(x => { x.xp++; x.morale = clamp(x.morale + 5, 0, 100); });
+          J.edge += 0.1; men.forEach(x => { x.morale = clamp(x.morale + 5, 0, 100); });
           return `The toll-takers were farmers with boar spears. ${namesOf(men)} left two of them in the water and went on.`;
         }
         J.edge -= 0.15; fieldWound(g, rint(2, 4));
@@ -566,7 +612,7 @@ const FIELD_EVENTS = {
         const H = houseOf(c.h);
         if (chance(clamp(0.35 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.3, 0.8))) {
           feud(H, 8); H.prestige = Math.max(0, H.prestige - 5); J.edge += 0.08;
-          men.forEach(x => { x.xp += 2; x.morale = clamp(x.morale + 8, 0, 100); });
+          men.forEach(x => { x.xp++; x.morale = clamp(x.morale + 8, 0, 100); });
           return `It was settled behind a stable. ${houseDef(c.h).name} will be short a man for a week, and they know who to thank.`;
         }
         feud(H, 5); J.edge -= 0.1; fieldWound(g, rint(2, 4));
@@ -611,7 +657,7 @@ const FIELD_EVENTS = {
     text: c => `A crowd has gathered where <b>${gn(c.g)}</b> is working and is shouting for him to show them something from the arena. His employer has not said he may.`,
     opts: [
       { label: () => 'Give them a show', run: c => onJob(c, (J, men, g) => {
-        const f = 4 + 3 * tier(); G.fame += f; g.fame += f; g.morale = clamp(g.morale + 6, 0, 100);
+        const f = 2 + tier(); G.fame += f; g.fame += f; g.morale = clamp(g.morale + 6, 0, 100);
         if (!g.traits.includes('showy') && chance(0.4)) { J.edge -= 0.2; return `${g.name} gives them the salute and six cuts at the air. The street roars; the employer is tight-lipped. Fame +${f}.`; }
         return `${g.name} gives them the salute and six cuts at the air, and bows to his employer after. Everyone is pleased. Fame +${f}.`;
       }) },
@@ -651,7 +697,7 @@ const FIELD_EVENTS = {
     text: c => `A lean man with a soldier's walk has fallen in beside <b>${jn(jobById(c.job))}</b> and asks to keep company as far as the next town. He is good talk, and he looks at the baggage a little too often.`,
     opts: [
       { label: () => 'He is welcome', run: c => onJob(c, (J, men) => {
-        if (chance(0.6)) { J.edge += 0.06; men.forEach(x => { x.xp++; evMor(x, 3); }); return 'He was twenty years with the legions, knows every mile of this road, and shows them a trick with a shield rim before he goes his way.'; }
+        if (chance(0.6)) { J.edge += 0.06; men.forEach(x => evMor(x, 3)); return 'He was twenty years with the legions, knows every mile of this road, and shows them a trick with a shield rim before he goes his way.'; }
         G.denarii -= c.stake; return `He is gone before dawn, and so is ${c.stake} denarii of the travelling money.`;
       }) },
       { label: () => 'He walks alone', run: c => onJob(c, () => 'He shrugs and drops back. Nobody will ever know which kind he was.') },
@@ -664,7 +710,7 @@ const FIELD_EVENTS = {
     text: c => `A man with rings on his thumbs has seen <b>${gn(c.g)}</b> and wants him to fight his cook's son tonight, in a courtyard, for ${c.pay} denarii to the winner. The cook's son is said to be very large.`,
     opts: [
       { label: () => 'Let him fight', run: c => onJob(c, (J, men, g) => {
-        if (chance(clamp(0.4 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.35, 0.85))) { G.denarii += c.pay; g.xp += 2; evMor(g, 8); return `The cook's son was very large and very slow. <b>${c.pay}</b> denarii come home, and ${g.name} has a story.`; }
+        if (chance(clamp(0.4 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.35, 0.85))) { G.denarii += c.pay; g.xp++; evMor(g, 8); return `The cook's son was very large and very slow. <b>${c.pay}</b> denarii come home, and ${g.name} has a story.`; }
         J.edge -= 0.1; fieldWound(g, rint(2, 3)); return `The cook's son had done this before. ${g.name} will do the rest of his work with one eye shut.`;
       }) },
       { label: () => 'He is there to work', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -3); return `${g.name} sends his regrets. His employer hears that he did, and approves.`; }) },
@@ -718,7 +764,7 @@ const FIELD_EVENTS = {
     make: J => fieldCtx(J),
     text: c => `The man who keeps the tavern nearest the work has a wooden sword over his door and knows <b>${gn(c.g)}</b> by sight: he fought in this province for eleven years. He has put a jug on the table and pulled out a stool.`,
     opts: [
-      { label: () => 'Sit down with him', run: c => onJob(c, (J, men, g) => { g.xp += 2; evMor(g, 6); men.forEach(x => { x.fatigue = clamp(x.fatigue + 8, 0, 100); }); return `It goes on until the lamp is out. ${g.name} comes away with a sore head and two things about footwork he had never been told.`; }) },
+      { label: () => 'Sit down with him', run: c => onJob(c, (J, men, g) => { g.xp++; evMor(g, 6); men.forEach(x => { x.fatigue = clamp(x.fatigue + 8, 0, 100); }); return `It goes on until the lamp is out. ${g.name} comes away with a sore head and two things about footwork he had never been told.`; }) },
       { label: () => 'Another time', run: c => onJob(c, J => { J.edge += 0.05; return 'The old man nods: he remembers what it was to be on somebody else\'s time.'; }) },
     ],
   },
@@ -753,7 +799,7 @@ const FIELD_EVENTS = {
     opts: [
       { label: () => 'He walks on', run: c => onJob(c, (J, men, g) => { evMor(g, -4); return `${g.name} walks on. It is harder than fighting, and he says so afterwards.`; }) },
       { label: () => 'He may teach them better', run: c => onJob(c, (J, men, g) => {
-        const f = 2 + 2 * tier();
+        const f = 1 + tier();
         if (chance(0.7)) { G.fame += f; g.fame += f; evMor(g, 8); return `It takes about as long as it takes to say. Nobody is badly hurt, and the town talks of nothing else. Fame +${f}.`; }
         favor('magistrate', -3); J.edge -= 0.1; return 'One of them is the son of a town councillor, and has a broken jaw. The Magistrate hears of it: favour -3.';
       }) },

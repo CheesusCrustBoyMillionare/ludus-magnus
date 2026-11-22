@@ -957,7 +957,7 @@ test('contracts: the board, who suits the work, going away and coming home', () 
   G.jobs[0].edge = 9; G.jobs[0].eventDay = 0;                 // cannot fail
   endDay(); G.pendingEvent = null; G.eventQueue = []; endDay();
   assert(!g.away && !G.jobs.length && G.reports.length === 1 && /denarii/.test(G.reports[0].html), 'he comes home on the day, with a report');
-  assert(G.patrons.magistrate >= fav + fv - 1 && G.denarii > coin - 100 + pay - 1 && g.xp >= 2, 'paid in silver, favour and experience');
+  assert(G.patrons.magistrate >= fav + fv - 1 && G.denarii > coin - 100 + pay - 1 && g.xp === 1, 'paid in silver, favour and a little experience');
   // failure, wounds, death and desertion
   let hurt = 0, dead = 0, ran = 0;
   for (let i = 0; i < 300; i++) {
@@ -980,6 +980,30 @@ test('contracts: the board, who suits the work, going away and coming home', () 
   genContracts();
   assert(G.patrons[who] === f1 - 3, 'ignoring a patron who asked by name costs favour');
   return [hurt, dead, ran].join('/') + ' hurt/dead/fled of 300 failed hunts';
+}));
+
+test('contracts: a living, not a road to glory; and work can be done well, or half done', () => game()(function () {
+  assert(Object.keys(CONTRACTS).length === 22 && ['vintage', 'pyre', 'runaway', 'taxchest'].every(k => CONTRACTS[k] && CONTRACTS[k].events.every(e => FIELD_EVENTS[e])), 'twenty-two kinds of work');
+  assert(JOB_XP === 1 && JOB_PROG <= 0.15, 'work away teaches little');
+  // the fame of it: a third or less of what a show used to be worth, at every standing
+  for (const k in CONTRACTS) { const D = CONTRACTS[k]; if (!D.fame) { assert(contractFame(D) === 0, k + ' is not talked of'); continue; }
+    newGame(); const low = contractFame(D); G.fame = 5000; const high = contractFame(D);
+    assert(D.fame <= 3 && low === D.fame && high <= D.fame * 3 && high >= low, k + ' is worth ' + low + ' to ' + high + ' fame'); }
+  const go = edge => { newGame(); G.fame = 0; const c = makeContract('procession', 0); c.days = 2; G.contracts.push(c); const g = G.roster[0];
+    assert(sendContract(c.id, [g.id]), 'sent'); const J = G.jobs[0]; J.eventDay = 0; if (edge != null) J.edge = edge; const pay = J.pay, prog = JSON.stringify(g.prog), money = G.denarii, fav = G.patrons[J.patron];
+    finishJob(J); return { g, J, pay, money, fav, moved: JSON.stringify(g.prog) !== prog || true }; };
+  // done: one point of experience, two or so of fame, and the pay
+  { let wellSeen = 0, plain = 0; for (let i = 0; i < 60; i++) { const r = go(9); assert(r.g.xp === 1 && G.fame === contractFame(CONTRACTS.procession) && G.fame <= 3, 'a procession: 1 experience, ' + G.fame + ' fame');
+      if (G.denarii === r.money + r.pay) plain++; else { assert(G.denarii === r.money + r.pay + Math.max(5, round5(r.pay * 0.15)) && G.patrons[r.J.patron] >= r.fav, 'better than asked: fifteen parts in a hundred over'); wellSeen++; } }
+    assert(wellSeen > 5 && plain > 5, 'well-suited men sometimes do better than was asked: ' + wellSeen + ' of 60'); }
+  // failed outright: nothing learned, nothing paid
+  { const r = go(-9); assert(r.g.xp === 0 && G.denarii === r.money && G.fame === 0 && G.patrons[r.J.patron] < r.fav, 'a failure teaches nothing and pays nothing'); }
+  // a near thing: half the pay, and the patron says no more about it
+  { let halves = 0; for (let i = 0; i < 400; i++) { newGame(); const c = makeContract('procession', 0); c.days = 2; G.contracts.push(c); const g = G.roster[0]; sendContract(c.id, [g.id]); const J = G.jobs[0]; J.eventDay = 0;
+      J.edge = -jobOdds(CONTRACTS.procession, J.need, [g], 0, J.land) + 0.0;      // the odds brought to nothing: it cannot succeed, but one time in eight it is a near thing
+      const money = G.denarii, fav = G.patrons[J.patron], pay = J.pay; finishJob(J);
+      if (G.denarii === money + round5(pay * 0.5)) { halves++; assert(G.patrons[J.patron] === fav && g.xp === 0, 'half done: half paid, no favour either way'); } else assert(G.denarii === money, 'or not paid at all'); }
+    assert(halves > 20 && halves < 90, 'about one failure in eight is a near thing: ' + halves + ' of 400'); }
 }));
 
 test('contracts: word from the road is uncommon, never two days running, and not the same thing over again', () => game()(function () {

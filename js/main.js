@@ -877,7 +877,7 @@ function contractCard(c) {
       <div><span>Calls for</span><b class="calls">${stat}</b><small>${suits}</small></div>
     </div>
     <div class="outcomes">
-      <div><b class="good">If it goes well</b> ${c.pay} denarii, ${PATRONS[c.patron].name.replace(/^The /, 'the ')} favour +${c.favor}${D.fame ? `, fame +${D.fame * (1 + tier())}` : ''}.${D.trait ? ` A man may come home ${TRAITS[D.trait].name.toLowerCase()}: ${TRAITS[D.trait].desc.replace(/\.$/, '').replace(/^./, ch => ch.toLowerCase())}.` : ''}${D.feud ? ' It will make an enemy among the rival houses.' : ''}</div>
+      <div><b class="good">If it goes well</b> ${c.pay} denarii, ${PATRONS[c.patron].name.replace(/^The /, 'the ')} favour +${c.favor}${D.fame ? `, fame +${contractFame(D)}` : ''}.${D.trait ? ` A man may come home ${TRAITS[D.trait].name.toLowerCase()}: ${TRAITS[D.trait].desc.replace(/\.$/, '').replace(/^./, ch => ch.toLowerCase())}.` : ''}${D.feud ? ' It will make an enemy among the rival houses.' : ''}</div>
       <div><b class="bad">If it goes badly</b> No pay, and favour -${lose}.${D.danger >= 0.5 ? ' On work this dangerous a man may not come home.' : ''}</div>
       <div class="dim">Either way they learn on the road as if they had trained, and come home tired.</div>
     </div>
@@ -935,7 +935,7 @@ function viewContracts() {
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
         ${questsHtml()}
-        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about half what the same men would win at the games. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
+        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about half what the same men would win at the games, teach a man far less than a bout does, and are little talked of. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
     <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}</div></div>
   </div>`;
 }
