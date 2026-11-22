@@ -224,6 +224,13 @@ function villageLayer() {
   const road = (x, y, w, h) => { R(x - 1, y - 1, w + 2, h + 2, '#a98a58'); R(x, y, w, h, '#cdae78'); for (let i = 0; i < w * h / 26; i++) R(x + rnd(i + x, w - 2), y + rnd(i + y + 7, h - 1), 2, 1, i % 2 ? '#bf9f6a' : '#d9bd8a'); };
   road(4, 64, 582, 18); road(4, 152, 582, 16);
   for (const x of [14, 146, 464, 566]) road(x, 82, 12, 70);
+  for (const lx of [14, 146, 464, 566]) for (let y = 84; y < 150; y += 2) { if (rnd(lx + y, 1) > 0.55) R(lx - 1 + (rnd(y + 3, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx + y + 50, 1) > 0.55) R(lx + 11 - (rnd(y + 9, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx * 3 + y, 1) > 0.9) R(lx + 3 + rnd(y, 5), y, 2, 1, '#b8985f'); }
+  for (let i = 0; i < 26; i++) {                 // bushes and clumps of wild flowers on the open ground, kept off the streets
+    const bx = 8 + rnd(i * 17 + 5, 572), by = [14, 40, 58, 92, 110, 128, 146, 174][i % 8] + rnd(i * 3 + 1, 8);
+    if ((by > 60 && by < 86) || (by > 148 && by < 172) || PLACES.some(p => bx > p.x - 6 && bx < p.x + p.w + 6 && by > p.y - 6 && by < p.y + p.h + 8) || (bx > 250 && bx < 350 && by > 78 && by < 156)) continue;
+    if (i % 3 === 0) { ell(bx + 1, by + 1, 4, 2, 'rgba(0,0,0,.18)'); ell(bx, by - 1, 4, 3, '#4a7a36'); ell(bx - 1, by - 2, 2, 2, '#63903f'); if (i % 2) R(bx + 1, by - 1, 1, 1, '#e06a8a'); }
+    else for (let q = 0; q < 5; q++) R(bx + rnd(i + q * 7, 7), by + rnd(i * 5 + q, 4), 1, 1, [['#f2e6a0', '#f4f4f0'], ['#e8a0a0', '#b9a0e0'], ['#f4f4f0', '#e06a8a']][i % 3][q % 2]);
+  }
   // the streets are kerbed with stone and rutted by carts
   for (const [ry, rh] of [[64, 18], [152, 16]]) {
     for (let x = 6; x < 584; x += 4) { R(x, ry - 1, 3, 1, x % 8 ? '#bdb39c' : '#a39a84'); R(x + 1, ry + rh, 3, 1, x % 8 ? '#a39a84' : '#bdb39c'); }
@@ -248,10 +255,20 @@ function villageLayer() {
   R(214, 172, 14, 5, '#8a6a3a'); R(214, 171, 14, 1, '#a8834a'); R(216, 176, 3, 3, '#3a2a1c'); R(223, 176, 3, 3, '#3a2a1c'); R(216, 168, 10, 3, '#d9c27a');
 
   // ----- buildings -----
-  const tiles = (x, y, w, h, base) => { R(x, y, w, h, base); for (let yy = y + 2; yy < y + h; yy += 3) R(x, yy, w, 1, shade(base, 0.84)); for (let xx = x + 3; xx < x + w; xx += 6) R(xx, y, 1, h, shade(base, 0.92)); R(x, y, w, 1, shade(base, 1.18)); R(x, y + h - 1, w, 1, shade(base, 0.62)); };
-  const wall = (x, y, w, h, c) => { R(x, y, w, h, c); R(x, y, w, 1, shade(c, 0.78)); R(x, y + h - 2, w, 2, shade(c, 0.84)); R(x, y, 1, h, shade(c, 0.88)); R(x + w - 1, y, 1, h, shade(c, 0.88)); };
+  // a roof seen from above: the far slope catching the light, the near one in shade, a ridge between them, the tiles
+  // in rows with their joints, a few gone dark with age and moss in a joint or two
+  const tiles = (x, y, w, h, base) => {
+    const mid = Math.floor(h / 2);
+    R(x, y, w, mid, shade(base, 1.08)); R(x, y + mid, w, h - mid, shade(base, 0.93));
+    for (let yy = y + 2; yy < y + h; yy += 3) R(x, yy, w, 1, shade(base, yy < y + mid ? 0.92 : 0.79));
+    for (let xx = x + 3; xx < x + w; xx += 6) { R(xx, y, 1, h, shade(base, 0.84)); R(xx + 1, y, 1, mid, shade(base, 1.17)); }
+    for (let q = 0, n = Math.floor(w * h / 200); q < n; q++) R(x + 2 + rnd(x + q * 7, w - 6), y + 1 + rnd(y + q * 13, h - 3), 2, 1, q % 4 ? shade(base, 0.7) : '#6f8a4a');
+    R(x, y + mid - 1, w, 2, shade(base, 1.3)); R(x, y + mid + 1, w, 1, shade(base, 0.68));
+    R(x, y, w, 1, shade(base, 1.2)); R(x, y + h - 1, w, 1, shade(base, 0.6)); R(x, y, 1, h, shade(base, 1.1)); R(x + w - 1, y, 1, h, shade(base, 0.72));
+  };
+  const wall = (x, y, w, h, c) => { R(x, y, w, h, c); for (let q = 0, n = Math.floor(w * h / 110); q < n; q++) R(x + 1 + rnd(x + q * 5, w - 6), y + 3 + rnd(y + q * 11, h - 6), 3 + (q % 3), 1 + (q % 2), q % 2 ? shade(c, 0.94) : shade(c, 1.05)); R(x, y, w, 1, shade(c, 0.74)); R(x, y + 1, w, 2, 'rgba(30,18,8,.16)'); R(x, y + h - 2, w, 2, shade(c, 0.84)); R(x, y + h - 3, w, 1, 'rgba(60,40,20,.12)'); R(x, y, 1, h, shade(c, 0.88)); R(x + w - 1, y, 1, h, shade(c, 0.88)); };      // plaster patched and faded, shade under the eaves, dirt at the foot
   const door = (p, w, h, c) => { const x = p.dx - Math.floor(w / 2), y = p.y + p.h - h; R(x - 1, y - 1, w + 2, h + 1, '#5a4326'); R(x, y, w, h, c || '#3a2416'); R(p.dx - 5, p.y + p.h, 10, 2, '#b8a888'); };
-  const win = (x, y) => { R(x, y, 3, 4, '#3a2e24'); R(x, y, 3, 1, '#8a7a5a'); };
+  const win = (x, y) => { R(x - 1, y, 1, 4, '#6f5140'); R(x + 3, y, 1, 4, '#6f5140'); R(x, y, 3, 4, '#3a2e24'); R(x, y, 3, 1, '#8a7a5a'); R(x - 1, y + 4, 5, 1, '#cfc4a8'); };      // shutters, and a sill
   // every building throws its shade down and to the right, as the trees and the arena do
   const shadow = p => { R(p.x + 3, p.y + p.h, p.w, 4, 'rgba(0,0,0,.22)'); R(p.x + p.w, p.y + 5, 3, p.h - 1, 'rgba(0,0,0,.2)'); R(p.x + 5, p.y + p.h + 4, p.w - 2, 1, 'rgba(0,0,0,.1)'); };
   for (const p of PLACES) {
@@ -319,7 +336,19 @@ function villageLayer() {
     R(wx0 + 2, wy0 + 2, 6, 6, dark); R(wx0 + 3, wy0 + 3, 4, 4, '#a39a84'); for (let q = 0; q < 10; q += 3) { R(wx0 + q, wy0, 2, 1, '#f0e8d6'); R(wx0 + q, wy0 + 9, 2, 1, '#f0e8d6'); }
   }
   // trees: a round crown, lit from the upper left, over its own shadow
-  for (const [tx, ty] of VIL_TREES) { ell(tx + 1, ty + 1, 7, 3, 'rgba(0,0,0,.25)'); R(tx - 1, ty - 4, 2, 5, '#5a3c20'); ell(tx, ty - 9, 7, 6, '#3f6a2c'); ell(tx - 1, ty - 10, 5, 4, '#57863a'); ell(tx - 2, ty - 11, 2, 2, '#77a64e'); }
+  VIL_TREES.forEach(([tx, ty], i) => {
+    const kind = (i * 7 + 3) % 5;
+    ell(tx + 2, ty + 1, kind === 2 ? 5 : 8, 3, 'rgba(0,0,0,.22)'); ell(tx + 1, ty + 1, kind === 2 ? 4 : 6, 2, 'rgba(0,0,0,.14)');
+    if (kind === 2) {                            // a cypress: tall and dark
+      R(tx - 1, ty - 3, 2, 4, '#4a3320'); ell(tx, ty - 11, 3, 9, '#2f5234'); ell(tx - 1, ty - 12, 2, 7, '#3f6844'); R(tx - 1, ty - 19, 1, 3, '#57806a'); R(tx + 2, ty - 10, 1, 6, '#213a26');
+    } else {
+      const r = 6 + (i % 3), dk = kind === 3 ? '#4c7f38' : kind === 4 ? '#4a6a2a' : '#3f6a2c', lt = kind === 3 ? '#69a04a' : kind === 4 ? '#7a9a3a' : '#57863a';
+      R(tx - 1, ty - 4, 2, 5, '#5a3c20'); R(tx - 1, ty - 4, 1, 5, '#7a5630');
+      ell(tx, ty - 3 - r, r, r - 1, dk); ell(tx + 2, ty - 2 - r, r - 2, r - 3, shade(dk, 0.86)); ell(tx - 1, ty - 4 - r, r - 2, r - 2, lt); ell(tx - 2, ty - 5 - r, Math.max(2, r - 4), Math.max(1, r - 5), shade(lt, 1.18));
+      if (kind === 3) for (let q = 0; q < 6; q++) R(tx - r + 2 + rnd(i * 9 + q, r * 2 - 4), ty - 2 - r * 2 + 2 + rnd(i * 5 + q + 40, r * 1.4), 1, 1, q % 2 ? '#f8e0e8' : '#ffffff');      // in blossom
+      else if (kind === 4) for (let q = 0; q < 4; q++) R(tx - r + 2 + rnd(i * 9 + q, r * 2 - 4), ty - 2 - r * 2 + 3 + rnd(i * 5 + q + 40, r * 1.3), 1, 1, q % 2 ? '#e8902a' : '#d8382a');   // in fruit
+    }
+  });
   return (vil.layer = cv);
 }
 
