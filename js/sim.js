@@ -1902,7 +1902,7 @@ function genBouts() {
   }
   if (G.fame >= FINAL_FAME && !G.won && !(G.finalBar > G.day)) {
     const enemies = [];
-    for (let k = 0; k < 3; k++) enemies.push(makeEnemy(FINAL_BUDGET, 4));
+    for (let k = 0; k < 3; k++) { const e = makeEnemy(FINAL_BUDGET, 4); e.imperial = true; enemies.push(e); }      // marked, so the book knows whose men they are
     bouts.unshift({
       id: ++G.nextId, size: 3, diff: 'hard', death: false, enemies, done: false, final: true,
       house: "The Emperor's Champions", purse: 3000, fame: 300,
@@ -1912,6 +1912,7 @@ function genBouts() {
   G.bouts = bouts;
 }
 
+const ODDS_POWER = { duel: 5, team: 10, final: 10.5 };
 function winOdds(mine, foes) {
   let a = mine.reduce((s, g) => s + power(g), 0);
   const b = foes.reduce((s, g) => s + power(g), 0);
@@ -1920,7 +1921,13 @@ function winOdds(mine, foes) {
   let edge = 0, n = 0;
   for (const g of mine) for (const f of foes) { edge += Math.log(styleEdge(styleOf(g), styleOf(f)) / styleEdge(styleOf(f), styleOf(g))); n++; }
   if (n) a *= Math.exp(edge / n * 0.5);
-  const p = Math.pow(a, 4) / (Math.pow(a, 4) + Math.pow(b, 4));
+  // How surely the stronger side wins depends on how many are fighting. In a duel a weaker man often gets his blow in; with
+  // two or three a side the first man down leaves the rest outnumbered, and a small edge is nearly the whole of it. The
+  // Emperor's men are surest of all. (Measured over some thousands of bouts, tools/race.js: with one power for every
+  // size, a three-a-side bout the book called even was won two times in three, and the final three in four.)
+  const imperial = foes.some(f => f.imperial), k = imperial ? ODDS_POWER.final : Math.max(mine.length, foes.length) >= 2 ? ODDS_POWER.team : ODDS_POWER.duel;
+  a *= imperial ? 1.03 : k === ODDS_POWER.duel ? 0.95 : 1;      // and what is left over when the slope is right: the final a shade kinder than its numbers, a duel a shade harder
+  const p = Math.pow(a, k) / (Math.pow(a, k) + Math.pow(b, k));
   return { p, pay: Math.round(clamp(0.9 / p, 1.1, 6) * (festToday('saturnalia') ? 1.25 : 1) * 10) / 10 };
 }
 

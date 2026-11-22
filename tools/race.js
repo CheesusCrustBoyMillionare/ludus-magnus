@@ -33,7 +33,7 @@ const a = bot.indexOf('vm.runInContext(src + `') + 'vm.runInContext(src + `'.len
 bot = bot.slice(a, b).replace(/\\`/g, '`').replace(/\\\$/g, '$');
 const rep = (x, y) => { if (bot.split(x).length !== 2) throw new Error('race.js: the auto-player has changed; not found: ' + x.slice(0, 70)); bot = bot.replace(x, () => y); };
 rep(`const good = SKILL === 'good';`, `const good = true, S = JSON.parse(SPEC), SRC = { arena: 0, tourney: 0, quest: 0, eagle: 0, other: 0 }; let fameMark = 0;
-const FIN = [];
+const FIN = [], CAL = {}, RAW = [];
 const credit = k => { SRC[k] += G.fame - fameMark; fameMark = G.fame; };`);
 rep(`  const want = Math.min(capacity(), 3 + t);`, `  const want = Math.min(capacity(), (S.want !== undefined ? S.want : 3) + t * (S.wantT !== undefined ? S.wantT : 1));
   if (S.regimen !== undefined) G.regimen = S.regimen;
@@ -72,6 +72,7 @@ rep(`    R.bouts++; if (r.win) R.wins++; R.deaths += before - G.roster.length; R
   }
 }`, `    R.bouts++; if (r.win) R.wins++; R.deaths += before - G.roster.length; R.purses += r.purse; R.wagerNet += r.wagerGain - wager;
     if (b.final) { FIN.push([Math.round(o.p * 100), r.win ? 1 : 0]); R.finals = (R.finals || 0) + 1; }
+    { const key = (b.final ? 'final' : t >= 3 ? 'great' : 'lower') + b.size, kk = Math.min(9, Math.floor(o.p * 10)); CAL[key] = CAL[key] || {}; CAL[key][kk] = CAL[key][kk] || [0, 0]; CAL[key][kk][0]++; if (r.win) CAL[key][kk][1]++; RAW.push([b.final ? 1 : 0, b.size, +o.p.toFixed(3), r.win ? 1 : 0]); }
   }
   credit('arena');
 }
@@ -122,7 +123,7 @@ console.log(JSON.stringify({ plan: S.name, runs: RUNS, won: won.length, medianWi
   finalUnlock: med(runs.map(r => r.finalDay)), tierDays: [1, 2, 3].map(t => med(runs.map(r => r.tierDay[t]))),
   winRate: +(runs.reduce((s, r) => s + r.wins, 0) / Math.max(1, runs.reduce((s, r) => s + r.bouts, 0))).toFixed(2), boutsPerRun: Math.round(runs.reduce((s, r) => s + r.bouts, 0) / RUNS),
   deaths: med(runs.map(r => r.deaths)), raised: med(runs.map(r => r.raised || 0)), heirs: runs.filter(r => r.heirs > 0).length,
-  fameFrom: Object.fromEntries(Object.entries(SRC).map(([k, v]) => [k, Math.round(v / tot * 100) + '%'])), finals: +(runs.reduce((a, r) => a + (r.finals || 0), 0) / RUNS).toFixed(2), finalByOdds: (() => { const o = {}; for (const [p, w] of FIN) { const k = Math.min(9, Math.floor(p / 10)) * 10; o[k] = o[k] || [0, 0]; o[k][0]++; o[k][1] += w; } return Object.fromEntries(Object.entries(o).map(([k, v]) => [k + '%', v[1] + '/' + v[0]])); })(), eagleDay: med(runs.map(r => r.eagleDay)), eagleLook: med(runs.map(r => r.eagleLook || 0)), eagleGap: med(runs.map(r => r.eagleGap)), eagleSteps: med(runs.map(r => r.eagleSteps || 0)),
+  fameFrom: Object.fromEntries(Object.entries(SRC).map(([k, v]) => [k, Math.round(v / tot * 100) + '%'])), finals: +(runs.reduce((a, r) => a + (r.finals || 0), 0) / RUNS).toFixed(2), finalByOdds: (() => { const o = {}; for (const [p, w] of FIN) { const k = Math.min(9, Math.floor(p / 10)) * 10; o[k] = o[k] || [0, 0]; o[k][0]++; o[k][1] += w; } return Object.fromEntries(Object.entries(o).map(([k, v]) => [k + '%', v[1] + '/' + v[0]])); })(), cal: Object.fromEntries(Object.entries(CAL).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([p, w]) => [p / 10, w[0] + ':' + (w[1] / w[0]).toFixed(2)]))])), raw: RAW, eagleDay: med(runs.map(r => r.eagleDay)), eagleLook: med(runs.map(r => r.eagleLook || 0)), eagleGap: med(runs.map(r => r.eagleGap)), eagleSteps: med(runs.map(r => r.eagleSteps || 0)),
   lost: runs.filter(r => r.result !== 'won').map(r => r.result[0] + r.day).join(' ') }));
 `;
 const ctx = { console, Math, RUNS, SKILL: 'good', SPEC, localStorage: { getItem: () => null, setItem() {} } };
