@@ -70,6 +70,7 @@ function provLand() {
     });
   }
   const lone = [];
+  const zq = (v, n) => Math.min(n - 1, Math.max(0, Math.floor(((v - 0.5) * 2.4 + 0.5) * n)));      // which of n kinds a stretch of country is
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 40), b = h(tx, ty, 41);
     if (k === T_ROAD || k === T_BRIDGE) {
@@ -174,22 +175,39 @@ function provLand() {
       const reg = wildRegion(x + 5, y + 5), t = tone(tx, ty) * (0.94 + h(tx, ty, 120) * 0.12);
       const pal = reg === 'The Quarry Hills' ? ['#b9b083', '#cfc79c', '#8d8660', '#77704e'] : reg === 'The High Fells' ? ['#8f9a78', '#a6b08e', '#6c765a', '#5a634a'] : reg === 'The Barrow Downs' ? ['#86a05a', '#9ab56c', '#64803f', '#52692f'] : ['#a3a866', '#b9be7c', '#7f8548', '#6b703a'];
       const hillN = (at(tx - 1, ty) === T_HILL) + (at(tx + 1, ty) === T_HILL) + (at(tx, ty - 1) === T_HILL) + (at(tx, ty + 1) === T_HILL);
-      const mound = (cx, cy, rx, ry) => {
+      const rk = reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876'] : reg === 'The High Fells' ? ['#a2aab4', '#646c78'] : reg === 'The Barrow Downs' ? ['#e6e2d2', '#b4b09c'] : ['#aaa496', '#6b665c'];
+      // a hill is a dome (0), a long ridge (1), a steep cone (2), a tor with rock on its crown (3), a flat-topped
+      // table with a band of rock under the rim (4), or a scarp with a broken face to the south-east (5)
+      const mound = (cx, cy, rx, ry, sh) => {
         R(cx - rx, cy + 1, rx * 2 + 2, 1, 'rgba(0,0,0,.16)');
         for (let dy = -ry; dy <= 0; dy++) {
-          const w = Math.max(1, Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5)) + (h(cx + dy, cy, 121) - 0.5) * 1.6));
+          const fr = (dy + ry) / Math.max(1, ry), prof = sh === 2 ? Math.pow(fr * 0.9 + 0.1, 0.85) : sh === 4 ? 0.7 + 0.3 * fr : Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5));
+          const w = Math.max(1, Math.round(rx * prof + (h(cx + dy, cy, 121) - 0.5) * 1.6));
           R(cx - w, cy + dy, w * 2, 1, tint(pal[0], t));
           if (dy < -ry * 0.25) R(cx - w + 1, cy + dy, Math.max(1, Math.round(w * (0.9 - (dy + ry) / (ry * 2.2)))), 1, tint(pal[1], t));      // the light, from the north-west
           R(cx + w - Math.max(1, Math.round(w * 0.3)), cy + dy, Math.max(1, Math.round(w * 0.3)), 1, tint(pal[2], t));                              // the far side, in shade
+          if (sh === 4 && dy + ry >= 1 && dy + ry <= (ry > 5 ? 3 : 2)) { R(cx - w, cy + dy, w, 1, rk[0]); R(cx, cy + dy, w, 1, rk[1]); if (h(cx, dy, 913) > 0.5) R(cx - w + 1 + Math.floor(h(dy, cx, 914) * w), cy + dy, 1, 1, rk[1]); }
+          if (sh === 5 && fr > 0.45 && dy < 0) { const fw = Math.max(1, Math.round(w * (0.5 + h(cx, dy, 915) * 0.45))); R(cx + w - fw, cy + dy, fw, 1, (dy + cx) % 3 ? rk[1] : rk[0]); if (h(dy, cx, 916) > 0.7) R(cx + w - fw, cy + dy, 1, 1, rk[0]); }
         }
         R(cx - rx + 1, cy, rx * 2 - 1, 1, tint(pal[3], t));
+        if (sh === 3) { const tw = Math.max(3, Math.min(7, rx >> 1)); R(cx - (tw >> 1), cy - ry - 1, tw, 2, rk[1]); R(cx - (tw >> 1), cy - ry - 1, tw >> 1, 2, rk[0]); R(cx - (tw >> 1) + 1, cy - ry - 3, Math.max(2, tw - 2), 2, rk[1]); R(cx - (tw >> 1) + 1, cy - ry - 3, 1, 2, rk[0]); if (tw > 4) R(cx, cy - ry - 5, 2, 2, rk[0]); }
       };
       if (a > 0.58 || (hillN < 3 && a > 0.3)) {
-        const big = hillN === 4 && a > 0.8, rx = big ? 10 + Math.floor(b * 8) : 4 + Math.floor(b * 6), ry = Math.max(3, Math.round(rx * (0.5 + h(tx, ty, 122) * 0.35)));
+        const big = hillN === 4 && a > 0.8, form = h(tx, ty, 911) < 0.6 ? zq(wildNoise(tx / 8, ty / 8, 910), 6) : Math.floor(h(tx, ty, 912) * 6);
+        let rx = big ? 10 + Math.floor(b * 8) : 4 + Math.floor(b * 6), ry = Math.max(3, Math.round(rx * (0.5 + h(tx, ty, 122) * 0.35)));
+        if (form === 1) { rx = Math.round(rx * 1.7); ry = Math.max(2, Math.round(rx * 0.26)); }
+        else if (form === 2) ry = Math.round(rx * (0.95 + h(tx, ty, 122) * 0.45));
+        else if (form === 4) ry = Math.max(3, Math.round(rx * 0.62));
         const cx = x + Math.floor(h(tx, ty, 123) * 10), cy = y + 2 + Math.floor(h(tx, ty, 124) * 10);
-        if (h(tx, ty, 125) > 0.7) mound(cx + rx - 2, cy - 1, Math.max(3, rx - 3), Math.max(2, ry - 1));      // a shoulder behind it
-        mound(cx, cy, rx, ry);
-        const e = h(tx, ty, 126);
+        if (h(tx, ty, 125) > 0.7) mound(cx + rx - 2, cy - 1, Math.max(3, rx - 3), Math.max(2, ry - 1), form === 1 ? 1 : 0);      // a shoulder behind it
+        mound(cx, cy, rx, ry, form);
+        const e = h(tx, ty, 126), top = cy - ry;
+        if (e > 0.03 && e < 0.09) for (let q = 0, n = 1 + Math.floor(b * 3); q < n; q++) { const px = cx - 3 + q * 3, py = top + 1 + (q % 2); R(px, py, 1, 2, '#4a3320'); R(px - 1, py - 2, 3, 2, '#2c5230'); R(px, py - 4, 1, 2, '#2c5230'); R(px - 1, py - 2, 1, 1, '#437046'); }      // pines along the crown
+        else if (e < 0.2 && form !== 4) { const hc = reg === 'The Quarry Hills' ? ['#b89a5a', '#cdb47a'] : ['#96689e', '#b488bc']; for (let q = 0; q < 4 + Math.floor(rx / 2); q++) { const hx = cx - Math.round(rx * 0.7) + Math.floor(h(tx + q, ty, 917) * rx * 1.2), hy = cy - 1 - Math.floor(h(tx, ty + q, 918) * ry * 0.7); R(hx, hy, 1 + (q % 2), 1, hc[q % 2]); } }      // heather in flower; on the dry hills, thorn
+        else if (e < 0.26) for (let q = 0; q < rx; q++) R(cx - Math.round(rx * 0.6) + q, cy - 1 - Math.round(q * ry * 0.6 / rx), 1, 1, tint(pal[1], t * 1.12));      // a sheep track going up it
+        else if (e < 0.3 && form !== 3) { R(cx - 1, top - 1, 3, 2, rk[1]); R(cx, top - 3, 1, 2, rk[0]); R(cx - 1, top - 1, 1, 1, rk[0]); }                              // a cairn
+        else if (e < 0.34) for (let q = 0; q < 5; q++) R(cx + Math.floor(h(tx + q, ty, 919) * rx * 0.7), cy - 1 - Math.floor(h(tx, ty + q, 920) * ry * 0.5), 2, 1, q % 2 ? '#9a6a34' : '#b4803e');      // bracken, gone brown
+        else if (e < 0.4 && reg === 'The Barrow Downs') { const sw = Math.max(2, rx >> 1); R(cx - sw + 1, cy - Math.round(ry * 0.5), sw, 2, '#eeeade'); R(cx - sw + 2, cy - Math.round(ry * 0.5) + 2, Math.max(1, sw - 1), 1, '#eeeade'); R(cx - sw + 1, cy - Math.round(ry * 0.5), 1, 1, '#cfcab8'); }      // a scar of chalk
         if (e > 0.93) { R(cx - 1, cy - ry - 1, 3, 2, '#9a958a'); R(cx - 1, cy - ry - 1, 2, 1, '#c4bfb2'); }                                            // a rock on the crown
         else if (e > 0.86) { R(cx - 3, cy - 2, 2, 1, '#55703a'); R(cx + 1, cy - 3, 2, 1, '#55703a'); R(cx - 1, cy - 1, 1, 1, '#6f8a4a'); }              // scrub
         else if (e > 0.82) for (let q = 0; q < 3; q++) R(cx - rx + 2 + q * 2, cy - 1 - q, rx - q * 2, 1, tint(pal[2], t));                              // terraces cut into it
@@ -199,7 +217,12 @@ function provLand() {
         for (let q = 0; q < n; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 127 + q) * 7), sy = y + 2 + Math.floor(h(tx, ty, 130 + q) * 6), sw = 2 + Math.floor(h(tx, ty, 133 + q) * 3); R(sx, sy, sw, 2, '#9a958a'); R(sx, sy, sw, 1, '#bdb8ac'); R(sx, sy + 2, sw + 1, 1, 'rgba(0,0,0,.18)'); }
       } else if (a < 0.2) for (let q = 0; q < 5; q++) R(x + q * 2 + Math.floor(b * 2), y + 3 + Math.floor(h(tx + q, ty, 136) * 4), 2, 1, tint(pal[3], t));
       else if (a < 0.3) { const n = 2 + Math.floor(b * 3), gc = tint(pal[2], t); for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 137 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 141 + q) * 5); R(gx, gy, 1, 2, gc); R(gx + 1, gy - 1, 1, 1, gc); } }      // heather and rough grass
-      else if (a < 0.34) { R(x + 2 + Math.floor(b * 4), y + 5, 3, 2, '#55703a'); R(x + 3 + Math.floor(b * 4), y + 4, 2, 1, '#6f8a4a'); }      // gorse
+      else if (a < 0.34) { R(x + 2 + Math.floor(b * 4), y + 5, 3, 2, '#55703a'); R(x + 3 + Math.floor(b * 4), y + 4, 2, 1, '#6f8a4a'); if (b > 0.5) R(x + 3 + Math.floor(b * 4), y + 5, 1, 1, '#e8d040'); }      // gorse
+      else if (a < 0.346 && hillN === 4) { const pw = 5 + Math.floor(b * 4), px = x + Math.floor(h(tx, ty, 921) * (10 - pw)); R(px, y + 4, pw, 3, '#3f6f96'); R(px + 1, y + 3, pw - 2, 1, '#3f6f96'); R(px + 1, y + 7, pw - 2, 1, '#3f6f96'); R(px + 1, y + 4, pw - 3, 1, '#7fb0d0'); R(px, y + 7, pw, 1, 'rgba(0,0,0,.15)'); if (b > 0.6) { R(px + pw, y + 3, 1, 3, '#8a9a4a'); R(px + pw, y + 2, 1, 1, '#6b4a2a'); } }      // a tarn
+      else if (a < 0.41) { for (let q = 0, n = 3 + Math.floor(b * 4); q < n; q++) { const sx = x + Math.floor(h(tx, ty, 922 + q) * 9), sy = y + 1 + Math.floor(h(tx, ty, 929 + q) * 8), sw = 1 + Math.floor(h(tx, ty, 936 + q) * 3); R(sx, sy, sw, 1 + (sw > 2 ? 1 : 0), q % 2 ? rk[1] : rk[0]); } }      // a field of broken rock
+      else if (a < 0.44) { const sx = x + 1 + Math.floor(b * 3), sw = 5 + Math.floor(h(tx, ty, 943) * 4); R(sx, y + 5, sw, 2, rk[1]); R(sx, y + 4, sw - 1, 1, rk[0]); R(sx + 1, y + 3, Math.max(1, sw - 3), 1, rk[0]); R(sx, y + 7, sw + 1, 1, 'rgba(0,0,0,.18)'); if (b > 0.5) R(sx + 1, y + 4, 2, 1, '#6f8a4a'); }      // a slab of rock breaking the turf
+      else if (a < 0.48) { let gx = x + 3 + Math.floor(b * 4); for (let q = 0; q < 10; q++) { gx += h(tx + q, ty, 944) > 0.6 ? 1 : h(tx, ty + q, 945) > 0.6 ? -1 : 0; R(gx, y + q, 1, 1, tint(pal[3], t * 0.9)); if (q % 3 === 0) R(gx + 1, y + q, 1, 1, '#7fb0d0'); } }      // a gully, water in the bottom of it
+      else if (a < 0.52) { for (let q = 0, n = 2 + Math.floor(b * 3); q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 946 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 951 + q) * 5); R(gx, gy, 1, 3, '#7a8a4a'); R(gx - 1, gy, 1, 1, '#7a8a4a'); R(gx + 1, gy + 1, 1, 1, '#7a8a4a'); if (q === 0) R(gx, gy - 1, 1, 1, '#b070c0'); } }      // thistles
     }
     else if (k === T_GRASS) {
       const f = farm(tx, ty);
@@ -241,6 +264,20 @@ function provLand() {
         for (let q = 0; q < n; q++) { const sx = x + 1 + Math.floor(h(tx, ty, 172 + q) * 7), sy = y + 3 + Math.floor(h(tx, ty, 175 + q) * 5), sw = 2 + Math.floor(h(tx, ty, 178 + q) * 2); R(sx, sy, sw, 2, q % 2 ? '#8f8a80' : '#9a958a'); R(sx, sy, sw, 1, '#bdb8ac'); }
       }
       else if (a < 0.05) { const lx = x + 1 + Math.floor(b * 4); R(lx, y + 6, 6, 2, '#6b4f2c'); R(lx, y + 6, 6, 1, '#8a6a3a'); R(lx + 6, y + 6, 1, 2, '#c9a763'); R(lx, y + 8, 7, 1, 'rgba(0,0,0,.16)'); }      // a fallen trunk
+      else {
+        // What is left is plain grass, and plain grass is of many sorts. Each stretch is one of them: a sea of long
+        // grass, clover, dry ground, thistle and dock, mole-heaved turf, a damp hollow, or rabbit ground.
+        const zone = zq(wildNoise(tx / 7, ty / 7, 960), 7), dense = wildNoise(tx / 3, ty / 3, 961), g1 = h(tx, ty, 962), g2 = h(tx, ty, 963), base = col(k, tx, ty);
+        if (g1 < 0.06 + dense * 0.36) {
+          if (zone === 0) { const lean = wildNoise(tx / 10, ty / 10, 964) > 0.5 ? 1 : -1; for (let q = 0, n = 3 + Math.floor(g2 * 4); q < n; q++) { const gx = x + Math.floor(h(tx, ty, 965 + q) * 9), gy = y + 1 + Math.floor(h(tx, ty, 972 + q) * 7); R(gx, gy, 1, 3, tint(base, q % 2 ? 0.84 : 1.14)); R(gx + lean, gy - 1, 1, 1, tint(base, 1.2)); if (q === 0 && g2 > 0.6) R(gx + lean, gy - 2, 1, 1, '#d8c880'); } }                    // long grass, all bent by one wind, some of it in seed
+          else if (zone === 1) { R(x + 1 + Math.floor(g2 * 4), y + 2 + Math.floor(g1 * 20) % 5, 5, 4, tint(base, 0.96)); for (let q = 0; q < 5; q++) R(x + Math.floor(h(tx, ty, 965 + q) * 10), y + Math.floor(h(tx, ty, 972 + q) * 10), 1, 1, q % 3 ? '#f0ece0' : '#e0a0b8'); }                    // clover
+          else if (zone === 2) { const pw = 4 + Math.floor(g2 * 5), px = x + Math.floor(h(tx, ty, 965) * (10 - pw)), py = y + 2 + Math.floor(h(tx, ty, 966) * 4); R(px, py, pw, 3, '#a89a62'); R(px + 1, py - 1, Math.max(1, pw - 2), 1, '#a89a62'); R(px + 1, py + 3, Math.max(1, pw - 3), 1, '#a89a62'); R(px + 1, py + 1, Math.max(1, pw - 3), 1, '#8f8250'); if (g2 > 0.5) R(px + pw - 2, py, 1, 2, '#8f8250'); }      // the turf worn through to dry earth
+          else if (zone === 3) { for (let q = 0, n = 1 + Math.floor(g2 * 3); q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 965 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 972 + q) * 5); if (q % 2) { R(gx - 1, gy + 1, 3, 2, '#55803a'); R(gx, gy - 2, 1, 3, '#8a5a3a'); } else { R(gx, gy, 1, 3, '#6a8a4a'); R(gx - 1, gy + 1, 1, 1, '#6a8a4a'); R(gx + 1, gy, 1, 1, '#6a8a4a'); R(gx, gy - 1, 1, 1, '#b070c0'); } } }      // dock and thistle
+          else if (zone === 4) { for (let q = 0, n = 1 + Math.floor(g2 * 3); q < n; q++) { const mx = x + 1 + Math.floor(h(tx, ty, 965 + q) * 7), my = y + 2 + Math.floor(h(tx, ty, 972 + q) * 6); R(mx, my, 3, 2, '#7a5a3a'); R(mx + 1, my - 1, 1, 1, '#7a5a3a'); R(mx, my, 2, 1, '#94704a'); R(mx, my + 2, 4, 1, 'rgba(0,0,0,.14)'); } }      // molehills
+          else if (zone === 5) { if (g2 > 0.7) { const pw = 4 + Math.floor(g1 * 20) % 4, px = x + 1 + Math.floor(h(tx, ty, 965) * (8 - pw)); R(px, y + 4, pw, 2, '#4f86ae'); R(px + 1, y + 3, Math.max(1, pw - 2), 1, '#4f86ae'); R(px + 1, y + 4, Math.max(1, pw - 3), 1, '#8fc0de'); } for (let q = 0, n = 2 + Math.floor(g2 * 3); q < n; q++) { const rx0 = x + Math.floor(h(tx, ty, 967 + q) * 10), ry0 = y + 1 + Math.floor(h(tx, ty, 973 + q) * 6); R(rx0, ry0, 1, 3, q % 2 ? '#5f8a4a' : '#4f7a44'); if (q === 0) R(rx0, ry0 - 1, 1, 1, '#6b4a2a'); } }      // a damp hollow: rushes, and standing water
+          else { for (let q = 0, n = 1 + Math.floor(g2 * 3); q < n; q++) { const bx = x + 1 + Math.floor(h(tx, ty, 965 + q) * 7), by = y + 3 + Math.floor(h(tx, ty, 972 + q) * 5); R(bx, by, 2, 1, '#3a2a1c'); R(bx - 1, by + 1, 4, 1, '#94805a'); } if (g2 > 0.8) { const bx = x + 2 + Math.floor(g1 * 30) % 5; R(bx, y + 1, 2, 1, '#b8a888'); R(bx + 2, y, 1, 1, '#b8a888'); R(bx, y, 1, 1, '#f4f4f0'); } }      // rabbit ground: burrows, spoil at their mouths, and one out
+        }
+      }
     }
   }
   // ---- depth: high ground throws its shade to the south and east, and the shore has a strand ----
