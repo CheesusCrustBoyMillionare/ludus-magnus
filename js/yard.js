@@ -491,6 +491,7 @@ function drawYard(cv, T) {
     place(g, 150 + f * 300, 176 + (i % 2) * 6, { facing: p < 1 ? 1 : -1, moving: true, walk: T * 9 + g.id });
   });
   by('end').forEach((g, i) => place(g, 444 + (i % 3) * 22 - Math.floor(i / 3) * 10, 168 + Math.floor(i / 3) * 10, { cheer: Math.sin(T * 2.2 + g.id) > 0 ? T + g.id : 0 }));
+  by('teach').forEach((g, i) => { const p = posts[i % posts.length]; place(g, p[0] + (i % 2 ? 26 : -26), p[1] + 8, { facing: i % 2 ? -1 : 1, cheer: Math.sin(T * 1.6 + g.id) > 0.4 ? T + g.id : 0 }); });
   const sp = by('spar');
   sp.forEach((g, i) => {
     const pair = Math.floor(i / 2), left = i % 2 === 0, cx = 250 + pair * 84, alone = left && i === sp.length - 1;

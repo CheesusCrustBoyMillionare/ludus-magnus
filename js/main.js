@@ -84,8 +84,13 @@ const ACT_BUTTONS = [
   ['str', 'Strength', 'Train strength: harder blows. Beats Agility.'],
   ['agi', 'Agility', 'Train agility: faster attacks, faster feet and more dodges. Beats Skill.'],
   ['skl', 'Skill', 'Train skill: more blows land, more are blocked, more are telling. Beats Strength.'],
-  ['spar', 'All (spar)', 'Spar: raises all three skills a little at once, and tires him less than drilling one.'],
+  ['spar', 'All (spar)', 'Spar: raises all three skills a little at once, and tires him less than drilling one. Worth 15% more with a stronger man sparring too, and 15% less alone.'],
+  ['teach', 'Teach', 'T for Teach: he drills nothing himself and barely tires. Every man training a skill at which he is clearly the better (2 points or more) learns it faster: 30% for a Veteranus, 35% for a Primus Palus, 40% for a Champion. Only the best teacher counts.'],
 ];
+// What the small button says for each assignment.
+const actLabel = k => STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : k === 'teach' ? 'T' : 'All';
+const actBlock = (g, k) => g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one under Household.'
+  : k === 'teach' && !canTeach(g) ? `Only a ${RANKS[TEACH_RANK].name} or better has anything to teach.` : '';
 const esc = t => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
 
@@ -423,6 +428,7 @@ function helpModal() {
       + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, a triumph with armed captives and a cheap market, Saturnalia with no deaths and generous bookmakers, the Games of Mars with a duel for each fighting style, or the eight-man Laurel Tournament, where you may back any man for the laurel before the first round, tend your own between rounds, or enter nobody and watch. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days for more fame from its bouts; win enough of them and the house keeps its <b>crown</b>, which adds fame to every bout after.'),
     town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every games day.')
       + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
+      + sec('Training', 'Each man is set to rest, to drill one skill, or to spar at all three. Sparring is worth more with a stronger partner. A Veteranus or better can <b>Teach</b>: men drilling a skill he is clearly better at learn it faster. <b>Auto</b> leaves a man to the doctore, who rests him when he needs it and drills him at what he learns fastest. In good spirits a man sometimes has a great day and learns far more.')
       + sec('The school', 'At the <b>Ludus</b>, the button <b>The school</b> shows its own buildings: barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them. The regimen is set there too.')
       + sec('Household', 'Staff are hired by the day. Rations trade coin for morale, and the granary makes them cheaper. Other buildings stand where they are used: the shrine with the <b>Patrons</b>, the stables with the <b>Contracts</b>, and the armourer is hired at the <b>Blacksmith</b>.')
       + sec('Patrons', 'The <b>Magistrate</b> fattens purses and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts and the right choices win favour.')
@@ -571,11 +577,13 @@ function statusChips(g) {
 function gladCard(g) {
   // a button that cannot be used stays hoverable so its tooltip can say why
   const actBtn = ([k, label, what], i) => {
-    const why = g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one under Household.' : '';
-    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || `${what}\nKey: ${i + 1}, for whoever is chosen.`)}>${STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : 'All'}</button>`;
+    const why = actBlock(g, k);
+    return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''} ${g.auto && g.activity === k ? 'byauto' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || `${what}\nKey: ${i + 1}, for whoever is chosen.`)}>${actLabel(k)}</button>`;
   };
+  const noDoc = !staffLvl('doctore');
+  const autoBtn = `<button class="${g.auto ? 'on' : ''} ${noDoc ? 'off' : ''}" data-act="actauto" data-v="${g.id}"${tip(noDoc ? 'Leaving a man to the doctore needs a doctore. Hire one under Household.' : `A for Auto: leave him to the doctore. Each morning he is set to rest when he needs it and before the games, and otherwise to the skill he learns fastest.${g.auto ? `\nToday the doctore has him ${g.activity === 'rest' ? 'resting' : g.activity === 'spar' ? 'sparring' : g.activity === 'teach' ? 'teaching' : 'at ' + STAT_NAMES[g.activity].toLowerCase()}. Choose anything else to take him back.` : ''}`)}>A</button>`;
   const J = jobOf(g);
-  const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}</div>`;
+  const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}${autoBtn}</div>`;
   const skills = STATS.map(s => `<span class="sk ${trains(g, s) ? 'up' : ''}"${tip(`${STAT_NAMES[s]} ${g.stats[s]}${trains(g, s) ? ', in training' : ''}`)}>${ic(s)}<b class="num">${g.stats[s]}</b></span>`).join('');
   return `<div class="lrow grow-row lud ${ui.sel === g.id ? 'sel' : ''} ${J ? 'away' : ''}" data-act="sel" data-v="${g.id}">
     <canvas width="48" height="56" style="width:34px;height:40px" data-portrait="${g.id}"></canvas>
@@ -597,12 +605,20 @@ function todayNote(g) {
   if (g.activity === 'rest' || tired) {
     return `<b>${tired ? 'Too tired to train, so he rests.' : 'Resting.'}</b> Each day gives back ${Math.round(heal)} health and sheds ${shed} fatigue. ${need <= 0 && !tired ? '<span class="bad">Rest is wasted on him today.</span>' : mend}`;
   }
-  const spar = g.activity === 'spar', rate = trainRate(g), tire = trainTire(g, spar);
-  const days = s => g.stats[s] >= 20 ? 0 : Math.max(1, Math.ceil((needProg(g.stats[s]) - g.prog[s]) / (rate * g.pot[s] * (spar ? 0.32 : 1))));
+  const byDoc = g.auto ? ' <span class="dim">(the doctore\'s choice)</span>' : '';
+  if (g.activity === 'teach') {
+    const pupils = G.roster.filter(o => o !== g && !o.away && o.injury <= 0 && STATS.includes(o.activity) && g.stats[o.activity] >= o.stats[o.activity] + 2);
+    return `<b>Teaching.</b>${byDoc} ${pupils.length ? `${namesOf(pupils)} ${pupils.length === 1 ? 'learns' : 'learn'} ${Math.round((0.2 + 0.05 * g.rank) * 100)}% faster for it.` : '<span class="bad">Nobody is drilling a skill he is clearly better at: his day is wasted.</span>'} He barely tires.`;
+  }
+  const spar = g.activity === 'spar', sb = spar ? sparBonus(g) : 1, rate = trainRate(g) * sb, tire = trainTire(g, spar);
+  const days = s => g.stats[s] >= 20 ? 0 : Math.max(1, Math.ceil((needProg(g.stats[s]) - g.prog[s]) / (rate * g.pot[s] * (spar ? 0.32 : 1) * (1 + teachBonus(g, s)))));
   const gains = (spar ? STATS : [g.activity]).map(s => { const d = days(s); return d ? `${STAT_NAMES[s]} ${g.stats[s] + 1} in ${d} day${d === 1 ? '' : 's'}` : `${STAT_NAMES[s]} can go no higher`; }).join(', ');
   const left = Math.max(0, Math.ceil((75 - g.fatigue) / tire));
   const warn = g.fatigue > 75 ? '<span class="bad">He is exhausted and may tear something.</span>' : left <= 1 ? '<span class="bad">Exhausted after today.</span>' : `Exhausted in ${left} days at this pace.`;
-  return `<b>${spar ? 'Sparring.' : 'Drilling ' + STAT_NAMES[g.activity].toLowerCase() + '.'}</b> ${gains}. ${warn}`;
+  const tb = spar ? 0 : teachBonus(g, g.activity), bc = Math.round(breakChance(g) * 100);
+  const extra = (tb ? ` <span class="good">Taught: +${Math.round(tb * 100)}%.</span>` : '') + (spar ? (sb > 1 ? ' <span class="good">A stronger partner: +15%.</span>' : sb < 1 ? ' <span class="bad">Nobody to spar with: 15% less.</span>' : '') : '')
+    + (bc ? ` <span class="dim"${tip('In good spirits a man now and then has a day when everything comes right, and learns two and a half times as much. The better his morale, the likelier.')}>${bc}% chance of a great day.</span>` : '');
+  return `<b>${spar ? 'Sparring.' : 'Drilling ' + STAT_NAMES[g.activity].toLowerCase() + '.'}</b>${byDoc} ${gains}. ${warn}${extra}`;
 }
 
 // The school at a glance, and one order for everybody.
@@ -617,10 +633,10 @@ function schoolBar() {
   const here = G.roster.filter(g => !g.away), fit = G.roster.filter(canFight).length, hurt = G.roster.filter(g => g.injury > 0).length, away = G.roster.length - here.length;
   const spent = here.filter(g => g.injury <= 0 && g.fatigue > 75).length, idle = here.filter(g => g.injury <= 0 && g.activity === 'rest' && g.hp >= maxHp(g) && g.fatigue <= 0).length;
   const bit = (n, word, cls, t) => n ? `<span class="${cls}"${tip(t)}><b class="num">${n}</b> ${word}</span>` : '';
-  const all = ACT_BUTTONS.map(([k, label]) => {
+  const all = ACT_BUTTONS.filter(([k]) => k !== 'teach').map(([k, label]) => {
     const off = k === 'spar' && !staffLvl('doctore');
-    return `<button class="${off ? 'off' : ''}" data-act="actall" data-w="${k}"${tip(off ? 'Sparring needs a doctore. Hire one under Household.' : `Set every man who is here and whole to: ${label.toLowerCase()}.`)}>${STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : 'All'}</button>`;
-  }).join('');
+    return `<button class="${off ? 'off' : ''}" data-act="actall" data-w="${k}"${tip(off ? 'Sparring needs a doctore. Hire one under Household.' : `Set every man who is here and whole to: ${label.toLowerCase()}.`)}>${actLabel(k)}</button>`;
+  }).join('') + `<button class="${staffLvl('doctore') ? '' : 'off'}" data-act="actall" data-w="auto"${tip(staffLvl('doctore') ? 'A for Auto: leave every man who is here to the doctore. He rests them when they need it and before the games, and drills each at what he learns fastest.' : 'Leaving the men to the doctore needs a doctore. Hire one under Household.')}>A</button>`;
   return `<div class="panel schoolbar">
     <div class="tally">${bit(fit, 'fit to fight', 'good', 'Whole, here, and not yet fought today.') || '<span class="bad">No one fit to fight</span>'}${bit(hurt, 'injured', 'bad', 'Resting until they heal. An infirmary and a medicus shorten it.')}${bit(spent, 'exhausted', 'bad', TIPS.exhausted)}${bit(away, 'away', 'gold', TIPS.away)}${bit(idle, 'idle', 'bad', 'Resting though whole and fresh: a day of training lost.')}
       <span${tip('Food for every man here, and the wages of your household, each day.')}>upkeep <b class="num">${upkeep()}</b> a day</span></div>
@@ -1126,7 +1142,9 @@ function schoolPanel() {
       <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
       <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. The barracks add two at a time.')}><b class="num">${G.roster.length}</b> of <b class="num">${capacity()}</b> cells taken</span>
       <span${tip('The training ground, the doctore and the regimen together, before each man\'s own nature and state.')}>training at <b class="num">${rate}%</b></span>
-      <span class="${hurt ? 'bad' : ''}"><b class="num">${hurt}</b> injured</span></div></div>
+      <span class="${hurt ? 'bad' : ''}"><b class="num">${hurt}</b> injured</span>
+      <span class="${teachers().length ? 'gold' : ''}"${tip(`A ${RANKS[TEACH_RANK].name} or better can be set to teach: men drilling a skill he is clearly better at learn it faster.${teachers().length ? '\nTeaching today: ' + namesOf(teachers()) + '.' : ''}`)}><b class="num">${teachers().length}</b> teaching</span>
+      <span${tip('Men left to the doctore are set their work each morning.')}><b class="num">${G.roster.filter(g => g.auto).length}</b> left to the doctore</span></div></div>
     <div class="pane" data-pane="school"><div class="htiles">${SCHOOL_FACS.map(facTile).join('')}</div>
       <h2${tip('How hard the men are worked: it sets how fast they learn, how tired a day\'s drill leaves them, and where their spirits settle.')}>Regimen <small>${here.length} in the yard</small></h2><div class="rations">${regimenButtons()}</div>
       <div class="panel dim" style="font-size:13px;margin-top:10px">These are the school's own walls: cells, the ground the men drill on, and where they are mended and rested. The house across the way keeps the staff, the table and the stores; the shrine is with the Patrons, the stables with the Contracts, and the armourer at the Blacksmith.</div></div>`;
@@ -2252,11 +2270,17 @@ const ACTIONS = {
   activity(v, w, el) {
     const g = byId(v);
     if (!g || el.classList.contains('off')) return;
-    g.activity = w; ui.sel = g.id; save(); render();
+    g.activity = w; g.auto = false; ui.sel = g.id; save(); render();
+  },
+  actauto(v, w, el) {                       // leave him to the doctore, or take him back
+    const g = byId(v);
+    if (!g || el.classList.contains('off')) return;
+    g.auto = !g.auto; if (g.auto) g.activity = doctorePick(g);
+    ui.sel = g.id; save(); render();
   },
   actall(v, w, el) {
     if (el.classList.contains('off')) return;
-    for (const g of G.roster) if (!g.away && g.injury <= 0) g.activity = w;
+    for (const g of G.roster) { if (g.away) continue; if (w === 'auto') { g.auto = true; g.activity = doctorePick(g); } else if (g.injury <= 0) { g.activity = w; g.auto = false; } }
     save(); render();
   },
   rsort() { const i = RSORTS.findIndex(s => s[0] === (ui.rsort || 'cells')); ui.rsort = RSORTS[(i + 1) % RSORTS.length][0]; render(); },

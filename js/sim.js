@@ -1623,6 +1623,45 @@ function trainRate(g) {
   if (bondsOf(g).some(b => b.type === 'rival')) m *= 1.1;      // nothing drives a man like someone to outdo
   return m * regimen().rate * (1 - g.fatigue / 160) * (0.75 + g.morale / 250);
 }
+// ---- teaching, sparring partners, the doctore's own judgement, and days when it all comes right ----
+const TEACH_RANK = 2;                 // a Veteranus or better may be set to teach
+const canTeach = g => g.rank >= TEACH_RANK;
+// The men teaching today: here, whole, and of the rank for it.
+const teachers = () => G.roster.filter(t => !t.away && t.injury <= 0 && t.activity === 'teach' && canTeach(t));
+// What a teacher adds to one man's work on one skill: nothing unless he is clearly the better at it. Only the best teacher counts.
+function teachBonus(g, st) {
+  let best = 0;
+  for (const t of teachers()) if (t !== g && t.stats[st] >= g.stats[st] + 2) best = Math.max(best, 0.2 + 0.05 * t.rank);
+  return best;
+}
+// Sparring is worth more against a better man, and less against the air.
+function sparBonus(g) {
+  const others = G.roster.filter(o => o !== g && !o.away && o.injury <= 0 && o.activity === 'spar' && !(G.autoRest && o.fatigue > 75));
+  if (!others.length) return 0.85;
+  return others.some(o => statSum(o) > statSum(g)) ? 1.15 : 1;
+}
+// The chance that today is one of the days when everything comes right: better in good spirits, none in poor.
+const breakChance = g => g.morale < 50 ? 0 : 0.03 + 0.04 * (g.morale - 50) / 50;
+// What the doctore would set a man to today, if it were left to him: rest when he needs it and before the games,
+// otherwise the skill he learns fastest that still has room to grow.
+function doctorePick(g) {
+  if (g.injury > 0) return 'rest';
+  if (g.fatigue > 60 || g.hp < maxHp(g) * 0.7) return 'rest';
+  if (daysToGames() === 1 && (g.fatigue > 25 || g.hp < maxHp(g) * 0.9)) return 'rest';
+  const open = STATS.filter(k => g.stats[k] < 20);
+  if (!open.length) return canTeach(g) ? 'teach' : 'rest';
+  const sorted = open.slice().sort((a, b) => g.pot[b] - g.pot[a] || g.stats[a] - g.stats[b]);
+  if (open.length === 3 && g.pot[sorted[0]] - g.pot[sorted[2]] < 0.15) return 'spar';      // no skill comes easier than another: work them all
+  return sorted[0];
+}
+// Men left to the doctore are given their day's work. Without a doctore nobody is.
+function doctoreRound() {
+  for (const g of G.roster) {
+    if (!g.auto) continue;
+    if (!staffLvl('doctore')) { g.auto = false; continue; }
+    if (!g.away) g.activity = doctorePick(g);
+  }
+}
 // What a day's drilling costs him in fatigue.
 function trainTire(g, spar) { return (13 - statSum(g) * 0.07) * (g.traits.includes('tireless') ? 0.7 : 1) * (spar ? 0.7 : 1) * regimen().tire * (1 - 0.06 * staffLvl('unctor')); }
 // What a day's rest gives back: [health, fatigue shed].
@@ -1635,6 +1674,7 @@ function endDay() {
     if (G.field) { wildDayFor(g); continue; }      // the whole school is out in the country (wilds.js)
     const mh = maxHp(g);
     if (g.activity === 'spar' && !staffLvl('doctore')) g.activity = 'rest';
+    if (g.activity === 'teach' && !canTeach(g)) g.activity = 'rest';
     const tiredOut = G.autoRest && g.fatigue > 75;
     const resting = g.injury > 0 || g.activity === 'rest' || tiredOut;
     if (g.injury > 0) {
@@ -1647,11 +1687,14 @@ function endDay() {
       g.fatigue -= shed;
       g.hp += heal;
       g.morale += 2 + 2 * F.baths;
+    } else if (g.activity === 'teach') {         // he walks the line with a stick: no drill of his own, little weariness, and some pride in it
+      g.fatigue += 3; g.hp += mh * 0.08; g.morale += 2;
     } else {
       const spar = g.activity === 'spar';
-      const m = trainRate(g);
+      let m = trainRate(g) * (spar ? sparBonus(g) : 1);
+      if (chance(breakChance(g))) { m *= 2.5; g.morale = clamp(g.morale + 4, 0, 100); log(`${g.name} has a day when everything comes right: he learns in one what takes most men three.`, 'good'); }
       for (const st of (spar ? STATS : [g.activity])) {
-        if (addProg(g, st, m * g.pot[st] * (spar ? 0.32 : 1))) log(`${g.name}'s ${STAT_NAMES[st].toLowerCase()} rises to ${g.stats[st]}.`, 'good');
+        if (addProg(g, st, m * g.pot[st] * (spar ? 0.32 : 1) * (1 + teachBonus(g, st)))) log(`${g.name}'s ${STAT_NAMES[st].toLowerCase()} rises to ${g.stats[st]}.`, 'good');
       }
       g.fatigue += trainTire(g, spar);
       g.hp += mh * 0.06;
@@ -1667,6 +1710,13 @@ function endDay() {
     g.hp = clamp(g.hp, 1, maxHp(g));
   }
 
+  if (!G.field) {                             // men who cross swords every day come to like or to hate each other
+    const sp = G.roster.filter(g => !g.away && g.injury <= 0 && g.activity === 'spar');
+    if (sp.length >= 2 && chance(0.03 * (sp.length - 1))) {
+      const a = pick(sp), b = pick(sp.filter(x => x !== a)), type = chance(0.5) ? 'friend' : 'rival';
+      if (b && makeBond(a, b, type)) log(type === 'friend' ? `${a.name} and ${b.name}, sparring day after day, have become friends.` : `${a.name} and ${b.name} have stopped pulling their blows when they spar. There is something between them now.`, type === 'friend' ? 'good' : '');
+    }
+  }
   G.denarii += stipend() - upkeep();
   (G.purseLog = G.purseLog || []).push(G.denarii); if (G.purseLog.length > 30) G.purseLog.shift();      // the purse, day by day, for the ledger
   if (G.denarii < 0) {
@@ -1706,6 +1756,7 @@ function endDay() {
   if (!G.over && !G.ruin) jobsTick();
   if (!G.over && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
   if (!G.over && !G.ruin) checkDeeds();
+  doctoreRound();
   if (isGamesDay()) backupSlot();
   save();
 }

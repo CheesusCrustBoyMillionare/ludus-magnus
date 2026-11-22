@@ -997,6 +997,52 @@ test('journeys: asked for, promised, and ended at a place in the province', () =
   answerEvent(1); assert(G.pendingEvent.id === 'vigil' && !G.eventQueue.length, 'and is raised when the first is answered');
 }));
 
+test('training: teachers, sparring partners, the doctore\'s choice, and great days', () => game()(function () {
+  const fresh = () => { newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(25)); G.day = 2; G.staff.doctore = { name: 'd', skill: 1, wage: 0 }; G.roster.forEach(g => { g.fatigue = 0; g.hp = maxHp(g); g.morale = 40; g.injury = 0; g.rank = 0; g.stats = { str: 6, agi: 6, skl: 6 }; g.prog = { str: 0, agi: 0, skl: 0 }; g.pot = { str: 1, agi: 1, skl: 1 }; g.traits = []; }); G.bonds = []; return G.roster; };
+  // a teacher: only a veteran, only where he is clearly better, and only the best counts
+  let [a, b, c, d] = fresh();
+  a.activity = 'teach'; b.activity = 'str'; c.activity = 'str';
+  assert(!canTeach(a) && teachers().length === 0 && teachBonus(b, 'str') === 0, 'a novice has nothing to teach');
+  a.rank = 2; a.stats.str = 12;
+  assert(teachers().length === 1 && Math.abs(teachBonus(b, 'str') - 0.3) < 1e-9 && teachBonus(b, 'agi') === 0 && teachBonus(a, 'str') === 0, 'a veteran teaches what he is better at, and not himself');
+  d.activity = 'teach'; d.rank = 4; d.stats.str = 14;
+  assert(Math.abs(teachBonus(b, 'str') - 0.4) < 1e-9, 'the best teacher counts, and only he');
+  d.activity = 'rest'; b.stats.str = 11; assert(teachBonus(b, 'str') === 0, 'no use teaching a man nearly as good');
+  // taught men learn faster; the teacher learns nothing and barely tires
+  [a, b, c, d] = fresh(); a.rank = 2; a.stats.str = 12; a.activity = 'teach'; b.activity = 'str'; c.activity = 'rest'; d.activity = 'rest';
+  const alone = (() => { const [p, q] = fresh(); q.activity = 'str'; endDay(); return q.prog.str; })();
+  [a, b, c, d] = fresh(); a.rank = 2; a.stats.str = 12; a.activity = 'teach'; b.activity = 'str';
+  endDay();
+  assert(Math.abs(b.prog.str - alone * 1.3) < 1e-6, 'a pupil learns 30% faster, got ' + b.prog.str + ' against ' + alone);
+  assert(a.prog.str === 0 && a.fatigue <= 3 && a.activity === 'teach', 'the teacher drills nothing and barely tires');
+  a.rank = 0; endDay(); assert(a.activity === 'rest', 'a man who cannot teach is stood down');
+  // sparring: better against a stronger man, worse alone
+  [a, b, c, d] = fresh(); a.activity = 'spar';
+  assert(sparBonus(a) === 0.85, 'alone');
+  b.activity = 'spar'; assert(sparBonus(a) === 1 && sparBonus(b) === 1, 'with an equal');
+  b.stats.str = 12; assert(sparBonus(a) === 1.15 && sparBonus(b) === 1, 'with a better man');
+  // great days: never in poor spirits, sometimes in good
+  assert(breakChance({ morale: 40 }) === 0 && Math.abs(breakChance({ morale: 100 }) - 0.07) < 1e-9 && breakChance({ morale: 75 }) > 0.03, 'the chance of a great day');
+  let great = 0;
+  for (let i = 0; i < 300; i++) { const [p, q] = fresh(); q.activity = 'str'; q.morale = 100; G.ration = 2; endDay(); const got = q.prog.str + (q.stats.str > 6 ? needProg(6) : 0), usual = alone * (0.75 + 100 / 250) / (0.75 + 40 / 250); if (got > usual * 1.8) great++; }
+  assert(great >= 5 && great <= 50, 'a great day now and then, got ' + great + ' in 300');
+  // the doctore's choice
+  [a, b, c, d] = fresh();
+  a.pot = { str: 0.8, agi: 1.4, skl: 1 }; assert(doctorePick(a) === 'agi', 'he drills a man at what he learns fastest');
+  a.stats.agi = 20; assert(doctorePick(a) === 'skl', 'and moves on when that can go no higher');
+  b.pot = { str: 1, agi: 1.05, skl: 1 }; assert(doctorePick(b) === 'spar', 'a man with no better skill spars');
+  a.fatigue = 70; assert(doctorePick(a) === 'rest', 'a tired man rests');
+  a.fatigue = 0; a.injury = 2; assert(doctorePick(a) === 'rest', 'and a hurt one');
+  a.injury = 0; a.stats = { str: 20, agi: 20, skl: 20 }; a.hp = maxHp(a); assert(doctorePick(a) === 'rest', 'a novice with nothing left to learn rests'); a.rank = 3; assert(doctorePick(a) === 'teach', 'and a veteran teaches');
+  G.day = 4; c.fatigue = 30; c.pot = { str: 1.5, agi: 1, skl: 1 }; assert(daysToGames() === 1 && doctorePick(c) === 'rest', 'the day before the games he rests the weary');
+  // left to the doctore: set each morning; and taken back without one
+  [a, b, c, d] = fresh(); a.auto = true; a.pot = { str: 1.5, agi: 1, skl: 1 }; a.activity = 'rest';
+  endDay(); assert(a.auto && a.activity === 'str', 'the doctore sets his work for the morning');
+  a.fatigue = 80; endDay(); assert(a.activity === 'rest', 'and rests him when he is spent');
+  delete G.staff.doctore; a.fatigue = 0; endDay(); assert(!a.auto, 'no doctore, no doctore\'s choice');
+  assert(!badNumber(G), 'training left a bad number');
+}));
+
 test('the annals: deeds, records, the years, and those who left', () => game()(function () {
   newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(30));
   assert(new Set(DEEDS.map(D => D.id)).size === DEEDS.length && DEEDS.every(D => D.name && D.what && (D.done || D.at)), 'every deed is named and can be judged');

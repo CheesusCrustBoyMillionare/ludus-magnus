@@ -1307,3 +1307,8 @@ h2 .h2btn { margin-left: 10px; vertical-align: 2px; padding: 1px 9px; font-size:
 .kvs.recs small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spark.years { height: 64px; position: relative; }
 .spark.years u { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(240, 220, 170, .35); pointer-events: none; }
+
+/* ---- training: the doctore's choice ---- */
+.acts.mini button.byauto.on { box-shadow: inset 0 0 0 1px #9fce86; }
+.lrow.lud .acts.mini button { padding-left: 3px; padding-right: 3px; min-width: 24px; }
+.lrow.lud .acts.mini button[data-w=teach], .acts.mini button[data-act=actauto], .schoolbar .acts.mini button[data-w=auto] { min-width: 20px; font-weight: 700; }
