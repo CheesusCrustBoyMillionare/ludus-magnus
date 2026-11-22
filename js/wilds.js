@@ -207,6 +207,22 @@ function wildLand() {
       }
       const done = landParts <= 1;                               // every bank is joined: that is what must hold
       if (!done) { while (changed.length) { const [key, was] = changed.pop(); t[key] = was; } }
+      else {
+        // what is left of the old approach, running down to the water where the bridge used to be and stopping there,
+        // is taken up again: a road that leads nowhere is grass by the next summer
+        const mine = new Set(changed.map(c => c[0])), near = k => comp.some(([x, y]) => Math.abs(x - k % TW) <= 6 && Math.abs(y - Math.floor(k / TW)) <= 6);
+        for (let pass = 0; pass < 10; pass++) {
+          let cut = 0;
+          for (const k of lab.keys()) {
+            if (t[k] !== T_ROAD || mine.has(k) || !near(k) || taken(k % TW, Math.floor(k / TW))) continue;
+            const kx = k % TW, ky = (k - kx) / TW; let roads = 0, wet = false; const ground = [];
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const o = t[(ky + dy) * TW + kx + dx]; if (o === T_ROAD || o === T_BRIDGE) roads++; else if (o < T_WATER) ground.push(o); if (o === T_WATER) wet = true; }
+            if (roads > 1 || (pass === 0 && !wet)) continue;      // only an end, and the first to go must be at the water's edge
+            t[k] = ground.length ? ground.sort((u, v) => ground.filter(g => g === v).length - ground.filter(g => g === u).length)[0] : T_GRASS; cut++;
+          }
+          if (!cut) break;
+        }
+      }
       if (!done) for (const [key, was] of before) t[key] = was;      // no straight way joins them: that crossing stays as it was
     }
     // and what can be reached on foot is reckoned again, now that the crossings have moved

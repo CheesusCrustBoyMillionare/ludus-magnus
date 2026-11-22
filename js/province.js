@@ -156,13 +156,42 @@ function provLand() {
   const seaM = new Uint8Array(TW * TH);
   { let cur = []; for (let ty = 0; ty < TH; ty++) if (L.t[ty * TW] === T_WATER) { seaM[ty * TW] = 1; cur.push(ty * TW); }
     while (cur.length) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (!seaM[j] && L.t[j] === T_WATER && shoreD[j] >= 2) { seaM[j] = 1; nx.push(j); } } } cur = nx; } }
+  // ---- the roads, each laid as one ribbon ----
+  // A road is not a row of squares. The middle of each stretch is drawn a little toward its neighbours, so that a road
+  // climbing across the grain of the map runs straight up the slant instead of in steps, and a corner is rounded; then
+  // the whole is laid as one band of even width, with a darker verge where the wheels have not been.
+  const isRd = k => k === T_ROAD || k === T_BRIDGE;
+  const ROAD_REG = { 'The Quarry Hills': '#d0c8b0', 'The High Fells': '#a89c88', 'Blackmere': '#8a7350', 'The Salt Shore': '#dcc890', 'Greywood': '#9a8058', 'The Long Meadows': '#c2a674', 'The Barrow Downs': '#c4b890' };
+  const roadCol = (tx, ty) => { const dT = Math.hypot(tx - tx0, ty - ty0), rr = REG_NAMES[regT[ty * TW + tx]]; return at(tx, ty) === T_BRIDGE ? '#8a6a3a' : dT < 9 ? '#c4bca6' : ROAD_REG[rr] ? tint(ROAD_REG[rr], 0.97 + h(tx, ty, 1081) * 0.06) : dT > 70 ? '#c2a674' : '#cdae78'; };
+  const midCache = new Map();
+  const roadMid = (tx, ty) => {
+    const key = ty * TW + tx; if (midCache.has(key)) return midCache.get(key);
+    let sx = tx * 10 + 5, sy = ty * 10 + 5, n = 1, held = at(tx, ty) !== T_ROAD || Math.hypot(tx - tx0, ty - ty0) < 9;
+    const nb = []; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && isRd(at(tx + dx, ty + dy))) { nb.push([dx, dy]); if (at(tx + dx, ty + dy) === T_BRIDGE) held = true; }
+    if (!held && nb.length >= 2) for (const [dx, dy] of nb) { sx += (tx + dx) * 10 + 5; sy += (ty + dy) * 10 + 5; n++; }      // it stays square to a bridge, in the paved streets, and at its own end
+    const c = [Math.round(sx / n), Math.round(sy / n)]; midCache.set(key, c); return c;
+  };
+  { const stamp = (px, py, c, wide) => { if (wide) { R(px - 3, py - 4, 6, 8, c); R(px - 4, py - 3, 8, 6, c); } else { R(px - 2, py - 3, 4, 6, c); R(px - 3, py - 2, 6, 4, c); } };
+    const run = (ax, ay, bx, by, c1, c2, wide) => { const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1); for (let i = 0; i <= n; i++) stamp(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), i * 2 < n ? c1 : c2, wide); };
+    for (const wide of [true, false]) for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+      if (at(tx, ty) !== T_ROAD) continue;
+      const A = roadMid(tx, ty), cA = wide ? tint(roadCol(tx, ty), 0.8) : roadCol(tx, ty); let any = false;
+      for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1], [-1, 0], [0, -1], [-1, -1], [1, -1]]) {
+        const o = at(tx + dx, ty + dy); if (!isRd(o)) continue; any = true;
+        if (o === T_BRIDGE) { if (!dx || !dy) run(A[0], A[1], A[0] + dx * 5, A[1] + dy * 5, cA, cA, wide); continue; }      // to the edge of its own tile, where the bridge takes it up
+        if (dx < 0 && dy <= 0 || (dx === 0 && dy < 0) || (dx > 0 && dy < 0)) continue;                                        // each pair once
+        const B = roadMid(tx + dx, ty + dy); run(A[0], A[1], B[0], B[1], cA, wide ? tint(roadCol(tx + dx, ty + dy), 0.8) : roadCol(tx + dx, ty + dy), wide);
+      }
+      if (!any) stamp(A[0], A[1], cA, wide);
+    }
+  }
   const zq = (v, n) => Math.min(n - 1, Math.max(0, Math.floor(((v - 0.5) * 2.4 + 0.5) * n)));      // which of n kinds a stretch of country is
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
-    const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 40), b = h(tx, ty, 41);
+    const k = at(tx, ty), a = h(tx, ty, 40), b = h(tx, ty, 41); let x = tx * 10, y = ty * 10;
     if (k === T_ROAD || k === T_BRIDGE) {
       const dTown = Math.hypot(tx - tx0, ty - ty0), paved = k === T_ROAD && dTown < 9;
-      const rreg = REG_NAMES[regT[ty * TW + tx]], RC = { 'The Quarry Hills': '#d0c8b0', 'The High Fells': '#a89c88', 'Blackmere': '#8a7350', 'The Salt Shore': '#dcc890', 'Greywood': '#9a8058', 'The Long Meadows': '#c2a674', 'The Barrow Downs': '#c4b890' };
-      const road = k === T_ROAD ? (paved ? '#c4bca6' : RC[rreg] ? tint(RC[rreg], 0.97 + h(tx, ty, 1081) * 0.06) : dTown > 70 ? '#c2a674' : '#cdae78') : '#8a6a3a';
+      const rreg = REG_NAMES[regT[ty * TW + tx]];
+      const road = roadCol(tx, ty);
       if (k === T_BRIDGE) {                    // under a crossing the water runs on, and the bank comes raggedly down to it; the bridge itself is laid afterwards, in one piece
         for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 312 + q) * 7), y + 1 + Math.floor(h(tx, ty, 316 + q) * 8), 2 + Math.floor(h(tx, ty, 320 + q) * 3), 1, '#8fc3e0');
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], sd) => {
@@ -171,9 +200,7 @@ function provLand() {
           for (let q = 0; q < 5; q++) { const at0 = q * 2, dep = 1 + Math.floor(h(tx, ty, 1520 + sd * 8 + q) * 3); if (dx) R(dx > 0 ? x + 10 - dep : x, y + at0, dep, 2, q % 3 === 2 ? '#bfae78' : oc); else R(x + at0, dy > 0 ? y + 10 - dep : y, 2, dep, q % 3 === 2 ? '#bfae78' : oc); }
         });
       } else {
-      R(x + 2, y + 2, 6, 6, road);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const o = at(tx + dx, ty + dy); if (o === T_ROAD || o === T_BRIDGE) R(dx ? x + (dx > 0 ? 8 : 0) : x + 2, dy ? y + (dy > 0 ? 8 : 0) : y + 2, dx ? 2 : 6, dy ? 2 : 6, road); }
-      for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { const o = at(tx + dx, ty + dy); if (o === T_ROAD || o === T_BRIDGE) R(x + (dx > 0 ? 7 : 0), y + (dy > 0 ? 7 : 0), 3, 3, road); }
+      { const c = roadMid(tx, ty); x += c[0] - (tx * 10 + 5); y += c[1] - (ty * 10 + 5); }      // the ribbon is laid already (below): what lies on it follows where it runs
       }
       if (k === T_BRIDGE) { }
       else if (paved) { R(x + 2 + ((tx + ty) % 2) * 3, y + 2, 1, 6, '#a89f8a'); R(x + 2, y + 4 + ((tx * 3 + ty) % 2), 6, 1, '#a89f8a'); if (a > 0.8) R(x + 3 + Math.floor(b * 3), y + 3, 2, 2, '#d6cfbc'); }      // dressed stone, close to the gate
