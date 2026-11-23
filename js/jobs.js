@@ -822,42 +822,42 @@ for (const id in FIELD_EVENTS) {
 // where the whole school must walk with him, and in a choice that is yours.
 const QUESTS = {
   brother: { name: 'A brother in chains', finale: 'questBrother', where: 'the stone quarries, at the end of the north road',
-    ask: g => `<b>${g.name}</b> was not taken alone. A trader from ${g.origin} has told him that his younger brother is alive, sold the same season, somewhere along the slave road. It can only be the stone quarries in the northern hills. He asks you to take him there.` },
+    ask: g => `<b>${g.name}</b> has a younger brother, who was sold as a slave in the same season he was. A trader from ${g.origin} has told him the brother is still alive, and working in the stone quarries in the northern hills. He asks you to take him there and get his brother out.` },
   village: { name: 'The men who burned his village', finale: 'questVillage', where: 'the slavers\' camp, south-east on the road into the Blackmere',
-    ask: g => `<b>${g.name}</b> has heard a name in the market: the captain of the slavers who burned his village in ${g.origin} and marched him away in a neck-chain. The man is in the province. He asks you to take the school there, and him with it.` },
+    ask: g => `Slavers burned <b>${g.name}</b>'s village in ${g.origin} and marched him away in chains. He has just learned that their captain is here in the province. He asks you to march the school to the slavers' camp, so that he can face the man.` },
   shrine: { name: 'A vow to his gods', finale: 'questShrine', where: 'the shrine on the shore, at the end of the south road',
-    ask: g => `The night before he was first sent onto the sand, <b>${g.name}</b> swore that if he lived he would carry an offering to the shrine his people keep on the southern shore. He has lived. He asks you to take him there to pay what he owes.` },
+    ask: g => `The night before his first fight, <b>${g.name}</b> made a promise to his gods: if he lived, he would take an offering to the shrine his people keep on the southern shore. He has lived. He asks you to take him there to keep his promise.` },
   master: { name: 'The old master', finale: 'questMaster', where: 'the beekeeper\'s hut, off the north road',
-    ask: g => `Every ${CLASSES[g.cls].name} has heard of the old champion who won the wooden sword thirty years ago and went up into the hills to keep bees. <b>${g.name}</b> believes he is still alive, and asks you to take him there to learn what the old man knows.` },
+    ask: g => `Thirty years ago a famous champion won his freedom and went up into the hills to keep bees. He fought as a ${CLASSES[g.cls].name}, like <b>${g.name}</b>, who believes the old man is still alive. He asks you to take him there, to learn what the old champion knows.` },
   // These four end at one of the landmarks of the province, chosen when he asks. A place of that kind is always to be found.
   grave: { name: 'A friend left on the road', finale: 'questGrave', where: 'a place out in the province', marks: ['An old battlefield', 'The gallows', 'A burnt village', 'The causeway'],
-    ask: (g, m) => `<b>${g.name}</b> came into this province in a coffle of forty. The man chained next to him, who shared his water for two hundred miles, died on the march and was rolled into a ditch by ${lower(m)}. He knows the spot. He asks you to take him there, to do what should have been done.`,
-    at: g => `<b>${g.name}</b> walks straight to it, as if he had been here yesterday: a ditch, a thorn bush, and what the foxes have left. He asks for a spade, and for the day.`,
-    after: g => `${g.name} digs alone, and will not be helped. By evening it is done, all but the last of it.`,
-    fire: g => `"He was a potter. He talked the whole way about a kiln he was going to build. I never learned what his people do for their dead, so I shall have to guess."` },
+    ask: (g, m) => `<b>${g.name}</b> was brought to this province chained in a line of forty slaves. The man chained next to him shared his water for two hundred miles, then died on the march and was thrown into a ditch near ${lower(m)}. He remembers the place. He asks you to take him there, so he can give his friend a proper burial.`,
+    at: g => `<b>${g.name}</b> walks straight to the place: a ditch beside a thorn bush, with bones in it. He asks for a spade, and for a day to bury his friend.`,
+    after: g => `${g.name} digs the grave alone, and will not let anyone help. By evening it is almost finished.`,
+    fire: g => `"He was a potter. All the way here he talked about a kiln he was going to build. I never learned how his people bury their dead, so I will have to guess."` },
   beast: { name: 'The beast that marked him', finale: 'questBeast', where: 'a place out in the province', marks: ['The eagle rock', 'The wolf stone', "The giant's table", 'The great waterfall', 'The hot spring'], bg: 'rock',
     foes: (g, t) => [questBeast(greatKind(Math.max(3, t)), t, 'The one that marked him', 1.5)].concat(lesser('wolf', t, 1 + Math.floor(t / 2))),
-    ask: (g, m) => `<b>${g.name}</b> has four white lines across his ribs that no arena gave him. He was a boy with his father's goats when it came, and his father did not come home. A hunter in the market swears the same animal, old now and with the same torn ear, lies up at ${lower(m)}. He asks you to take the school there, and him with it.`,
-    at: g => `The ground is all bones and droppings, and something very large is watching from the rocks with one torn ear laid back. <b>${g.name}</b> has gone white, and has not stopped walking.`,
-    won: g => `It is dead. ${g.name} sits down beside it and puts his hand on the torn ear, and for a long time nobody speaks to him.`,
-    fire: g => `"I ran. I was nine, and I ran, and I heard him the whole way down the hill. I have not run from anything since. That is all the courage I have: it is only that."` },
+    ask: (g, m) => `<b>${g.name}</b> has four old claw scars across his ribs. When he was a boy, herding goats with his father, a great beast attacked them. It clawed him and killed his father. A hunter says the same animal is still alive, old now, with the same torn ear, and that it lives at ${lower(m)}. He asks you to march the school there, so that he can kill it.`,
+    at: g => `The ground is covered in bones. A very large animal with a torn ear is watching you from the rocks. <b>${g.name}</b> has gone pale, but he keeps walking towards it.`,
+    won: g => `The beast is dead. ${g.name} sits down beside it with his hand on its torn ear, and for a long time nobody speaks to him.`,
+    fire: g => `"I was nine years old, and I ran away. I could hear my father all the way down the hill. I have never run from anything since. That is the only courage I have."` },
   child: { name: 'A child he has never seen', finale: 'questChild', where: 'a place out in the province', marks: ["The fishers' huts", 'The mill', 'The huts on stilts', "The shepherds' fold", 'The bee garden', 'The charcoal burners'],
-    ask: (g, m) => `A carter has brought <b>${g.name}</b> a message scratched on a potsherd. The woman he was taken from is alive, at ${lower(m)}, and there is a child of four with his eyes. He asks you to take the school that way, and to let him stand at the door once.`,
-    at: g => `A woman is hanging out washing, and stops with her arms up. A small child looks round her skirt at the armed men, and then at <b>${g.name}</b>, who has taken off his helmet and does not seem to know what to do with it.`,
-    after: g => `The school camps out of sight. ${g.name} comes back after dark and asks to speak with you about money.`,
-    fire: g => `"I do not know if it is a boy or a girl. The potsherd did not say. I have been carving a horse, and now I think: what if she does not like horses?"` },
+    ask: (g, m) => `A cart driver has brought <b>${g.name}</b> a message. The woman he was taken from when he was enslaved is alive, and living at ${lower(m)}. She has a four-year-old child, and it is his. He has never seen it. He asks you to march the school that way, so that he can see them once.`,
+    at: g => `A woman is hanging out washing. She stops when she sees you. A small child peeps out from behind her at the armed men, and then at <b>${g.name}</b>, who has taken off his helmet and does not know what to say.`,
+    after: g => `The school camps out of sight of the house. ${g.name} comes back after dark and asks to speak to you about money.`,
+    fire: g => `"I do not even know whether it is a boy or a girl. The message did not say. I have been carving a toy horse. But what if she does not like horses?"` },
   betrayer: { name: 'The man who sold him', finale: 'questBetrayer', where: 'a place out in the province', marks: ['A villa in its garden', 'The wine press', 'The mill', 'The lime kiln'], bg: 'ruin',
     foes: (g, t) => [questBoss(t, "His cousin's captain", { traits: ['watchful'], tactic: 'defensive' })].concat(wildMen(t, Math.max(2, wildCount(t) - 2))),
-    ask: (g, m) => `<b>${g.name}</b> was not taken in war. He was sold, for a debt that was not his, by a cousin who put his seal to the bill and kept the farm. The cousin has done well since: he has a place at ${lower(m)} now, and hired men on the gate. ${g.name} asks you to take him to that gate.`,
-    at: g => `A good wall, a new roof, and hired men on the gate who have been told to expect somebody. A face shows at an upper window and is gone. <b>${g.name}</b> says, quite quietly, that it has put on weight.`,
-    won: g => `The hired men are down or over the wall. The cousin is found under a bed.`,
-    fire: g => `"We were boys together. He taught me to swim. I have gone over it a thousand times, and I still cannot find the day he began to hate me. Perhaps he never did. Perhaps it was only the money."` },
+    ask: (g, m) => `<b>${g.name}</b> was not captured in war. His own cousin sold him as a slave to pay a debt, and kept the family farm for himself. The cousin has grown rich since. He now owns a house at ${lower(m)}, with hired guards on the gate. ${g.name} asks you to take him there to confront his cousin.`,
+    at: g => `The house has a good wall and a new roof, and the hired guards on the gate are expecting trouble. A face appears at an upstairs window and vanishes. It is the cousin. <b>${g.name}</b> says quietly that he has grown fat.`,
+    won: g => `The guards are beaten or have run away. You find the cousin hiding under a bed.`,
+    fire: g => `"We grew up together. He taught me to swim. I have thought about it a thousand times, and I still cannot work out when he began to hate me. Perhaps he never did. Perhaps he only wanted the money."` },
 };
 // what the first four say at the fire
-Object.assign(QUESTS.brother, { fire: g => `"He is the clever one. He could reckon before he could walk. They will have him breaking stone, with those hands. If he is alive he will have counted every day."` });
-Object.assign(QUESTS.village, { fire: g => `"He had a ring on every finger and he laughed the whole time. I would know that laugh in the dark. I have been afraid, all these years, that somebody else would kill him first."` });
-Object.assign(QUESTS.shrine, { fire: g => `"I did not think the god was listening. I said it the way you say anything, the night before. Then I lived, and the man beside me did not, and now I do not like to walk under a clear sky."` });
-Object.assign(QUESTS.master, { fire: g => `"They say he never lost his footing once in forty fights. I lose mine twice a morning. If he will not teach me I shall sit outside his door until he does, and you may come and fetch me in the spring."` });
+Object.assign(QUESTS.brother, { fire: g => `"My brother is the clever one. He could do sums before he could walk. And they have him breaking stone. If he is alive, he will have counted every day."` });
+Object.assign(QUESTS.village, { fire: g => `"He wore a ring on every finger, and he laughed the whole time. I would know that laugh anywhere. For years I have been afraid that somebody else would kill him before I could."` });
+Object.assign(QUESTS.shrine, { fire: g => `"I did not think the god was listening when I made that promise. Then I lived, and the man next to me died. Now I am afraid of what happens if I do not keep it."` });
+Object.assign(QUESTS.master, { fire: g => `"They say he never once lost his balance in forty fights. I lose mine twice every morning. If he refuses to teach me, I will sit outside his door until he changes his mind."` });
 
 const questDef = g => (g && g.quest && QUESTS[g.quest.id]) || null;
 // Where his journey ends, in words: a fixed place, or the landmark that was named when he asked.
@@ -904,191 +904,191 @@ function makeBrother(g) {
 
 Object.assign(EVENTS, FIELD_EVENTS, {
   quest: {
-    title: 'He asks to speak with you',
+    title: 'A fighter asks a favour',
     auto: true,                      // offered on its own roll, so that it comes round often enough
     can: () => G.roster.some(questReady) && questsFree().length > 0,
     make: () => { const q = pick(questsFree()), sp = QUESTS[q].marks ? questSpot(q) : null; return Object.assign({ g: pick(G.roster.filter(questReady)).id, q }, sp || {}); },
-    text: c => { const g = byId(c.g), Q = QUESTS[c.q]; return g ? Q.ask(g, c.mark || 'a place you know') + ` That is ${Q.marks && c.mark ? `${lower(c.mark)}, in ${wildRegion(c.x, c.y)}` : Q.where}: the whole school would have to march out with him, and miss whatever games fell while it was away.` : 'A fighter wants a word.'; },
+    text: c => { const g = byId(c.g), Q = QUESTS[c.q]; return g ? Q.ask(g, c.mark || 'a place you know') + ` The place is ${Q.marks && c.mark ? `${lower(c.mark)}, in ${wildRegion(c.x, c.y)}` : Q.where}. The whole school would have to march there with him, and would miss any games held while it was away.` : 'A fighter wants a word.'; },
     opts: [
-      { label: () => 'Give your word', run: c => {
+      { label: () => 'Promise to take him (morale +10)', run: c => {
         const g = byId(c.g); if (!g) return 'The moment has passed.';
         g.quest = { id: c.q, since: G.day }; g.morale = clamp(g.morale + 10, 0, 100);
         if (QUESTS[c.q].marks) { const sp = c.mark ? c : questSpot(c.q); if (!sp) { g.quest = null; return 'Nobody can say where the place is. It will have to wait.'; } Object.assign(g.quest, { mark: sp.mark, x: sp.x, y: sp.y, tier: sp.tier }); }
         wildMark(questMarkId(g), 'journey');
         addStory(g, `Was promised his journey: ${QUESTS[c.q].name.toLowerCase()}.`);
-        return `${g.name} takes you at your word. The place is marked on your map of the province: ${questWhere(g)}. Do not make him wait long.`;
+        return `${g.name} trusts your promise. The place is now marked on your map of the province: ${questWhere(g)}. Do not make him wait too long.`;
       } },
-      { label: () => 'Not this season. Ask me again', run: c => {
+      { label: () => 'Not now. Ask me again later (morale -3)', run: c => {
         const g = byId(c.g); if (!g) return 'The moment has passed.';
         g.questAsk = G.day + 20; g.morale = clamp(g.morale - 3, 0, 100);
-        return `${g.name} looks at you a moment, to see whether it is a no. He decides it is not, and goes back to the post. He will ask again.`;
+        return `${g.name} is disappointed, but he accepts that you have not refused. He goes back to his training, and will ask again in a few weeks.`;
       } },
       { label: () => 'Refuse', run: c => {
         const g = byId(c.g); if (g) { g.questDone = 'refused'; g.morale = clamp(g.morale - 12, 0, 100); addStory(g, `Asked leave of the house, and was refused.`); }
-        return 'He nods as if he had expected nothing else, and goes back to the post.';
+        return 'He nods as if he had expected nothing else, and goes back to his training. He will not ask again, and he is bitter about it: morale -12.';
       } },
     ],
   },
   questBrother: {
-    title: 'The quarry gate', auto: true, can: finaleCan('brother'), make: finaleMake('brother'),
-    text: c => `The overseer will sell <b>${gn(c.g)}</b>'s brother for ${c.cost} denarii, which is three times what a quarry slave is worth, and he knows it. ${gn(c.g)} says there is a place where the wall is low.`,
+    title: 'At the quarry', auto: true, can: finaleCan('brother'), make: finaleMake('brother'),
+    text: c => `You have found <b>${gn(c.g)}</b>'s brother, alive, in the quarry. The overseer will sell him for ${c.cost} denarii. That is three times what a quarry slave is worth, and the overseer knows it. ${gn(c.g)} says there is a low place in the wall, where they could get him out by night instead.`,
     opts: [
       { label: c => `Buy him (${c.cost})`, ok: c => G.denarii >= c.cost && G.roster.length < capacity(), run: c => questMan(c, g => {
         G.denarii -= c.cost; const b = makeBrother(g);
         questReward(g, 'atpeace', 'Bought his brother out of the quarries with the house\'s silver.');
-        return `${b.name} walks out of the quarry gate and does not look back. He has sworn the oath beside his brother; neither of them will forget who paid.`;
+        return `You pay, and ${b.name} walks out of the quarry gate. He joins your school beside his brother. ${g.name} is at peace now, and neither of them will forget who paid.`;
       }) },
-      { label: () => 'Over the wall, by night', ok: () => G.roster.length < capacity(), run: c => questMan(c, g => {
+      { label: () => 'Steal him over the wall by night (may fail; Magistrate favour -8)', ok: () => G.roster.length < capacity(), run: c => questMan(c, g => {
         favor('magistrate', -8);
         if (chance(clamp(0.35 + g.stats.agi * 0.03, 0.35, 0.85))) {
           const b = makeBrother(g);
           questReward(g, 'atpeace', 'Took his brother over the quarry wall by night.');
-          return `Two men come down the quarry road before dawn where one went up. ${b.name} joins the ludus. The Magistrate hears a slave was stolen, and can guess by whom. Favour -8.`;
+          return `It works. ${g.name} gets his brother over the wall, and both are back before dawn. ${b.name} joins your school, and ${g.name} is at peace now. The Magistrate hears that a slave was stolen, and can guess who did it: favour -8.`;
         }
         fieldWound(g, rint(3, 5)); g.morale = clamp(g.morale - 20, 0, 100);
         addStory(g, 'Was caught at the quarry wall, and beaten for it.'); endQuest(g, 'failed');
-        return `The dogs found them at the wall. ${g.name} was beaten and thrown out on the road; his brother was dragged back inside. The Magistrate has been told. Favour -8.`;
+        return `It fails. The guard dogs caught them at the wall. ${g.name} was beaten and thrown out, and will be some days healing. His brother was dragged back inside. The Magistrate has been told: favour -8.`;
       }) },
-      { label: () => 'Leave him there', run: c => questMan(c, g => {
+      { label: () => 'Leave his brother there (morale -25)', run: c => questMan(c, g => {
         g.morale = clamp(g.morale - 25, 0, 100); addStory(g, 'Found his brother in the quarries, and was made to leave him.'); endQuest(g, 'failed');
-        return `${g.name} is called home. He does as he is told. He does not speak of it.`;
+        return `You order ${g.name} to come home without his brother. He obeys, and never speaks of it. His morale falls by 25.`;
       }) },
     ],
   },
   questVillage: {
-    title: 'A rope round his neck', auto: true, can: finaleCan('village'), make: finaleMake('village'),
-    text: c => `<b>${gn(c.g)}</b> has the slavers' captain on his knees in the ashes of the camp. The man is offering his strongbox, his horses, anything. ${gn(c.g)} has sent to ask what the house wants done with him.`,
+    title: 'The slavers\' captain', auto: true, can: finaleCan('village'), make: finaleMake('village'),
+    text: c => `The slavers are beaten, and <b>${gn(c.g)}</b> has their captain on his knees. The man is begging for his life, and offering his strongbox and his horses in exchange. ${gn(c.g)} asks you what is to be done with him.`,
     opts: [
-      { label: () => 'He is yours. Finish it', run: c => questMan(c, g => {
+      { label: () => 'Let him kill the captain', run: c => questMan(c, g => {
         g.kills++; addScar(g, 'deep');
         questReward(g, 'bloodoath', 'Killed the man who burned his village.');
-        return `${g.name} does it with the captain's own knife, and takes his time. He comes home lighter, and worse to meet across the sand.`;
+        return `${g.name} kills the captain with the man's own knife. His debt of blood is paid, and he fights harder for it: +8% damage from now on.`;
       }) },
-      { label: () => 'Bring him to the Magistrate in chains', run: c => questMan(c, g => {
+      { label: () => 'Hand the captain to the Magistrate (fame, Magistrate favour)', run: c => questMan(c, g => {
         const f = 10 + 6 * tier(); G.fame += f; g.fame += f; favor('magistrate', 10);
         questReward(g, 'atpeace', 'Brought the man who burned his village to be crucified by the law.');
-        return `The captain is nailed up at the crossroads with a placard, and ${g.name} stands and watches until it is over. The Magistrate is glad of the gift. Favour +10, fame +${f}.`;
+        return `The Magistrate has the captain executed at the crossroads, and ${g.name} watches until it is over. He is at peace now. The Magistrate is pleased with you: favour +10, fame +${f}.`;
       }) },
-      { label: c => `Take the strongbox and let him run (+${c.cost * 2})`, run: c => questMan(c, g => {
+      { label: c => `Take his money and let him go (+${c.cost * 2} denarii; morale -30)`, run: c => questMan(c, g => {
         G.denarii += c.cost * 2; g.morale = clamp(g.morale - 30, 0, 100);
         addStory(g, 'Had the man who burned his village under his knife, and was told to take his money.'); endQuest(g, 'failed');
-        return `The strongbox comes home. ${g.name} carried it the whole way and has not said a word to anyone since.`;
+        return `You take the strongbox and let the captain go. ${g.name} carries it home and has not spoken to anyone since. His morale falls by 30.`;
       }) },
     ],
   },
   questShrine: {
-    title: 'What is owed', auto: true, can: finaleCan('shrine'), make: finaleMake('shrine'),
-    text: c => `The priests have heard <b>${gn(c.g)}</b>'s vow and ask what will be given. A proper sacrifice in the name of the house would cost ${c.cost} denarii. Or he can give what is his own.`,
+    title: 'At the shrine', auto: true, can: finaleCan('shrine'), make: finaleMake('shrine'),
+    text: c => `The priests at the shrine have heard <b>${gn(c.g)}</b>'s promise, and ask what he will offer. Your school could pay for a full sacrifice, which costs ${c.cost} denarii. Or he can simply offer something of his own.`,
     opts: [
-      { label: c => `A sacrifice in the house's name (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
+      { label: c => `Pay for a full sacrifice (${c.cost} denarii; Temple favour, morale)`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
         G.denarii -= c.cost; favor('temple', 12); home().forEach(x => { x.morale = clamp(x.morale + 5, 0, 100); });
         questReward(g, 'blessed', 'Paid his vow at the shrine, with a white bull in the house\'s name.');
-        return `A white bull, gilded horns, smoke going straight up. Word of it reaches the Temple of Nemesis before ${g.name} does. Temple favour +12.`;
+        return `A white bull is sacrificed in the name of your school. ${g.name} has kept his promise, and people now say the goddess watches over him. The Temple is pleased: favour +12, and morale +5 for every man at home.`;
       }) },
-      { label: () => 'His own offering: his hair, and his first sword', run: c => questMan(c, g => {
+      { label: () => 'Let him offer his hair and his first sword (free)', run: c => questMan(c, g => {
         questReward(g, 'atpeace', 'Paid his vow at the shrine with his hair and his first sword.');
-        return `${g.name} leaves his hair on the altar and his first wooden sword beside it, and comes home with nothing weighing on him.`;
+        return `${g.name} leaves his hair and his first wooden sword on the altar. He has kept his promise, and he is at peace now.`;
       }) },
     ],
   },
   questMaster: {
-    title: 'The old man\'s price', auto: true, can: finaleCan('master'), make: finaleMake('master'),
-    text: c => `The old master will teach <b>${gn(c.g)}</b> the last of what he knows. He wants ${c.cost} denarii for it, or a winter's firewood cut and stacked. Or, he says, looking at his leaking roof, he might be talked into coming down to see what passes for a ludus these days.`,
+    title: 'The old champion', auto: true, can: finaleCan('master'), make: finaleMake('master'),
+    text: c => `You have found the old champion, and he agrees to teach <b>${gn(c.g)}</b> what he knows. He wants ${c.cost} denarii for it, or else a winter's firewood cut and stacked. Then he looks at his leaking roof and adds that, for more money, he might come and work at your school as its trainer.`,
     opts: [
-      { label: c => `Pay his fee (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
+      { label: c => `Pay his fee (${c.cost} denarii; skill +2)`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
         G.denarii -= c.cost; g.stats.skl = Math.min(20, g.stats.skl + 2);
         questReward(g, 'oldschool', 'Learned the old style from the last man who knew it.');
-        return `${g.name} comes home moving like a different man. Skill +2.`;
+        return `The old champion teaches ${g.name} properly, and he comes home a much better fighter: skill +2, and +5% accuracy from the old style.`;
       }) },
-      { label: () => 'He pays in firewood', run: c => questMan(c, g => {
+      { label: () => 'Have him pay by cutting firewood (free; skill +1, exhausting)', run: c => questMan(c, g => {
         g.stats.skl = Math.min(20, g.stats.skl + 1); g.fatigue = 90;
         questReward(g, 'oldschool', 'Learned the old style, and paid for it with an axe.');
-        return `A week of axe-work, then the lessons. ${g.name} comes home exhausted and better. Skill +1.`;
+        return `${g.name} cuts firewood for a week, and then has his lessons. He comes home exhausted, but a better fighter: skill +1, and +5% accuracy from the old style.`;
       }) },
-      { label: c => `Bring the old man home as doctore (${c.cost * 2})`, ok: c => G.denarii >= c.cost * 2 && staffLvl('doctore') < 3, run: c => questMan(c, g => {
+      { label: c => `Hire the old champion as your trainer (${c.cost * 2} denarii)`, ok: c => G.denarii >= c.cost * 2 && staffLvl('doctore') < 3, run: c => questMan(c, g => {
         G.denarii -= c.cost * 2; G.staff.doctore = { name: 'The old master', skill: 3, wage: 5 };
         questReward(g, 'oldschool', 'Brought the old master down from the hills to teach the whole house.');
-        return `The old man arrives on a mule with two hives and a stick, looks round the yard, and spits. He is your doctore now, a master, at 5 denarii a day.`;
+        return `The old champion rides down from the hills on a mule, with two of his beehives. He is now your school's trainer, of the highest grade, at a wage of 5 denarii a day. ${g.name} gains +5% accuracy from the old style.`;
       }) },
     ],
   },
   questGrave: {
-    title: 'The last of it', auto: true, can: finaleCan('grave'), make: finaleMake('grave'),
-    text: c => `The grave is dug and filled. <b>${gn(c.g)}</b> stands over it with the dead man's neck-chain in his hand, which he found in the ditch, and asks how the house would have it ended. Proper funeral games, with a bout fought over the grave, would cost ${c.cost} denarii.`,
+    title: 'At the grave', auto: true, can: finaleCan('grave'), make: finaleMake('grave'),
+    text: c => `The grave is dug and filled. <b>${gn(c.g)}</b> stands over it, holding his friend's neck-chain, which he found in the ditch. He asks you how the burial should be finished. Proper funeral games, with a fight held beside the grave, would cost ${c.cost} denarii.`,
     opts: [
-      { label: c => `Funeral games in the house's name (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
+      { label: c => `Pay for funeral games (${c.cost} denarii; fame, morale)`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
         const f = 8 + 5 * tier(); G.denarii -= c.cost; G.fame += f; g.fame += f; home().forEach(x => { x.morale = clamp(x.morale + 6, 0, 100); });
         questReward(g, 'atpeace', 'Buried the man he was chained to, with funeral games in the house\'s name.');
-        return `A pyre, a bout to first blood, wine for forty. The farms for miles round come to watch a potter buried like a senator. ${g.name} fights the bout himself, and wins it. Fame +${f}.`;
+        return `Your school holds funeral games at the grave, with a fire, a fight and wine for everyone. People come from farms for miles around to watch. ${g.name} fights in the games himself, and wins. He is at peace now. Fame +${f}, and morale +6 for every man at home.`;
       }) },
-      { label: () => 'A coin, a handful of earth, and his name said aloud', run: c => questMan(c, g => {
+      { label: () => 'A simple burial, with his name said aloud (free)', run: c => questMan(c, g => {
         questReward(g, 'atpeace', 'Buried the man he was chained to, and said his name over him.');
-        return `${g.name} says the name three times, as his own people do, and puts the chain in with him. He walks back to the column without looking round.`;
+        return `${g.name} says his friend's name three times, as his own people do, and buries the chain with him. Then he walks back to the school without looking round. He is at peace now.`;
       }) },
-      { label: () => 'He keeps the chain, and fights for two', run: c => questMan(c, g => {
+      { label: () => 'He keeps the chain and fights in his friend\'s memory (damage, accuracy)', run: c => questMan(c, g => {
         questReward(g, 'twoshares', 'Buried the man he was chained to, and kept the chain.');
-        return `${g.name} winds the chain twice round his sword wrist and has the smith close it. He says the potter can see the arena from there.`;
+        return `${g.name} winds the chain round his sword wrist and has the smith fasten it there for good. From now on he fights for his friend as well as himself: +4% damage and +3% accuracy.`;
       }) },
     ],
   },
   questBeast: {
-    title: 'Its hide', auto: true, can: finaleCan('beast'), make: finaleMake('beast'),
-    text: c => `The beast that marked <b>${gn(c.g)}</b> is skinned, and the hide is the largest your men have seen. A dealer would give ${c.cost} denarii for it and the skull. ${gn(c.g)} has not asked for it. He is waiting to hear.`,
+    title: 'The beast\'s hide', auto: true, can: finaleCan('beast'), make: finaleMake('beast'),
+    text: c => `The beast that scarred <b>${gn(c.g)}</b> and killed his father is dead and skinned. Its hide is the largest your men have ever seen. A dealer would pay ${c.cost} denarii for the hide and skull. ${gn(c.g)} has not asked to keep it, but he is waiting to hear what you decide.`,
     opts: [
-      { label: () => 'It is his. He wears it onto the sand', run: c => questMan(c, g => {
+      { label: () => 'Let him keep it and wear it in the arena (fame)', run: c => questMan(c, g => {
         const f = 6 + 4 * tier(); G.fame += f; g.fame += f;
         questReward(g, 'beastslayer', 'Killed the beast that marked him as a boy, and wears its hide.');
-        return `${g.name} goes into the arena with the torn ear hanging over his shoulder, and the crowd is told why. Fame +${f}.`;
+        return `${g.name} wears the hide into the arena, and the crowd is told its story. Fame +${f}, and he does +20% damage against beasts from now on.`;
       }) },
-      { label: () => 'Hang it in the temple of Nemesis', run: c => questMan(c, g => {
+      { label: () => 'Give it to the temple of Nemesis (Temple favour)', run: c => questMan(c, g => {
         favor('temple', 8);
         questReward(g, 'blessed', 'Killed the beast that marked him as a boy, and gave its hide to Nemesis.');
-        return `It hangs over the altar, where a goddess of debts paid can see it. The priests have never been given anything like it. Temple favour +8.`;
+        return `The hide is hung over the altar of Nemesis, the goddess of debts repaid. The priests have never been given anything like it: Temple favour +8. People now say the goddess watches over ${g.name}, and the crowd will spare him more often when he falls.`;
       }) },
-      { label: c => `Sell it (+${c.cost})`, run: c => questMan(c, g => {
+      { label: c => `Sell it (+${c.cost} denarii; morale -20)`, run: c => questMan(c, g => {
         G.denarii += c.cost; g.morale = clamp(g.morale - 20, 0, 100);
         addStory(g, 'Killed the beast that marked him, and saw its hide sold.'); endQuest(g, 'failed');
-        return `The dealer counts out the money. ${g.name} watches the hide rolled and corded and put on a mule. He killed it; that much is his.`;
+        return `You sell the hide to the dealer. ${g.name} watches it being rolled up and loaded on a mule. He killed the beast, but he has nothing to show for it: morale -20.`;
       }) },
     ],
   },
   questChild: {
-    title: 'At the door', auto: true, can: finaleCan('child'), make: finaleMake('child'),
-    text: c => `It is a girl. <b>${gn(c.g)}</b> has given her the horse. The woman has a hut, a debt to the man who owns it, and nothing else. ${c.cost} denarii would buy them a holding of their own, and ${gn(c.g)} knows the house has no reason to spend it.`,
+    title: 'His daughter', auto: true, can: finaleCan('child'), make: finaleMake('child'),
+    text: c => `The child is a girl, and <b>${gn(c.g)}</b> has given her the toy horse he carved. Her mother is very poor: she lives in a hut that is not hers, and owes money to its owner. For ${c.cost} denarii you could buy them a small farm of their own. ${gn(c.g)} knows your school has no reason to spend that on him.`,
     opts: [
-      { label: c => `Buy them the holding (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
+      { label: c => `Buy them a farm (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => questMan(c, g => {
         G.denarii -= c.cost;
         questReward(g, 'atpeace', 'Found his daughter, and saw her and her mother settled on land of their own.');
-        return `Four iugera, a well, and a deed in the woman's name. ${g.name} does not thank you. He cannot, yet.`;
+        return `You buy them a small farm with a well, in the woman's name. ${g.name} is too moved to thank you. He is at peace now.`;
       }) },
-      { label: () => 'His own winnings, sent to them after every games', run: c => questMan(c, g => {
+      { label: () => 'Let him send them his winnings after every games (free)', run: c => questMan(c, g => {
         questReward(g, 'provider', 'Found his daughter. Somebody eats by what he wins.');
-        return `It is agreed with the carter. ${g.name} has something to lose now, and fights like a man who knows it.`;
+        return `It is arranged: a cart driver will carry his winnings to them after every games. ${g.name} now has someone depending on him, and fights more carefully and more sharply for it: +3% dodge, and telling blows 3% more often.`;
       }) },
-      { label: () => 'He has seen them. March', run: c => questMan(c, g => {
+      { label: () => 'He has seen them. March on (morale -25)', run: c => questMan(c, g => {
         g.morale = clamp(g.morale - 25, 0, 100); addStory(g, 'Stood at his daughter\'s door once, and was marched away.'); endQuest(g, 'failed');
-        return `${g.name} falls in. The child waves until the column is out of sight; he does not turn round, and it costs him something not to.`;
+        return `You order the school to march on, and ${g.name} obeys. The child waves until you are out of sight. He does not turn round, and it hurts him not to: morale -25.`;
       }) },
     ],
   },
   questBetrayer: {
-    title: 'Under the bed', auto: true, can: finaleCan('betrayer'), make: finaleMake('betrayer'),
-    text: c => `<b>${gn(c.g)}</b>'s cousin is on his knees among his own broken crockery, offering the farm, the deeds, his daughters. He is a citizen, and the Magistrate will ask questions if he dies. ${gn(c.g)} is holding him by the hair and looking at you.`,
+    title: 'His cousin', auto: true, can: finaleCan('betrayer'), make: finaleMake('betrayer'),
+    text: c => `<b>${gn(c.g)}</b> has his cousin on his knees, held by the hair. The cousin is begging, and offering the farm, his money, anything. He is a Roman citizen, so if he is killed the Magistrate will want to know why. ${gn(c.g)} looks at you and waits to be told what to do.`,
     opts: [
-      { label: () => 'It is his to settle', run: c => questMan(c, g => {
+      { label: () => 'Let him kill his cousin (Magistrate favour -5)', run: c => questMan(c, g => {
         g.kills++; favor('magistrate', -5);
         questReward(g, 'bloodoath', 'Killed the cousin who sold him.');
-        return `It is done in the yard, where the household can see. The Magistrate hears that a citizen has been killed by somebody's gladiator, and remembers whose. Favour -5.`;
+        return `${g.name} kills his cousin in the yard, in front of the whole household. His debt of blood is paid, and he fights harder for it: +8% damage from now on. The Magistrate hears that your gladiator has killed a citizen: favour -5.`;
       }) },
-      { label: c => `He signs over everything he has (+${c.cost * 2})`, run: c => questMan(c, g => {
+      { label: c => `Make the cousin sign over all he owns (+${c.cost * 2} denarii)`, run: c => questMan(c, g => {
         G.denarii += c.cost * 2;
         questReward(g, null, 'Took back from his cousin, by deed and seal, what he was sold for.');
-        return `The cousin signs until his hand shakes too much to hold the pen. The farm that ${g.name} was sold to pay for comes to the house, and is sold again by nightfall. The cousin leaves the province on foot.`;
+        return `The cousin signs over everything he owns, including the farm that ${g.name} was sold to pay for. Your school sells it the same day. The cousin leaves the province on foot, with nothing.`;
       }) },
-      { label: () => 'He lets him go, in front of them all', run: c => questMan(c, g => {
+      { label: () => 'Let the cousin go, publicly shamed (fame, Temple favour)', run: c => questMan(c, g => {
         const f = 5 + 3 * tier(); favor('temple', 6); G.fame += f; g.fame += f;
         questReward(g, 'atpeace', 'Had the cousin who sold him under his hand, and let him live.');
-        return `${g.name} opens his hand. He says, so that the whole household hears, what was done to him and by whom; and then he walks out of the gate. The cousin will live a long time, here, among people who know. Temple favour +6, fame +${f}.`;
+        return `${g.name} lets go of him. He tells the whole household, loudly, what his cousin did to him, and then walks out of the gate. The cousin will have to live among people who know. ${g.name} is at peace now. Temple favour +6, fame +${f}.`;
       }) },
     ],
   },
