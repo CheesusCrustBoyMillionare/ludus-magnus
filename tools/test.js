@@ -166,6 +166,46 @@ test('200 days of play keep the books straight', () => game()(function () {
   assert(G.houses.every(h => h.roster.length >= 3 && h.roster.length <= 9), 'rival rosters stay stocked');
 }));
 
+test('the tavern: the book on the houses, the dice, and a night for the men', () => game()(function () {
+  newGame(); G.denarii = 1000; G.day = 1;
+  // the card is posted before it is fought, and the book's price leaves it a margin whichever way the money goes
+  const card = houseCard();
+  assert(card.length === 2 && new Set(card.flatMap(p => [p.A.id, p.B.id])).size === 4 && houseCard()[0].A === card[0].A, 'two pairs of houses, posted and kept');
+  for (const { A, B } of card) { const q = bookQuote(A, B); assert(q.p >= 0.2 && q.p <= 0.8 && q.a >= 1.1 && q.b >= 1.1 && q.p * q.a <= 0.93 && (1 - q.p) * q.b <= 0.93 && q.p * q.a >= 0.85, 'the book keeps about a tenth: ' + q.p * q.a); }
+  for (let p = 0.2; p <= 0.8; p += 0.01) assert(p * bookPrice(p) < 0.93, 'no price beats the book');
+  // a stake is taken once, and the bout pays or keeps it
+  const A = card[0].A, B = card[0].B, d0 = G.denarii, r = bookBet(A.id, 50);
+  assert(r.ok && G.denarii === d0 - 50 && G.tavern.bet.on === A.id && G.tavern.bet.vs === B.id && !/undefined|NaN/.test(r.text), 'money goes down');
+  assert(bookBlock(10) && !bookBet(B.id, 10).ok && G.denarii === d0 - 50, 'one stake at each games');
+  const price = G.tavern.bet.price; bookSettle(card[1].A, card[1].B);
+  assert(G.tavern.bet, 'another bout settles nothing');
+  bookSettle(A, B);
+  assert(!G.tavern.bet && G.denarii === d0 - 50 + Math.round(50 * price) && G.tavern.last.win, 'a winner is paid at the price that was struck');
+  bookBet(A.id, 50); bookSettle(B, A);
+  assert(!G.tavern.bet && G.denarii === d0 - 50 + Math.round(50 * price) - 50 && !G.tavern.last.win, 'and a loser is not');
+  bookBet(A.id, 50); const d1 = G.denarii; bookSettle(null, null);
+  assert(!G.tavern.bet && G.denarii === d1 + 50 && G.tavern.last.off, 'a bout never fought hands the stake back');
+  // the games fight the card that was posted, settle what was laid on it, and post the next
+  bookBet(B.id, 25); const posted = JSON.stringify(G.houseCard); G.day = GAMES_EVERY; houseTick();
+  assert(!G.tavern.bet && G.tavern.last.on === B.id && G.tavern.last.day === G.day && G.rivalNews.length === 2 && G.rivalNews.every(n => JSON.parse(posted).some(p => p.includes(n.w) && p.includes(n.l))) && G.houseCard.length === 2, 'the posted card is the one fought');
+  // dice: three throws a day, the table takes a tie, and over a long night it wins
+  { let net = 0, n = 0; G.denarii = 1e6;
+    for (let d = 0; d < 1500; d++) { G.day = 100 + d; for (let k = 0; k < DICE_THROWS; k++) { const x = tavernDice(10), s = a => a[0] + a[1] + a[2]; n++; net += x.gain;
+      assert(x.ok && x.mine.concat(x.theirs).every(v => v >= 1 && v <= 6) && x.win === (s(x.mine) > s(x.theirs)) && x.gain === (x.win ? (s(x.mine) === 18 ? 20 : 10) : -10), 'a throw is what the dice say'); }
+      assert(diceLeft() === 0 && diceBlock(10) && !tavernDice(10).ok, 'three throws, and no more that day'); }
+    assert(net < 0 && net > -n * 10 * 0.2 && G.denarii === 1e6 + net, 'the table wins a little over a long night: ' + net / n); }
+  // a night for the men: paid by the head, once between games, and something may come of it
+  { const seen = {};
+    for (let i = 0; i < 300; i++) { newGame(); G.denarii = 500; G.day = 2; const men = nightMen(), cost = nightCost(), m0 = men.map(g => g.morale), f0 = men.map(g => g.fatigue), x = tavernNight();
+      assert(x.ok && cost === men.length * NIGHT_HEAD && G.denarii === 500 - cost && men.every((g, k) => g.morale === Math.min(100, m0[k] + 10) && g.fatigue === Math.min(100, f0[k] + 8)) && !/undefined|NaN/.test(x.text), 'a night out: ' + x.text);
+      assert(nightBlock() && !tavernNight().ok && G.denarii === 500 - cost, 'one night between games');
+      if (x.kind === 'brawl') assert(G.roster.filter(g => g.injury === 1).length === 1 && G.houses.some(H => H.grudge === 6), 'a brawl costs a man a day and deepens a feud');
+      if (x.kind === 'friends') assert(G.bonds.length === 1 && G.bonds[0].type === 'friend', 'two come home friends');
+      seen[x.kind] = 1; G.day = GAMES_EVERY; assert(!nightBlock(), 'and again after the next games'); }
+    assert(Object.keys(seen).length === 4, 'four ways the night can go: ' + Object.keys(seen)); }
+  assert(!badNumber(G), 'the tavern left a bad number');
+}));
+
 test('rival houses: dealings, challenges, and the houses fighting each other', () => game()(function () {
   newGame(); G.denarii = 5000; G.fac.barracks = 1;
   const H = G.houses[0];

@@ -2710,6 +2710,61 @@ function provUnder(ctx, x, y, w) {
   for (const o of prov.overs) if (y < o.base && y > o.y0 - 2 && x + w > o.x0 && x - w < o.x1) (hit = hit || []).push(o);
   if (hit) hit.sort((a, b) => a.base - b.base).forEach(o => prov.paintOver(ctx, o.d));
 }
+// The town's gates, as doorways. Whoever comes up a road to the town goes in at a gate as the lanista goes in at a door
+// in the town itself (village.js): up to the arch, growing small in it (a little smaller than the gateway), and gone;
+// and whoever leaves comes out of it the same way. A gate stands only where a road comes in, as the town is drawn.
+const GATE = { reach: 18, small: 0.42, side: 9 };
+function townGates() {
+  if (prov.gates) return prov.gates;
+  const tx = WILD.TOWN.x, ty = WILD.TOWN.y, gx = Math.floor(tx / 10) * 10 + 5, road = (x, y) => { const k = wildTile(x, y); return k === T_ROAD || k === T_BRIDGE; };
+  const g = [{ x: tx + 20, y: ty + 3, ax: 'x' }];                                    // the east gate is always there
+  if (road(gx, ty + 20)) g.push({ x: gx, y: ty + 15, ax: 'y' });
+  if (road(gx, ty - 35)) g.push({ x: gx, y: ty - 24, ax: 'y' });
+  if (road(tx - 52, ty)) g.push({ x: tx - 45, y: ty + 3, ax: 'x' });
+  return (prov.gates = g);
+}
+// Inside the walls, where nobody on the roads is drawn.
+const inTownWalls = (x, y) => x >= WILD.TOWN.x - 45 && x <= WILD.TOWN.x + 20 && y >= WILD.TOWN.y - 24 && y <= WILD.TOWN.y + 15;
+// How far into a gateway something at (x, y) is: 0 out on the road, 1 under the arch; and which gate.
+function gateDepth(x, y) {
+  let k = 0, at = null;
+  for (const g of townGates()) {
+    const along = g.ax === 'x' ? Math.abs(x - g.x) : Math.abs(y - g.y), off = g.ax === 'x' ? Math.abs(y - g.y) : Math.abs(x - g.x);
+    if (off <= GATE.side && 1 - along / GATE.reach > k) { k = 1 - along / GATE.reach; at = g; }
+  }
+  return { k, g: at };
+}
+// Before drawing something on the road at (x, y): -1 if it is gone in and not to be drawn at all, 0 if it is out on the
+// road and drawn as it is, and otherwise how far in it is, with the canvas set to draw it small and drawn in to the
+// middle of the gateway. Whatever this returns is handed to gateLeave when the drawing is done.
+function gateEnter(ctx, x, y) {
+  const { k, g } = gateDepth(x, y);
+  if (k <= 0) return 0;
+  if (k >= 0.97) return -1;
+  const s = 1 - GATE.small * k, px = g.ax === 'x' ? x : x + (g.x - x) * k, py = g.ax === 'y' ? y : y + (g.y - y) * k;
+  ctx.save(); if (k > 0.8) ctx.globalAlpha = (1 - k) / 0.2;
+  ctx.translate(px, py); ctx.scale(s, s); ctx.translate(-x, -y);
+  return k;
+}
+function gateLeave(ctx, k) { if (k > 0) ctx.restore(); }
+// A string of things on a road (a carter, his beast, his cart) goes one behind another along the way it is going. Each
+// is drawn where it would stand on a road running across the map, so many pixels ahead of the leader (off, less than
+// nothing for behind); on a road running up or down the map the same things are set out up and down it instead, each
+// clear of the one above by most of its own height (h), and the further ones drawn first.
+function rowOf(ctx, d, face) {
+  const vert = face === 'up' || face === 'down', v = face === 'down' ? 1 : -1, parts = [];
+  return {
+    part(off, fn, h) { parts.push({ off, fn, h: h || 12 }); return this; },
+    draw() {
+      if (!vert) { parts.forEach(q => q.fn()); return; }
+      if (!parts.length) return;
+      parts.sort((a, b) => v * (a.off - b.off));
+      let yy = 0; parts.forEach((q, i) => { if (i) yy += Math.round(q.h * 0.75) + 2; q.y = yy; });
+      const ref = parts.reduce((m, q) => Math.abs(q.off) < Math.abs(m.off) ? q : m, parts[0]).y;
+      parts.forEach(q => { ctx.save(); ctx.translate(-d * q.off, q.y - ref); q.fn(); ctx.restore(); });
+    },
+  };
+}
 function drawTraffic(ctx, T, R, inView) {
   (prov.ways || []).forEach((way, wi) => {
     const len = way.length - 1, n = len > 60 ? 3 : 2;
@@ -2718,24 +2773,28 @@ function drawTraffic(ctx, T, R, inView) {
       const speed = kind === 'rider' ? 3.4 : kind === 'runner' ? 2.8 : kind === 'cart' ? 1.1 : kind === 'oxwagon' ? 0.8 : kind === 'litter' ? 1.2 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
       const sraw = (T * speed + hv(2) * len * 2) % (len * 2), idx = sraw <= len ? sraw : len * 2 - sraw, dir = sraw <= len ? 1 : -1;
       const i0 = Math.min(len - 1, Math.floor(idx)), fr = idx - i0, a = way[i0], b = way[i0 + 1], x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
-      if (!inView(x, y, 30) || !wildSeen(x, y) || (x > WILD.TOWN.x - 50 && x < WILD.TOWN.x + 24 && y > WILD.TOWN.y - 32 && y < WILD.TOWN.y + 18)) continue;
+      if (!inView(x, y, 30) || !wildSeen(x, y) || inTownWalls(x, y)) continue;
+      const gk = gateEnter(ctx, x, y); if (gk < 0) continue;      // in at the gate, or coming out of it
       const dx = (b[0] - a[0]) * dir, dy = (b[1] - a[1]) * dir, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, walk = T * 9 + j * 3, step = Math.sin(walk) > 0 ? 1 : 0;
+      const row = rowOf(ctx, d, face);
       const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: true, tunic, hair: hair || '#3a2a1c' }, extra));
       const beast = (bx, by, c, big) => { const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
       if (kind === 'cart') {
-        const cx = x - d * 12; R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a');
-        beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48'); man(d * 8, 1, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a');
-      } else if (kind === 'pilgrim') { man(0, 0, hv(3) > 0.5 ? '#e8e2d2' : '#9a9a8a', hv(4) > 0.5 ? '#c9c2b2' : '#3a2a1c'); R(x + d * 5, y - 18, 1, 18, '#6b4f2c'); if (hv(5) > 0.5) man(-d * 8, 2, '#b8b0a0', '#8a8a8a'); }
-      else if (kind === 'soldiers') { for (let q = 0; q < 2 + Math.floor(hv(3) * 2); q++) { man(-d * q * 8, (q % 2) * 2, '#a8261c', '#2a1c14'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 20, 1, 16, '#6b4f2c'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 22, 1, 2, '#c1c7cc'); R(x - d * q * 8 - d * 4, y + (q % 2) * 2 - 12, 3, 6, '#8a2a20'); R(x - d * q * 8 - d * 4 + 1, y + (q % 2) * 2 - 10, 1, 2, '#c9a21e'); } }
-      else if (kind === 'merchant') { beast(x - d * 10, y, '#9a8a72'); R(x - d * 10 - 3, y - 9, 7, 4, hv(3) > 0.5 ? '#b93a2e' : '#2f6db8'); R(x - d * 10 - 3, y - 9, 7, 1, '#f1ead8'); man(0, 0, hv(4) > 0.5 ? '#7a2a8a' : '#3f7a5a'); }
+        const cx = x - d * 12; row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 14);
+        row.part(0, () => beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48'), 10); row.part(8, () => man(d * 8, 1, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a'), 20);
+      } else if (kind === 'pilgrim') { man(0, 0, hv(3) > 0.5 ? '#e8e2d2' : '#9a9a8a', hv(4) > 0.5 ? '#c9c2b2' : '#3a2a1c'); R(x + d * 5, y - 18, 1, 18, '#6b4f2c'); if (hv(5) > 0.5) row.part(-8, () => man(-d * 8, 2, '#b8b0a0', '#8a8a8a'), 20); }
+      else if (kind === 'soldiers') { for (let q = 0; q < 2 + Math.floor(hv(3) * 2); q++) { row.part(-q * 8, () => { man(-d * q * 8, (q % 2) * 2, '#a8261c', '#2a1c14'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 20, 1, 16, '#6b4f2c'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 22, 1, 2, '#c1c7cc'); R(x - d * q * 8 - d * 4, y + (q % 2) * 2 - 12, 3, 6, '#8a2a20'); R(x - d * q * 8 - d * 4 + 1, y + (q % 2) * 2 - 10, 1, 2, '#c9a21e'); }, 20); } }
+      else if (kind === 'merchant') { row.part(-10, () => { beast(x - d * 10, y, '#9a8a72'); R(x - d * 10 - 3, y - 9, 7, 4, hv(3) > 0.5 ? '#b93a2e' : '#2f6db8'); R(x - d * 10 - 3, y - 9, 7, 1, '#f1ead8'); }, 10); row.part(0, () => man(0, 0, hv(4) > 0.5 ? '#7a2a8a' : '#3f7a5a'), 20); }
       else if (kind === 'rider') { beast(x, y, hv(3) > 0.5 ? '#5a3a26' : '#c9c2ae', true); R(x - 1, y - 12, 3, 6, hv(4) > 0.5 ? '#a8261c' : '#4a6a8a'); R(x - 1, y - 15, 3, 3, '#d9a57c'); R(x - 1, y - 16, 3, 1, '#3a2a1c'); R(x - d * 2, y - 11, 2, 3, '#7a2a20'); }
-      else if (kind === 'litter') { const lc = ['#8a2a6a', '#a8261c', '#2f6db8', '#c9a21e'][Math.floor(hv(3) * 4)]; man(d * 9, 0, '#8a6a4a'); man(-d * 9, 0, '#8a6a4a'); R(x - 11, y - 9, 23, 1, '#5a4326'); R(x - 6, y - 15, 13, 7, lc); R(x - 6, y - 16, 13, 1, shade(lc, 1.25)); R(x - 4, y - 13, 4, 4, '#f1ead8'); R(x - 3, y - 12, 2, 2, '#d9a57c'); R(x + 2, y - 15, 1, 7, shade(lc, 0.75)); if (hv(4) > 0.5) man(-d * 17, 2, '#e8e2d2'); }      // somebody of account, carried
-      else if (kind === 'mules') { for (let q = 0, n2 = 2 + Math.floor(hv(3) * 2); q < n2; q++) { const mx = x - d * (10 + q * 11); beast(mx, y + (q % 2), ['#9a8a72', '#6f5a48', '#b8a888'][q % 3]); R(mx - 3, y - 9 + (q % 2), 7, 4, ['#b93a2e', '#c9b25a', '#5a6a4a', '#8a6a3a'][Math.floor(hv(5 + q) * 4)]); R(mx - 3, y - 9 + (q % 2), 7, 1, '#3a2a1c'); } man(0, 0, hv(4) > 0.5 ? '#6a5a3a' : '#7a4a3a'); }      // a string of pack mules
+      else if (kind === 'litter') { const lc = ['#8a2a6a', '#a8261c', '#2f6db8', '#c9a21e'][Math.floor(hv(3) * 4)]; row.part(9, () => man(d * 9, 0, '#8a6a4a'), 20); row.part(-9, () => man(-d * 9, 0, '#8a6a4a'), 20); row.part(0, () => { if (face === 'left' || face === 'right') R(x - 11, y - 9, 23, 1, '#5a4326'); R(x - 6, y - 15, 13, 7, lc); R(x - 6, y - 16, 13, 1, shade(lc, 1.25)); R(x - 4, y - 13, 4, 4, '#f1ead8'); R(x - 3, y - 12, 2, 2, '#d9a57c'); R(x + 2, y - 15, 1, 7, shade(lc, 0.75)); }, 16); if (hv(4) > 0.5) row.part(-17, () => man(-d * 17, 2, '#e8e2d2'), 20); }      // somebody of account, carried
+      else if (kind === 'mules') { for (let q = 0, n2 = 2 + Math.floor(hv(3) * 2); q < n2; q++) { const mx = x - d * (10 + q * 11); row.part(-(10 + q * 11), () => { beast(mx, y + (q % 2), ['#9a8a72', '#6f5a48', '#b8a888'][q % 3]); R(mx - 3, y - 9 + (q % 2), 7, 4, ['#b93a2e', '#c9b25a', '#5a6a4a', '#8a6a3a'][Math.floor(hv(5 + q) * 4)]); R(mx - 3, y - 9 + (q % 2), 7, 1, '#3a2a1c'); }, 13); } row.part(0, () => man(0, 0, hv(4) > 0.5 ? '#6a5a3a' : '#7a4a3a'), 20); }      // a string of pack mules
       else if (kind === 'woodman') { man(0, 0, '#6a5a3a', hv(3) > 0.5 ? '#8a8a8a' : '#3a2a1c'); R(x - d * 4 - 1, y - 17, 4, 7, '#6b4f2c'); R(x - d * 4 - 2, y - 18, 6, 1, '#8a6a3a'); R(x - d * 4, y - 16, 1, 6, '#8a6a3a'); R(x - d * 4 - 1, y - 14, 4, 1, '#c8b890'); if (hv(4) > 0.5) { R(x + d * 5, y - 9, 1, 6, '#6b4f2c'); R(x + d * 5, y - 10, 2, 2, '#b8c0c8'); } }      // a man under a load of sticks
-      else if (kind === 'oxwagon') { const wx = x - d * 20, load = hv(3); R(wx - 9, y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, y - 6, 16, 5, '#7a5a34'); R(wx - 8, y - 7, 16, 1, '#a8834a'); if (load > 0.6) { R(wx - 6, y - 12, 12, 5, '#d8d2c0'); R(wx - 6, y - 12, 12, 1, '#f0ece0'); R(wx + 4, y - 12, 2, 5, '#b8b0a0'); } else if (load > 0.3) for (let q = 0; q < 3; q++) { R(wx - 6 + q * 4, y - 11, 3, 4, '#8a5a34'); R(wx - 6 + q * 4, y - 10, 3, 1, '#3a2a1c'); } else { R(wx - 7, y - 11, 14, 4, '#d9c070'); R(wx - 5, y - 12, 10, 1, '#e6d088'); } for (const o of [-6, 3]) { R(wx + o, y - 2, 4, 4, '#3a2a1c'); R(wx + o + 1, y - 1, 2, 2, '#8a6a3a'); } beast(x - d * 6, y, '#e8e2d2', true); beast(x + d * 4, y + 1, hv(4) > 0.5 ? '#8a6a4a' : '#d8d0b8', true); man(d * 12, 1, '#7a6a4a'); }      // oxen, and a wagon of stone, wine or hay
+      else if (kind === 'oxwagon') { const wx = x - d * 20, load = hv(3); row.part(-20, () => { R(wx - 9, y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, y - 6, 16, 5, '#7a5a34'); R(wx - 8, y - 7, 16, 1, '#a8834a'); if (load > 0.6) { R(wx - 6, y - 12, 12, 5, '#d8d2c0'); R(wx - 6, y - 12, 12, 1, '#f0ece0'); R(wx + 4, y - 12, 2, 5, '#b8b0a0'); } else if (load > 0.3) for (let q = 0; q < 3; q++) { R(wx - 6 + q * 4, y - 11, 3, 4, '#8a5a34'); R(wx - 6 + q * 4, y - 10, 3, 1, '#3a2a1c'); } else { R(wx - 7, y - 11, 14, 4, '#d9c070'); R(wx - 5, y - 12, 10, 1, '#e6d088'); } for (const o of [-6, 3]) { R(wx + o, y - 2, 4, 4, '#3a2a1c'); R(wx + o + 1, y - 1, 2, 2, '#8a6a3a'); } }, 16); row.part(-6, () => beast(x - d * 6, y, '#e8e2d2', true), 12); row.part(4, () => beast(x + d * 4, y + 1, hv(4) > 0.5 ? '#8a6a4a' : '#d8d0b8', true), 12); row.part(12, () => man(d * 12, 1, '#7a6a4a'), 20); }      // oxen, and a wagon of stone, wine or hay
       else if (kind === 'runner') { man(0, 0, hv(3) > 0.5 ? '#e8e2d2' : '#c9a21e', '#2a1c14'); R(x - d * 3, y - 10, 3, 3, '#6b4f2c'); R(x - d * 2, y - 13, 1, 3, '#6b4f2c'); }      // a runner with a satchel of letters
-      else if (kind === 'family') { man(0, 0, ['#7a6a4a', '#5a6a8a', '#8a4a3a'][Math.floor(hv(3) * 3)]); man(-d * 8, 1, ['#b8703c', '#8a2a6a', '#3f7a5a', '#c9b25a'][Math.floor(hv(4) * 4)], hv(5) > 0.5 ? '#6a4a2a' : '#2a1c14'); R(x - d * 8 - 2, y - 21, 5, 3, '#c9a763'); const dg = x - d * 16; R(dg - 2, y + 3, 5, 1, 'rgba(0,0,0,.2)'); R(dg - 2, y, 4, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(d > 0 ? dg + 2 : dg - 3, y - 1, 2, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(dg - 2 + step, y + 2, 1, 1, '#2a1c14'); R(dg + 1, y + 2, 1, 1, '#2a1c14'); }      // a man and a woman with a basket on her head, and their dog
-      else { man(0, 0, '#8a6a4a', '#6a4a2a'); R(x + d * 5, y - 14, 1, 14, '#6b4f2c'); for (let q = 0; q < 3; q++) { const gx = x + d * (9 + q * 5), gy = y + (q % 2) * 3; R(gx - 2, gy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 4, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(d > 0 ? gx + 2 : gx - 3, gy - 4, 2, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(gx - 2 + step, gy - 1, 1, 2, '#3a2a22'); R(gx + 1 - step, gy - 1, 1, 2, '#3a2a22'); } }      // a herdsman driving goats to market
+      else if (kind === 'family') { row.part(0, () => man(0, 0, ['#7a6a4a', '#5a6a8a', '#8a4a3a'][Math.floor(hv(3) * 3)]), 20); row.part(-8, () => { man(-d * 8, 1, ['#b8703c', '#8a2a6a', '#3f7a5a', '#c9b25a'][Math.floor(hv(4) * 4)], hv(5) > 0.5 ? '#6a4a2a' : '#2a1c14'); R(x - d * 8 - 2, y - 21, 5, 3, '#c9a763'); }, 23); const dg = x - d * 16; row.part(-16, () => { R(dg - 2, y + 3, 5, 1, 'rgba(0,0,0,.2)'); R(dg - 2, y, 4, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(d > 0 ? dg + 2 : dg - 3, y - 1, 2, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(dg - 2 + step, y + 2, 1, 1, '#2a1c14'); R(dg + 1, y + 2, 1, 1, '#2a1c14'); }, 6); }      // a man and a woman with a basket on her head, and their dog
+      else { row.part(0, () => { man(0, 0, '#8a6a4a', '#6a4a2a'); R(x + d * 5, y - 14, 1, 14, '#6b4f2c'); }, 20); for (let q = 0; q < 3; q++) { const gx = x + d * (9 + q * 5), gy = y + (q % 2) * 3; row.part(9 + q * 5, () => { R(gx - 2, gy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 4, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(d > 0 ? gx + 2 : gx - 3, gy - 4, 2, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(gx - 2 + step, gy - 1, 1, 2, '#3a2a22'); R(gx + 1 - step, gy - 1, 1, 2, '#3a2a22'); }, 6); } }      // a herdsman driving goats to market
+      row.draw();
+      gateLeave(ctx, gk);
       provUnder(ctx, x, y, 26);
     }
   });
@@ -2761,7 +2820,8 @@ function drawMillCart(ctx, T, R, inView) {
   const { x, y } = C;
   if (!inView(x, y, 30) || !wildSeen(x, y)) return;
   const d = C.face === 'left' ? -1 : 1, walk = T * 8, step = C.moving && Math.sin(walk) > 0 ? 1 : 0, jog = C.moving && Math.sin(walk * 0.5) > 0.6 ? 1 : 0;
-  const cx = x - d * 12, cy = y - jog;
+  const cx = x - d * 12, cy = y - jog, row = rowOf(ctx, d, C.face);
+  row.part(-12, () => {
   R(cx - 7, y + 1, 15, 2, 'rgba(0,0,0,.25)');
   R(cx - 6, cy - 6, 12, 5, '#8a6a3a'); R(cx - 6, cy - 7, 12, 1, '#a8834a'); R(cx - 6, cy - 2, 12, 1, '#6b4f2c');      // the bed, and its rails
   R(cx - 6, cy - 10, 1, 4, '#6b4f2c'); R(cx + 5, cy - 10, 1, 4, '#6b4f2c');
@@ -2770,12 +2830,16 @@ function drawMillCart(ctx, T, R, inView) {
   for (let q = 0; q < n; q++) { const [ox, oy] = spots[q]; R(cx + ox, cy + oy, 3, 3, sack[0]); R(cx + ox, cy + oy + 2, 3, 1, sack[1]); R(cx + ox + 1, cy + oy - 1, 1, 1, sack[2]); }      // sacks, tied at the neck
   R(cx - 5, y - 2, 4, 4, '#3a2a1c'); R(cx - 4, y - 1, 2, 2, '#8a6a3a'); R(cx + 2, y - 2, 4, 4, '#3a2a1c'); R(cx + 3, y - 1, 2, 2, '#8a6a3a');      // the wheels
   if (C.moving && Math.floor(walk) % 2) { R(cx - 4, y - 2, 1, 1, '#8a6a3a'); R(cx + 3, y - 2, 1, 1, '#8a6a3a'); }
-  R(cx + d * 6, cy - 5, d * 4, 1, '#6b4f2c');                                                                        // the shafts
+  if (C.face === 'left' || C.face === 'right') R(cx + d * 6, cy - 5, d * 4, 1, '#6b4f2c');                          // the shafts
+  if (C.flour && C.moving && Math.floor(T * 3) % 4 === 0) R(cx - d * 8, cy - 9 - Math.floor(T * 6) % 3, 1, 1, 'rgba(255,255,255,.7)');      // flour, shaken out of the weave
+  }, 18);
   const mc = '#9a8a72', bx = x;                                                                                      // the mule
+  row.part(0, () => {
   R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
   R(d > 0 ? bx + 3 : bx - 4, y - 9, 1, 2, '#6a5c4a'); R(bx - 3 + step, y - 2, 1, 3, '#5c5244'); R(bx + 3 - step, y - 2, 1, 3, '#5c5244'); R(d > 0 ? bx - 4 : bx + 4, y - 4, 1, 3, '#5c5244');
-  if (C.flour && C.moving && Math.floor(T * 3) % 4 === 0) R(cx - d * 8, cy - 9 - Math.floor(T * 6) % 3, 1, 1, 'rgba(255,255,255,.7)');      // flour, shaken out of the weave
-  vilPerson(ctx, x + d * 8, y + 1, { face: C.face, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c' });
+  }, 10);
+  row.part(8, () => vilPerson(ctx, x + d * 8, y + 1, { face: C.face, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c' }), 20);
+  row.draw();
   provUnder(ctx, x, y, 26);
 }
 
@@ -2824,7 +2888,12 @@ function tradeWays() {
     for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
     return len[len.length - 1] > 30 ? { pts, len, total: len[len.length - 1] } : null;
   };
-  const W = { stone: line(landmarkAt('The great quarry'), landmarkAt('The lime kiln')), fish: line(landmarkAt("The fishers' huts"), landmarkAt('The salt pans')), salt: line(landmarkAt('The salt pans'), { x: WILD.TOWN.x + 30, y: WILD.TOWN.y }) };
+const toTown = a => { const w = line(a, { x: WILD.TOWN.x + 30, y: WILD.TOWN.y }); if (!w) return null;      // to the town, and in under the arch of a gate
+    let n = w.pts.findIndex(q => inTownWalls(q.x, q.y)); if (n < 0) n = w.pts.length; if (n < 1) return w;      // the road may run on through the town: it is left at the first gate it comes to
+    const pts = w.pts.slice(0, n), e = pts[n - 1], g = townGates().slice().sort((g1, g2) => Math.hypot(g1.x - e.x, g1.y - e.y) - Math.hypot(g2.x - e.x, g2.y - e.y))[0], len = [0];
+    pts.push({ x: g.x, y: g.y }); for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    return { pts, len, total: len[len.length - 1] }; };
+  const W = { stone: line(landmarkAt('The great quarry'), landmarkAt('The lime kiln')), fish: line(landmarkAt("The fishers' huts"), landmarkAt('The salt pans')), salt: toTown(landmarkAt('The salt pans')) };
   // the flock: from the fold to the nearest shepherd's hut on the hill, or failing that to the first high ground it can reach
   const fold = landmarkAt("The shepherds' fold");
   if (fold) {
@@ -2849,8 +2918,8 @@ function tradeWays() {
     for (const o of near) { let w = null; for (const q of door(o.m)) { w = line(q, to); if (w) break; } if (w) out.push(w); if (out.length >= n) break; }
     return out; };
   const burners = landmarkAt('The charcoal burners'), press = landmarkAt('The wine press');
-  W.coal = line(burners, gate); W.logs = from("A woodcutter's cabin", burners, 50, 520, 1)[0] || null;
-  W.pick = from('A vineyard house', press, 40, 420, 2); W.jars = line(press, gate);
+  W.coal = toTown(burners); W.logs = from("A woodcutter's cabin", burners, 50, 520, 1)[0] || null;
+  W.pick = from('A vineyard house', press, 40, 420, 2); W.jars = toTown(press);
   W.watch = line(landmarkAt('The fort'), landmarkAt('The watchtower'));
   const straight = (a, b) => { const d = Math.hypot(b.x - a.x, b.y - a.y); return d > 12 ? { pts: [a, b], len: [0, d], total: d } : null; };
   // the ferry: over the river from the landing, on a slant
@@ -2903,8 +2972,8 @@ const FLOCK_PACE = 24;      // a flock goes at the pace of an outlaw band walkin
 // How far out the day has taken them: 0 at home at dawn and dusk, 1 through the middle of the day.
 const dayOut = () => { const u = dayPart(); return u < 0.1 ? 0 : u < 0.36 ? (u - 0.1) / 0.26 : u < 0.66 ? 1 : u < 0.92 ? 1 - (u - 0.66) / 0.26 : 0; };
 function drawTrade(ctx, T, R, inView) {
-  const W = tradeWays(), town = (x, y) => x > WILD.TOWN.x - 50 && x < WILD.TOWN.x + 34 && y > WILD.TOWN.y - 32 && y < WILD.TOWN.y + 18;
-  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !town(x, y);
+  const W = tradeWays();
+  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => rowOf(ctx, C.dir, C.face);
   const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c' });
   const beast = (bx, by, c, d, big, step) => { const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
     R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
@@ -2913,31 +2982,31 @@ function drawTrade(ctx, T, R, inView) {
   if (W.stone) {
     const struck = kilnState() !== 'burning', C = struck ? Object.assign(shuttleAt(W.stone, 0, 6, 1e9, 0), { moving: false, leg: 0 }) : shuttleAt(W.stone, T, 6, 12, 0.3);
     if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, wx = C.x - d * 17, loaded = C.leg === 1 || C.leg === 2;
-      R(wx - 9, C.y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, C.y - 6, 17, 5, '#7a5a34'); R(wx - 8, C.y - 7, 17, 1, '#a8834a'); R(wx - 8, C.y - 2, 17, 1, '#5e4426');
+      const row = rowC(C); row.part(-17, () => { R(wx - 9, C.y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, C.y - 6, 17, 5, '#7a5a34'); R(wx - 8, C.y - 7, 17, 1, '#a8834a'); R(wx - 8, C.y - 2, 17, 1, '#5e4426');
       if (loaded) { R(wx - 6, C.y - 12, 6, 5, '#d6ccb8'); R(wx - 6, C.y - 12, 6, 1, '#f0e8d6'); R(wx + 1, C.y - 11, 6, 4, '#c9c0aa'); R(wx + 1, C.y - 11, 6, 1, '#e4dcc8'); R(wx - 3, C.y - 16, 6, 4, '#d6ccb8'); R(wx - 3, C.y - 16, 6, 1, '#f0e8d6'); }
-      for (const ox of [-6, 3]) { R(wx + ox, C.y - 3, 5, 5, '#3a2a1c'); R(wx + ox + 1, C.y - 2, 3, 3, '#8a6a3a'); R(wx + ox + 2, C.y - 1, 1, 1, '#3a2a1c'); }
-      R(wx + d * 9, C.y - 5, d * 5, 1, '#5e4426');
-      beast(C.x, C.y, '#8a6444', d, true, step);
-      if (!struck) man(C.x + d * 10, C.y + 1, C.face, C.moving, '#8a7a5a'); else { R(C.x + d * 9, C.y - 3, 4, 3, '#8a7a5a'); R(C.x + d * 9, C.y - 6, 3, 3, '#d9a57c'); }      // on strike, the carter sits by his ox
+      for (const ox of [-6, 3]) { R(wx + ox, C.y - 3, 5, 5, '#3a2a1c'); R(wx + ox + 1, C.y - 2, 3, 3, '#8a6a3a'); R(wx + ox + 2, C.y - 1, 1, 1, '#3a2a1c'); } }, 20);
+      if (C.face === 'left' || C.face === 'right') R(wx + d * 9, C.y - 5, d * 5, 1, '#5e4426');
+      row.part(0, () => beast(C.x, C.y, '#8a6444', d, true, step), 12);
+      row.part(10, () => { if (!struck) man(C.x + d * 10, C.y + 1, C.face, C.moving, '#8a7a5a'); else { R(C.x + d * 9, C.y - 3, 4, 3, '#8a7a5a'); R(C.x + d * 9, C.y - 6, 3, 3, '#d9a57c'); } }, 20); row.draw();      // on strike, the carter sits by his ox
       provUnder(ctx, C.x, C.y, 28); }
   }
   // ---- fish in a handcart, huts to salt pans; fewer loads when half the boats are drawn up
   if (W.fish) {
     const C = shuttleAt(W.fish, T, 9, taleEnd('whale') === 'carted' ? 60 : 12, 0.1);
     if (shown(C.x, C.y)) { const d = C.dir, loaded = C.leg === 1 || C.leg === 2, cx = C.x + d * 7;
-      R(cx - 5, C.y + 1, 11, 2, 'rgba(0,0,0,.22)'); R(cx - 4, C.y - 6, 9, 4, '#8a6a3a'); R(cx - 4, C.y - 7, 9, 1, '#a8834a'); R(cx - 1, C.y - 3, 4, 4, '#3a2a1c'); R(cx, C.y - 2, 2, 2, '#8a6a3a'); R(cx - d * 5, C.y - 6, -d * 4, 1, '#6b4f2c');
-      if (loaded) { R(cx - 3, C.y - 9, 7, 3, '#b8c6d0'); R(cx - 2, C.y - 9, 2, 1, '#e6f0f6'); R(cx + 1, C.y - 8, 2, 1, '#8fa2b0'); if (Math.sin(T * 3) > 0.8) R(cx + 2, C.y - 10, 1, 1, '#ffffff'); }
-      man(C.x - d * 3, C.y + 1, C.face, C.moving, '#4a6a8a');
+      const row = rowC(C); row.part(7, () => { R(cx - 5, C.y + 1, 11, 2, 'rgba(0,0,0,.22)'); R(cx - 4, C.y - 6, 9, 4, '#8a6a3a'); R(cx - 4, C.y - 7, 9, 1, '#a8834a'); R(cx - 1, C.y - 3, 4, 4, '#3a2a1c'); R(cx, C.y - 2, 2, 2, '#8a6a3a'); R(cx - d * 5, C.y - 6, -d * 4, 1, '#6b4f2c');
+      if (loaded) { R(cx - 3, C.y - 9, 7, 3, '#b8c6d0'); R(cx - 2, C.y - 9, 2, 1, '#e6f0f6'); R(cx + 1, C.y - 8, 2, 1, '#8fa2b0'); if (Math.sin(T * 3) > 0.8) R(cx + 2, C.y - 10, 1, 1, '#ffffff'); } }, 14);
+      row.part(-3, () => man(C.x - d * 3, C.y + 1, C.face, C.moving, '#4a6a8a'), 20); row.draw();
       provUnder(ctx, C.x, C.y, 18); }
   }
   // ---- salt fish on a mule, salt pans to the town gate
   if (W.salt) {
     const C = shuttleAt(W.salt, T, 11, 16, 0.55);
-    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
-      beast(mx, C.y, '#9a8a72', d, false, step);
-      if (loaded) { R(mx - 3, C.y - 9, 7, 4, '#e8e2d2'); R(mx - 3, C.y - 9, 7, 1, '#fbf6ea'); R(mx - 3, C.y - 6, 7, 1, '#b8b0a0'); R(mx, C.y - 9, 1, 4, '#6b4f2c'); } else { R(mx - 2, C.y - 7, 5, 1, '#6b4f2c'); }
-      man(C.x, C.y, C.face, C.moving, '#b8b0a0', '#5a4326');
-      provUnder(ctx, C.x, C.y, 18); }
+    if (shown(C.x, C.y)) { const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+      const row = rowC(C); row.part(-9, () => { beast(mx, C.y, '#9a8a72', d, false, step);
+      if (loaded) { R(mx - 3, C.y - 9, 7, 4, '#e8e2d2'); R(mx - 3, C.y - 9, 7, 1, '#fbf6ea'); R(mx - 3, C.y - 6, 7, 1, '#b8b0a0'); R(mx, C.y - 9, 1, 4, '#6b4f2c'); } else { R(mx - 2, C.y - 7, 5, 1, '#6b4f2c'); } }, 13);
+      row.part(0, () => man(C.x, C.y, C.face, C.moving, '#b8b0a0', '#5a4326'), 20); row.draw();
+      gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 18); } }
   }
   // ---- the flock, out to the hill with the morning and home with the evening, the dog behind
   if (W.flock) {
@@ -2972,19 +3041,19 @@ function drawTrade(ctx, T, R, inView) {
   // ---- charcoal for the town's hearths and forges, on a mule
   if (W.coal) {
     const C = shuttleAt(W.coal, T, 11, 14, 0.8);
-    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
-      beast(mx, C.y, '#6f5a48', d, false, step);
-      if (loaded) { R(mx - 4, C.y - 10, 4, 6, '#2a2420'); R(mx + 1, C.y - 10, 4, 6, '#2a2420'); R(mx - 4, C.y - 10, 4, 1, '#4a4038'); R(mx + 1, C.y - 10, 4, 1, '#4a4038'); R(mx - 3, C.y - 11, 2, 1, '#8a6a3a'); R(mx + 2, C.y - 11, 2, 1, '#8a6a3a'); } else R(mx - 2, C.y - 7, 5, 1, '#6b4f2c');
-      man(C.x, C.y, C.face, C.moving, '#4a4038', '#2a1c14');
-      provUnder(ctx, C.x, C.y, 18); }
+    if (shown(C.x, C.y)) { const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+      const row = rowC(C); row.part(-9, () => { beast(mx, C.y, '#6f5a48', d, false, step);
+      if (loaded) { R(mx - 4, C.y - 10, 4, 6, '#2a2420'); R(mx + 1, C.y - 10, 4, 6, '#2a2420'); R(mx - 4, C.y - 10, 4, 1, '#4a4038'); R(mx + 1, C.y - 10, 4, 1, '#4a4038'); R(mx - 3, C.y - 11, 2, 1, '#8a6a3a'); R(mx + 2, C.y - 11, 2, 1, '#8a6a3a'); } else R(mx - 2, C.y - 7, 5, 1, '#6b4f2c'); }, 13);
+      row.part(0, () => man(C.x, C.y, C.face, C.moving, '#4a4038', '#2a1c14'), 20); row.draw();
+      gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 18); } }
   }
   // ---- a log dragged in from the woodcutter's, to be stacked and burned
   if (W.logs) {
     const C = shuttleAt(W.logs, T, 7, 10, 0.45);
     if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1, mx = C.x - d * 9;
-      if (loaded) { const lx = mx - d * 15; R(Math.min(mx - d * 4, lx), C.y - 1, Math.abs(d * 11), 1, '#6b4f2c'); R(lx - 6, C.y - 2, 12, 3, '#7a5a34'); R(lx - 6, C.y - 2, 12, 1, '#94703f'); R(d > 0 ? lx - 6 : lx + 5, C.y - 2, 1, 3, '#d8c090'); R(lx - 6, C.y + 1, 13, 1, 'rgba(0,0,0,.2)'); if (C.moving && Math.sin(T * 9) > 0.4) R(lx - d * 8, C.y, 1, 1, '#c8b078'); }
-      beast(mx, C.y, '#8a6a4a', d, false, step);
-      man(C.x, C.y, C.face, C.moving, '#6a5a3a', '#6a4a2a'); R(C.x - d * 4, C.y - 14, 1, 8, '#6b4f2c'); R(C.x - d * 4 - (d > 0 ? 2 : 0), C.y - 15, 3, 2, '#b8c0c8');      // his axe over his shoulder
+      const row = rowC(C); row.part(-24, () => { if (loaded) { const lx = mx - d * 15; R(Math.min(mx - d * 4, lx), C.y - 1, Math.abs(d * 11), 1, '#6b4f2c'); R(lx - 6, C.y - 2, 12, 3, '#7a5a34'); R(lx - 6, C.y - 2, 12, 1, '#94703f'); R(d > 0 ? lx - 6 : lx + 5, C.y - 2, 1, 3, '#d8c090'); R(lx - 6, C.y + 1, 13, 1, 'rgba(0,0,0,.2)'); if (C.moving && Math.sin(T * 9) > 0.4) R(lx - d * 8, C.y, 1, 1, '#c8b078'); } }, 8);
+      row.part(-9, () => beast(mx, C.y, '#8a6a4a', d, false, step), 10);
+      row.part(0, () => { man(C.x, C.y, C.face, C.moving, '#6a5a3a', '#6a4a2a'); R(C.x - d * 4, C.y - 14, 1, 8, '#6b4f2c'); R(C.x - d * 4 - (d > 0 ? 2 : 0), C.y - 15, 3, 2, '#b8c0c8'); }, 20); row.draw();      // his axe over his shoulder
       provUnder(ctx, C.x, C.y, 26); }
   }
   // ---- the vintage: pickers down from the vineyard houses with their baskets, for the month it lasts
@@ -2999,21 +3068,21 @@ function drawTrade(ctx, T, R, inView) {
   // ---- wine for the town, in jars bedded in straw
   if (W.jars) {
     const C = shuttleAt(W.jars, T, 9, 18, 0.65);
-    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, cx = C.x - d * 14;
-      R(cx - 7, C.y + 1, 15, 2, 'rgba(0,0,0,.25)'); R(cx - 6, C.y - 6, 12, 5, '#8a6a3a'); R(cx - 6, C.y - 7, 12, 1, '#a8834a'); R(cx - 6, C.y - 2, 12, 1, '#6b4f2c');
+    if (shown(C.x, C.y)) { const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, cx = C.x - d * 14;
+      const row = rowC(C); row.part(-14, () => { R(cx - 7, C.y + 1, 15, 2, 'rgba(0,0,0,.25)'); R(cx - 6, C.y - 6, 12, 5, '#8a6a3a'); R(cx - 6, C.y - 7, 12, 1, '#a8834a'); R(cx - 6, C.y - 2, 12, 1, '#6b4f2c');
       if (loaded) { R(cx - 5, C.y - 8, 10, 2, '#d9c070'); for (let q = 0; q < 3; q++) { const jx = cx - 5 + q * 4; R(jx, C.y - 12, 3, 5, '#b8703c'); R(jx + 1, C.y - 14, 1, 2, '#b8703c'); R(jx, C.y - 12, 1, 5, '#d08a54'); R(jx + 1, C.y - 15, 1, 1, '#6b4f2c'); } }
-      for (const ox of [-5, 2]) { R(cx + ox, C.y - 2, 4, 4, '#3a2a1c'); R(cx + ox + 1, C.y - 1, 2, 2, '#8a6a3a'); }
-      R(cx + d * 6, C.y - 5, d * 4, 1, '#6b4f2c'); beast(C.x, C.y, '#9a8a72', d, false, step);
-      man(C.x + d * 8, C.y + 1, C.face, C.moving, '#7a4a6a');
-      provUnder(ctx, C.x, C.y, 24); }
+      for (const ox of [-5, 2]) { R(cx + ox, C.y - 2, 4, 4, '#3a2a1c'); R(cx + ox + 1, C.y - 1, 2, 2, '#8a6a3a'); } }, 18);
+      if (C.face === 'left' || C.face === 'right') R(cx + d * 6, C.y - 5, d * 4, 1, '#6b4f2c'); row.part(0, () => beast(C.x, C.y, '#9a8a72', d, false, step), 10);
+      row.part(8, () => man(C.x + d * 8, C.y + 1, C.face, C.moving, '#7a4a6a'), 20); row.draw();
+      gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 24); } }
   }
   // ---- the watch: a supply mule to the tower, and every third day the relief out in the morning and the old watch home after noon
   if (W.watch) {
     { const C = shuttleAt(W.watch, T, 10, 22, 0.05);
       if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
-        beast(mx, C.y, '#8a6a4a', d, false, step);
-        if (loaded) { R(mx - 4, C.y - 9, 4, 4, '#b8703c'); R(mx + 1, C.y - 9, 4, 4, '#c9a763'); R(mx - 4, C.y - 9, 9, 1, '#3a2a1c'); } else R(mx - 2, C.y - 7, 5, 1, '#a8261c');
-        man(C.x, C.y, C.face, C.moving, '#8a3a2a', '#2a1c14');
+        const row = rowC(C); row.part(-9, () => { beast(mx, C.y, '#8a6a4a', d, false, step);
+        if (loaded) { R(mx - 4, C.y - 9, 4, 4, '#b8703c'); R(mx + 1, C.y - 9, 4, 4, '#c9a763'); R(mx - 4, C.y - 9, 9, 1, '#3a2a1c'); } else R(mx - 2, C.y - 7, 5, 1, '#a8261c'); }, 13);
+        row.part(0, () => man(C.x, C.y, C.face, C.moving, '#8a3a2a', '#2a1c14'), 20); row.draw();
         provUnder(ctx, C.x, C.y, 18); } }
     if (watchRelief()) {
       const u = dayPart(), e = taleEnd('watch'), n = e === 'gone' || e === 'oath' ? 1 : 2;      // one man short, if Rufio never came back to it
@@ -3065,10 +3134,11 @@ function drawTrade(ctx, T, R, inView) {
       const d = C.dir, home = C.leg === 3, step = C.moving && Math.sin(T * 8) > 0 ? 1 : 0;
       const dog = (gx, gy, c) => { R(gx - 3, gy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 5, 2, c); R(d > 0 ? gx + 3 : gx - 4, gy - 4, 2, 2, c); R(d > 0 ? gx - 3 : gx + 3, gy - 4, 1, 2, c); R(gx - 2 + step, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - step, gy - 1, 1, 2, shade(c, 0.7)); };
       const a = { x: C.x, y: C.y }, b = { x: C.x - d * 12, y: C.y + 1 };
-      if (home) { R(b.x, C.y - 13, a.x - b.x, 1, '#6b4f2c'); const mx = Math.round((a.x + b.x) / 2); R(mx - 4, C.y - 12, 8, 4, '#a8703c'); R(mx - 4, C.y - 9, 8, 1, '#8a5a2c'); R(mx - 3, C.y - 14, 1, 2, '#a8703c'); R(mx + 2, C.y - 14, 1, 2, '#a8703c'); R(d > 0 ? mx - 6 : mx + 4, C.y - 11, 2, 3, '#a8703c'); R(d > 0 ? mx - 7 : mx + 5, C.y - 13, 1, 2, '#d8c8a0'); }      // the deer, slung by its feet
-      man(b.x, b.y, C.face, C.moving, '#5a6a3a', '#6a4a2a'); man(a.x, a.y, C.face, C.moving, '#6a5a3a', '#2a1c14');
-      if (!home) { R(a.x + d * 4, a.y - 20, 1, 16, '#6b4f2c'); R(a.x + d * 4, a.y - 22, 1, 2, '#c1c7cc'); R(b.x - d * 3, b.y - 16, 1, 9, '#6b4f2c'); R(b.x - d * 4, b.y - 15, 1, 7, '#c9b890'); }      // a boar-spear, and a bow
-      const lead = home ? -1 : 1; dog(C.x + d * lead * 14 - (home ? d * 12 : 0), C.y + 3, '#8a6a4a'); dog(C.x + d * lead * 20 - (home ? d * 12 : 0), C.y - 2, '#3a2e24');
+      const row = rowC(C);
+      if (home) row.part(-6, () => { if (C.face === 'left' || C.face === 'right') R(b.x, C.y - 13, a.x - b.x, 1, '#6b4f2c'); const mx = Math.round((a.x + b.x) / 2); R(mx - 4, C.y - 12, 8, 4, '#a8703c'); R(mx - 4, C.y - 9, 8, 1, '#8a5a2c'); R(mx - 3, C.y - 14, 1, 2, '#a8703c'); R(mx + 2, C.y - 14, 1, 2, '#a8703c'); R(d > 0 ? mx - 6 : mx + 4, C.y - 11, 2, 3, '#a8703c'); R(d > 0 ? mx - 7 : mx + 5, C.y - 13, 1, 2, '#d8c8a0'); }, 8);      // the deer, slung by its feet
+      row.part(-12, () => { man(b.x, b.y, C.face, C.moving, '#5a6a3a', '#6a4a2a'); if (!home) { R(b.x - d * 3, b.y - 16, 1, 9, '#6b4f2c'); R(b.x - d * 4, b.y - 15, 1, 7, '#c9b890'); } }, 20);      // a bow
+      row.part(0, () => { man(a.x, a.y, C.face, C.moving, '#6a5a3a', '#2a1c14'); if (!home) { R(a.x + d * 4, a.y - 20, 1, 16, '#6b4f2c'); R(a.x + d * 4, a.y - 22, 1, 2, '#c1c7cc'); } }, 20);      // a boar-spear
+      const o1 = home ? -26 : 14, o2 = home ? -32 : 20; row.part(o1, () => dog(C.x + d * o1, C.y + 3, '#8a6a4a'), 6); row.part(o2, () => dog(C.x + d * o2, C.y - 2, '#3a2e24'), 6); row.draw();
       provUnder(ctx, C.x, C.y, 26);
     }
   }
@@ -3090,20 +3160,23 @@ function drawTrade(ctx, T, R, inView) {
       const along = (T * speed + hv(2) * len) % len, idx = townEnd === 0 ? len - along : along, i0 = clamp(Math.floor(idx), 0, len - 1), fr = idx - i0, a = way[i0], b = way[i0 + 1];
       const x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
       if (!shown(x, y)) continue;
-      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0;
+      const gk = gateEnter(ctx, x, y); if (gk < 0) continue;
+      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0, row = rowOf(ctx, d, face);
       if (kind === 0) {                             // a cart of stuff to sell, under a cloth
         const cx = x - d * 12, cloth = ['#b93a2e', '#2f6db8', '#c9b25a', '#5a8a4a'][Math.floor(hv(3) * 4)];
-        R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 11, 8, 4, cloth); R(cx - 4, y - 11, 8, 1, shade(cloth, 1.25)); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a');
-        beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48', d, false, step); man(x + d * 8, y + 1, face, true, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a');
+        row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 11, 8, 4, cloth); R(cx - 4, y - 11, 8, 1, shade(cloth, 1.25)); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 16);
+        row.part(0, () => beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48', d, false, step), 10); row.part(8, () => man(x + d * 8, y + 1, face, true, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a'), 20);
       } else if (kind === 1) {                      // a drover, and what he means to sell on the hoof
-        man(x - d * 4, y, face, true, '#8a6a4a', '#6a4a2a'); R(x - d * 8, y - 13, 1, 13, '#6b4f2c');
-        for (let q = 0; q < 3; q++) beast(x + d * (8 + q * 10), y + (q % 2) * 3, ['#e8e2d2', '#8a6444', '#3a2e24'][Math.floor(hv(6 + q) * 3)], d, hv(9) > 0.5, (step + q) % 2);
+        row.part(-4, () => { man(x - d * 4, y, face, true, '#8a6a4a', '#6a4a2a'); R(x - d * 8, y - 13, 1, 13, '#6b4f2c'); }, 20);
+        for (let q = 0; q < 3; q++) row.part(8 + q * 10, () => beast(x + d * (8 + q * 10), y + (q % 2) * 3, ['#e8e2d2', '#8a6444', '#3a2e24'][Math.floor(hv(6 + q) * 3)], d, hv(9) > 0.5, (step + q) % 2), 10);
       } else if (kind === 2) {                      // a woman with a basket on her head, and a child
         man(x, y, face, true, ['#b8703c', '#8a2a6a', '#3f7a5a'][Math.floor(hv(3) * 3)], '#2a1c14'); R(x - 2, y - 22, 5, 3, '#c9a763'); R(x - 2, y - 22, 5, 1, '#e0c488'); R(x - 1, y - 23, 3, 1, ['#d8382a', '#e8c040', '#55803a'][Math.floor(hv(4) * 3)]);
-        R(x - d * 7 - 1, y - 7, 2, 2, '#d9a57c'); R(x - d * 7 - 1, y - 5, 2, 3, '#c9b25a'); R(x - d * 7 - 1 + step, y - 2, 1, 2, '#3a2a1c');
+        row.part(-7, () => { R(x - d * 7 - 1, y - 7, 2, 2, '#d9a57c'); R(x - d * 7 - 1, y - 5, 2, 3, '#c9b25a'); R(x - d * 7 - 1 + step, y - 2, 1, 2, '#3a2a1c'); }, 22);
       } else {                                      // a man with fowls slung on a stick
         man(x, y, face, true, '#6a5a3a', '#3a2a1c'); R(x - 5, y - 15, 11, 1, '#6b4f2c'); for (const ox of [-5, 4]) { R(x + ox, y - 14, 2, 4, '#f1ead8'); R(x + ox, y - 10, 1, 1, '#c23b2e'); }
       }
+      row.draw();
+      gateLeave(ctx, gk);
       provUnder(ctx, x, y, 26);
     }
   });
@@ -3743,9 +3816,12 @@ function drawProvince(cv, T) {
     if (U) for (let q = 0; q < 2; q++) { const wq = (T * 0.9 + q * 0.5) % 1; ctx.globalAlpha = 0.45 * (1 - wq); R(bx - hd * (half + 2 + wq * 7) - (hd > 0 ? 2 : 0), by + 1 + q, 2, 1, '#e6f3fa'); } ctx.globalAlpha = 1;      // a boat under sail leaves a wake
   });
   drawHerds(ctx, T, R, inView);
-  drawTraffic(ctx, T, R, inView);
-  drawMillCart(ctx, T, R, inView);
-  drawTrade(ctx, T, R, inView);
+  // Whoever is on the roads close under the walls is drawn after the town, not before it: the worn ground about the walls
+  // is laid over the land, and would be laid over them too.
+  const byTown = (x, y) => x > WILD.TOWN.x - 76 && x < WILD.TOWN.x + 44 && y > WILD.TOWN.y - 50 && y < WILD.TOWN.y + 38, inOut = (x, y, m) => inView(x, y, m) && !byTown(x, y), inBy = (x, y, m) => inView(x, y, m) && byTown(x, y);
+  drawTraffic(ctx, T, R, inOut);
+  drawMillCart(ctx, T, R, inOut);
+  drawTrade(ctx, T, R, inOut);
   drawAmbient(ctx, T, R, camX, camY, false);
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
@@ -3773,7 +3849,7 @@ function drawProvince(cv, T) {
 
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
-  if (inView(tx, ty, 70)) drawTown(ctx, T, R, tx, ty, tier(), provDark());
+  if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), provDark()); drawTraffic(ctx, T, R, inBy); drawMillCart(ctx, T, R, inBy); drawTrade(ctx, T, R, inBy); }
   if (inView(STABLES.x, STABLES.y, 40)) drawStables(ctx, T, R, provDark());
   // places: the ones you have come upon, and anything a clue has marked
   const sites = wildSites();

@@ -1505,3 +1505,20 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 #camp .pcomp b { font-size: 13px; line-height: 1; color: var(--text); align-self: end; }
 #camp .pcomp small { font-size: 8.5px !important; line-height: 1; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; align-self: start; }
 #camp .pcomp.here .ring { border-color: var(--gold); }
+
+/* the tavern's own strip on the rivals page, and its two tables */
+.panel.tavbar { padding: 5px 9px; margin-bottom: 6px; display: grid; gap: 4px; }
+.tavbar .keeper { font: italic 12.5px/1.35 Georgia, serif; color: var(--dim); }
+.bpair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; margin: 8px 0; }
+.bpair .bvs { font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: #6b573c; }
+.bside { padding: 6px 9px; background: rgba(120, 80, 30, .12); display: grid; gap: 2px; font-size: 13px; min-height: 92px; align-content: start; }
+.bside .bprice b { font-size: 16px; color: #7a1f16; }
+.bside .bstakes { display: flex; gap: 5px; align-items: center; min-height: 22px; font-size: 12px; }
+.dice { display: grid; gap: 4px; margin: 10px 0 4px; }
+.dice > div { display: grid; grid-template-columns: 90px 1fr 40px; align-items: center; padding: 2px 10px; background: rgba(120, 80, 30, .12); border-left: 4px solid transparent; }
+.dice > div.won { border-left-color: #b8862a; background: rgba(184, 134, 42, .22); }
+.dice > div { padding: 5px 10px; }
+.dice .throw { display: flex; gap: 7px; }
+.die { display: grid; grid-template-columns: repeat(3, 6px); grid-auto-rows: 6px; gap: 2px; padding: 4px; background: #f3ead2; border: 1px solid #6b573c; border-radius: 4px; box-shadow: 0 2px 0 rgba(60, 40, 15, .45); }
+.die i { border-radius: 50%; } .die i.on { background: #2c1c10; }
+.dice .num { font-size: 18px; text-align: right; }

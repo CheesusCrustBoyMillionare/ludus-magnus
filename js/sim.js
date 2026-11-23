@@ -924,6 +924,101 @@ function houseDeal(H, kind, gid) {
   return { ok: false, done: true, text: `Your man is caught with his hand in their meal sack and names you before he is asked twice. Magistrate favour -10, fame -5, and ${def.name} will not forget it.` };
 }
 
+// ---- the tavern ----
+// The Crossed Swords is where the other houses' men drink. Three things are to be had there besides news: a book is kept
+// on the bouts the houses fight among themselves, there is a dice game in the corner, and once between games the
+// school's own men can be stood a night of it. The book and the dice both keep a little for themselves.
+const BOOK_CUT = 0.9, BOOK_STAKES = [10, 25, 50], DICE_STAKES = [5, 15, 40], DICE_THROWS = 3, NIGHT_HEAD = 8;
+const tavern = () => G.tavern || (G.tavern = {});
+const tavernStake = s => s * (1 + tier());
+// The chance the first house's champion beats the second's, when the houses meet each other.
+const pairOdds = (A, B) => { const a = houseChampion(A), b = houseChampion(B); return a && b ? clamp(0.5 + (statSum(a) - statSum(b)) * 0.03 + (A.prestige - B.prestige) / 2000, 0.2, 0.8) : 0.5; };
+// Who meets whom at the next games: two pairs, drawn as soon as the last games are over, so the town can argue about it.
+function drawHouseCard() {
+  const order = G.houses.slice().sort(() => Math.random() - 0.5), pairs = [];
+  for (let i = 0; i + 1 < order.length; i += 2) pairs.push([order[i].id, order[i + 1].id]);
+  G.houseCard = pairs;
+}
+function houseCard() {
+  if (!G.houseCard || !G.houseCard.length || !G.houseCard.every(p => p.every(houseOf))) drawHouseCard();
+  return G.houseCard.map(([a, b]) => ({ A: houseOf(a), B: houseOf(b) }));
+}
+// What the book pays on a house, for each denarius staked and the stake back with it: fair odds, less its tenth.
+const bookPrice = p => Math.max(1.1, Math.round(BOOK_CUT / p * 20) / 20);
+const bookQuote = (A, B) => { const p = pairOdds(A, B); return { p, a: bookPrice(p), b: bookPrice(1 - p) }; };
+function bookBlock(stake) {
+  if (tavern().bet) return 'Your money is down already: one stake at each games.';
+  if (stake > G.denarii) return `You are ${stake - G.denarii} denarii short.`;
+  return '';
+}
+function bookBet(hid, stake) {
+  const pr = houseCard().find(p => p.A.id === hid || p.B.id === hid);
+  if (!pr) return { ok: false, text: 'That house does not fight another at these games.' };
+  const why = bookBlock(stake); if (why) return { ok: false, text: why };
+  const q = bookQuote(pr.A, pr.B), mine = pr.A.id === hid, vs = mine ? pr.B : pr.A, price = mine ? q.a : q.b;
+  G.denarii -= stake; tavern().bet = { on: hid, vs: vs.id, stake, price };
+  log(`${stake} denarii laid on ${houseDef(hid).name} against ${houseDef(vs.id).name}, at the tavern.`);
+  return { ok: true, text: `He scratches it into the wax without looking up: ${stake} on ${houseDef(hid).name}, to return ${Math.round(stake * price)}.` };
+}
+// A bout between two houses is over (or, with nobody named, the games are): the book pays, keeps, or hands back.
+function bookSettle(W, L) {
+  const t = tavern(), bet = t.bet; if (!bet) return;
+  if (!W) { G.denarii += bet.stake; delete t.bet; t.last = { day: G.day, on: bet.on, vs: bet.vs, stake: bet.stake, pay: bet.stake, off: true }; return; }
+  if (!((bet.on === W.id && bet.vs === L.id) || (bet.on === L.id && bet.vs === W.id))) return;
+  const win = bet.on === W.id, pay = win ? Math.round(bet.stake * bet.price) : 0;
+  G.denarii += pay; delete t.bet;
+  t.last = { day: G.day, on: bet.on, vs: bet.vs, stake: bet.stake, pay, win };
+  log(win ? `${houseDef(W.id).name} beat ${houseDef(L.id).name}, and the book at the tavern pays you ${pay} denarii.` : `${houseDef(L.id).name} lost to ${houseDef(W.id).name}, and your ${bet.stake} denarii with them.`, win ? 'gold' : 'bad');
+}
+// Dice: three each, the higher throw takes the stake, and a tied throw is the table's. Three sixes is the Venus, and is paid double.
+const diceLeft = () => { const t = tavern(); return t.diceDay === G.day ? Math.max(0, DICE_THROWS - (t.dice || 0)) : DICE_THROWS; };
+function diceBlock(stake) {
+  if (diceLeft() <= 0) return 'The table has had enough of you for one day.';
+  if (stake > G.denarii) return `You are ${stake - G.denarii} denarii short.`;
+  return '';
+}
+function tavernDice(stake) {
+  const why = diceBlock(stake); if (why) return { ok: false, text: why };
+  const t = tavern(), roll = () => [rint(1, 6), rint(1, 6), rint(1, 6)], sum = a => a[0] + a[1] + a[2];
+  if (t.diceDay !== G.day) { t.diceDay = G.day; t.dice = 0; }
+  t.dice++;
+  const mine = roll(), theirs = roll(), win = sum(mine) > sum(theirs), venus = win && sum(mine) === 18, gain = win ? stake * (venus ? 2 : 1) : -stake;
+  G.denarii += gain;
+  return { ok: true, mine, theirs, win, venus, tie: sum(mine) === sum(theirs), stake, gain };
+}
+// A night at the tavern for every fit man at home, once between one games and the next: it lifts them and it tires them,
+// and now and then something comes of it.
+const nightMen = () => G.roster.filter(g => !g.away && g.injury <= 0);
+const nightCost = () => nightMen().length * (NIGHT_HEAD + 4 * tier());
+function nightBlock() {
+  if (tavern().night === dealCycle()) return 'They have had their night since the last games.';
+  if (G.field) return 'The school is on the road.';
+  if (!nightMen().length) return 'You have nobody fit to send.';
+  if (nightCost() > G.denarii) return `You are ${nightCost() - G.denarii} denarii short.`;
+  return '';
+}
+function tavernNight() {
+  const why = nightBlock(); if (why) return { ok: false, text: why };
+  const men = nightMen().sort(() => Math.random() - 0.5), t = tavern(), r = Math.random();
+  G.denarii -= nightCost(); t.night = dealCycle(); t.nightDay = G.day;
+  men.forEach(g => { g.morale = clamp(g.morale + 10, 0, 100); g.fatigue = clamp(g.fatigue + 8, 0, 100); });
+  let text = `${men.length === 1 ? men[0].name + ' comes' : 'They come'} home after the lamps are out, singing something the neighbours will remember. Morale +10, and ${men.length === 1 ? 'he' : 'they'} will be slow in the morning.`, kind = 'plain';
+  if (r < 0.2 && men.length >= 2) {
+    let pair = null; for (let i = 0; i < men.length && !pair; i++) for (let j = i + 1; j < men.length; j++) if (canBond(men[i], men[j])) { pair = [men[i], men[j]]; break; }
+    if (pair && makeBond(pair[0], pair[1], 'friend')) { kind = 'friends'; text += ` <b>${pair[0].name}</b> and <b>${pair[1].name}</b> carried each other back, and have sworn something over it that they both still mean sober.`; }
+  } else if (r < 0.4) {
+    const hot = hottestHouse(), H = hot && hot.grudge > 0 ? hot : pick(G.houses), g = men[0];
+    feud(H, 6); g.injury = Math.max(g.injury, 1); kind = 'brawl';
+    text += ` There were men of ${houseDef(H.id).name} at the next table, and words, and then stools. <b>${g.name}</b> will be a day mending, and the feud is the worse by 6.`;
+    addStory(g, `Fought men of ${houseDef(H.id).name} across a tavern table.`);
+  } else if (r < 0.58) {
+    men.forEach(g => addProg(g, 'skl', 0.5 * g.pot.skl)); kind = 'veteran';
+    text += ' The old man with the wooden sword over the door drank with them, and showed them on the table-top with two spoons how he took the net-man at Capua. Some of it stuck.';
+  }
+  log(`The men are stood a night at the Crossed Swords.`);
+  return { ok: true, text, kind, men: men.length };
+}
+
 function makeRival(H, budget, t) {
   const def = houseDef(H.id);
   // a house speciality is paid for with slightly rawer recruits
@@ -979,17 +1074,20 @@ function houseTick() {
   for (const H of G.houses) H.was = H.prestige;             // where each stood before this games: the table shows who is rising
   // the houses meet each other too: two pairs at each games, and the better champion more often wins
   {
-    const order = G.houses.slice().sort(() => Math.random() - 0.5), news = [];
-    for (let i = 0; i + 1 < order.length; i += 2) {
-      const A = order[i], B = order[i + 1], a = houseChampion(A), b = houseChampion(B);
+    const news = [];
+    for (const { A, B } of houseCard()) {         // as it was posted in the tavern (see below), where money may have been laid on it
+      const a = houseChampion(A), b = houseChampion(B);
       if (!a || !b) continue;
-      const pA = clamp(0.5 + (statSum(a) - statSum(b)) * 0.03 + (A.prestige - B.prestige) / 2000, 0.2, 0.8), W = chance(pA) ? A : B, L = W === A ? B : A;
+      const pA = pairOdds(A, B), W = chance(pA) ? A : B, L = W === A ? B : A;
+      bookSettle(W, L);
       const gain = Math.round(houseDef(W.id).rate * 0.6);
       W.prestige += gain; L.prestige = Math.max(0, L.prestige - Math.round(gain * 0.5));
       houseForm(W, 'W'); houseForm(L, 'L');
       news.push({ d: G.day, w: W.id, l: L.id, by: (W === A ? a : b).name });
     }
     G.rivalNews = (G.rivalNews || []).concat(news).slice(-8);
+    bookSettle(null, null);                     // a stake on a bout that was never fought is handed back
+    drawHouseCard();                            // and who meets whom at the games after is chalked up
   }
   houseMove();
   for (const H of G.houses) {

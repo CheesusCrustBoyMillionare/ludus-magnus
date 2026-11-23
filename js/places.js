@@ -12,7 +12,7 @@ const PLACE_TIPS = {
   arena: 'The arena from the street. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
   contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. A rail for the mules of the carriers stands at the corner, and the packs by the road belong to men who are away.',
   patrons: 'The temple. The three fires burn as high as each patron\'s favour. Your own shrine stands to the right of the steps.',
-  rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner.',
+  rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first: click one to read that house. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner. The man under the town\'s talk keeps a book on the houses\' own bouts, and there are dice in the corner.',
   facilities: 'Your own house. The people in the court are the staff you have hired; those waiting by the wall are looking for a place. The granary and its garden stand at the corner.',
   chronicle: 'The record house. The shelves fill as your chronicle grows; the urns are your dead, the busts your line, and the wreaths the festival crowns the house has won.',
 };
@@ -514,6 +514,7 @@ const PLACE_SCENES = {
     const rows = G.houses.map(H => ({ id: H.id, called: H.called, name: houseDef(H.id).name, col: houseDef(H.id).col, p: H.prestige, feud: H.grudge })).concat([{ name: 'YOU', col: '#c23b2e', p: G.fame, you: true }]).sort((a, b) => b.p - a.p);
     rows.forEach((h, i) => {
       const x = 196 + i * 62, y = 30;
+      if (!h.you) { yardHits.push({ x0: x - 16, y0: y - 12, x1: x + 16, y1: y + 56, house: h.id }); if (typeof ui !== 'undefined' && ui.hsel === h.id) { R(x - 9, y + 37, 18, 1, '#e8b545'); R(x - 1, y + 38, 2, 2, '#e8b545'); } }      // click a shield to read that house
       R(x - 13, y, 26, 34, '#2a1c14'); R(x - 11, y + 2, 22, 30, h.col); R(x - 11, y + 2, 22, 3, shade(h.col, 1.35)); R(x - 11, y + 2, 3, 30, shade(h.col, 0.7)); R(x - 3, y + 13, 6, 6, h.you ? '#f5d584' : '#d8cdb6');
       if (h.you) { R(x - 15, y - 2, 30, 1, '#f5d584'); R(x - 15, y + 35, 30, 1, '#f5d584'); R(x - 15, y - 2, 1, 38, '#f5d584'); R(x + 14, y - 2, 1, 38, '#f5d584'); }
       if (h.feud >= 40) for (let k = -8; k <= 8; k++) { R(x + k, y + 17 + k, 2, 2, '#1c1310'); R(x + k, y + 17 - k, 2, 2, '#1c1310'); }      // an open feud: a blade scored across it
@@ -529,7 +530,7 @@ const PLACE_SCENES = {
     for (let i = 0; i < 9; i++) { E.amphora(28 + i * 15, 60, i % 3 ? '#b8703c' : '#8a5028'); E.amphora(28 + i * 15, 84, i % 2 ? '#c98a4a' : '#b8703c'); }
     E.P(84, 108, 1, { tunic: '#7a7a3a', apron: '#e8dcc0', hair: '#2a1c14' }); R(60, 108, 60, 34, '#5e4426'); R(60, 104, 60, 5, '#8a6a3a');
     // tables, with men of the other houses drinking at them
-    G.houses.slice(0, 4).forEach((H, i) => {
+    G.houses.slice(0, 3).forEach((H, i) => {
       const x = 230 + i * 92, c = houseDef(H.id).col, lift = Math.sin(T * 1.3 + i * 2) > 0.7 ? 2 : 0;
       E.P(x - 14, 160, 1, { tunic: c, hair: '#2a1c14', skin: TOWN_SKINS[i % 4] }); E.P(x + 16, 160, -1, { tunic: shade(c, 0.8), hair: '#6a4a2a', skin: TOWN_SKINS[(i + 1) % 4] });
       R(x - 22, 146, 46, 4, '#8a6a3a'); R(x - 22, 146, 46, 1, '#a8834a'); R(x - 18, 150, 3, 16, '#5e4426'); R(x + 17, 150, 3, 16, '#5e4426');
@@ -552,7 +553,21 @@ const PLACE_SCENES = {
       R(496, 100, 36, 30, '#5e4426'); R(498, 102, 32, 26, '#8a6a3a');
       for (let i = 0; i < news; i++) { const nx = 500 + (i % 3) * 10, ny = 104 + Math.floor(i / 3) * 12; R(nx, ny, 8, 9, '#f1ead8'); R(nx + 1, ny + 2, 5, 1, '#6b573c'); R(nx + 1, ny + 5, 4, 1, '#6b573c'); R(nx + 3, ny - 1, 2, 2, '#a02d22'); }
       E.sign(514, 96, news ? 'TOWN TALK' : 'NO NEWS'); }
+    // the man who keeps the book, at his own small table under the town's talk, with his tablet and his strongbox
+    { const tv = G.tavern || {}, bet = tv.bet;
+      yardHits.push({ x0: 484, y0: 132, x1: 534, y1: 190, tavern: 'book' });
+      E.P(520, 160, -1, { tunic: '#4a5a6a', hair: '#8a8478', skin: TOWN_SKINS[2], item: 'scroll' });
+      R(488, 146, 30, 4, '#8a6a3a'); R(488, 146, 30, 1, '#a8834a'); R(491, 150, 3, 16, '#5e4426'); R(512, 150, 3, 16, '#5e4426');
+      R(492, 141, 9, 5, '#5e4426'); R(492, 141, 9, 1, '#8a6a3a'); R(496, 143, 2, 2, '#c9a21e');                    // the strongbox
+      R(504, 144, 8, 2, '#f1ead8'); R(505, 144, 5, 1, '#6b573c');                                                  // the tablet
+      if (bet) for (let k = 0; k < 3; k++) R(503 + k * 3, 142 - (k % 2), 2, 2, '#e8b545');                          // your money on the table
+      E.sign(504, 178, bet ? 'YOUR STAKE IS DOWN' : 'THE BOOK', !!bet);
+      // your own men, the night they are stood one
+      if (tv.nightDay === G.day) { const lift = Math.sin(T * 1.7) > 0.5 ? 2 : 0;
+        E.P(94, 170, 1, { tunic: '#c23b2e', hair: '#2a1c14', skin: TOWN_SKINS[1] }); E.P(124, 170, -1, { tunic: '#a8261c', hair: '#6a4a2a', skin: TOWN_SKINS[3] });
+        R(100, 148 - lift, 4, 4, '#c9c2ae'); R(114, 149, 4, 4, '#c9c2ae'); E.sign(109, 184, 'YOUR MEN, AT LIBERTY', true); } }
     // a game of dice in the corner
+    yardHits.push({ x0: 132, y0: 150, x1: 200, y1: 192, tavern: 'dice' });
     R(150, 172, 30, 3, '#8a6a3a'); R(153, 175, 3, 10, '#5e4426'); R(174, 175, 3, 10, '#5e4426'); { const roll = Math.floor(T * 1.5) % 3; R(160 + roll * 3, 169, 3, 3, '#f1ead8'); R(168 - roll, 169, 3, 3, '#f1ead8'); R(161 + roll * 3, 170, 1, 1, '#1c1310'); }
     E.P(142, 186, 1, townsman(4)); E.P(190, 186, -1, townsman(7));
     E.lamp(176, 70); E.lamp(400, 100);

@@ -1420,6 +1420,59 @@ const HOUSE_WAYS = {
 };
 const feudWord = g => g >= 70 ? 'Blood feud' : g >= 40 ? 'Open feud' : g >= 25 ? 'Bad blood' : g > 0 ? 'A grievance' : 'No quarrel';
 
+// ---- the tavern's own business: the book, the dice, and a night for the men ----
+const DIE_PIPS = [[], [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]];
+const DIE = n => `<span class="die">${[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => `<i${DIE_PIPS[n].includes(i) ? ' class="on"' : ''}></i>`).join('')}</span>`;
+const houseTag = id => `${swatch(id)}<b>${houseDef(id).name}</b>`;
+// What the keeper has to say today.
+function tavernTalk() {
+  const t = G.tavern || {}, top = G.houses.slice().sort((a, b) => b.prestige - a.prestige)[0], hot = hottestHouse();
+  const up = G.houses.filter(H => H.was != null && H.prestige > H.was).sort((a, b) => (b.prestige - b.was) - (a.prestige - a.was))[0];
+  if (t.last && t.last.day === G.day) return t.last.off ? 'The bout you had money on was never fought. The man with the book counts your stake back coin by coin.' : t.last.win ? `${houseDef(t.last.on).name} won. The man with the book pays out your ${t.last.pay} denarii as if each one were a tooth.` : `${houseDef(t.last.on).name} lost, and your ${t.last.stake} denarii with them. The man with the book sends his regards.`;
+  const says = [];
+  if (t.bet) says.push(`Your ${t.bet.stake} is on ${houseDef(t.bet.on).name}. Half the room has money the other way, and says so.`);
+  if (hot && hot.grudge >= 40) says.push(`The men of ${houseDef(hot.id).name} drink at the far table, and stop talking when anyone of yours comes in.`);
+  says.push(G.fame > top.prestige ? 'They drink your health here now, and mean about half of it.' : `${houseDef(top.id).name} drink free here: first house in the province, and the keeper says it is good for trade.`);
+  if (up) says.push(`All the talk is of ${houseDef(up.id).name}: up ${up.prestige - up.was} since the games before last.`);
+  says.push('The keeper fought eleven years in this province and has the wooden sword over his door to show for it. He will tell you about it, if you let him.');
+  says.push('The dice in the corner are bone, and old, and the keeper swears nobody has ever proved anything about them.');
+  return says[G.day % says.length];
+}
+function tavernHtml() {
+  const t = G.tavern || {}, nwhy = nightBlock(), armed = ui.dealArm === 'night', n = nightMen().length;
+  const said = ui.tavMsg && ui.tavMsg.day === G.day ? `<div class="dealmsg ${ui.tavMsg.ok ? 'good' : 'bad'}">${ui.tavMsg.text}</div>` : '';
+  return `<div class="panel tavbar"><div class="deals"><span class="lbl">The Crossed Swords</span>
+      <button data-act="tbook"${tip(`A man by the hearth keeps a book on the bouts the houses fight among themselves at the next games. He pays fair odds, less his tenth. One stake at each games.${t.bet ? `\nYou have ${t.bet.stake} on ${houseDef(t.bet.on).name}.` : ''}`)}>The book${t.bet ? ` &middot; ${t.bet.stake} down` : ''}</button>
+      <button data-act="tdice"${tip(`Three dice each: the higher throw takes the stake, and a tied throw is the table's. ${diceLeft()} of ${DICE_THROWS} throws left today.`)}>Dice &middot; ${diceLeft()}</button>
+      <button class="${armed ? 'primary' : ''}" data-act="tnight" ${nwhy ? 'disabled' : ''}${tip(`Stand every fit man at home a night here, once between one games and the next: morale +10 and fatigue +8 for each. Now and then two of them come home friends, or the better for an old fighter's talk; now and then there is a brawl with another house's men, and one of yours is a day mending.${nwhy ? '\n' + nwhy : ''}`)}>${armed ? 'Sure?' : `A night for the men${nwhy ? '' : ` &mdash; ${nightCost()}`}`}</button></div>
+    <div class="keeper">${tavernTalk()}</div>${said}</div>`;
+}
+function bookModal(msg) {
+  const t = G.tavern || {}, days = daysToGames(), bet = t.bet;
+  const side = (H, O, price, p) => { const c = houseChampion(H);
+    return `<div class="bside" style="border-left:5px solid ${houseDef(H.id).col}"><div><b>${houseDef(H.id).name}</b> <small>renown ${H.prestige}</small></div>
+      <div class="dim">${c ? `${c.name}, ${CLASSES[c.cls].name}, power ${rating(c)}` : 'no champion'}</div>
+      <div class="bprice"${tip(`The book thinks this about ${Math.round(p * 100)} chances in a hundred. A stake of 10 returns ${Math.round(10 * price)}.`)}>pays <b class="num">&times;${price.toFixed(2)}</b></div>
+      <div class="bstakes">${bet ? (bet.on === H.id ? `<span class="gold">Your ${bet.stake} is here: returns ${Math.round(bet.stake * bet.price)}</span>` : '') : BOOK_STAKES.map(s => { const st = tavernStake(s), why = bookBlock(st); return `<button class="mini" data-act="bkbet" data-v="${H.id}" data-w="${st}" ${why ? 'disabled' : ''}${tip(why || `${st} on ${houseDef(H.id).name}: ${Math.round(st * price)} back if they win, nothing if they lose.`)}>${st}</button>`; }).join('')}</div></div>`; };
+  const pairs = houseCard().map(({ A, B }) => { const q = bookQuote(A, B); return `<div class="bpair">${side(A, B, q.a, q.p)}<span class="bvs">against</span>${side(B, A, q.b, 1 - q.p)}</div>`; }).join('');
+  const last = t.last ? `<p class="dim">Last time: ${t.last.off ? `the bout was never fought, and your ${t.last.stake} came back.` : `${t.last.stake} on ${houseDef(t.last.on).name} against ${houseDef(t.last.vs).name}, and they ${t.last.win ? `won. The book paid ${t.last.pay}.` : 'lost.'}`}</p>` : '';
+  if (modalQueue.length) closeModal();
+  showModal(`<h2>The book <small>${days ? `the games are in ${days} day${days === 1 ? '' : 's'}` : 'for the games after these'}</small></h2>
+    <p>At every games the houses fight each other as well as you: their champions, one against one. A man by the hearth takes money on it. He pays fair odds less a tenth, and he has never been known to be wrong about the tenth.</p>
+    ${pairs}${msg ? `<p class="${msg.ok ? 'good' : 'bad'}">${msg.text}</p>` : ''}${last}
+    <div class="row"><button data-act="close">${bet ? 'Leave it to the sand' : 'Keep your money'}</button></div>`);
+}
+function diceModal(res) {
+  const left = diceLeft(), sum = a => a[0] + a[1] + a[2], row = (who, a, won) => `<div class="${won ? 'won' : ''}"><span>${who}</span><span class="throw">${a.map(DIE).join('')}</span><b class="num">${sum(a)}</b></div>`;
+  const out = res && res.ok ? `<div class="dice">${row('You', res.mine, res.win)}${row('The table', res.theirs, !res.win)}</div>
+    <p class="${res.win ? 'good' : 'bad'}">${res.venus ? `Three sixes: the Venus. The whole room groans, and you are paid double: ${res.gain} denarii.` : res.win ? `Yours. ${res.gain} denarii come across the table.` : res.tie ? `Level, and a level throw is the table's. Your ${res.stake} denarii go.` : sum(res.mine) === 3 ? `Three ones: the Dogs. Your ${res.stake} denarii go, and somebody barks.` : `Theirs. Your ${res.stake} denarii go.`}</p>` : res ? `<p class="bad">${res.text}</p>` : '';
+  if (modalQueue.length) closeModal();
+  showModal(`<h2>Dice <small>${left ? `${left} throw${left === 1 ? '' : 's'} left today` : 'no more today'}</small></h2>
+    <p>A mule-driver, a cooper and a man who will not say what he does, round a board in the corner. Three dice each. The higher throw takes the stake, a tied throw is the table's, and three sixes, the Venus, is paid double.</p>
+    ${out}
+    <div class="row">${DICE_STAKES.map(s => { const st = tavernStake(s), why = diceBlock(st); return `<button class="${s === DICE_STAKES[0] ? 'primary' : ''}" data-act="tdice" data-v="${st}" ${why ? 'disabled' : ''}${why ? tip(why) : ''}>Throw for ${st}</button>`; }).join('')}<button data-act="close">${res ? 'Get up from the table' : 'Not today'}</button></div>`);
+}
+
 function viewRivals() {
   const H = keepSel('hsel', G.houses), d = H && houseDef(H.id);
   const rows = G.houses.map(X => ({ id: X.id, name: houseDef(X.id).name, p: X.prestige, H: X }))
@@ -1479,7 +1532,7 @@ function viewRivals() {
         <span class="${mine === 0 ? 'gold' : ''}"><b class="num">${ordinal(mine + 1)}</b> of ${rows.length}</span>
         ${above ? `<span${tip('Renown comes from fame: win bouts, and beat houses that stand above you.')}><b class="num">${above.p - G.fame + 1}</b> fame to pass ${above.name}</span>` : '<span class="gold">no one stands above you</span>'}
         ${call ? `<span class="bad"><b>${call.house} has called you out today.</b> Leave it unanswered and it costs you.</span>` : hot && hot.grudge >= 25 ? `<span class="${hot.grudge >= 40 ? 'bad' : ''}"${tip('feud')}>${feudWord(hot.grudge).toLowerCase()} with ${houseDef(hot.id).name}</span>` : '<span>no feud worth the name</span>'}</div></div>
-      <div class="pane" data-pane="houses"><div class="panel list standing">${table}</div>
+      <div class="pane" data-pane="houses">${tavernHtml()}<div class="panel list standing">${table}</div>
       <div class="listnote">Killing a house's men, or losing yours to them, deepens the feud. At the mark on the red bar (40) their champion calls you out; answer it and the feud cools, whoever wins.</div>
       ${(G.rivalNews || []).length + (G.rivalMoves || []).length ? `<h2>Word from the other schools</h2><div class="panel rnews">${(G.rivalMoves || []).map(x => ({ d: x.d + 0.5, x })).concat((G.rivalNews || []).map(x => ({ d: x.d, x }))).sort((a, b) => b.d - a.d).slice(0, 4).map(({ x }) => x.text ? `<div><span class="d">Day ${x.d}</span><span>${swatch(x.h)}<b>${houseDef(x.h).name}</b> ${x.text}.</span></div>` : `<div><span class="d">Day ${x.d}</span><span>${swatch(x.w)}<b>${houseDef(x.w).name}</b> beat ${swatch(x.l)}${houseDef(x.l).name} <small>${x.by} carried it</small></span></div>`).join('')}</div>` : ''}</div></div>
     <div><h2>${d ? d.name : 'Rival houses'} <small>${H ? H.roster.length + ' fighters' : ''}</small></h2><div class="pane" data-pane="house-${H ? H.id : ''}">${detail}</div></div>
@@ -2401,6 +2454,8 @@ const ACTIONS = {
   yard(v, w, el, e) {                       // click a fighter to open his dossier, a building to go to its screen
     const h = typeof yardPick === 'function' ? yardPick(el, e) : null;
     if (!h) return;
+    if (h.house) { ui.hsel = h.house; ui.dealArm = null; SFX.ui('scroll'); render(); return; }      // a shield on the tavern wall: that house is the one read
+    if (h.tavern) { ACTIONS[h.tavern === 'dice' ? 'tdice' : 'tbook'](); return; }                    // the dicers' corner, and the man with the book
     if (h.offer) { ui.csel = h.offer; SFX.ui('scroll'); render(); const row = document.querySelector('#view .lrow.sel'); if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' }); return; }      // a tablet on the board of work: that offer is the one read
     if (h.fighter) { ui.sel = h.fighter; ui.school = false; ui.schoolNext = false; villageWalkTo('ludus'); }
     else if (h.school) { if (ui.tab === 'ludus') ui.school = true; else ui.schoolNext = true; villageWalkTo('ludus'); }      // the school's own walls are seen to at the school
@@ -2472,6 +2527,18 @@ const ACTIONS = {
   lpage(v) { ui.lpage = Math.max(0, (ui.lpage || 0) + (+v)); render(); },
   storyall(v) { ui.storyAll = ui.storyAll === +v ? null : +v; render(); },
   // A dealing with a house: those that cannot be taken back are asked twice.
+  tbook() { bookModal(); },
+  bkbet(v, w) { const r = bookBet(v, +w); SFX.ui(r.ok ? 'coin' : 'thud'); save(); render(); bookModal(r); },
+  tdice(v) {
+    if (!v) { diceModal(); return; }
+    const r = tavernDice(+v); SFX.ui(!r.ok ? 'thud' : r.win ? 'coin' : 'warn'); save(); render(); diceModal(r);
+  },
+  tnight() {
+    if (ui.dealArm !== 'night') { ui.dealArm = 'night'; SFX.ui('warn'); render(); return; }
+    ui.dealArm = null;
+    const r = tavernNight(); ui.tavMsg = { day: G.day, ok: r.ok && r.kind !== 'brawl', text: r.text };
+    SFX.ui(r.ok ? 'chime' : 'thud'); save(); render();
+  },
   hdeal(v, w) {
     const H = houseOf(v); if (!H) return;
     const [kind, id] = w.split(':'), key = v + ':' + w;
