@@ -2600,8 +2600,7 @@ const ACTIONS = {
   endday() {
     if (G.over) { checkEnd(); return; }
     const open = G.bouts ? G.bouts.filter(b => !b.done).length : 0;
-    if (open && G.roster.some(canFight) && !ui.confirmSkip) {
-      ui.confirmSkip = true;
+    if (open && G.roster.some(canFight) && !ui.confirmSkip) {      // asked every time: to stay is not to have been asked (forceend is the answer that ends it)
       showModal(`<h2>Leave the games?</h2><p>There ${open === 1 ? 'is still a bout' : `are still ${open} bouts`} to be fought today, and fighters fit to enter.</p>
         <div class="row"><button data-act="close">Stay</button><button class="primary" data-act="forceend">End the day</button></div>`);
       return;
@@ -2613,7 +2612,7 @@ const ACTIONS = {
     if (G.pendingEvent) showEvent();
     checkEnd();
   },
-  forceend() { closeModal(); ACTIONS.endday(); },
+  forceend() { closeModal(); ui.confirmSkip = true; ACTIONS.endday(); },
   evopt(v) {
     const pe = G.pendingEvent; if (!pe) { closeModal(); return; }
     const E = EVENTS[pe.id];
@@ -3188,6 +3187,7 @@ document.addEventListener('keydown', e => {
 // 1, 2 and 3 shout the orders while a fight is on
 document.addEventListener('keydown', e => {
   if (!fight || fight.finished || e.ctrlKey || e.altKey || e.metaKey || $('#arena').hidden) return;
+  if (e.repeat && e.key !== '.') return;      // a key held down repeats itself: that steps the fight on, and does nothing else (held, C would throw in the cloth and answer its own "sure?")
   if (!$('#modal').hidden) {                  // the book is open over the fight: Esc or Enter shuts it, and nothing else reaches the sand
     if ((e.key === 'Escape' || e.key === 'Enter') && $('#modalBox [data-act=close]')) { e.preventDefault(); $('#modalBox [data-act=close]').click(); }
     return;
@@ -3217,7 +3217,11 @@ document.addEventListener('keydown', e => {
   if (ui.noKeys && e.key.length === 1 && e.key !== ' ') return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const press = el => { if (el && !el.disabled) { e.preventDefault(); el.click(); } };
+  // A key held down repeats itself. That walks the lanista and runs down a list, and nothing else: a day is not ended
+  // twice, nor a second man bought, nor a notice sent away unread, because a finger rested on the key.
+  const held = e.repeat && !/^Arrow/.test(k);
   if (!$('#modal').hidden) {
+    if (held) return;
     const btns = [...document.querySelectorAll('#modalBox button:not(:disabled)')], opts = [...document.querySelectorAll('#modalBox [data-act=evopt]')];
     if (k === 'q' && modalQueue[0] && modalQueue[0].startsWith('<div class="quests">')) { e.preventDefault(); closeModal(); }
     else if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON' && at.tagName !== 'SUMMARY') press(btns[0]);
@@ -3227,6 +3231,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (villageKey(e, true)) { e.preventDefault(); return; }
+  if (held) return;
   if (k === 'h' || k === 'F1') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.help(); return; }
   if (G.field) { if (k === 'q') { e.preventDefault(); ACTIONS.quests(); } else if (k === 'e') press($('#camp [data-act=makecamp]')); else if (k === 'f') press($('#camp [data-act=landuse]')); else if (k === 'm') { e.preventDefault(); SFX.ui('scroll'); ACTIONS.bigmap(); } else if (k === 'r') { e.preventDefault(); SFX.ui('tick'); ACTIONS.wildgo('home'); } else if (k === 'Escape' && prov.big) ACTIONS.bigmap(); return; }           // out in the country, E makes camp
   if (k === 'e') return press($('[data-act=endday]'));
@@ -3362,6 +3367,7 @@ document.addEventListener('fullscreenchange', () => { if (G) { renderTop(); if (
 // Esc opens it when nothing else is open. (When something is, Esc shuts that: see the keys below.)
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G) return;
+  if (e.repeat) { e.preventDefault(); e.stopPropagation(); return; }      // held down, it would open the menu and shut it again for as long as it was held
   { const tb = $('#tip'); if (tb && !tb.hidden) { const byKey = tb.dataset.by === 'key'; hideTip(); if (byKey) { e.preventDefault(); e.stopPropagation(); return; } } }
   if (menuOpen()) {                           // in the menu, Esc goes back a page, and from the first page back to the game
     e.preventDefault(); e.stopPropagation();

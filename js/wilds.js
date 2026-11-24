@@ -846,7 +846,7 @@ function applyWildResult(B) {
   }
   const day = F.day;
   G.field.fight = null;
-  if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
+  if (houseEmpty()) G.over = 'empty';
   if (day && !G.over) fieldDay('march');
   save();
   return { win, lines };

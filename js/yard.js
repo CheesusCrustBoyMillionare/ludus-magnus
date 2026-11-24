@@ -137,15 +137,46 @@ let sceneLow = 0;      // how low the sun stands, 0 at noon to 1 at the horizon:
 // The sky down to the horizon at y = H: graded from the zenith to the horizon in narrow strips with their edges
 // broken, a glow where the sun is low, stars of three sizes and a shooting star now and then, the sun with a halo,
 // the moon in whatever phase the day of the month gives it, and clouds built of lobes, lit above and shaded below.
+// What does not change from one frame to the next is painted once and kept. A scene is drawn at a whole number of
+// canvas pixels to the unit and on whole units, so a part of it painted on a canvas of its own and laid down from
+// there comes out the same, to the pixel, as painting it afresh; and the graded sky and the three ranges of hills,
+// which never move, were more than half of all that was painted in a frame of the yard.
+// How many canvas pixels to the unit ctx is drawing at, or 0 if it is not drawing so plainly (and then nothing is kept).
+function scenePx(ctx) {
+  if (typeof ctx.getTransform !== 'function' || ctx.globalAlpha !== 1 || ctx.globalCompositeOperation !== 'source-over') return 0;
+  const m = ctx.getTransform();
+  return m.b === 0 && m.c === 0 && m.a === m.d && m.a >= 1 && m.a === Math.round(m.a) && m.e === Math.round(m.e) && m.f === Math.round(m.f) ? m.a : 0;
+}
+// A canvas for a part w by h units at S pixels to the unit, ready to be painted on in units.
+function sceneKeep(w, h, S, oy) {
+  const cv = document.createElement('canvas'); cv.width = w * S; cv.height = h * S;
+  const c = cv.getContext('2d'); c.setTransform(S, 0, 0, S, 0, -(oy || 0) * S); c.imageSmoothingEnabled = false;
+  return [cv, c];
+}
+// Laid down again with its top left corner at x, y, pixel for pixel.
+function sceneLay(ctx, kept, x, y, S) {
+  const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(kept, x, y, kept.width / S, kept.height / S);
+  ctx.imageSmoothingEnabled = sm;
+}
+// The sky itself: graded from the zenith to the horizon in narrow strips, their edges broken.
+function skyBands(ctx, bands, H) {
+  const N = 20;
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1), c = f < 0.5 ? mixHex(bands[0], bands[1], f * 2) : mixHex(bands[1], bands[2], (f - 0.5) * 2), y0 = Math.floor(i * H / N);
+    ctx.fillStyle = c; ctx.fillRect(0, y0, 590, Math.ceil(H / N) + 1);
+    if (i) for (let x = (i % 2) * 2; x < 590; x += 4) ctx.fillRect(x, y0 - 1, 2, 1);
+  }
+}
+const skyKept = { key: '', next: '', cv: null };      // kept once its colours have stood for two frames: through dawn and dusk they change at every frame
 function sceneSkyDraw(ctx, T, sky, wx, H) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  const N = 20, low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, night = sky.night;
+  const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, night = sky.night;
   sceneLow = sky.sun ? low : 0.35; sceneSun = (sky.sun || sky.moon || [0])[0] < 295 ? 1 : -1;
-  for (let i = 0; i < N; i++) {
-    const f = i / (N - 1), c = f < 0.5 ? mixHex(sky.bands[0], sky.bands[1], f * 2) : mixHex(sky.bands[1], sky.bands[2], (f - 0.5) * 2), y0 = Math.floor(i * H / N);
-    R(0, y0, 590, Math.ceil(H / N) + 1, c);
-    if (i) { ctx.fillStyle = c; for (let x = (i % 2) * 2; x < 590; x += 4) ctx.fillRect(x, y0 - 1, 2, 1); }
-  }
+  { const S = scenePx(ctx), key = S ? sky.bands.join() + '|' + H + '|' + S : '';
+    if (S && key === skyKept.next && key !== skyKept.key) { const [cv, c] = sceneKeep(590, Math.floor(19 * H / 20) + Math.ceil(H / 20) + 1, S); skyBands(c, sky.bands, H); skyKept.cv = cv; skyKept.key = key; }
+    skyKept.next = key;
+    if (S && key === skyKept.key) sceneLay(ctx, skyKept.cv, 0, 0, S); else skyBands(ctx, sky.bands, H); }
   if (sky.sun && low > 0.25 && wx.over < 0.8) {                    // the horizon lit where the sun is going down or coming up
     const [sx] = sky.sun, g = ctx.createRadialGradient(sx, H, 0, sx, H, 220), a = (low - 0.25) * 0.6 * (1 - wx.over);
     g.addColorStop(0, `rgba(255,200,130,${a.toFixed(3)})`); g.addColorStop(0.5, `rgba(255,150,100,${(a * 0.4).toFixed(3)})`); g.addColorStop(1, 'rgba(255,150,100,0)');
@@ -214,13 +245,32 @@ function sceneSkyDraw(ctx, T, sky, wx, H) {
 // The country beyond: three ranges, each paler and bluer than the one in front, their crests rolling and lit from
 // above, with woods, a terraced slope and a white house far off on the nearest. base is where they meet whatever
 // stands in front; deep is how far below that they are filled in.
+const HILLS = [{ c: '#b4c6c4', l: '#c4d4d0', amp: 30, f: 0.011, up: 4 }, { c: '#97b3a4', l: '#a9c2b2', amp: 23, f: 0.017, up: 2 }, { c: '#7fa27a', l: '#92b488', amp: 16, f: 0.024, up: 0 }];
+// How high range k stands at x.
+function hillY(k, x, base, seed) {
+  const ly = HILLS[k], ph = seed * 1.7 + k * 2.3;
+  return Math.round(base - ly.up - ly.amp * (0.55 + 0.3 * Math.sin(x * ly.f + ph) + 0.15 * Math.sin(x * ly.f * 2.7 + ph * 1.9) + 0.06 * Math.sin(x * 0.13 + ph)));
+}
+const hillsKept = new Map();      // the last few countries painted, each on a canvas of its own
 function sceneHills(ctx, base, sky, deep, seed, T) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  const L = [{ c: '#b4c6c4', l: '#c4d4d0', amp: 30, f: 0.011, up: 4 }, { c: '#97b3a4', l: '#a9c2b2', amp: 23, f: 0.017, up: 2 }, { c: '#7fa27a', l: '#92b488', amp: 16, f: 0.024, up: 0 }];
-  L.forEach((ly, k) => {
-    const ph = seed * 1.7 + k * 2.3, ys = [];
+  const S = scenePx(ctx), top = base - 44;      // nothing of them stands higher than that, and the kept canvas runs a little below their foot for a terrace or a house low on the slope
+  if (S) {
+    const key = base + '|' + deep + '|' + seed + '|' + S;
+    let cv = hillsKept.get(key);
+    if (!cv) { const made = sceneKeep(590, 56 + deep, S, top); hillsPaint(made[1], base, deep, seed); cv = made[0]; if (hillsKept.size >= 3) hillsKept.delete(hillsKept.keys().next().value); hillsKept.set(key, cv); }
+    sceneLay(ctx, cv, 0, top, S);
+  } else hillsPaint(ctx, base, deep, seed);
+  if (T != null) { const hx = 60 + (seed * 97) % 440, hy = hillY(2, hx >> 1 << 1, base, seed) + 4; for (let q = 0; q < 3; q++) { const p2 = (T * 0.12 + q / 3) % 1; ctx.globalAlpha = 0.45 * (1 - p2); R(hx + 2 + p2 * 7, hy - 3 - p2 * 12, 2 + Math.round(p2 * 2), 2, '#e4e0d8'); } } ctx.globalAlpha = 1;      // the hearth of the white house, lit
+  const hz = ctx.createLinearGradient(0, base - 22, 0, base + 2); hz.addColorStop(0, 'rgba(230,236,228,0)'); hz.addColorStop(1, 'rgba(230,236,228,.3)'); ctx.fillStyle = hz; ctx.fillRect(0, base - 22, 590, 24 + deep);      // PASS 19: haze lying at the foot of the hills
+}
+// The ranges themselves, and what stands on them: none of it moves.
+function hillsPaint(ctx, base, deep, seed) {
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  HILLS.forEach((ly, k) => {
+    const ys = [];
     for (let x = 0; x < 590; x += 2) {
-      const hgt = ly.amp * (0.55 + 0.3 * Math.sin(x * ly.f + ph) + 0.15 * Math.sin(x * ly.f * 2.7 + ph * 1.9) + 0.06 * Math.sin(x * 0.13 + ph)), y = Math.round(base - ly.up - hgt);
+      const y = hillY(k, x, base, seed);
       ys.push(y); R(x, y, 2, base - y + deep, ly.c); R(x, y, 2, 1, ly.l); if ((x >> 1) % 3 === 0) R(x, y + 1, 2, 1, ly.l);
     }
     if (k === 1) for (let x = 6; x < 590; x += 14) { const y = ys[x >> 1]; if (((x * 7 + seed) % 5) < 3) { R(x, y + 3, 5, 2, '#86a494'); R(x + 1, y + 2, 3, 1, '#86a494'); } }      // woods on the middle range
@@ -228,10 +278,8 @@ function sceneHills(ctx, base, sky, deep, seed, T) {
       for (let x = 4; x < 590; x += 9) { const y = ys[x >> 1]; if (((x * 11 + seed * 3) % 7) < 4) { R(x, y - 1, 3, 3, '#5f8a5c'); R(x + 1, y - 2, 1, 1, '#5f8a5c'); R(x, y - 1, 1, 1, '#76a070'); } }      // trees along the near crest
       const tx = 150 + (seed * 53) % 260; for (let q = 0; q < 4; q++) R(tx + q * 2, ys[(tx >> 1) + q + 6] + 5 + q * 2, 34 - q * 4, 1, '#8fb07e');                                                               // a slope cut into terraces
       const hx = 60 + (seed * 97) % 440, hy = ys[hx >> 1] + 4; R(hx, hy, 8, 4, '#eee6d0'); R(hx - 1, hy - 2, 10, 2, '#c0623c'); R(hx + 3, hy + 2, 1, 2, '#5a4334'); R(hx + 10, hy - 4, 1, 8, '#3f6446'); R(hx + 9, hy - 2, 3, 4, '#3f6446');      // a white house, and its cypress
-      if (T != null) for (let q = 0; q < 3; q++) { const p2 = (T * 0.12 + q / 3) % 1; ctx.globalAlpha = 0.45 * (1 - p2); R(hx + 2 + p2 * 7, hy - 3 - p2 * 12, 2 + Math.round(p2 * 2), 2, '#e4e0d8'); } ctx.globalAlpha = 1;      // its hearth lit
     }
   });
-  const hz = ctx.createLinearGradient(0, base - 22, 0, base + 2); hz.addColorStop(0, 'rgba(230,236,228,0)'); hz.addColorStop(1, 'rgba(230,236,228,.3)'); ctx.fillStyle = hz; ctx.fillRect(0, base - 22, 590, 24 + deep);      // PASS 19: haze lying at the foot of the hills
 }
 
 // Light from a flame or a window: soft, falling away evenly on every side.
@@ -960,16 +1008,19 @@ function yardFrame(ts) {
   const cv = document.getElementById('yard');
   if (!cv || !G) { yardRaf = 0; return; }
   const arena = document.getElementById('arena'), wilds = document.getElementById('wilds');
-  // nothing is painted while the picture cannot be seen: under a fight, or under the map of the province
+  // nothing is painted while the picture cannot be seen: under a fight, or under the map of the province, or put away
+  // (the Yard switch, or a window too narrow for it); put away, it is painted afresh the moment it is back
   // held still, the picture is painted once when the screen is drawn (startYard) and again only if its size changes
-  if (ts - yardLast > 30 && !(arena && !arena.hidden) && !(wilds && !wilds.hidden) && !(typeof ui !== 'undefined' && ui.still && cv._drawnW === cv.width)) { yardLast = ts; cv._drawnW = cv.width; try { drawScene(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
+  const shown = cv.offsetWidth > 0;
+  if (!shown) cv._drawnW = 0;
+  if (shown && ts - yardLast > 30 && !(arena && !arena.hidden) && !(wilds && !wilds.hidden) && !(typeof ui !== 'undefined' && ui.still && cv._drawnW === cv.width)) { yardLast = ts; cv._drawnW = cv.width; try { drawScene(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
   yardRaf = requestAnimationFrame(yardFrame);
 }
 // Draw once at once, then keep it moving while the canvas is on the page.
 function startYard() {
   const cv = document.getElementById('yard');
   if (!cv) return;
-  drawScene(cv, performance.now() / 1000); cv._drawnW = cv.width;
+  if (cv.offsetWidth > 0) { drawScene(cv, performance.now() / 1000); cv._drawnW = cv.width; } else cv._drawnW = 0;      // put away: not painted until it is back (yardFrame)
   if (!yardRaf) yardRaf = requestAnimationFrame(yardFrame);
 }
 // What was clicked: a fighter (nearest the front wins) or a building.

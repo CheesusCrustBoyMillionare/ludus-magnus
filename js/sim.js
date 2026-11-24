@@ -19,6 +19,9 @@ const CURRENT_KEY = 'ludus-magnus-current';
 const slotKey = n => 'ludus-magnus-slot-' + n;
 let slot = 1;
 
+// The house is finished when the cells are empty and no man on the block can be paid for. A block with nobody on it is
+// not that: the dealer brings more on the next games day, and a full purse will buy them.
+const houseEmpty = () => !G.roster.length && G.market.length > 0 && G.denarii < Math.min(...G.market.map(m => m.price));
 function save() {
   try {
     G.savedAt = Date.now();
@@ -2179,7 +2182,7 @@ function endDay() {
     log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
   } else { G.bouts = null; G.tourney = null; }
 
-  if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
+  if (houseEmpty()) G.over = 'empty';
   if (!G.over && !G.ruin) jobsTick();
   if (!G.over && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
   if (!G.over && !G.ruin) checkDeeds();
@@ -2349,7 +2352,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
     if (!B.decision) setRecord('quick', Math.round(B.time * 10) / 10, who, bout.house, false);
   }
   checkDeeds(lines);
-  if (!G.roster.length && G.denarii < Math.min(...G.market.map(m => m.price))) G.over = 'empty';
+  if (houseEmpty()) G.over = 'empty';
   save();
   return { win, lines, purse, fameGain, wager, wagerGain, avgExc, sweep, kind: kind || 'win' };
 }

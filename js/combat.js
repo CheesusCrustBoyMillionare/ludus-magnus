@@ -799,23 +799,36 @@ function drawFighter(ctx, f, o) {
 
 // A fighter, with a dark line round him so he stands clear of the sand and of the men beside him.
 // The line is the figure itself in ink, drawn a pixel off in each direction, with the figure on top.
-const SPRITE_EDGE = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+// The figure is worked out once, into a list of rectangles (spriteRects, beastRects), and the list is laid down five
+// times: four in ink, a pixel off each way, and once in its own colours. Working him out five times over was most of
+// the cost of a frame of a fight. Every rectangle is still filled by itself, so where two overlap the ink lies as
+// dark as it always did. What is light and not body (his shadow, the sweep of a blow, a net over him) has no line.
+// o.solid draws the whole figure in that one colour, as a shadow of himself; a beast drawn so has no line round it.
+const SPRITE_EDGE = [[1, 0], [-1, 0], [0, 1], [0, -1]], SPRITE_INK = 'rgba(30,18,9,.62)';
+const _spr = { n: 0, x: [], y: [], w: [], h: [], c: [], ink: [] };
+function sprPut(x, y, w, h, col, ink) { const S = _spr, i = S.n++; S.x[i] = x; S.y[i] = y; S.w[i] = w; S.h[i] = h; S.c[i] = col; S.ink[i] = ink; }
 function drawSprite(ctx, o) {
-  if (o.g.beast) { drawBeast(ctx, o); return; }
-  if (!o.plain) {
-    const edge = Object.assign({}, o, { solid: 'rgba(30,18,9,.62)', shadow: { len: 0, a: 0 } });
-    for (const [dx, dy] of SPRITE_EDGE) { edge.x = o.x + dx; edge.y = o.y + dy; drawSpriteBody(ctx, edge); }
+  const S = _spr, beast = !!o.g.beast;
+  S.n = 0;
+  if (beast) beastRects(o); else spriteRects(o);
+  const n = S.n, X = S.x, Y = S.y, W = S.w, H = S.h, C = S.c, I = S.ink;
+  if (!o.plain && !(beast && o.solid)) {
+    ctx.fillStyle = SPRITE_INK;
+    for (let e = 0; e < 4; e++) { const dx = SPRITE_EDGE[e][0], dy = SPRITE_EDGE[e][1]; for (let i = 0; i < n; i++) if (I[i]) ctx.fillRect(X[i] + dx, Y[i] + dy, W[i], H[i]); }
   }
-  drawSpriteBody(ctx, o);
+  if (o.solid) { ctx.fillStyle = o.solid; for (let i = 0; i < n; i++) if (I[i]) ctx.fillRect(X[i], Y[i], W[i], H[i]); return; }
+  let last = null;
+  for (let i = 0; i < n; i++) { if (C[i] !== last) ctx.fillStyle = last = C[i]; ctx.fillRect(X[i], Y[i], W[i], H[i]); }
 }
-function drawSpriteBody(ctx, o) {
+function spriteRects(o) {
   // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,windP,recoil,bash,guard,flash,down,falling,yielded,snare,cheer,shadow,solid}
   const g = o.g, c = CLASSES[g.cls], cls = g.cls, d = o.facing;
   const look = gearLook(g), armorT = look.armor, weaponT = look.weapon;
   const X = Math.round(o.x), Y = Math.round(o.y) - (o.cheer && Math.sin(o.cheer * 9) > 0.3 ? 2 : 0);
   const white = o.flash > HIT_WHITE, hurtK = o.flash > 0 && !white ? o.flash / HIT_WHITE : 0;
   let lean = 0;       // sideways shift of everything above the hips: into a blow, back from a hit
-  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : hurtK ? flush(col, hurtK) : col); ctx.fillRect(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h); };
+  let inked = 1;      // whether what is being drawn is body, and so has the dark line round it
+  const P = (x, y, w, h, col) => sprPut(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h, white ? '#fff' : hurtK ? flush(col, hurtK) : col, inked);
   const L = (x0, y0, x1, y1, w, col) => {
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)), o2 = w >> 1;
     for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; P(Math.round(x0 + (x1 - x0) * t) - o2, Math.round(y0 + (y1 - y0) * t) - o2, w, w, col); }
@@ -840,10 +853,12 @@ function drawSpriteBody(ctx, o) {
 
   // shadow: a pool under the feet, drawn out along the ground when the light is low
   const sh = o.shadow || { len: 0, a: 0.2 };
-  ctx.fillStyle = `rgba(0,0,0,${o.solid ? 0 : sh.a})`;
-  ctx.fillRect(X - 9, Y - 2, 18 + sh.len, 3); ctx.fillRect(X - 6, Y + 1, 12 + sh.len, 1);
-  if (!o.solid) { ctx.fillStyle = `rgba(0,0,0,${(sh.a * 0.9).toFixed(3)})`; ctx.fillRect(X - 5, Y - 1, 10, 2); ctx.fillStyle = `rgba(0,0,0,${sh.a})`; }      // darkest right under his feet
-  if (sh.len) { ctx.fillRect(X - 5, Y - 3, 12 + sh.len, 1); ctx.fillRect(X + 9 + sh.len, Y - 2, 3, 2); }
+  if (sh.a > 0) {
+    const sc = `rgba(0,0,0,${sh.a})`;
+    sprPut(X - 9, Y - 2, 18 + sh.len, 3, sc, 0); sprPut(X - 6, Y + 1, 12 + sh.len, 1, sc, 0);
+    sprPut(X - 5, Y - 1, 10, 2, `rgba(0,0,0,${(sh.a * 0.9).toFixed(3)})`, 0);      // darkest right under his feet
+    if (sh.len) { sprPut(X - 5, Y - 3, 12 + sh.len, 1, sc, 0); sprPut(X + 9 + sh.len, Y - 2, 3, 2, sc, 0); }
+  }
 
   // ---- lying on the sand ----
   if (o.down && !o.falling) {
@@ -948,7 +963,7 @@ function drawSpriteBody(ctx, o) {
     }
   } else {
     P(-3, -36 + by, 7, 7, skin); P(-3, -30 + by, 7, 1, skinD); P(-3, -36 + by, 1, 7, skinD);
-    P(2, -34 + by, 1, 1, Math.sin((o.clock || 0) * 1.3 + seed) > 0.975 ? skinD : ink); P(1, -35 + by, 3, 1, shade(hair, 0.8));      // he blinks P(4, -33 + by, 1, 1, skin); P(2, -31 + by, 2, 1, skinD); P(-1, -34 + by, 1, 2, skinD);
+    P(2, -34 + by, 1, 1, Math.sin((o.clock || 0) * 1.3 + seed) > 0.975 ? skinD : ink); P(1, -35 + by, 3, 1, shade(hair, 0.8)); P(4, -33 + by, 1, 1, skin); P(2, -31 + by, 2, 1, skinD); P(-1, -34 + by, 1, 2, skinD);      // he blinks; a brow, a nose, a mouth and an ear
     const style = seed % 3;
     if (style !== 1) { P(-3, -37 + by, 7, 2, hair); P(-3, -35 + by, 2, 3, hair); } else P(-3, -36 + by, 6, 1, shade(hair, 1.2));
     if (style === 2) P(-4, -35 + by, 2, 6, hair);
@@ -1021,13 +1036,15 @@ function drawSpriteBody(ctx, o) {
     L(-1, -26 + by, A.e[0], A.e[1] + by, 3, arm); L(A.e[0], A.e[1] + by, hx, hy, 3, arm);
     if (manica) P(A.e[0] - 1, A.e[1] + by - 1, 3, 1, armD);
     P(hx - 1, hy - 1, 3, 3, skin); P(hx - 1, hy + 1, 3, 1, skinD);
-    if (striking && o.atkAnim > 0.55 && !o.solid) {          // the sweep of the blow: a fading trail from the wind-up to the strike
+    if (striking && o.atkAnim > 0.55) {          // the sweep of the blow: a fading trail from the wind-up to the strike
       const reach = long ? 16 : c.weapon === 'gladius' ? 9 : 7;
+      inked = 0;
       for (let i = 1; i <= 5; i++) {
         const t = i / 6, m = mix(K.windup, K.strike, t), n = Math.hypot(m.v[0], m.v[1]) || 1;
         P(Math.round(m.h[0] + m.v[0] / n * reach), Math.round(m.h[1] + by + m.v[1] / n * reach - Math.sin(t * Math.PI) * 3), 2, 2, `rgba(255,255,255,${(0.1 + t * 0.5).toFixed(2)})`);
       }
       P(Math.round(tx) + 1, Math.round(ty) - 3, 1, 7, 'rgba(255,255,255,.8)');
+      inked = 1;
     }
 
     // ---- off hand: shield, net or second blade ----
@@ -1068,10 +1085,9 @@ function drawSpriteBody(ctx, o) {
 
   lean = 0;
   // ---- snared in the net ----
-  if (o.snare > 0 && !o.solid) {
-    ctx.fillStyle = 'rgba(232,220,180,.75)';
-    for (let i = -10; i <= 10; i += 4) ctx.fillRect(X + i, Y - 38, 1, 38);
-    for (let j = -38; j <= -2; j += 5) ctx.fillRect(X - 10, Y + j, 21, 1);
+  if (o.snare > 0) {
+    for (let i = -10; i <= 10; i += 4) sprPut(X + i, Y - 38, 1, 38, 'rgba(232,220,180,.75)', 0);
+    for (let j = -38; j <= -2; j += 5) sprPut(X - 10, Y + j, 21, 1, 'rgba(232,220,180,.75)', 0);
   }
 }
 
@@ -1087,19 +1103,16 @@ const BEAST_ART = {
 // A beast, with the same dark line round it as a fighter has. Each kind has its own head, ears, tail and markings;
 // what they share is a rounded body on BEAST_ART's measures, legs that step in diagonal pairs, a mouth that opens
 // to strike, and wounds that show.
-function drawBeast(ctx, o) {
-  if (!o.plain && !o.solid) {
-    const edge = Object.assign({}, o, { solid: 'rgba(30,18,9,.62)' });
-    for (const [dx, dy] of SPRITE_EDGE) { edge.x = o.x + dx; edge.y = o.y + dy; drawBeast(ctx, edge); }
-  }
+function beastRects(o) {
   const kind = o.g.cls, a = BEAST_ART[kind], d = o.facing, X = Math.round(o.x), Y = Math.round(o.y), T = o.clock || 0;
   const white = o.flash > HIT_WHITE, hurtK = o.flash > 0 && !white ? o.flash / HIT_WHITE : 0;
-  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : hurtK ? flush(col, hurtK) : col); ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
+  let inked = 1;      // body has the dark line round it; shadow, claws, the flash of a blow and a net do not
+  const P = (x, y, w, h, col) => sprPut(d > 0 ? X + x : X - x - w, Y + y, w, h, white ? '#fff' : hurtK ? flush(col, hurtK) : col, inked);
   const col = a.col, colD = shade(col, 0.7), colDD = shade(col, 0.52), colL = shade(col, 1.22), ink = '#1c1310', hb = Math.floor(a.bw / 2);
   const belly = { boar: shade(col, 0.85), wolf: '#c9ccd2', lion: '#e3c486', bear: shade(col, 0.82) }[kind];
   const eye = { boar: '#c23b2e', wolf: '#e8c84a', lion: '#e8a83a', bear: '#1c1310' }[kind];
   const seed = o.g.id * 7919 % 97;
-  if (!o.solid) { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - hb - 2, Y - 2, a.bw + 8, 3); ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(X - hb + 1, Y - 1, a.bw + 2, 2); }
+  sprPut(X - hb - 2, Y - 2, a.bw + 8, 3, 'rgba(0,0,0,.2)', 0); sprPut(X - hb + 1, Y - 1, a.bw + 2, 2, 'rgba(0,0,0,.18)', 0);
 
   if (o.down && !o.falling) {                    // on its side, legs out, done
     P(-hb + 1, -a.bh + 1, a.bw - 2, 1, colL); P(-hb, -a.bh + 2, a.bw, a.bh - 3, col); P(-hb + 1, -1, a.bw - 2, 1, colDD); P(-hb, -3, a.bw, 2, colD);
@@ -1126,7 +1139,7 @@ function drawBeast(ctx, o) {
     P(x, -lh, lw + 1, up, c);                                       // thigh or shoulder
     P(x + Math.sign(swing), -lo - lift, lw, lo, c); P(x + Math.sign(swing), -lo - lift, 1, lo, cD);
     P(x + Math.sign(swing) + (swing ? swing > 0 ? 1 : -1 : 0), -1 - lift, lw + 1, 1, cD);      // the paw or hoof
-    if (claws && !o.solid) P(x + Math.sign(swing) + lw + (swing > 0 ? 1 : 0), -1 - lift, 1, 1, '#f2ecd8');
+    if (claws) { inked = 0; P(x + Math.sign(swing) + lw + (swing > 0 ? 1 : 0), -1 - lift, 1, 1, '#f2ecd8'); inked = 1; }
   };
   const claws = kind === 'bear' || kind === 'lion';
   leg(x0 + 1, -sw, colD, colDD, false); leg(x0 + bw - lw - 5, sw, colD, colDD, false);
@@ -1181,12 +1194,11 @@ function drawBeast(ctx, o) {
     P(hx + hw, hy + hh - 1, 1, 1, '#ffffff'); P(hx + hw + 2, hy + hh - 1, 1, 1, '#ffffff'); P(hx + hw + 1, hy + hh, 1, 1, '#ffffff');
     if (kind === 'lion' || kind === 'bear') P(hx + hw + jw - 2, hy + hh - 1, 1, 2, '#ffffff');
   }
-  if (o.solid) return;                           // what follows is light and net, not part of the outline
+  inked = 0;                                     // what follows is light and net, not part of the outline
   if (o.slash > 0) { P(hx + hw + 4, hy, 1, hh + 2, '#ffffff'); P(hx + hw + 6, hy + 1, 1, hh, 'rgba(255,255,255,.6)'); if (claws) P(hx + hw + 8, hy + 2, 1, hh - 2, 'rgba(255,255,255,.35)'); }
   if (o.snare > 0) {
-    ctx.fillStyle = 'rgba(232,220,180,.75)';
-    for (let i = -hb - 2; i <= hb + a.hw + 2; i += 4) ctx.fillRect(X + (d > 0 ? i : -i), Y + top - 4, 1, -top + 4);
-    for (let j = top - 4; j <= -2; j += 5) ctx.fillRect(X - hb - a.hw - 2, Y + j, a.bw + 2 * a.hw + 4, 1);
+    for (let i = -hb - 2; i <= hb + a.hw + 2; i += 4) sprPut(X + (d > 0 ? i : -i), Y + top - 4, 1, -top + 4, 'rgba(232,220,180,.75)', 0);
+    for (let j = top - 4; j <= -2; j += 5) sprPut(X - hb - a.hw - 2, Y + j, a.bw + 2 * a.hw + 4, 1, 'rgba(232,220,180,.75)', 0);
   }
 }
 
