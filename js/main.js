@@ -129,14 +129,19 @@ function fitArena() {
   if (!a || a.hidden || !head || !bar) return;
   const ah = a.getBoundingClientRect().height;
   if (!ah) return;
-  const chrome = (head.getBoundingClientRect().height + bar.getBoundingClientRect().height) / ah * (innerHeight / (ui.z || 1)) + 46;      // and the gaps and padding round them
-  document.documentElement.style.setProperty('--arena-chrome', Math.ceil(chrome) + 'px');
+  const k = (innerHeight / (ui.z || 1)) / ah, barH = bar.getBoundingClientRect().height * k, st = document.documentElement.style;
+  st.setProperty('--arena-chrome', Math.ceil(head.getBoundingClientRect().height * k + barH + 46) + 'px');      // and the gaps and padding round them
+  // What lies over the picture is placed by the same measure: the choice of abilities sits on top of the controls and
+  // not across them, and the log of the fight stops short of the choice while there is one to make.
+  const pick = document.getElementById('arenaPick'), ph = pick && !pick.hidden ? pick.getBoundingClientRect().height * k : 0;
+  st.setProperty('--arena-bar', Math.ceil(barH) + 'px');
+  st.setProperty('--arena-pick', ph ? Math.ceil(ph + 8) + 'px' : '0px');
 }
 addEventListener('resize', () => { fitScreen(); fitArena(); });
 fitScreen();
 if (typeof ResizeObserver !== 'undefined') {
   const watch = new ResizeObserver(fitArena);
-  for (const id of ['arenaHead', 'arenaBar']) { const el = document.getElementById(id); if (el) watch.observe(el); }
+  for (const id of ['arenaHead', 'arenaBar', 'arenaPick']) { const el = document.getElementById(id); if (el) watch.observe(el); }
 }
 
 // Each scene is drawn at a whole number of canvas pixels to one of its own units: the smallest whole number that is

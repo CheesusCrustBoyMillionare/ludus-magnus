@@ -1673,3 +1673,5 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 
 /* ---------- the fight: the picture takes the height its heading and controls leave (measured in fitArena) ---------- */
 #arenaCanvas { width: min(100%, max(320px, calc((var(--vh, 100vh) - var(--arena-chrome, 130px)) * 16 / 9))); }
+#arenaPick { bottom: calc(var(--arena-bar, 86px) + 18px); }
+#arenaLog { bottom: calc(var(--arena-bar, 96px) + 24px + var(--arena-pick, 0px)); min-height: 90px; }
