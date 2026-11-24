@@ -387,7 +387,7 @@ function resolveAttack(B, a, d, o) {
   const heavy = clamp(dmg / d.maxHp / 0.2, 0, 1);            // how much of him it took, a fifth of his health counting as all of it
   if (crit) { B.hitstop = Math.max(B.hitstop, 0.06 + 0.04 * heavy); B.flashT = 0.07; }
   else if (!blocked && heavy > 0.45 && B.fighters.length <= 6) B.hitstop = Math.max(B.hitstop, 0.045 * heavy);      // a hard blow holds the eye a moment; in a crowd of men it would only stutter
-  vfx(B, { k: 'hit', x: d.x - a.facing * 2.5, y: d.y, dir: a.facing, size: blocked ? 0.7 : 0.75 + heavy * 0.6 + (crit ? 0.35 : 0), col: blocked ? '#ffe9a0' : '#ffffff', col2: blocked ? '#c9d1d9' : '#e8584a', dur: blocked ? 0.14 : 0.18 });
+  vfx(B, { k: 'hit', x: d.x - a.facing * 2.5, y: d.y, dir: a.facing, size: blocked ? 0.75 : 0.9 + heavy * 0.6 + (crit ? 0.35 : 0), col: blocked ? '#ffe9a0' : '#ffffff', col2: blocked ? '#c9d1d9' : '#e8584a', dur: blocked ? 0.16 : 0.22 });
   if (!blocked && Math.abs(d.kx) > 30) { fxScuff(B, d.x, d.y, a.facing, 5 + heavy * 6); fxDust(B, d.x - a.facing * 2, d.y, crit ? 4 : 2); }      // driven back: his heels mark the sand
   if (blocked) {
     fxText(B, d, 'block ' + dmg, '#e8e2d0');
@@ -2213,10 +2213,19 @@ function drawVfx(ctx, B, under) {
       ctx.globalAlpha = a;
       for (let i = 0; i <= 12; i++) { const an = from + span * (i / 12), px = v.x * 2 + v.dir * (Math.cos(an) * rad - rad * 0.55), py = v.y * 2 - 24 + Math.sin(an) * rad * 1.15; R(px, py, th, th, i > 8 ? '#ffffff' : v.col); if (v.size > 1.2) R(px - v.dir * 2, py, th, th, v.col2 || v.col); }
     } else if (v.k === 'hit') {                // where a blow landed: a star of light, thrown on the way the blow was going
-      const sz = v.size || 1, cx = v.x * 2, cy = v.y * 2 - 23, len = sz * (5 + 13 * (1 - (1 - k) * (1 - k)));
-      ctx.globalAlpha = Math.min(1, a * 1.8);
-      if (k < 0.45) { const c = Math.round(sz * (k < 0.2 ? 3 : 2)); R(cx - c, cy - c, c * 2, c * 2, '#ffffff'); R(cx - c - 2, cy - 1, c * 2 + 4, 2, '#ffffff'); R(cx - 1, cy - c - 2, 2, c * 2 + 4, '#ffffff'); }
-      for (let i = 0; i < 6; i++) { const an = (i - 2.5) * 0.52 + (i % 2 ? 0.12 : -0.1); for (let q = 0.5; q <= 1; q += 0.25) R(cx + v.dir * Math.cos(an) * len * q, cy + Math.sin(an) * len * q * 0.85, q > 0.8 ? 2 : 3, 2, q > 0.8 ? v.col2 || v.col : v.col); }
+      const sz = v.size || 1, cx = v.x * 2, cy = v.y * 2 - 23, e = 1 - (1 - k) * (1 - k), len = sz * (14 + 12 * e), c2 = v.col2 || v.col;
+      ctx.globalAlpha = Math.min(1, a * 2.4);
+      // the rays: unbroken, thick at the root and thin at the tip, long and short by turns, leaving the middle as they go
+      for (let i = 0; i < 7; i++) {
+        const an = (i - 3) * 0.5 + (i % 2 ? 0.1 : -0.08), reach = len * (i % 2 ? 0.7 : 1);
+        for (let q = 0.2 + e * 0.4; q <= 1; q += 0.1) { const w = q > 0.78 ? 2 : q > 0.5 ? 3 : 4; R(cx + v.dir * Math.cos(an) * reach * q - w / 2, cy + Math.sin(an) * reach * q * 0.85 - w / 2, w, w, q > 0.78 ? c2 : v.col); }
+      }
+      // the heart of it: a four-pointed star, white on its own colour
+      if (k < 0.55) {
+        const c = Math.round(sz * (k < 0.25 ? 4 : 3)), arm = c + Math.round(sz * 5);
+        R(cx - c - 1, cy - c - 1, c * 2 + 2, c * 2 + 2, c2); R(cx - arm - 1, cy - 2, arm * 2 + 2, 4, c2); R(cx - 2, cy - arm - 1, 4, arm * 2 + 2, c2);
+        R(cx - c, cy - c, c * 2, c * 2, '#ffffff'); R(cx - arm, cy - 1, arm * 2, 2, '#ffffff'); R(cx - 1, cy - arm, 2, arm * 2, '#ffffff');
+      }
     } else if (v.k === 'jab') {                // a thrust: a line of light along the shaft, and a point at the end of it
       const len = Math.min(34, (v.len || 16) * 1.5) * Math.min(1, k * 4 + 0.3), x0 = v.x * 2 + v.dir * 9; ctx.globalAlpha = a * 0.9;
       R(v.dir > 0 ? x0 : x0 - len, v.y * 2 - 25, len, 1, '#efe8d2'); R(v.dir > 0 ? x0 + len * 0.4 : x0 - len, v.y * 2 - 24, len * 0.6, 1, '#ffffff'); R(v.dir > 0 ? x0 + len - 2 : x0 - len, v.y * 2 - 26, 3, 3, '#ffffff');
