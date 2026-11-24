@@ -1780,3 +1780,5 @@ html.still .tut-glow, html.still .itemart.shim, html.still .rtile.fresh::after {
 #whereabouts { position: absolute; left: 14px; top: 12px; z-index: 5; padding: 5px 7px; background: #1a120d; border: 1px solid var(--edge); box-shadow: 0 0 0 1px var(--bronze), 0 4px 0 #000a; }
 #whereabouts:not(:focus-within) { width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); border: 0; box-shadow: none; }
 #whereabouts button { padding: 3px 9px; font-size: 12px; }
+/* the key drawn on a fight's buttons is decoration to a screen reader: the button says its shortcut itself */
+@supports (content: 'x' / '') { #arenaBar button[data-key]::after { content: attr(data-key) / ''; } }

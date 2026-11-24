@@ -139,6 +139,8 @@
       t.tabIndex = 0; t.setAttribute('role', 'button');
       if (el.matches('.pick, .sig, .ab')) t.setAttribute('aria-pressed', el.classList.contains('on'));
       else if (el.classList.contains('sel')) t.setAttribute('aria-current', 'true');
+      // "3W 1L" is read letter by letter: a man's record is said in words
+      { const txt = (t.textContent || '').replace(/\s+/g, ' ').trim(); if (/\b\d+W \d+L\b/.test(txt)) t.setAttribute('aria-label', txt.replace(/\b(\d+)W (\d+)L\b/g, '$1 won, $2 lost').replace(/ \u00b7 /g, ', ')); }
       if (!(t.textContent || '').trim() || el.matches('.sig, .kc')) {
         let name = '';
         if (el.dataset.cmp && typeof findItem === 'function') { try { const it = findItem(+el.dataset.cmp.split(':')[0]); if (it) name = itemName(it); } catch (err) { /* no such piece now */ } }
@@ -146,12 +148,21 @@
       }
     }
     // real buttons: one with only a picture on it is named by its explanation; one that is "on" says so; one that cannot be used says that
+    // a key written on a button is not part of its name: it is said as the button's shortcut
+    for (const k of qa('button .key:not([aria-hidden]), button .k:not([aria-hidden]), [role=button] .key:not([aria-hidden])')) { k.setAttribute('aria-hidden', 'true'); const b = k.closest('button, [role=button]'), key = (k.textContent || '').trim(); if (b && key && !b.hasAttribute('aria-keyshortcuts')) b.setAttribute('aria-keyshortcuts', key === 'Esc' ? 'Escape' : key); }
+    for (const b of qa('button[data-key]:not([aria-keyshortcuts])')) b.setAttribute('aria-keyshortcuts', b.dataset.key === 'Esc' ? 'Escape' : b.dataset.key);
+    // the three smallest buttons on a man's line say only a letter; their names say what they do
+    const SHORT = { spar: 'Spar at all three skills', teach: 'Teach', auto: 'Auto: leave it to the doctore', rest: 'Rest' };
+    for (const b of qa('button[data-act=activity]:not([data-a11y]), button[data-act=actall]:not([data-a11y]), button[data-act=actauto]:not([data-a11y])')) { const w = b.dataset.act === 'actauto' ? 'auto' : b.dataset.w; if (SHORT[w] && (b.textContent || '').trim().length <= 4) b.setAttribute('aria-label', SHORT[w]); }
     for (const b of qa('button:not([data-a11y])')) {
       b.dataset.a11y = '1';
       if (!(b.textContent || '').trim() && !b.getAttribute('aria-label')) b.setAttribute('aria-label', first(b.dataset.tip).replace(/\.$/, '') || b.dataset.act || 'Button');
       if (b.classList.contains('off') && !b.hasAttribute('data-toggle') && !b.closest('#arenaBar')) b.setAttribute('aria-disabled', 'true');
     }
     for (const b of qa('button.on:not([data-toggle]), button[aria-pressed]:not([data-toggle])')) { const on = b.classList.contains('on'); if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', on); }
+    for (const b of qa('button[aria-pressed="true"]:not([data-toggle])')) { const p = b.parentElement; if (p) for (const sib of p.children) if (sib !== b && sib.tagName === 'BUTTON' && !sib.hasAttribute('aria-pressed') && !sib.hasAttribute('data-toggle') && sib.dataset.act === b.dataset.act) sib.setAttribute('aria-pressed', 'false'); }
+    // a row of buttons under a small label is a group with that label for a name
+    for (const l of qa('.lbl:not([data-a11y]), .gl:not([data-a11y])')) { l.dataset.a11y = '1'; const p = l.parentElement, t = (l.textContent || '').trim(); if (p && t && !p.hasAttribute('role') && p.querySelector('button, [role=button], [data-act]')) { p.setAttribute('role', 'group'); p.setAttribute('aria-label', t); } }
     { const mb = q('#muteBtn'); if (mb) { const on = !mb.classList.contains('off'); if (mb.getAttribute('aria-pressed') !== String(on)) mb.setAttribute('aria-pressed', on); } }
     // pictures: a face beside its owner's name says nothing; an icon that stands alone for a word says the word
     for (const cv of qa('canvas:not(#yard):not(#village):not(#wildCanvas):not(#arenaCanvas):not(#wildMini):not([aria-hidden]), i.ic:not([aria-hidden])')) cv.setAttribute('aria-hidden', 'true');
@@ -194,8 +205,8 @@
     // the choice of abilities: the fight has stopped and waits for an answer
     { const pk = q('#arenaPick'), on = !!pk && !pk.hidden;
       if (on && !st.pickWas) {
-        if (!pk.hasAttribute('role')) { pk.setAttribute('role', 'group'); pk.setAttribute('aria-label', 'Choose an ability'); }
         const b = pk.querySelector('button:not(:disabled)'), who = typeof fight !== 'undefined' && fight && fight.B && fight.B.pick && fight.B.pick.g ? fight.B.pick.g.name : '';
+        pk.setAttribute('role', 'group'); pk.setAttribute('aria-label', 'Choose an ability' + (who ? ' for ' + who : ''));
         say('The fight waits. Choose an ability' + (who ? ' for ' + who : '') + '.');
         if (st.tabbing && b && !pk.contains(doc.activeElement)) b.focus({ preventScroll: true });
       }
@@ -234,7 +245,7 @@
   // underfoot, how dangerous it is, how much of the day is left, the way home and the nearest places known. It is said
   // when asked for (a button the keyboard reaches before the map), and the changes are said as they happen.
   const GROUND = ['open grass', 'forest', 'hill country', 'marsh', 'sand', 'a road', 'a bridge', 'meadow', 'water', 'bare rock'];
-  const way = (x, y) => wayTo(x, y).replace(/^today /, 'within the day, to the ').replace(/^(about d+ days?) /, '$1 to the ');
+  const way = (x, y) => wayTo(x, y).replace(/^today /, 'within the day, to the ').replace(/^(about \d+ days?) /, '$1 to the ');
   const ground = F => { try { return GROUND[wildTile(F.x, F.y)] || 'open country'; } catch (e) { return 'open country'; } };
   function whereabouts() {
     const F = G.field; if (!F) return '';
