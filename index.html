@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="build" content="234b35ca">
+<meta name="build" content="cfd750af">
 <title>Ludus Magnus</title>
-<link rel="stylesheet" href="css/style.css?v=9335a073">
+<link rel="stylesheet" href="css/style.css?v=32823add">
 </head>
 <body>
 <div id="app">
   <div id="main">
+    <nav id="places" aria-label="Places in town"></nav>
     <canvas id="yard" width="1180" height="380" data-act="yard" data-tip="Your ludus. Buildings grow as you improve them, and the yard shows how the school stands: its record chalked up by the gate, festival crowns under the lintel, gold over the gate while a man of yours is champion. Click a fighter to open his dossier, or a building to improve it or go to its screen."></canvas>
     <canvas id="village" width="1180" height="380" data-act="village"></canvas>
     <main id="view"></main>
@@ -20,16 +21,16 @@
   </aside>
 </div>
 
-<div id="wilds" hidden>
+<div id="wilds" role="region" aria-label="The province" hidden>
   <canvas id="wildCanvas" width="960" height="720" data-act="wildclick"></canvas>
   <aside id="camp"></aside>
 </div>
 
-<div id="arena" hidden>
+<div id="arena" role="region" aria-label="The arena" hidden>
   <div id="arenaHead"></div>
   <canvas id="arenaCanvas" width="1280" height="720"></canvas>
   <div id="arenaPick" hidden></div>
-  <div id="arenaLog" hidden></div>
+  <div id="arenaLog" role="region" aria-label="The fight so far" hidden></div>
   <div id="arenaTip" hidden></div>
   <div id="arenaBar">
     <div id="arenaOrders" class="grp"><span class="gl">Orders</span>
@@ -61,7 +62,7 @@
 </div>
 
 <div id="tutor" hidden></div>
-<div id="tip" hidden></div>
+<div id="tip" role="tooltip" hidden></div>
 
 <div id="modal" hidden><div id="modalBox"></div></div>
 
@@ -69,15 +70,16 @@
 <script src="js/sim.js?v=56f3e08d"></script>
 <script src="js/jobs.js?v=35a2707f"></script>
 <script src="js/wilds.js?v=7c153300"></script>
-<script src="js/combat.js?v=0791449f"></script>
+<script src="js/combat.js?v=3ccd9552"></script>
 <script src="js/abilities.js?v=e2df6fe0"></script>
 <script src="js/show.js?v=9ee88ad3"></script>
 <script src="js/sfx.js?v=f45cc5ad"></script>
-<script src="js/yard.js?v=4f853c66"></script>
+<script src="js/yard.js?v=c1a70481"></script>
 <script src="js/places.js?v=9d610270"></script>
-<script src="js/village.js?v=efada26b"></script>
-<script src="js/province.js?v=35049866"></script>
+<script src="js/village.js?v=1261ce77"></script>
+<script src="js/province.js?v=bd12721e"></script>
 <script src="js/art.js?v=45711003"></script>
-<script src="js/main.js?v=5e8d3fc5"></script>
+<script src="js/main.js?v=6031bb77"></script>
+<script src="js/a11y.js?v=f071a7ab"></script>
 </body>
 </html>

@@ -960,14 +960,15 @@ function yardFrame(ts) {
   if (!cv || !G) { yardRaf = 0; return; }
   const arena = document.getElementById('arena'), wilds = document.getElementById('wilds');
   // nothing is painted while the picture cannot be seen: under a fight, or under the map of the province
-  if (ts - yardLast > 30 && !(arena && !arena.hidden) && !(wilds && !wilds.hidden)) { yardLast = ts; try { drawScene(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
+  // held still, the picture is painted once when the screen is drawn (startYard) and again only if its size changes
+  if (ts - yardLast > 30 && !(arena && !arena.hidden) && !(wilds && !wilds.hidden) && !(typeof ui !== 'undefined' && ui.still && cv._drawnW === cv.width)) { yardLast = ts; cv._drawnW = cv.width; try { drawScene(cv, ts / 1000); } catch (e) { console.error(e); yardRaf = 0; return; } }
   yardRaf = requestAnimationFrame(yardFrame);
 }
 // Draw once at once, then keep it moving while the canvas is on the page.
 function startYard() {
   const cv = document.getElementById('yard');
   if (!cv) return;
-  drawScene(cv, performance.now() / 1000);
+  drawScene(cv, performance.now() / 1000); cv._drawnW = cv.width;
   if (!yardRaf) yardRaf = requestAnimationFrame(yardFrame);
 }
 // What was clicked: a fighter (nearest the front wins) or a building.

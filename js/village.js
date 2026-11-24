@@ -121,7 +121,8 @@ function villagePick(cv, e) {
   return villageAt((e.clientX - r.left) / r.width * VILLAGE.W, (e.clientY - r.top) / r.height * VILLAGE.H);
 }
 function villageKey(e, down) {
-  const k = { w: 'u', a: 'l', s: 'd', d: 'r' }[e.key.length === 1 ? e.key.toLowerCase() : ''];
+  // out in the province the arrow keys march the column too: in town they belong to the lists
+  const k = { w: 'u', a: 'l', s: 'd', d: 'r' }[e.key.length === 1 ? e.key.toLowerCase() : ''] || (G && G.field ? { ArrowUp: 'u', ArrowLeft: 'l', ArrowDown: 'd', ArrowRight: 'r' }[e.key] : '');
   if (!k) return false;
   vil.keys[k] = down;
   return true;
@@ -762,7 +763,12 @@ function villageFrame(ts) {
   const arena = document.getElementById('arena');
   const wilds = document.getElementById('wilds');
   if (wilds && !wilds.hidden && !(arena && !arena.hidden)) { /* under the map of the province: not seen, so not painted */ }
-  else if (ts - vil.last > 15 && !(arena && !arena.hidden)) { vil.last = ts; try { drawVillage(cv, ts / 1000); } catch (e) { console.error(e); vil.raf = 0; return; } }
+  else if (ts - vil.last > 15 && !(arena && !arena.hidden)) {
+    // held still (a setting, or the system's wish for less motion), the town is painted only while he is on his way somewhere, or the mouse is over it
+    const k = vil.keys, busy = vil.dirty || cv._drawnW !== cv.width || vil.path || vil.enter || vil.outT > 0 || vil.hover || k.u || k.d || k.l || k.r || performance.now() - (vil.insideT || -1e9) < 1200;
+    if (ui.still && !busy) { vil.prev = 0; vil.raf = requestAnimationFrame(villageFrame); return; }
+    vil.dirty = false; cv._drawnW = cv.width;
+    vil.last = ts; try { drawVillage(cv, ts / 1000); } catch (e) { console.error(e); vil.raf = 0; return; } }
   else if (arena && !arena.hidden) { villageStill(); vil.prev = 0; if (typeof SFX !== 'undefined') SFX.ambience(0, 0); }
   vil.raf = requestAnimationFrame(villageFrame);
 }
@@ -775,5 +781,6 @@ function startVillage() {
     cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); vil.hover = { x: (e.clientX - r.left) / r.width * VILLAGE.W, y: (e.clientY - r.top) / r.height * VILLAGE.H }; });
     cv.addEventListener('mouseleave', () => { vil.hover = null; });
   }
+  vil.dirty = true;
   if (!vil.raf) vil.raf = requestAnimationFrame(villageFrame);
 }

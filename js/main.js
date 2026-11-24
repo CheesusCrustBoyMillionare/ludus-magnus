@@ -3,9 +3,15 @@
 
 const ui = { tab: 'ludus', sel: null, picks: {}, wagers: {}, cpicks: {}, cterms: {}, qwith: {}, dtab: 'stats', noyard: false };
 try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCast = localStorage.getItem('ludus-magnus-autocast') === '1'; ui.fspeed = +localStorage.getItem('ludus-magnus-fspeed') || 1; ui.fixedCam = localStorage.getItem('ludus-magnus-fixedcam') === '1'; ui.noCut = localStorage.getItem('ludus-magnus-cutins') === '0'; } catch (e) { /* storage unavailable */ }
+// Three settings for those who play without a mouse, or cannot have things moving: single keys off (so that a slip of the hand,
+// or speech typed for another program, does nothing), the pictures held still, and a stop for Tab at every explanation.
+// Still pictures follow the system's own wish for less motion until the player says otherwise.
+try { ui.noKeys = localStorage.getItem('ludus-magnus-keys') === '0'; ui.tipStops = localStorage.getItem('ludus-magnus-tipstops') === '1'; const st = localStorage.getItem('ludus-magnus-still'); ui.still = st === null ? !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) : st === '1'; } catch (e) { /* storage unavailable */ }
+document.documentElement.classList.toggle('still', !!ui.still);
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
-const bar = (cls, v, m) => `<div class="bar ${cls}"><i style="width:${pct(v, m)}%"></i></div>`;
+const BAR_NAMES = { hp: 'Health', fat: 'Fatigue', mor: 'Morale', prog: 'Progress' };
+const bar = (cls, v, m) => `<div class="bar ${cls}" role="img" aria-label="${BAR_NAMES[cls] || 'Gauge'} ${pct(v, m)}%"><i style="width:${pct(v, m)}%"></i></div>`;
 
 // ---------- tooltips ----------
 
@@ -495,7 +501,7 @@ function helpModal() {
       + sec('The aim', `Win bouts for purses and <b>fame</b>. Fame opens greater arenas, and at ${FINAL_FAME} the Emperor sends for you. Lose every man, or stay in debt past the days of grace, and the house falls.`)
       + sec('Money', 'Purses, wagers, contracts and the Guild\'s stipend bring it in; food, wages, men and steel take it out. The ledger under <b>Household</b> shows each day\'s balance.')
       + sec('Debt and heirs', 'Below zero the creditors give you a few days of grace, then take the ludus. That is not the end: an heir begins again with whatever the family managed to keep, and legacy buys a better start.')
-      + sec('Where to look', 'Hover over anything, anywhere, for what it means. The steward can walk you through the first week again from the foot of this page.')
+      + sec('Where to look', 'Hover over anything, anywhere, for what it means, or reach it with Tab. <b>Settings</b>, in the menu, can hold the pictures still, switch off the single keys, and make Tab stop at every explanation. The steward can walk you through the first week again from the foot of this page.')
       + sec('Saving', 'The game saves itself after everything you do, and keeps a copy from the morning of the last games day. <b>Saves</b>, at the foot of the side bar, holds five campaigns.'),
     fighters: () => sec('Three skills', '<b>Strength</b> hits harder and carries more health; <b>Agility</b> strikes faster and dodges; <b>Skill</b> lands blows, finds telling ones and blocks. <b>Power</b> is the three added up.')
       + sec('Style', 'A man\'s highest skill is his style. <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>: the style with the edge hits a tenth harder. Two skills level means no style, no edge and no weakness.')
@@ -533,7 +539,7 @@ function helpModal() {
       <div class="hsec"><h3>In a fight</h3><div class="marks">${[['bleed', 'Bleeding: loses health as he fights'], ['ham', 'Hamstrung: slowed, dodges half as well'], ['arm', 'Arm wounded: hits softer'], ['net', 'Netted: cannot dodge or block'], ['stun', 'Stunned: cannot act'], ['weak', 'Weakened: hits softer for a time'], ['open', 'Exposed: every blow on him lands harder'], ['buff', 'Roused: guarding, hasty or in a fury']].map(([k, t]) => `<span><canvas width="14" height="14" data-hmark="${k}"></canvas>${t}</span>`).join('')}</div></div>
       <div class="hsec"><h3>On a fighter\'s card</h3><p><span class="chip red">Injured 2d</span> out until healed &nbsp; <span class="chip red">Exhausted</span> must rest &nbsp; <span class="chip gold">Perk to choose</span> a rank gained &nbsp; <span class="chip gold">Away</span> on a contract</p></div>
       <div class="hsec"><h3>On the province map</h3><p>Skulls beside a place: how dangerous it is, one to five. A gold name: a place you have marked, or that someone has asked to be taken to.</p></div>`,
-    keys: () => keys('Everywhere', [['H', 'this book'], [typeof escFree === 'function' && !escFree() ? 'Esc' : 'Esc', typeof escFree === 'function' && !escFree() ? 'leave full screen (the browser keeps this key)' : 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
+    keys: () => keys('Everywhere', [['Tab', 'to each button in turn; Enter or Space presses it'], ['H', 'this book'], [typeof escFree === 'function' && !escFree() ? 'Esc' : 'Esc', typeof escFree === 'function' && !escFree() ? 'leave full screen (the browser keeps this key)' : 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
       + keys('At the ludus and in town', [['W A S D', 'walk the lanista about the town'], ['E', 'end the day'], ['G', 'run the days to the next games'], ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand']])
       + keys('In a fight', [['1 to 4', 'choose the ability'], ['A', 'let him choose this once'], ['Space', 'pause'], ['.', 'step a tenth of a second'], ['[ and ]', 'slower and faster'], ['L', 'the log of the fight'], ['C, twice', 'throw in the cloth'], ['click the sand', 'cut short an entrance, an announcement, a death or the ending']])
       + keys('In the province', [['W A S D', 'march the column'], ['click', 'march to that place'], ['E', 'make camp'], ['M', 'the whole map'], ['R', 'set out for home']]),
@@ -592,14 +598,14 @@ function renderTop() {
   const next = TIERS[t + 1] ? TIERS[t + 1].fame : FINAL_FAME;
   const dg = daysToGames(), net = stipend() - upkeep();
   $('#topbar').innerHTML = `
-    <div class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</div>
+    <h1 class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</h1>
     <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day</span></div>
-    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}</b><span>${net >= 0 ? '+' : ''}${net} a day</span></div>
-    <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small>/${next}</small></b><span>${TIERS[t].name}</span></div>
+    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}<span class="sr"> denarii</span></b><span>${net >= 0 ? '+' : ''}${net} a day</span></div>
+    <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small>/${next}</small><span class="sr"> fame</span></b><span>${TIERS[t].name}</span></div>
     <div class="stat games"${tip('games')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>Next games</span></div>
     <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
     <button data-act="skipdays"${tip('skip')} ${dg > 1 ? '' : 'disabled'}>To the games<span class="key">G</span></button>`;
-  const sw = (act, label, on, key) => `<button class="${on ? '' : 'off'}" data-act="${act}"${tip(key)}>${label}</button>`;
+  const sw = (act, label, on, key) => `<button class="${on ? '' : 'off'}" data-act="${act}" data-toggle aria-pressed="${!!on}"${tip(key)}>${label}</button>`;
   $('#sidefoot').innerHTML = `<button class="wide" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out.')}>Menu${typeof escFree === 'function' && !escFree() ? '' : ' <span class="key">Esc</span>'}</button>${canFull() ? `<button class="wide" data-act="fullscreen"${tip('Fills the whole screen with the game, or gives the screen back. Esc also leaves it.')}>${isFull() ? 'Leave full screen' : 'Full screen'}</button>` : ''}<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>
     ${sw('yardtoggle', 'Yard', !ui.noyard, 'yardbtn')}${sw('mute', 'Sound', !SFX.muted, 'sound')}${sw('musictoggle', 'Music', SFX.musicOn, 'music')}`;
 }
@@ -644,7 +650,7 @@ function styleMark(g) {
 // How his style stands against one opponent's: up, down, or nothing.
 function edgeMark(g, foe) {
   const e = styleEdge(styleOf(g), styleOf(foe));
-  return e > 1 ? ' <b class="good" title="His style beats this man">&#9650;</b>' : e < 1 ? ' <b class="bad" title="This man\'s style beats his">&#9660;</b>' : '';
+  return e > 1 ? ' <b class="good" role="img" aria-label="His style beats this man" title="His style beats this man">&#9650;</b>' : e < 1 ? ' <b class="bad" role="img" aria-label="This man\'s style beats his" title="This man\'s style beats his">&#9660;</b>' : '';
 }
 const ratingLine = (g, hide) => `<span${tip('rating')}>Power <b class="num">${rating(g)}</b> &middot; Potential <b class="num">${hide ? '?' : potential(g)}</b></span>`;
 
@@ -740,7 +746,7 @@ function statRows(g, hide) {
   return STATS.map(s => `<div class="statrow"${tip(s)}>
       <span class="statname ${trains(g, s) ? 'gold' : ''}">${ic(s)} ${STAT_NAMES[s]}${trains(g, s) ? '<small class="gold">&#9650; training</small>' : ''}</span><b class="num">${g.stats[s]}</b>
       <div class="progcell">${bar('prog', g.prog[s], needProg(g.stats[s]))}${(a => g.beast || !ABILITIES[g.cls] ? '' : a ? `<small>${a.name} at ${a.at}</small>` : '<small>nothing more to learn</small>')(g.beast || !ABILITIES[g.cls] ? null : abilityNext(g, s))}</div>
-      <span class="stars"${tip(hide ? 'hidden' : 'talent')}>${hide ? '? ? ?' : '★'.repeat(stars(g.pot[s])) + '☆'.repeat(5 - stars(g.pot[s]))}</span>
+      <span class="stars" role="img" aria-label="${hide ? 'Talent unknown' : 'Talent ' + stars(g.pot[s]) + ' of 5'}"${tip(hide ? 'hidden' : 'talent')}>${hide ? '? ? ?' : '★'.repeat(stars(g.pot[s])) + '☆'.repeat(5 - stars(g.pot[s]))}</span>
     </div>`).join('');
 }
 function traitList(g) {
@@ -1232,7 +1238,7 @@ function viewMarket() {
 
 // Where morale settles on these rations, with the cook and the Temple counted in.
 const moraleAt = i => Math.min(100, moraleBase(i));
-const grade = n => `<span class="pips">${'●'.repeat(n)}${'○'.repeat(3 - n)}</span>`;
+const grade = n => `<span class="pips" role="img" aria-label="${n} of 3">${'●'.repeat(n)}${'○'.repeat(3 - n)}</span>`;
 
 // The buildings of the school itself are improved at the school; the rest belong to the house.
 const SCHOOL_FACS = ['barracks', 'ground', 'infirmary', 'baths'];
@@ -1676,7 +1682,7 @@ function savesModal() {
     const back = bak && bak.day !== info.day;
     rows.push(`<div class="slot ${cur ? 'cur' : ''}">
       <div class="slothead"><span class="sn">${n}</span>
-        <input type="text" maxlength="28" value="${esc(info.label)}" placeholder="${info.gen > 1 ? cap1(ordinal(info.gen)) + ' generation' : 'Name this campaign'}" data-chg="slotname" data-v="${n}"${tip('A name of your own for this save.')}>
+        <input type="text" maxlength="28" value="${esc(info.label)}" placeholder="${info.gen > 1 ? cap1(ordinal(info.gen)) + ' generation' : 'Name this campaign'}" data-chg="slotname" data-v="${n}" aria-label="Name of the campaign in slot ${n}"${tip('A name of your own for this save.')}>
         ${cur ? '<span class="chip gold">Playing now</span>' : ''}${state}${info.gen > 1 ? `<span class="chip"${tip('An heir\'s campaign: the family has been ruined before and begun again.')}>${cap1(ordinal(info.gen))} generation</span>` : ''}
         <span class="when" title="${exact(info.savedAt)}">saved ${ago(info.savedAt)}</span></div>
       <div class="slotway"${tip(info.won ? 'The Great Arena is won.' : `${info.fame} of the ${FINAL_FAME} fame that brings the final games.`)}><i style="width:${Math.round(clamp(info.fame / FINAL_FAME, 0, 1) * 100)}%"></i>${TIERS.slice(1).map(t => `<u style="left:${Math.round(t.fame / FINAL_FAME * 100)}%"></u>`).join('')}</div>
@@ -3165,11 +3171,12 @@ document.addEventListener('keydown', e => {
     if ((e.key === 'Escape' || e.key === 'Enter') && $('#modalBox [data-act=close]')) { e.preventDefault(); $('#modalBox [data-act=close]').click(); }
     return;
   }
+  if (ui.noKeys && e.key.length === 1 && e.key !== ' ') return;       // single keys are switched off: every one of them has a button
   if (e.key === 'h' || e.key === 'H' || e.key === 'F1') { e.preventDefault(); ACTIONS.help(); return; }
   const B = fight.B;
   if (B.pick && /^[1-4]$/.test(e.key)) { const a = B.pick.abl[+e.key - 1]; if (a) { e.preventDefault(); ACTIONS.abpick(a.id); } }
   else if (B.pick && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); ACTIONS.abpickai(); }
-  else if (B.pick && (e.key === 't' || e.key === 'T' || e.key === 'Tab')) { e.preventDefault(); ACTIONS.abnext(e.shiftKey ? -1 : 1); }
+  else if (B.pick && (e.key === 't' || e.key === 'T' || (e.key === 'Tab' && (document.activeElement || document.body) === document.body && !document.documentElement.classList.contains('tabbing')))) { e.preventDefault(); ACTIONS.abnext(e.shiftKey ? -1 : 1); }
   else if (B.pick && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); ACTIONS.abmark(); }
   else if (B.pick && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); ACTIONS.abhold(); }
   else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); ACTIONS.flog(); }
@@ -3185,6 +3192,7 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
   const at = document.activeElement || document.body;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName) && at.type !== 'checkbox') return;
+  if (ui.noKeys && e.key.length === 1 && e.key !== ' ') return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const press = el => { if (el && !el.disabled) { e.preventDefault(); el.click(); } };
   if (!$('#modal').hidden) {
@@ -3260,10 +3268,10 @@ function menuStats() {
 }
 function menuModal() {
   const page = ui.menuPage || 'main', inFight = !!(fight && !fight.finished);
-  const item = (act, label, note, o) => `<button class="mitem${o && o.cls ? ' ' + o.cls : ''}" data-act="${act}"${o && o.v ? ` data-v="${o.v}"` : ''}${o && o.off ? ' disabled' : ''}><b>${label}</b>${note ? `<small>${note}</small>` : ''}</button>`;
+  const item = (act, label, note, o) => `<button class="mitem${o && o.cls ? ' ' + o.cls : ''}" data-act="${act}"${o && o.v ? ` data-v="${o.v}"` : ''}${o && o.off ? ' disabled' : ''}${o && o.pressed !== undefined ? ` data-toggle aria-pressed="${!!o.pressed}"` : ''}><b>${label}</b>${note ? `<small>${note}</small>` : ''}</button>`;
   const back = item('menupage', 'Back', '', { v: 'main' });
   if (page === 'settings') {
-    const sw = (act, label, on, yes, no) => item('menuset', label, on ? yes || 'on' : no || 'off', { v: act, cls: on ? 'on' : 'off' });
+    const sw = (act, label, on, yes, no) => item('menuset', label, on ? yes || 'on' : no || 'off', { v: act, cls: on ? 'on' : 'off', pressed: !!on });
     return `<div class="menu"><h2>Settings</h2><div class="mlist">
       ${sw('mute', 'Sound', !SFX.muted)}
       ${sw('musictoggle', 'Music', SFX.musicOn)}
@@ -3272,6 +3280,9 @@ function menuModal() {
       ${sw('abauto', 'Abilities in a fight', !ui.autoCast, 'ask me each time', 'they choose for themselves')}
       ${sw('cutins', 'Cut-ins when an ability is used', !ui.noCut)}
       ${sw('fcam', 'The view of a fight', !ui.fixedCam, 'follows the fighting', 'the whole arena, fixed')}
+      ${sw('stilltoggle', 'The pictures of yard and town', !ui.still, 'moving', 'held still')}
+      ${sw('keystoggle', 'Single keys (letters and numbers)', !ui.noKeys, 'on', 'off: Tab, Enter, Esc and the arrows only')}
+      ${sw('tipstops', 'Tab stops at every explanation', !!ui.tipStops, 'on', 'off')}
       ${back}</div><p class="dim mnote">These are kept on this ${DESKTOP ? 'computer' : 'browser'}, for every campaign.</p></div>`;
   }
   if (page === 'stats') return `<div class="menu"><h2>The house in figures</h2>${menuStats()}<div class="mlist">${back}</div></div>`;
@@ -3297,6 +3308,11 @@ Object.assign(ACTIONS, {
   },
   menupage(v) { ui.menuPage = v; ui.exitArm = false; repaintMenu(); },
   menuset(v) { if (ACTIONS[v]) ACTIONS[v](); repaintMenu(); },
+  stilltoggle() { ui.still = !ui.still; try { localStorage.setItem('ludus-magnus-still', ui.still ? '1' : '0'); } catch (e) { /* storage unavailable */ } document.documentElement.classList.toggle('still', ui.still); render(); },
+  keystoggle() { ui.noKeys = !ui.noKeys; try { localStorage.setItem('ludus-magnus-keys', ui.noKeys ? '0' : '1'); } catch (e) { /* storage unavailable */ } villageStill(); },
+  tipstops() { ui.tipStops = !ui.tipStops; try { localStorage.setItem('ludus-magnus-tipstops', ui.tipStops ? '1' : '0'); } catch (e) { /* storage unavailable */ } render(); },
+  // the list of places, for a keyboard: he walks there as he would for a click on the building
+  goto(v) { if (v === 'gate' && !gateOpen()) return; villageWalkTo(v); },
   menusave() { if (fight && !fight.finished) return; save(); ui.menuMsg = `saved to slot ${slot}, just now`; ui.exitArm = false; SFX.ui('coin'); repaintMenu(); },
   menusaves() { closeModal(); ACTIONS.saves(); },
   menuhelp() { closeModal(); ACTIONS.help(); },
@@ -3320,6 +3336,7 @@ document.addEventListener('fullscreenchange', () => { if (G) { renderTop(); if (
 // Esc opens it when nothing else is open. (When something is, Esc shuts that: see the keys below.)
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G) return;
+  { const tb = $('#tip'); if (tb && !tb.hidden) { const byKey = tb.dataset.by === 'key'; hideTip(); if (byKey) { e.preventDefault(); e.stopPropagation(); return; } } }
   if (menuOpen()) {                           // in the menu, Esc goes back a page, and from the first page back to the game
     e.preventDefault(); e.stopPropagation();
     if (ui.menuPage && ui.menuPage !== 'main' && $('#modalBox .mlist')) ACTIONS.menupage('main'); else ACTIONS.close();
@@ -3349,7 +3366,7 @@ function checkForUpdate() {
 function showUpdateBar() {
   if (document.getElementById('updatebar')) return;
   const el = document.createElement('div');
-  el.id = 'updatebar';
+  el.id = 'updatebar'; el.setAttribute('role', 'status');
   el.innerHTML = 'A newer version of Ludus Magnus has been published. Your campaign is saved. <button class="primary" data-act="reload">Reload now</button> <button data-act="updatelater">Later</button>';
   document.body.appendChild(el);
 }

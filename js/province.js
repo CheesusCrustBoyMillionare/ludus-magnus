@@ -4133,7 +4133,7 @@ function drawMini(cv) {
   for (const st of wildSites()) { if (siteDone(st)) continue; if (M.marks[st.id]) dot(st.x, st.y, '#f5d584', 2); else if (M.seen[st.id] && siteShown(st)) dot(st.x, st.y, '#c23b2e', 1); }
   dot(WILD.TOWN.x, WILD.TOWN.y, '#f1ead8', 2);
   ctx.strokeStyle = 'rgba(26,17,12,.75)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(prov.camX / 10) + 0.5, Math.round(prov.camY / 10) + 0.5, PROV.VW / 10, PROV.VH / 10);
-  if (Math.floor(performance.now() / 400) % 2) dot(F.x, F.y, '#7a2a8a', 2);
+  if ((typeof ui !== 'undefined' && ui.still) || Math.floor(performance.now() / 400) % 2) dot(F.x, F.y, '#7a2a8a', 2);
 }
 
 // The places you know of and have not dealt with, to set out for with a click: first what you were sent for or gave

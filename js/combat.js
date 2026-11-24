@@ -2146,8 +2146,9 @@ function drawBattle(ctx, B) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#1a1210'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   const K = ctx.canvas.width / 1280;          // how many canvas pixels to one of the arena's own (see fitScenes in main.js)
-  const shx = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake) * SCALE : 0;
-  const shy = B.shake > 0.2 ? Math.round(rand(-1, 1) * B.shake * 0.6) * SCALE : 0;
+  const calm = typeof ui !== 'undefined' && ui.still;          // still pictures asked for: the sand does not shake
+  const shx = B.shake > 0.2 && !calm ? Math.round(rand(-1, 1) * B.shake) * SCALE : 0;
+  const shy = B.shake > 0.2 && !calm ? Math.round(rand(-1, 1) * B.shake * 0.6) * SCALE : 0;
 
   // The camera. While they fight it follows them: it frames the men still standing, coming closer when they are
   // bunched and drawing back when they spread, in a few fixed steps so that the picture is not forever creeping. It
