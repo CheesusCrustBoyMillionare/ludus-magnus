@@ -1743,7 +1743,6 @@ function drawCutIn(ctx, B, T) {
   ctx.restore();
 }
 
-// The corner panels: one line a fighter. His style, his name, his health over his charge, and whatever ails or aids him.
 // What ails or aids a man, as small pictures: a drop for bleeding, a boot for a cut leg, a blade for a hurt arm, a mesh
 // for the net, a star for a daze, an arrow down for weakness and up for a rousing, a mark for a man left open.
 const HUD_MARKS = {
@@ -1784,50 +1783,115 @@ function hudLag(B) {
     else if (f.hudHp > f.hp) { if (f.flash > 0) f.hudHold = 0.35; f.hudHold = Math.max(0, (f.hudHold || 0) - dt); if (!f.hudHold) f.hudHp = Math.max(f.hp, f.hudHp - f.maxHp * 0.6 * dt); }
   }
 }
-function drawHud(ctx, B) {
-  const rows = [0, 0], many = B.fighters.length > 10, rh = many ? 6 : 12, T = B.clock;
-  ctx.font = 'bold 5px Consolas, monospace';
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  for (const f of B.fighters) {
-    const x = f.team ? 222 : 2, y = 2 + rows[f.team]++ * rh, gone = out(f), ready = !gone && f.charge >= 100, frac = clamp(f.hp / f.maxHp, 0, 1), low = !gone && frac < 0.25;
-    ctx.fillStyle = 'rgba(0,0,0,.74)'; ctx.fillRect(x, y, 96, rh - 1);
-    ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, 2, rh - 1);
-    if (ready) { ctx.fillStyle = `rgba(255,210,74,${(0.18 + 0.14 * Math.sin(T * 9)).toFixed(3)})`; ctx.fillRect(x + 2, y, 94, rh - 1); }
-    if (low) { ctx.fillStyle = `rgba(200,30,20,${(0.14 + 0.12 * Math.sin(T * 7)).toFixed(3)})`; ctx.fillRect(x + 2, y, 94, rh - 1); }
-    if (!gone && f.flash > 0) { ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(x + 2, y, 94, rh - 1); }      // he has just been hit
-    if (B.pick === f) { ctx.fillStyle = '#ffd24a'; ctx.fillRect(x, y, 96, 0.6); ctx.fillRect(x, y + rh - 1.6, 96, 0.6); }
-    const nx = many ? x + 4 : x + 10;
-    if (!many) { if (f.style) drawIcon(ctx, f.style, x + 3.5, y + 2.5, 0.5); else { ctx.fillStyle = '#6b5f50'; ctx.fillRect(x + 4.5, y + 5, 4, 1); } }
-    ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#b5a892' : '#f2e6cc'; ctx.fillText(String(f.g.name || '').slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
-    const bx = x + 44, bw = many ? 48 : 37;
-    if (gone) {
-      const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);
-      ctx.fillStyle = slain ? '#e2695c' : '#c9b9a0';
-      ctx.fillText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN', bx, y + (many ? 4.5 : 6.5));
-      continue;
-    }
-    const by = many ? y + 1 : y + 2, bh = many ? 2 : 3, sy = many ? y + 4 : y + 7, sh = many ? 1 : 2;
-    ctx.fillStyle = '#3a1512'; ctx.fillRect(bx, by, bw, bh);
-    const lag = clamp((f.hudHp === undefined ? f.hp : f.hudHp) / f.maxHp, 0, 1);
-    if (lag > frac) { ctx.fillStyle = '#fff0c8'; ctx.fillRect(bx, by, Math.ceil(bw * lag), bh); }       // what the last blow took, still showing
-    ctx.fillStyle = low && Math.sin(T * 7) > 0 ? shade(B.col[f.team], 1.35) : B.col[f.team]; ctx.fillRect(bx, by, Math.ceil(bw * frac), bh);
-    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(bx, by, Math.ceil(bw * frac), 1);
-    ctx.fillStyle = '#2a2418'; ctx.fillRect(bx, sy, bw, sh);
-    ctx.fillStyle = ready ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(bx, sy, Math.ceil(bw * f.charge / 100), sh);
-    if (!many) {
-      for (let i = 1; i < 4; i++) { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(bx + bw * i / 4, sy, 0.5, sh); }
-      // his health in figures, and READY when he is charged
-      ctx.textAlign = 'right'; ctx.fillStyle = low ? '#ff8a7a' : '#f2e6cc'; ctx.fillText(Math.max(0, Math.ceil(f.hp)), x + 94, y + 5.5);
-      if (ready) { ctx.font = 'bold 3.5px Consolas, monospace'; ctx.fillStyle = '#fff0b0'; ctx.fillText('READY', x + 94, y + 9.6); ctx.font = 'bold 5px Consolas, monospace'; }
-      ctx.textAlign = 'left';
-      hudMarks(f).slice(0, 8).forEach((k, i) => drawMark(ctx, k, nx + 0.5 + i * 4, y + 7.4, 0.5));      // what ails or aids him, under his name
-    } else {
-      let px = bx + bw + 1;
-      const pip = col => { ctx.fillStyle = col; ctx.fillRect(px, y + 1, 1.5, 3); px += 2; };
-      if (f.bleed > 0) pip('#ff3a2a');
-      if (f.buff) pip('#6aa8ff');
-    }
+// The furniture of the interface, drawn on the fight's own canvas in interface units (320 by 180). A plate is a slab of
+// dark stone with a bronze line round it and a light along its upper edge; a gauge is a trough cut into one, with a fill
+// that is lit from above. Everything the fight shows over the sand is made of these two.
+const HUD_BRONZE = '#a8793a', HUD_BRONZE_L = '#e8c27a', HUD_EDGE = '#120b08', HUD_INK = '#f2e6cc', HUD_DIM = '#b5a892';
+const HUD_FONT = 'Cinzel, Georgia, serif', HUD_NUM = 'Consolas, monospace';
+function hudPlate(ctx, x, y, w, h, o) {
+  o = o || {};
+  ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.fillRect(x + 0.75, y + 1, w, h);                                  // the shadow it throws
+  ctx.fillStyle = HUD_EDGE; ctx.fillRect(x - 0.25, y - 0.25, w + 0.5, h + 0.5);
+  ctx.fillStyle = o.line || HUD_BRONZE; ctx.fillRect(x, y, w, h);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, o.top || '#2e2118'); g.addColorStop(1, o.bot || '#150e09');
+  ctx.fillStyle = g; ctx.fillRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.fillStyle = o.line ? 'rgba(255,255,255,.35)' : HUD_BRONZE_L; ctx.globalAlpha *= 0.7; ctx.fillRect(x, y, w, 0.25); ctx.globalAlpha /= 0.7;
+}
+function hudGauge(ctx, x, y, w, h, frac, col, o) {
+  o = o || {};
+  const fw = Math.round(w * clamp(frac, 0, 1) * 4) / 4, from = o.right ? x + w - fw : x;
+  ctx.fillStyle = '#0a0604'; ctx.fillRect(x - 0.5, y - 0.5, w + 1, h + 1);
+  ctx.fillStyle = o.trough || '#3a1512'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(x, y, w, Math.min(0.5, h / 3));                          // the trough is cut in: its upper lip is in shade
+  if (o.lag > frac) { const lw = Math.round(w * clamp(o.lag, 0, 1) * 4) / 4; ctx.fillStyle = '#fff0c8'; ctx.fillRect(o.right ? x + w - lw : x, y, lw, h); }      // what the last blow took, still showing
+  if (fw > 0) {
+    ctx.fillStyle = col; ctx.fillRect(from, y, fw, h);
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(from, y, fw, h * 0.3);
+    ctx.fillStyle = 'rgba(0,0,0,.26)'; ctx.fillRect(from, y + h * 0.72, fw, h * 0.28);
+    if (fw < w) { ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(o.right ? from : from + fw - 0.25, y, 0.25, h); }      // a bright edge where it stops
   }
+  if (o.ticks) { ctx.fillStyle = 'rgba(0,0,0,.4)'; for (let i = 1; i < o.ticks; i++) ctx.fillRect(x + w * i / o.ticks - 0.125, y, 0.25, h); }
+}
+// A line of lettering made to fit: it is drawn smaller before it is cut short.
+function hudFit(ctx, str, max, size, min, face, weight) {
+  let z = size; const f = () => { ctx.font = (weight || 'bold') + ' ' + z + 'px ' + face; };
+  f(); while (z > min && ctx.measureText(str).width > max) { z -= 0.25; f(); }
+  while (str.length > 3 && ctx.measureText(str).width > max) str = str.slice(0, -2).trimEnd() + '…';
+  return str;
+}
+// A man's head and shoulders in a small frame, as the sand shows him.
+function hudFace(ctx, B, f, x, y, w, h, T, lit) {
+  const g = f.g, gone = out(f);
+  ctx.fillStyle = HUD_EDGE; ctx.fillRect(x - 0.5, y - 0.5, w + 1, h + 1);
+  ctx.fillStyle = lit || HUD_BRONZE; ctx.fillRect(x - 0.25, y - 0.25, w + 0.5, h + 0.5);
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.fillStyle = B.colD[f.team]; ctx.fillRect(x, y, w, h); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, y, w, h * 0.4);
+  const k = g.beast ? 0.3 : 0.6;
+  ctx.translate(x + w / 2 + (g.beast ? 0 : (f.team ? 0.6 : -0.6)), y + (g.beast ? h + 1 : h * 2.42)); ctx.scale(k, k);
+  drawSprite(ctx, { x: 0, y: 0, facing: f.team ? -1 : 1, g, team: f.team, col: B.col[f.team], colD: B.colD[f.team], moving: false, walk: 0, clock: 0, atkAnim: 0, flash: gone ? 0 : f.flash, down: false, snare: 0, slash: 0, shadow: { len: 0, a: 0 }, noHelm: f.noHelm });
+  ctx.restore();
+  if (gone) { ctx.fillStyle = 'rgba(14,9,6,.62)'; ctx.fillRect(x, y, w, h); }
+}
+// The two corner panels: each side under its own name and colour, and one line a fighter: his face, his name and style,
+// his health over his charge, and whatever ails or aids him.
+function drawHud(ctx, B) {
+  const many = B.fighters.length > 10, rh = many ? 6 : 12, T = B.clock, HEAD = 8, W = 96;
+  ctx.textBaseline = 'alphabetic';
+  for (const t of [0, 1]) {
+    const fs = B.fighters.filter(f => f.team === t), x = t ? 222 : 2, y0 = 2, H = HEAD + fs.length * rh, col = B.col[t], colD = B.colD[t];
+    hudPlate(ctx, x, y0, W, H);
+    // the head of it: the side's colour, its name, and how many of it still stand
+    const hg = ctx.createLinearGradient(x, 0, x + W, 0);
+    hg.addColorStop(t ? 1 : 0, shade(col, 1.12)); hg.addColorStop(t ? 0 : 1, colD);
+    ctx.fillStyle = hg; ctx.fillRect(x + 0.5, y0 + 0.5, W - 1, HEAD - 1);
+    ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(x + 0.5, y0 + 0.5, W - 1, 0.5);
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(x + 0.5, y0 + HEAD - 2, W - 1, 1.5);
+    ctx.fillStyle = HUD_BRONZE_L; ctx.fillRect(x + 0.5, y0 + HEAD - 0.5, W - 1, 0.25);
+    ctx.fillStyle = HUD_EDGE; ctx.fillRect(x + 0.5, y0 + HEAD - 0.25, W - 1, 0.25);
+    const up = fs.filter(f => !out(f)).length, title = hudFit(ctx, String(B.names ? B.names[t] : t ? 'Their side' : 'Your side').toUpperCase(), W - 24, 4.75, 3.75, HUD_FONT);
+    ctx.textAlign = t ? 'right' : 'left'; edgedText(ctx, title, t ? x + W - 3 : x + 3, y0 + 5.9, '#fff6d8', 0.25, 'rgba(0,0,0,.55)');
+    ctx.font = 'bold 4.5px ' + HUD_NUM; ctx.textAlign = t ? 'left' : 'right';
+    if (fs.length > 1) edgedText(ctx, up + '/' + fs.length, t ? x + 3 : x + W - 3, y0 + 5.9, up ? '#fff6d8' : '#ffb0a4', 0.25, 'rgba(0,0,0,.55)');
+    fs.forEach((f, i) => {
+      const y = y0 + HEAD + i * rh, gone = out(f), ready = !gone && f.charge >= 100, frac = clamp(f.hp / f.maxHp, 0, 1), low = !gone && frac < 0.25, ih = rh - 0.5;
+      if (i % 2) { ctx.fillStyle = 'rgba(255,240,210,.045)'; ctx.fillRect(x + 0.5, y, W - 1, ih); }
+      if (i) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x + 0.5, y - 0.25, W - 1, 0.25); ctx.fillStyle = 'rgba(232,194,122,.1)'; ctx.fillRect(x + 0.5, y, W - 1, 0.25); }
+      if (ready) { ctx.fillStyle = 'rgba(255,210,74,' + (0.16 + 0.12 * Math.sin(T * 9)).toFixed(3) + ')'; ctx.fillRect(x + 0.5, y, W - 1, ih); }
+      if (low) { ctx.fillStyle = 'rgba(200,30,20,' + (0.14 + 0.12 * Math.sin(T * 7)).toFixed(3) + ')'; ctx.fillRect(x + 0.5, y, W - 1, ih); }
+      if (!gone && f.flash > 0) { ctx.fillStyle = 'rgba(255,255,255,.26)'; ctx.fillRect(x + 0.5, y, W - 1, ih); }      // he has just been hit
+      ctx.fillStyle = gone ? shade(col, 0.5) : col; ctx.fillRect(x + 0.5, y, 1.25, ih);
+      if (B.pick === f) { ctx.fillStyle = '#ffd24a'; ctx.fillRect(x + 0.5, y, W - 1, 0.5); ctx.fillRect(x + 0.5, y + ih - 0.5, W - 1, 0.5); }
+      const nx = many ? x + 4 : x + 14.5, bx = x + 45, bw = many ? 46 : 35;
+      if (!many) hudFace(ctx, B, f, x + 3.5, y + 1.25, 9, 9.25, T, ready ? '#ffd24a' : B.pick === f ? '#ffd24a' : null);
+      const name = hudFit(ctx, String(f.g.name || ''), bx - nx - 1.5, many ? 4 : 4.75, many ? 3.5 : 3.75, HUD_FONT);
+      ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#9c8f7a' : HUD_INK; ctx.fillText(name, nx, y + (many ? 4.4 : 5.4));
+      if (!many) { if (f.style) { ctx.globalAlpha = gone ? 0.45 : 1; drawIcon(ctx, f.style, nx - 0.5, y + 6.2, 0.4); ctx.globalAlpha = 1; } }
+      if (gone) {
+        const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);
+        ctx.font = 'bold ' + (many ? 3.75 : 4.5) + 'px ' + HUD_FONT; ctx.fillStyle = slain ? '#e2695c' : '#c9b9a0';
+        ctx.fillText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN', bx, y + (many ? 4.3 : 6.9));
+        if (!many) { ctx.fillStyle = slain ? 'rgba(226,105,92,.4)' : 'rgba(201,185,160,.28)'; const tw = ctx.measureText(slain ? 'SLAIN' : f.yielded ? 'YIELDED' : 'DOWN').width; ctx.fillRect(bx + tw + 2, y + 5.4, x + W - 3 - (bx + tw + 2), 0.25); }
+        return;
+      }
+      const lag = clamp((f.hudHp === undefined ? f.hp : f.hudHp) / f.maxHp, 0, 1);
+      hudGauge(ctx, bx, many ? y + 1 : y + 2, bw, many ? 2 : 3.5, frac, low && Math.sin(T * 7) > 0 ? shade(col, 1.35) : col, { lag });
+      hudGauge(ctx, bx, many ? y + 4 : y + 7.25, bw, many ? 1 : 1.75, f.charge / 100, ready ? '#fff0b0' : '#e0aa3e', { trough: '#2a2418', ticks: many ? 0 : 4 });
+      if (!many) {
+        // his health in figures, and READY when he is charged
+        ctx.font = 'bold 5px ' + HUD_NUM; ctx.textAlign = 'right'; ctx.fillStyle = low ? '#ff8a7a' : HUD_INK; ctx.fillText(Math.max(0, Math.ceil(f.hp)), x + W - 2, y + 5.6);
+        if (ready) { ctx.font = 'bold 3.25px ' + HUD_FONT; ctx.fillStyle = '#fff0b0'; ctx.fillText('READY', x + W - 2, y + 9.4); }
+        ctx.textAlign = 'left';
+        hudMarks(f).slice(0, 6).forEach((k, j) => drawMark(ctx, k, nx + 5.5 + j * 4, y + 7.3, 0.5));      // what ails or aids him, under his name
+      } else {
+        let px = bx + bw + 1.25;
+        const pip = c => { ctx.fillStyle = c; ctx.fillRect(px, y + 1, 1.5, 3); px += 2; };
+        if (f.bleed > 0) pip('#ff3a2a');
+        if (f.buff) pip('#6aa8ff');
+      }
+    });
+  }
+  ctx.textAlign = 'left';
 }
 
 // One of the crowd, seated (up 0) or risen (up 2 or 3): shoulders, a head with a lit and a shaded side, and whatever
@@ -2272,11 +2336,15 @@ function drawBattle(ctx, B) {
   for (const f of B.fighters) {
     if (out(f) || B.intro > 0) continue;
     const fx = f.x * Z, x = Math.round(fx) - 7, y = Math.round(f.y * Z) - Math.round(f.tall * FINE / SCALE) - 4, ny = y - 3 - f.team * 6;
-    ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, 16, 5);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(x - 0.5, y - 0.25, 16, 5);
+    ctx.fillStyle = HUD_EDGE; ctx.fillRect(x - 1, y - 1, 16, 5);
+    ctx.fillStyle = f.charge >= 100 ? '#ffd24a' : '#5c4020'; ctx.fillRect(x - 0.75, y - 0.75, 15.5, 4.5);      // a bronze rim, gold when he is charged
+    ctx.fillStyle = '#0a0604'; ctx.fillRect(x - 0.25, y - 0.25, 14.5, 3.5);
     ctx.fillStyle = '#3a1512'; ctx.fillRect(x, y, 14, 2);
     if (f.hudHp > f.hp) { ctx.fillStyle = '#fff0c8'; ctx.fillRect(x, y, Math.ceil(14 * clamp(f.hudHp / f.maxHp, 0, 1)), 2); }
-    ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, Math.ceil(14 * clamp(f.hp / f.maxHp, 0, 1)), 2);
-    ctx.fillStyle = f.charge >= 100 ? (Math.sin(T * 12) > 0 ? '#ffffff' : '#fff0b0') : '#e0aa3e'; ctx.fillRect(x, y + 2, Math.ceil(14 * f.charge / 100), 1);
+    { const hw = Math.ceil(14 * clamp(f.hp / f.maxHp, 0, 1)); ctx.fillStyle = B.col[f.team]; ctx.fillRect(x, y, hw, 2); ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(x, y, hw, 0.5); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x, y + 1.5, hw, 0.5); }
+    ctx.fillStyle = '#2a2418'; ctx.fillRect(x, y + 2.25, 14, 0.75);
+    ctx.fillStyle = f.charge >= 100 ? (Math.sin(T * 12) > 0 ? '#ffffff' : '#fff0b0') : '#e0aa3e'; ctx.fillRect(x, y + 2.25, Math.ceil(14 * f.charge / 100), 0.75);
     hudMarks(f).slice(0, 5).forEach((k, i) => drawMark(ctx, k, x + 16.5 + i * 4, y - 0.5, 0.5));
     if (B.fighters.length > 2) continue;   // in team fights the corner panels carry the names
     edgedText(ctx, f.g.name, fx, ny, f.team ? '#bcd6ff' : '#ffd9d2', 0.5);
@@ -2334,8 +2402,9 @@ function drawBattle(ctx, B) {
     while (str.length > 8 && ctx.measureText(str).width > max) str = str.slice(0, -2).trimEnd() + '…';
     const w = ctx.measureText(str).width + pad, x0 = 160 - w / 2 - 4, last = i === shown.length - 1;
     ctx.globalAlpha = Math.min(1, l.life) * inK * (last ? 1 : 0.82);
-    ctx.fillStyle = last ? 'rgba(0,0,0,.84)' : 'rgba(0,0,0,.66)'; ctx.fillRect(x0, fy - 5, w + 8, 7);
-    ctx.fillStyle = B.col[l.team]; ctx.fillRect(x0, fy - 5, 2, 7);
+    ctx.fillStyle = last ? 'rgba(20,13,9,.92)' : 'rgba(20,13,9,.72)'; ctx.fillRect(x0, fy - 5, w + 8, 7);
+    ctx.fillStyle = last ? 'rgba(232,194,122,.55)' : 'rgba(168,121,58,.35)'; ctx.fillRect(x0, fy - 5, w + 8, 0.25); ctx.fillRect(x0, fy + 1.75, w + 8, 0.25);
+    ctx.fillStyle = B.col[l.team]; ctx.fillRect(x0, fy - 5, 1.5, 7); ctx.fillRect(x0 + w + 6.5, fy - 5, 1.5, 7);
     if (age < 0.5) { ctx.fillStyle = `rgba(255,255,255,${(0.35 * (1 - age / 0.5)).toFixed(3)})`; ctx.fillRect(x0 + 2, fy - 5, w + 6, 7); }      // it has just been said
     if (mark) drawMark(ctx, 'l_' + l.kind, x0 + 4, fy - 3.2, 0.5);
     ctx.textAlign = 'left'; ctx.fillStyle = FEED_COL[l.kind] || '#f2e6cc'; ctx.fillText(str, x0 + 4 + pad, fy - (5 - size) * 0.4);
@@ -2353,40 +2422,39 @@ function drawBattle(ctx, B) {
   const live = B.intro <= 0 && !B.over;
   if (!B.wild) {                 // nobody is watching out here
     const e = clamp(B.exc, 0, 1), word = e > 0.55 ? 'ROARING' : e > 0.3 ? 'STIRRING' : 'QUIET';
-    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(108, 163.5, 104, 14);
-    ctx.fillStyle = '#e0aa3e'; ctx.fillRect(108, 163.5, 104, 0.5);
-    ctx.fillStyle = '#1c130c'; ctx.fillRect(110, 173, 100, 3);
-    ctx.fillStyle = e > 0.55 ? (Math.sin(T * 10) > 0 ? '#ffe27a' : '#ffd24a') : e > 0.3 ? '#e0aa3e' : '#b98a2e'; ctx.fillRect(110, 173, Math.round(100 * e), 3);
-    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(110, 173, Math.round(100 * e), 1);
-    for (const v of [0.3, 0.55]) { ctx.fillStyle = '#f2e6cc'; ctx.fillRect(110 + 100 * v, 172, 0.5, 5); }      // where it stirs, and where it roars
-    ctx.textAlign = 'left'; ctx.fillStyle = '#c9b9a0'; ctx.fillText('CROWD', 110, 170.5);
-    ctx.fillStyle = e > 0.55 ? '#ffd24a' : e > 0.3 ? '#f2e6cc' : '#b5a892'; ctx.fillText(word, 131, 170.5);
+    hudPlate(ctx, 108, 163.5, 104, 14);
+    if (e > 0.55) { ctx.fillStyle = 'rgba(255,210,74,' + (0.07 + 0.05 * Math.sin(T * 10)).toFixed(3) + ')'; ctx.fillRect(108.5, 164, 103, 13); }      // the whole plate warms when they roar
+    hudGauge(ctx, 111, 172.5, 98, 3, e, e > 0.55 ? (Math.sin(T * 10) > 0 ? '#ffe27a' : '#ffd24a') : e > 0.3 ? '#e0aa3e' : '#b98a2e', { trough: '#1c130c' });
+    for (const v of [0.3, 0.55]) { ctx.fillStyle = HUD_EDGE; ctx.fillRect(111 + 98 * v - 0.5, 171.75, 1, 4.5); ctx.fillStyle = HUD_BRONZE_L; ctx.fillRect(111 + 98 * v - 0.25, 171.75, 0.5, 4.5); }      // where it stirs, and where it roars
+    ctx.font = 'bold 4.25px ' + HUD_FONT; ctx.textAlign = 'left'; ctx.fillStyle = HUD_DIM; ctx.fillText('CROWD', 111, 169.9);
+    ctx.fillStyle = e > 0.55 ? '#ffd24a' : e > 0.3 ? HUD_INK : HUD_DIM; ctx.fillText(word, 111 + ctx.measureText('CROWD ').width + 1.5, 169.9);
+    ctx.font = 'bold 5px ' + HUD_NUM;
   }
   if (live) {                    // the clock: how long it has run, and when the judges will end it
     const left = 150 - B.time, s2 = Math.floor(left < 30 ? Math.max(0, left) : B.time), str = `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`;
-    if (B.wild) { ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(146, 169.5, 28, 8); }
+    if (B.wild) hudPlate(ctx, 144, 169, 32, 8.5);
     ctx.textAlign = 'right';
-    if (left < 30) { ctx.fillStyle = Math.sin(T * 8) > 0 ? '#ff8a7a' : '#e2695c'; ctx.fillText(`ENDS IN ${str}`, B.wild ? 172 : 210, B.wild ? 175.5 : 170.5); }
-    else { ctx.fillStyle = '#f2e6cc'; ctx.fillText(str, B.wild ? 166 : 210, B.wild ? 175.5 : 170.5); }
+    if (left < 30) { ctx.fillStyle = Math.sin(T * 8) > 0 ? '#ff8a7a' : '#e2695c'; ctx.fillText(B.wild ? str : `ENDS IN ${str}`, B.wild ? 166 : 209, B.wild ? 175.3 : 170.2); }
+    else { ctx.fillStyle = '#f2e6cc'; ctx.fillText(str, B.wild ? 166 : 209, B.wild ? 175.3 : 170.2); }
   }
   if (live && B.fighters.length > 2) for (const t of [0, 1]) {      // how each side stands as a whole
     const fs = B.fighters.filter(f => f.team === t), up = fs.filter(f => !out(f)), tot = fs.reduce((n, f) => n + f.maxHp, 0), has = up.reduce((n, f) => n + Math.max(0, f.hp), 0);
     const x = t ? 218 : 38, w = 64, fr = clamp(has / Math.max(1, tot), 0, 1);
-    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x - 2, 166.5, w + 4, 11);
-    ctx.fillStyle = '#3a1512'; ctx.fillRect(x, 173, w, 3);
-    ctx.fillStyle = B.col[t]; ctx.fillRect(t ? x : x + w - Math.round(w * fr), 173, Math.round(w * fr), 3);
-    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(t ? x : x + w - Math.round(w * fr), 173, Math.round(w * fr), 1);
-    ctx.textAlign = t ? 'left' : 'right'; ctx.fillStyle = '#f2e6cc'; ctx.fillText(`${up.length} OF ${fs.length} STANDING`, t ? x : x + w, 171.5);
+    hudPlate(ctx, x - 3, 166.5, w + 6, 11);
+    ctx.fillStyle = B.col[t]; ctx.fillRect(t ? x + w + 1.25 : x - 2.5, 167, 1.25, 10);
+    hudGauge(ctx, x, 172.5, w, 3, fr, B.col[t], { right: !t });
+    ctx.font = 'bold 3.75px ' + HUD_FONT; ctx.textAlign = t ? 'left' : 'right'; ctx.fillStyle = HUD_INK; ctx.fillText(`${up.length} OF ${fs.length} STANDING`, t ? x : x + w, 170.6);
+    ctx.font = 'bold 5px ' + HUD_NUM;
   }
   ctx.textAlign = 'center';
   if (B.death && live && !B.pick) {             // no quarter in this one
-    ctx.fillStyle = 'rgba(40,6,4,.85)'; ctx.fillRect(134, 155, 52, 7.5); ctx.fillStyle = '#ff6a5a'; ctx.fillText('SINE MISSIONE', 160, 160.6);
+    hudPlate(ctx, 132, 154.5, 56, 8, { line: '#a3261b', top: '#4a0f0a', bot: '#240604' }); ctx.font = 'bold 4.25px ' + HUD_FONT; ctx.fillStyle = '#ff8a7a'; ctx.fillText('SINE MISSIONE', 160, 160.3); ctx.font = 'bold 5px ' + HUD_NUM;
   }
   if (B.pick && !out(B.pick)) {                     // the man the fight has stopped for
     const f = B.pick;
     const many = B.fighters.filter(o => o.team !== f.team && !out(o)).length > 1;
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(many ? 76 : 100, 160, many ? 168 : 120, 9);
-    ctx.fillStyle = '#ffd24a'; ctx.fillText(`${f.g.name.toUpperCase()} IS READY: CHOOSE${many ? '  -  CLICK A FOE TO AIM AT HIM' : ''}`, 160, 166.5);
+    hudPlate(ctx, many ? 70 : 96, 153, many ? 180 : 128, 9, { line: '#e0aa3e' });
+    ctx.font = 'bold 4.25px ' + HUD_FONT; ctx.fillStyle = '#ffd24a'; ctx.fillText(`${f.g.name.toUpperCase()} IS READY: CHOOSE${many ? '  -  CLICK A FOE TO AIM AT HIM' : ''}`, 160, 159.1); ctx.font = 'bold 5px ' + HUD_NUM;
   }
 
   // the man the mouse is on: what he is, how he stands, and what he carries
@@ -2394,7 +2462,7 @@ function drawBattle(ctx, B) {
   if (who && !B.pick && !B.over && B.intro <= 0 && !B.cut && !B.fatal) drawInspect(ctx, B, who, T);
   if (B.cut) drawCutIn(ctx, B, T);
   if (B.fatal) drawFatal(ctx, B, T);
-  if (B.paused && !B.over) { ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(110, 78, 100, 18); ctx.fillStyle = '#e0aa3e'; ctx.fillText('PAUSED', 160, 91); }
+  if (B.paused && !B.over) { ctx.fillStyle = 'rgba(8,5,2,.28)'; ctx.fillRect(0, 0, 320, 180); hudPlate(ctx, 116, 77, 88, 19, { line: '#e0aa3e' }); ctx.fillStyle = 'rgba(232,194,122,.35)'; ctx.fillRect(120, 79.5, 80, 0.25); ctx.fillRect(120, 93.25, 80, 0.25); ctx.font = 'bold 11px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; edgedText(ctx, 'PAUSED', 160, 90.4, '#f5d584', 0.4, '#000'); }
 
   if (B.over) drawOutro(ctx, B, T);
 }
