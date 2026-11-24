@@ -1670,3 +1670,6 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 /* a contract: the skills it calls for get the room they need, and break between skills if they must */
 .offer .kvs { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); }
 .offer .kvs b.calls { white-space: normal; }
+
+/* ---------- the fight: the picture takes the height its heading and controls leave (measured in fitArena) ---------- */
+#arenaCanvas { width: min(100%, max(320px, calc((var(--vh, 100vh) - var(--arena-chrome, 130px)) * 16 / 9))); }

@@ -120,8 +120,24 @@ function fitScreen() {
   ui.z = z;
   st.setProperty('--z', z); st.setProperty('--vw', innerWidth / z + 'px'); st.setProperty('--vh', innerHeight / z + 'px');
 }
-addEventListener('resize', fitScreen);
+// The picture of a fight takes what height its heading and its controls leave. Those are measured, not assumed: the
+// controls run to two or three rows depending on the window, and a picture sized for one row pushed the heading off
+// the top of the screen and the last row of buttons off the bottom. Everything is measured the same way and only
+// the proportion used, so it does not matter how the browser counts a zoomed box.
+function fitArena() {
+  const a = document.getElementById('arena'), head = document.getElementById('arenaHead'), bar = document.getElementById('arenaBar');
+  if (!a || a.hidden || !head || !bar) return;
+  const ah = a.getBoundingClientRect().height;
+  if (!ah) return;
+  const chrome = (head.getBoundingClientRect().height + bar.getBoundingClientRect().height) / ah * (innerHeight / (ui.z || 1)) + 46;      // and the gaps and padding round them
+  document.documentElement.style.setProperty('--arena-chrome', Math.ceil(chrome) + 'px');
+}
+addEventListener('resize', () => { fitScreen(); fitArena(); });
 fitScreen();
+if (typeof ResizeObserver !== 'undefined') {
+  const watch = new ResizeObserver(fitArena);
+  for (const id of ['arenaHead', 'arenaBar']) { const el = document.getElementById(id); if (el) watch.observe(el); }
+}
 
 // Each scene is drawn at a whole number of canvas pixels to one of its own units: the smallest whole number that is
 // at least what the screen really shows, and never fewer than `min`. The browser then only ever shrinks the picture
@@ -2244,7 +2260,7 @@ function startFight(boutId, tourneyBout) {
   fight = { bout: b, B, speed: ui.fspeed || 1, wager, pay: odds.pay, wkind: (ui.wkind || {})[b.id] || 'win', last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your ludus</span> <span class="dim">vs</span> <span style="color:${b.houseId ? houseDef(b.houseId).col : '#6fa4e6'}">${b.house}</span>${b.death ? ' &middot; <span class="death">to the death</span>' : ''}`;
   $('#arena').hidden = false;
-  paintSpeed(); paintOrders();
+  paintSpeed(); paintOrders(); fitArena();
   drawBattle($('#arenaCanvas').getContext('2d'), B);
   fight.raf = requestAnimationFrame(fightLoop);
 }
@@ -2262,7 +2278,7 @@ function startWildFight() {
   fight = { wild: true, bout: null, B, speed: ui.fspeed || 1, wager: 0, pay: 0, last: 0, raf: 0 };
   $('#arenaHead').innerHTML = `<span style="color:${TEAM_COL[0]}">Your school</span> <span class="dim">against</span> <span style="color:#6fa4e6">${F.title}</span>`;
   $('#arena').hidden = false;
-  paintSpeed(); paintOrders();
+  paintSpeed(); paintOrders(); fitArena();
   drawBattle($('#arenaCanvas').getContext('2d'), B);
   fight.raf = requestAnimationFrame(fightLoop);
 }
