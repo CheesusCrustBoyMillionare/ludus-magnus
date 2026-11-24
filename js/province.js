@@ -80,10 +80,19 @@ function provLand() {
     return (bareOf[i] = Math.max(0, Math.min(1, (s / 9 - 0.9) / 3 + (wildNoise(tx / 5, ty / 5, 1361) - 0.5) * 0.4)));
   };
   const bare = (tx, ty) => Math.round(bareC(tx, ty) * 5) / 5;      // and the same in six steps, for the one colour a tile is spoken of by
+  // Where two countries meet in a range, neither their turf nor their rock stops at the border: the colours of a spot are
+  // those of the country all round it, taken at nine places three tiles apart, so that one goes over to the other across
+  // some six tiles. (what: the colours a tile would have of itself, as a list.)
+  const blendOver = (tx, ty, what) => {
+    const acc = []; let n = 0;
+    for (const dy of [-3, 0, 3]) for (const dx of [-3, 0, 3]) { what(Math.max(0, Math.min(TW - 1, tx + dx)), Math.max(0, Math.min(TH - 1, ty + dy))).forEach((c, i) => { const v = parseInt(c.slice(1), 16), a = acc[i] || (acc[i] = [0, 0, 0]); a[0] += v >> 16; a[1] += (v >> 8) & 255; a[2] += v & 255; }); n++; }
+    return acc.map(a => '#' + a.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join(''));
+  };
+  const pairAt = {}, peakPairS = (tx, ty) => pairAt[ty * TW + tx] || (pairAt[ty * TW + tx] = blendOver(tx, ty, peakPair));
   const peakMix = {};
   const amongPeaks = (tx, ty) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const x = tx + dx, y = ty + dy; if (x >= 0 && y >= 0 && x < TW && y < TH && pkIn[y * TW + x]) return true; } return false; };
   const peakPair = (tx, ty) => { const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return g ? [g[3], PEAK_ROCK[reg] || TILE_COL[T_PEAK]] : [TILE_COL[T_PEAK], TILE_COL[T_PEAK]]; };
-  const ground = (k, tx, ty) => { tx = Math.max(0, Math.min(TW - 1, tx)); ty = Math.max(0, Math.min(TH - 1, ty)); const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : k === T_PEAK ? mixHex(g[3], PEAK_ROCK[reg] || TILE_COL[T_PEAK], bare(tx, ty)) : TILE_COL[k]; };
+  const ground = (k, tx, ty) => { tx = Math.max(0, Math.min(TW - 1, tx)); ty = Math.max(0, Math.min(TH - 1, ty)); const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : k === T_PEAK ? (pr => mixHex(pr[0], pr[1], bare(tx, ty)))(peakPairS(tx, ty)) : TILE_COL[k]; };
   const col = (k, tx, ty) => k === T_WATER ? (deep(tx, ty) ? '#3f7dab' : '#5a9cc6') : k === T_BRIDGE ? '#5a9cc6' : tint(ground(k === T_ROAD ? T_GRASS : k, tx, ty), tone(tx, ty));
 
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
@@ -94,8 +103,8 @@ function provLand() {
       // (and the broad light and dark of the country, which goes by the tile everywhere else, is taken the same way here: from one side or the other, so that it shades off and does not step)
       const cl = (v, n) => Math.max(0, Math.min(n - 1, v));
       for (let sy = 0; sy < 5; sy++) for (let sx = 0; sx < 5; sx++) {
-        const jx = cl(Math.round(tx + (sx * 2 + 1) / 10 - 0.5 + (h(tx * 5 + sx, ty * 5 + sy, 1368) - 0.5) * 1.6), TW), jy = cl(Math.round(ty + (sy * 2 + 1) / 10 - 0.5 + (h(ty * 5 + sy, tx * 5 + sx, 1369) - 0.5) * 1.6), TH), tn = tone(jx, jy), pk = regT[jy * TW + jx] + '|' + tn;
-        const mixes = peakMix[pk] || (peakMix[pk] = (([turf, rk]) => [0, 1, 2, 3, 4].map(q => tint(mixHex(turf, rk, q / 4), tn)))(peakPair(jx, jy)));
+        const jx = cl(Math.round(tx + (sx * 2 + 1) / 10 - 0.5 + (h(tx * 5 + sx, ty * 5 + sy, 1368) - 0.5) * 1.6), TW), jy = cl(Math.round(ty + (sy * 2 + 1) / 10 - 0.5 + (h(ty * 5 + sy, tx * 5 + sx, 1369) - 0.5) * 1.6), TH), tn = tone(jx, jy), pr = peakPairS(jx, jy), pk = pr[0] + pr[1] + tn;
+        const mixes = peakMix[pk] || (peakMix[pk] = [0, 1, 2, 3, 4].map(q => tint(mixHex(pr[0], pr[1], q / 4), tn)));
         const u = tx + (sx * 2 + 1) / 10 - 0.5, v = ty + (sy * 2 + 1) / 10 - 0.5, x0 = Math.floor(u), y0 = Math.floor(v), fu = u - x0, fv = v - y0;
         const f = (bareC(x0, y0) * (1 - fu) + bareC(x0 + 1, y0) * fu) * (1 - fv) + (bareC(x0, y0 + 1) * (1 - fu) + bareC(x0 + 1, y0 + 1) * fu) * fv;
         R(x + sx * 2, y + sy * 2, 2, 2, mixes[Math.round(Math.max(0, Math.min(1, f + (h(tx * 5 + sx, ty * 5 + sy, 1367) - 0.5) * 0.45)) * 4)]);
@@ -2011,7 +2020,8 @@ function provLand() {
       }
     } else if (k === T_PEAK) {
       const d = peakDepth(tx, ty), reg = wildRegion(x + 5, y + 5), r = h(tx, ty, 80);
-      const rock = reg === 'The High Fells' ? ['#a2aab4', '#646c78', '#7d8692'] : reg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876', '#b3ac98'] : reg === 'The Barrow Downs' ? ['#8c8676', '#4f4a3c', '#6d6858'] : ['#aaa496', '#6b665c', '#8a8478'];
+      // the rock of its country; and near a border, something of the rock of the country over it, so that brown mountains do not stand hard against grey ones
+      const rock = blendOver(tx, ty, (qx, qy) => { const rg = REG_NAMES[regT[qy * TW + qx]]; return rg === 'The High Fells' ? ['#a2aab4', '#646c78', '#7d8692'] : rg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876', '#b3ac98'] : rg === 'The Barrow Downs' ? ['#8c8676', '#4f4a3c', '#6d6858'] : ['#aaa496', '#6b665c', '#8a8478']; });
       // scree and broken rock on the ground between
       feats.push({ y: y, d: () => {
         for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 81 + q) * 8), y + Math.floor(h(tx, ty, 84 + q) * 8), 2 + (q % 2), 1, q % 2 ? rock[1] : rock[0]);
