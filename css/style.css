@@ -959,6 +959,17 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .panel.kit.two .kitrow { grid-template-columns: minmax(46px, 1fr) repeat(6, 18px) auto; gap: 3px; font-size: 12px; }
 .panel.kit.two .kitrow small { font-size: 10px; }
 .dossier .abcols .ab .dim { -webkit-line-clamp: 3; }
+/* a dossier in a narrow window: four gauges abreast have no room for their own labels, so they go two and two; and
+   three columns of abilities leave a word or two to the line, so the three stats are listed one under the other */
+.dossier .dinfo { container: dinfo / inline-size; }
+@container dinfo (max-width: 350px) {
+  .vitals.four { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 3px; }
+}
+.dossier .dbody { container: dbody / inline-size; }
+@container dbody (max-width: 480px) {
+  .dossier .abcols { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .dossier .abcols .ab .dim { -webkit-line-clamp: 2; }
+}
 .panel.list .lrow.staffrow, [data-pane="staff"] .lrow { min-height: 32px; }
 
 [data-pane="smith"] .lrow { min-height: 30px; padding-top: 2px; padding-bottom: 2px; }
