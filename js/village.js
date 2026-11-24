@@ -105,7 +105,8 @@ function villageWalkTo(key, then) {
   if (key === 'fountain') { vil.then = () => { if (typeof villageTalk === 'function') villageTalk(); }; if (Math.hypot(vil.x - 296, vil.y - 142) < 8) { const f = vil.then; vil.then = null; f(); return; } vil.path = vilPath(vil.x, vil.y, 296, 142); return; }
   const p = placeOf(key);
   vil.then = then || null;
-  if (vil.at === p.key && Math.hypot(vil.x - p.dx, vil.y - p.dy) < 7) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); return; }
+  if (vil.at === p.key && Math.hypot(vil.x - p.dx, vil.y - p.dy) < 7) { vil.path = null; if (INDOORS.includes(p.key) && !vil.inside && !vil.enter) vil.enter = { key: p.key, t: 0 };      // stood on the step outside: he goes in
+    const f = vil.then; vil.then = null; if (f) f(); return; }
   vil.path = vilPath(vil.x, vil.y, p.dx, p.dy);
 }
 // Which building a click landed on ('gate' for the way out of town).
@@ -124,6 +125,7 @@ function villageKey(e, down) {
   // out in the province the arrow keys march the column too: in town they belong to the lists
   const k = { w: 'u', a: 'l', s: 'd', d: 'r' }[e.key.length === 1 ? e.key.toLowerCase() : ''] || (G && G.field ? { ArrowUp: 'u', ArrowLeft: 'l', ArrowDown: 'd', ArrowRight: 'r' }[e.key] : '');
   if (!k) return false;
+  if (down && !vil.keys[k]) vil.held = false;      // a key newly pressed is a new order: he is his own man again
   vil.keys[k] = down;
   return true;
 }
@@ -155,7 +157,10 @@ function villageStep(dt, frozen) {
     if (vil.enter.t >= DOOR_IN) { const k = vil.enter.key; vil.enter = null; vil.inside = k; vil.insideT = performance.now(); if (typeof villageEnter === 'function') villageEnter(k); }
   }
   if (vil.outT > 0) vil.outT = Math.max(0, vil.outT - dt);
-  const k = vil.keys, kx = (k.r ? 1 : 0) - (k.l ? 1 : 0), ky = (k.d ? 1 : 0) - (k.u ? 1 : 0);
+  const k = vil.keys; let kx = (k.r ? 1 : 0) - (k.l ? 1 : 0), ky = (k.d ? 1 : 0) - (k.u ? 1 : 0);
+  // the key that walked him in at a door, still held down, does not walk him straight out of it again
+  if (vil.held) { if (kx || ky) kx = ky = 0; else vil.held = false; }
+  const steer = !frozen && (kx || ky);
   const x0 = vil.x, y0 = vil.y;
   if (!frozen && (kx || ky || vil.path) && (vil.inside || vil.enter)) villageOut();      // walked anywhere, he comes out first
   if (!frozen && (kx || ky)) {                       // steering takes over from any walk he was sent on
@@ -171,8 +176,12 @@ function villageStep(dt, frozen) {
   for (const q of vil.puffs) q.t += dt;
   if (vil.puffs.length && vil.puffs[0].t > 0.5) vil.puffs.shift();
   const here = PLACES.find(p => Math.abs(vil.x - p.dx) < 7 && Math.abs(vil.y - p.dy) < 5);
-  // a doorstep opens when you step onto it; a man sent somewhere walks past the doors on his way without looking in
-  if (here && vil.at !== here.key && !vil.path) { vil.at = here.key; if (INDOORS.includes(here.key)) { if (!vil.inside && !vil.enter) vil.enter = { key: here.key, t: 0 }; } else if (typeof villageEnter === 'function') villageEnter(here.key); }
+  // a doorstep opens when you stop on it, or walk at the door from it; walking by along the street does not, and a man
+  // sent somewhere walks past the doors on his way without looking in
+  if (here && !vil.path && (steer ? ky < 0 && !vil.inside && !vil.enter : vil.at !== here.key)) {
+    vil.at = here.key; if (steer) vil.held = true;
+    if (INDOORS.includes(here.key)) { if (!vil.inside && !vil.enter) vil.enter = { key: here.key, t: 0 }; } else if (typeof villageEnter === 'function') villageEnter(here.key);
+  }
   else if (!here) vil.at = null;
   // the east gate: walk into it and the school marches out, if it is open
   if (vil.x > 578 && vil.y > 72 && vil.y < 94) { if (!vil.gated) { vil.gated = true; vil.path = null; villageStill(); if (typeof villageGate === 'function') villageGate(); } }
