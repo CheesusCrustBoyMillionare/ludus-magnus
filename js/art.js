@@ -36,110 +36,24 @@ const ITEM_MAT = [
 const RARITY_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545', '#f0705e'];
 
 // ---------- pictures of equipment ----------
-// Every piece is built in layers on a 24x24 grid of letters, and only turned into colours at the end:
+// Every piece is built in layers on a 32x32 grid of letters, and only turned into colours at the end:
 //   shape     which drawing: the slot, and how well made the piece is. Grades come in four bands, and each band
 //             of a slot is a different object: scrap and leather (F, E), a soldier's plain kit (D, C), an officer's
-//             fine work (B, A), and parade armour (S). Relics each have a drawing of their own.
-//   material  the letters m, d, l, h, t stand for the grade's metal (main, dark, light, shine) and its trim.
+//             fine work (B, A), and parade armour (S). The better grade of each pair has a step up of its own, and
+//             relics each have a drawing to themselves.
+//   material  the letters h, l, m, d, D stand for the grade's metal from shine to deep shade, and t, T for its trim.
 //   fitting   what the smith has done to it since: studs, splints, padding, piping, weight on the pommel.
-//   mark      a master-wrought piece is polished brighter, and its frame carries the maker's mark.
-// The outline is added last, round whatever has been drawn, so no shape has to carry its own.
-// Letters: m d l h metal · t T trim · w W wood · c e C leather (main, light, dark) · g G gold · j J gem ·
-// n N cloth · r R crest red · s skin · f F fur · q laurel · k ink · x rust on the two worst grades · p a pit on the
-// worst · v a rivet from iron upward · '.' nothing.
+//   marks     what is this piece's alone: a dent, a scratch, the tone of its leather and the dye of its cloth.
+// Nothing is drawn pixel by pixel from a map. Blades, shafts and straps are strokes of a given width, shaded
+// across it; plates are rows of a given span, shaded as a rounded thing lit from the upper left. The outline is
+// added last, round whatever has been drawn, so no shape has to carry its own.
+// Letters: h l m d D metal · t T trim · w W wood · e c C leather (light, main, dark) · G g y gold · J j gem ·
+// n N cloth · r R crest red · s S skin · f F fur · q laurel · k ink · x rust on the two worst grades · p a pit on the
+// worst · v a rivet from iron upward · o O a stud and its shadow.
 const ITEM_BAND = [0, 0, 1, 1, 2, 2, 3];
-
-// Armour that is the same on both sides is drawn as its left half, lit from the left; the right half is the mirror
-// with light and shade changed over.
-const HALF = {
-  head: [
-    { y: 4, rows: [
-      '........eccc', '......eecccc', '.....eeccccc', '....eecccccc', '...eeccccccc', '...ecccccccc', '..eecccccccc',
-      '..lmmxmmmmpm', '..dddddddddd', '..eccCkkkkkk', '..eccCkkkkkk', '..eccCkkkkkk', '...ecCkkkkkk', '...eCC......', '....C.......'] },
-    { y: 2, rows: [
-      '..........mm', '..........mm', '.......lllmm', '.....llhlmmm', '....llhlmmmm', '...llhlmmmmm', '...llmmmmmmm', '..llmmmmmmmm',
-      '..lmmmmmmmmm', '..lmmmmmmmmm', '..dddddddddd', '.llmvmmmvmmm', '.ddddddddddd', '..lmmdkkkkkk', '..lmmdkkkkkk', '..lmmdkkkkkk',
-      '..lmmdkkkkkk', '...lmdkkkkkk', '...lmd......', '....dd......'] },
-    { y: 1, rows: [
-      '.........ttt', '.......ttttT', '......tttTTT', '......tTTmmm', '.....lllmmmm', '....llhlmmmm', '...llhlmmmmm', '...llmmmmmmm',
-      '..llmmmmmmmm', '..lmmmmmmmmm', '..tttttttttt', '.llmmmmmmmmm', 'lllmvmmmvmmm', '.ddddddddddd', '..lmmmdkkmmd', '..lmmmmmmmmd',
-      '..lmmkmkmkmd', '..lmmmmmmmmd', '..lmmkmkmkmd', '...lmmmmmmmd', '...ddddddddd'] },
-    { y: 1, rows: [
-      '........tttt', '......tttttT', '.....ttttTTT', '.....tttTTTT', '......tTTTgg', '.....lllmmgG', '....llhlmmmm', '...llhlmmmmm',
-      '...llmmmmmmm', '..llmmmmmmmJ', '..qgqgqgqgqj', '.llmmmmmmmmm', 'lllmGmmmGmmm', '.ddddddddddd', '..lmmmdkkmmg', '..lmmmmmmmmg',
-      '..gmmkmkmkmg', '..lmmmmmmmmg', '..gmmkmkmkmg', '...lmmmmmmmg', '...ggggggggg'] },
-  ],
-  chest: [
-    { y: 2, rows: [
-      '...eec......', '...ecc......', '...ecc......', '..eeccc...cc', '..eccccccccc', '..ecccccdddd', '..eccccdlmmm', '..eccccdmxmm',
-      '..eccccdmmmp', '..eccccdmmmm', '...ecccdmmmm', '...eccccdddd', '...ecccccccc', '...ecccccccc', '...CCCCCCCCC', '...cCcCcCcCc',
-      '...cCcCcCcCc', '...c.c.c.c.c'] },
-    { y: 1, rows: [
-      '...lm.......', '...lm.......', '..llmm...mmm', '..lmmmmmmmmm', '.llmmmmmmmmm', '.lmhlmmmmmmd', '.lmlmmmmmmmd', '.lmmmmmddmmd',
-      '.lmmmmdmmmmd', '..lmmmmmmmmd', '..lmmmmmmmmd', '..lmmvmmmvmd', '...lmmmmmmmd', '...lmmmmmmmm', '...ddddddddd', '...CCCCCCCCC',
-      '...cCcCcCcCc', '...cCcCcCcCc', '...c.c.c.c.c'] },
-    { y: 1, rows: [
-      '..lmm.......', '..lmmm......', '.llmmmm..mmm', '.lmmmmmmmmmm', 'llmmmmmmmmmm', 'lmhlmmmmmmmd', 'lmlmmmddmmmd', '.lmmmdmmdmmd',
-      '.lmmmmddmmmd', '..lmmmmmmmmd', '..lmmdmmdmmd', '..lmmmmmmmmd', '..lmmdmmdmmd', '...lmmmmmmmd', '...lmmmmmmmm', '...ttttttttt',
-      '...tTtTtTtTt', '...tTtTtTtTt', '...t.t.t.t.t'] },
-    { y: 1, rows: [
-      '..gmm.......', '..gmmm......', '.ggmmmm..ggg', '.lmmmmmmmmmm', 'llmmmmmmmmmm', 'lmhlmmmmmmmJ', 'lmlmmmmmmmmj', '.lmgGggggggg',
-      '.lmmgggGgggg', '..lmmmggmmgg', '..lmmdmmdmgg', '..lmmmmmmmmg', '..lmmdmmdmmd', '...lmmmmmmmd', '...lmmmmmmmm', '...gGgGgGgGg',
-      '...tTtTtTtTt', '...tTtTtTtTt', '...g.g.g.g.g'] },
-  ],
-  shoulders: [
-    { y: 6, rows: [
-      '....eccc....', '..eeccccc...', '.eccccccccc.', '.ecclmmmccc.', '.ecclmxmccC.', '.ecclmmpccC.', '.eccdddcccC.', '.eccccccccC.',
-      '..CcccccCC..', '...CCCCC....'] },
-    { y: 5, rows: [
-      '....llmm....', '..llhmmmmm..', '.llhmmmmmmd.', '.lhmmmmmmmdC', '.lmmmmmmmmdC', '.lmmmmmmmmd.', '.lmvmmmmvmd.', '.dddddddddd.',
-      '..lmmmmmmd..', '..dddddddd..'] },
-    { y: 4, rows: [
-      '....llmm....', '..llhmmmmm..', '.llhmmmmmmd.', '.lhmmmmmmmdC', '.ttttttttttC', '.llmmmmmmmd.', '.lmmmmmmmmd.', '.tttttttttt.',
-      '..lmmmmmmd..', '..lmmmmmmd..', '..tttttttt..', '...lmmmmd...', '...dddddd...'] },
-    { y: 4, rows: [
-      '....ggGg....', '..ggGggggg..', '.llhmmmmmmd.', '.lhmggggmmdg', '.lmgGJjggmdg', '.lmggjjggmd.', '.lmmgkkgmmd.', '.gGgGgGgGgG.',
-      '..lmmmmmmd..', '..lmmmmmmd..', '..gGgGgGgG..', '...lmmmmd...', '...gggggg...'] },
-  ],
-};
-// One greave; a pair is two of them side by side.
-const GREAVE = [
-  { y: 3, rows: [
-    '..eccc...', '.eelmcC..', '.eclmcC..', '.CCCCCC..', '.eclxcC..', '.eclmcC..', '.eclmcC..', '.CCCCCC..', '.eclmcC..',
-    '.eclpcC..', '..elmcC..', '..CCCCC..', '..elmcC..', '..elmcC..', '..ecCC...', '.wwwwww..', 'wwwwwwW..'] },
-  { y: 2, rows: [
-    '..lmmm...', '.llmmmd..', '.lmmmmd..', '.lhmmmd..', '.lhmmmd..', '.lmmmmd..', '.lmmmmd..', '.CCCCCC..', '.lmmmmd..',
-    '.lmmmmd..', '..lmmmd..', '..lmmmd..', '..lmmmd..', '..lmvmd..', '..lmmd...', '..dddd...', '.wwwwww..', 'wwwwwwW..'] },
-  { y: 1, rows: [
-    '...lmm...', '..llmmm..', '.llhmmmd.', '.lhmmmmd.', '.lmmmmmd.', '..ttttt..', '.llmmmd..', '.lhmdmd..', '.lhmdmd..',
-    '.lmmdmd..', '.lmmdmd..', '.lmmdmd..', '..lmdmd..', '..lmdmd..', '..lmmmd..', '..ttttt..', '..lmmmd..', '..lmmd...',
-    '..dddd...', '.wwwwww..', 'wwwwwwW..'] },
-  { y: 1, rows: [
-    '...ggg...', '..gGggg..', '.ggJjggd.', '.lgjjggd.', '.lmgggmd.', '..gGgGg..', '.llmmmd..', '.lhmgmd..', '.lhmgmd..',
-    '.lmmgmd..', '.lmmgmd..', '.lmmgmd..', '..lmgmd..', '..lmgmd..', '..lmmmd..', '..gGgGg..', '..lmmmd..', '..lmmd...',
-    '..gggg...', '.wwwwww..', 'wwwwwwW..'] },
-];
-// The five pieces out of the old stories: a drawing each, in a metal of its own.
-const RELIC_ART = {
-  crest: { mat: 4, half: { y: 1, rows: [      // the centurion's crest runs from ear to ear
-    '..rrrrrrrrrr', '.rRrRrRrRrRr', '.rRrRrRrRrRr', '..rrrrrrrrrr', '.....gggmmgg', '....llhlmmmm', '...llhlmmmmm', '...llmmmmmmm',
-    '..llmmmmmmmm', '..lmmmmmmmmm', '..gggggggggg', '.llmmmmmmmmm', 'lllmgmmmgmmm', '.ddddddddddd', '..lmmdkkkkkk', '..lmmdkkkkkk',
-    '..lmmdkkkkkk', '..gmmdkkkkkk', '...gmdkkkkkk', '...ggd......', '....gd......'] } },
-  cuirass: { mat: 4, half: { y: 1, rows: [    // silvered scale, and a legate's red sash knotted over it
-    '..lmm.......', '..lmmm......', '.llmmmm..mmm', '.lmmmmmmmmmm', 'llmmdlmmdlmm', 'lmdlmmdlmmdl', '.lmmdlmmdlmm', '.ldlmmdlmmdl',
-    '..rrrrrrrrRR', '..RrrrrrrRrr', '..lmdlmmdlRr', '..llmmdlmmdr', '..lmdlmmdlmr', '...lmmdlmmdl', '...ldlmmdlmm', '...ggggggggg',
-    '...rRrRrRrRr', '...rRrRrRrRr', '...r.r.r.r.r'] } },
-  pelt: { mat: 2, half: { y: 3, rows: [       // the fell lion, his mask at the collar and a paw over each shoulder
-    '.......ff.ff', '......ffFfff', '....fffFffff', '...ffFfffkfn', '..ffFfffffnn', '.ffFfFfffnkk', '.fFffffFffn.', '.ffFfffff...',
-    '.fffFfFf....', '.ffffff.....', '..fFfff.....', '..ffff......', '..fff.......', '..n.n.......'] } },
-  greaves: { mat: 2, greave: { y: 2, rows: [  // beaten thin, with a wing at each ankle
-    '..lmmm...', '.llmmmd..', '.lhmmmd..', '.lhmmmd..', '.lmmmmd..', '.lmmmmd..', '.lmmmmd..', '.lmmmmd..', '..lmmmd..',
-    '..lmmmd..', '..lhmmd..', '..lmmmd..', 'nN.lmmd..', 'nnNlmmd..', '.nnNmd...', '..dddd...', '.wwwwww..', 'wwwwwwW..'] } },
-  vambrace: { mat: 3, full: { x: 3, y: 4, rows: [   // an arm-ring of three coils, gold over iron
-    '....gGGGGGGg....', '..gGGggggggGGg..', '.gGgd......dgGg.', '.gGd........dgg.', '.ggGd......dgGg.', '.dggGGGGGGGGggd.',
-    '.gGdgggggggggGg.', '.gGd........dgg.', '.ggGd......dgGg.', '.dggGGGGGGGGggd.', '.gGdgggggggggGg.', '.gGd........dgg.',
-    '.ggGd......dgGg.', '..ggGGGGGGGGgg..', '....gggggggjJ...'] } },
-};
+const ITEM_N = 32;
+// The five pieces out of the old stories, each in a metal of its own.
+const RELIC_MAT = { crest: 4, cuirass: 4, pelt: 2, greaves: 2, vambrace: 3 };
 
 // Colour helpers that keep to #rrggbb, so that their results can be mixed again.
 const tone = (hex, f) => (f <= 1 ? mixHex(hex, '#000000', 1 - f) : mixHex(hex, '#ffffff', f - 1));
@@ -161,216 +75,379 @@ function artRng(seed) {
 
 function drawItemArt(ctx, slot, r, cls, o) {
   o = o || {};
-  const relic = o.relic && RELIC_ART[o.relic] ? RELIC_ART[o.relic] : null;
-  const band = ITEM_BAND[r], M = ITEM_MAT[relic ? relic.mat : r], fit = o.fit || '';
+  const relic = o.relic && RELIC_MAT[o.relic] !== undefined ? o.relic : '';
+  const band = ITEM_BAND[r], M = ITEM_MAT[relic ? RELIC_MAT[relic] : r], fit = o.fit || '';
   const hi = !relic && r < 6 && r % 2 === 1;      // the better grade of the two that share a drawing: it gets a step up in shape
-  const both = (pts, c, c2) => { for (const [x, y] of pts) { put(x, y, c); put(23 - x, y, c2 || c); } };
-  const N = 24, cells = new Array(N * N).fill('');
-  let flip = false;
+  const N = ITEM_N, cells = new Array(N * N).fill('');
+  let flip = false, under = false;
   const at = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? '' : cells[y * N + x]);
-  const put = (x, y, c) => { if (flip) x = N - 1 - x; if (c && c !== '.' && x >= 0 && y >= 0 && x < N && y < N) cells[y * N + x] = c; };
+  const put = (x, y, c) => {
+    if (flip) x = N - 1 - x;
+    if (!c || x < 0 || y < 0 || x >= N || y >= N || (under && cells[y * N + x])) return;
+    cells[y * N + x] = c;
+  };
+  const wipe = (x, y, w, h) => { for (let j = 0; j < (h || 1); j++) for (let i = 0; i < (w || 1); i++) if (x + i >= 0 && x + i < N && y + j >= 0 && y + j < N) cells[(y + j) * N + (flip ? N - 1 - x - i : x + i)] = ''; };
   const R = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c); };
   const P = (pts, c) => { for (const [x, y] of pts) put(x, y, c); };
-  const stroke = (x0, y0, n, w, c) => { for (let i = 0; i < n; i++) R(x0 + i, y0 - i, w, w, c); };      // a band running up and to the right
-  const stamp = (m, x0) => m.rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) put(x0 + i, m.y + j, row[i]); });
-  const SWAP = { l: 'd', d: 'l', h: 'm', e: 'C', C: 'e', G: 'g', N: 'n' };
-  const mirror = m => m.rows.forEach((row, j) => { for (let i = 0; i < 12; i++) { put(i, m.y + j, row[i]); put(23 - i, m.y + j, SWAP[row[i]] || row[i]); } });
+  const both = (pts, c, c2) => { for (const [x, y] of pts) { put(x, y, c); put(N - 1 - x, y, c2 || c); } };
 
-  // ---- weapons: drawn along the diagonal, hilt at the bottom left ----
-  const blade = (x0, y0, n, w) => {             // edge to the light, back in shade, and a point
-    stroke(x0, y0, n, w, 'm'); stroke(x0, y0, n, 1, 'l'); stroke(x0 + w - 1, y0 + w - 1, n, 1, 'd');
-    if (w >= 3) { R(x0 + n + 1, y0 - n, 2, 2, 'm'); put(x0 + n + 1, y0 - n, 'l'); put(x0 + n + 3, y0 - n - 1, 'l'); }
-    else { put(x0 + n + 1, y0 - n, 'l'); }
+  // ---- the two ways of drawing ----
+  // A stroke from one point to another, r0 wide at the start and r1 at the end (half-widths). pal(u, t, w) names the
+  // letter for a place across it: u runs from 1 on the lit edge to -1 on the shaded one, t from 0 to 1 along it.
+  const limb = (x0, y0, x1, y1, r0, r1, pal) => {
+    const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+    let nx = uy, ny = -ux;
+    if (nx + ny > 0) { nx = -nx; ny = -ny; }       // the normal that faces the light, which is up and to the left
+    const pad = Math.max(r0, r1) + 1;
+    for (let y = Math.floor(Math.min(y0, y1) - pad); y <= Math.ceil(Math.max(y0, y1) + pad); y++) for (let x = Math.floor(Math.min(x0, x1) - pad); x <= Math.ceil(Math.max(x0, x1) + pad); x++) {
+      const px = x + 0.5 - x0, py = y + 0.5 - y0, t = (px * ux + py * uy) / len;
+      if (t < 0 || t > 1) continue;
+      const w = r0 + (r1 - r0) * t, s = px * nx + py * ny;
+      if (Math.abs(s) <= w) put(x, y, pal(w ? s / w : 0, t, w));
+    }
   };
-  const hilt = (bd, small) => {
-    stroke(2, 20, 4, 2, 'w'); stroke(3, 21, 4, 1, 'W');                                   // the grip
-    if (bd >= 2 && fit !== 'quick') P([[3, 20], [5, 18]], bd === 3 ? 'g' : 't');          // wire round it
-    if (fit === 'quick') { stroke(2, 20, 4, 1, 'n'); P([[4, 20], [6, 18]], 'N'); }         // bound in linen for a light hand
-    const gl = (small ? 1 : bd === 0 ? 1 : bd === 1 ? 2 : 3) + (hi && !small ? 1 : 0), gc = bd === 3 ? 'g' : bd === 0 ? 'd' : 't';
-    for (let k = -gl; k <= gl; k++) R(6 + k, 16 + k, 2, 2, gc);                           // the guard, across the blade
-    if (bd >= 2) { put(6 - gl, 16 - gl, bd === 3 ? 'G' : 'l'); put(7 + gl, 17 + gl, bd === 3 ? 'j' : 'T'); }
-    if (bd === 3) put(6, 16, 'G');
+  const disc = (cx, cy, rad, pal) => {
+    for (let y = Math.floor(cy - rad); y <= Math.ceil(cy + rad); y++) for (let x = Math.floor(cx - rad); x <= Math.ceil(cx + rad); x++) {
+      const px = x + 0.5 - cx, py = y + 0.5 - cy;
+      if (px * px + py * py <= rad * rad) put(x, y, pal(-(px + py) / (rad * 1.4142), 0, rad));
+    }
+  };
+  // Rows of a shape, each [first, last] or nothing, shaded as a rounded thing: round is how much the light falls
+  // off from the top of it to the bottom.
+  const METAL = { h: 'h', l: 'l', m: 'm', d: 'd', D: 'D' }, HIDE = { h: 'e', l: 'e', m: 'c', d: 'C', D: 'C' };
+  const DYED = { h: 't', l: 't', m: 't', d: 'T', D: 'T' }, RED = { h: 'R', l: 'R', m: 'r', d: 'r', D: 'r' }, FUR = { h: 'f', l: 'f', m: 'f', d: 'F', D: 'F' };
+  const tone5 = v => (v > 0.8 ? 'h' : v > 0.32 ? 'l' : v > -0.42 ? 'm' : v > -0.86 ? 'd' : 'D');
+  const mass = (y0, rows, pal, round) => rows.forEach((row, j) => {
+    if (!row) return;
+    const [x0, x1] = row, w = x1 - x0, g = rows.length > 1 ? j / (rows.length - 1) : 0.4;
+    for (let x = x0; x <= x1; x++) put(x, y0 + j, pal[tone5(-((w ? (x - x0) / w : 0.4) - 0.42) * 1.9 - (g - 0.4) * (round === undefined ? 0.7 : round))]);
+  });
+  const sym = hws => hws.map(h => (h ? [16 - h, 15 + h] : null));
+  const M3 = u => (u > 0.4 ? 'l' : u < -0.4 ? 'd' : 'm');                                   // bright metal
+  const I3 = u => (u > 0.3 ? 'm' : u < -0.4 ? 'D' : 'd');                                   // dull iron fittings
+  const W3 = u => (u > 0.15 ? 'w' : 'W'), L3 = u => (u > 0.5 ? 'e' : u < -0.3 ? 'C' : 'c'), G3 = u => (u > 0.4 ? 'G' : u < -0.4 ? 'y' : 'g'), T3 = u => (u > -0.25 ? 't' : 'T');
+
+  // ---- weapons: drawn along the diagonal, hilt at the bottom left. a counts steps along it from the corner, and s
+  // is how far off to the side, toward the light ----
+  const A = (a, s) => [3 + a - (s || 0) * 0.7071, 29 - a - (s || 0) * 0.7071];
+  const seg = (a0, s0, a1, s1, r0, r1, pal) => limb(...A(a0, s0), ...A(a1, s1), r0, r1, pal);
+  const dot = (a, s, c) => { const [x, y] = A(a, s); put(Math.floor(x), Math.floor(y), c); };
+  const rust = spots => { if (r <= 1) spots.forEach(([a, s], i) => dot(a, s, i < 2 ? 'x' : r === 0 ? 'p' : '')); };      // two of rust, and the rest pits
+  const hilt = (g0, small) => {
+    const bd = band, wrap = bd === 3 ? 'g' : bd === 2 ? 't' : 'W';
+    seg(2.2, 0, g0, 0, 1.3, 1.3, fit === 'quick' ? (u => (u > 0 ? 'n' : 'N')) : W3);       // the grip, bound in linen for a light hand
+    for (let a = 3.6; a < g0 - 1; a += 1.9) seg(a, -1.3, a, 1.3, 0.42, 0.42, () => (fit === 'quick' ? 'N' : wrap));      // cord or wire round it
+    const gl = (small ? 2.3 : [2.4, 3.4, 4.4, 4.4][bd]) + (hi && !small ? 1.3 : 0);         // the guard, across the blade
+    seg(g0, -gl, g0, gl, 1.15, 1.15, bd === 3 ? G3 : bd === 0 ? I3 : bd === 1 ? M3 : T3);
+    if (bd >= 2 && !small) for (const s of [gl, -gl]) disc(...A(g0, s), 1.45, bd === 3 ? G3 : T3);      // a knob on each end of it
+    if (bd === 3) dot(g0, 0, 'j');
     // the pommel: a lump of lead if weighted, a ring if balanced
-    if (fit === 'weighted') { R(0, 20, 4, 4, 'd'); R(1, 21, 2, 2, 'm'); put(1, 21, 'l'); }
-    else if (fit === 'balanced') { R(0, 20, 4, 4, 'g'); R(1, 21, 2, 2, 'k'); put(0, 20, '.'); cells[20 * N + (flip ? 23 : 0)] = ''; put(1, 20, 'G'); }
-    else if (bd === 0) R(1, 21, 2, 2, 'd');
-    else if (bd === 3) { R(1, 20, 3, 3, 'g'); put(2, 21, 'j'); put(1, 20, 'G'); }
-    else { R(1, 20, 3, 3, bd === 2 ? 't' : 'm'); put(1, 20, 'l'); put(3, 22, 'd'); }
+    const [px, py] = A(1.1);
+    if (fit === 'weighted') { disc(px, py, 3, u => (u > 0.45 ? 'm' : u < -0.35 ? 'D' : 'd')); put(Math.floor(px) - 1, Math.floor(py) - 1, 'l'); }
+    else if (fit === 'balanced') { disc(px, py, 2.9, G3); disc(px, py, 1.15, () => 'k'); }
+    else if (bd === 0) disc(px, py, 1.6, I3);
+    else if (bd === 1) disc(px, py, 2, M3);
+    else if (bd === 2) { disc(px, py, 2.2, T3); put(Math.floor(px), Math.floor(py), 'l'); }
+    else { disc(px, py, 2.4, G3); put(Math.floor(px), Math.floor(py), 'j'); put(Math.floor(px) - 1, Math.floor(py) - 1, 'J'); }
   };
-  const sword = (len, small) => {
-    if (hi && (band < 2 || small)) len++;                                                  // a longer blade, or on the finest a broader guard
-    const w = fit === 'quick' ? 2 : 3, x0 = 7, y0 = w === 2 ? 16 : 15;
-    blade(x0, y0, len, w); hilt(band, small);
-    if (r <= 1) { P([[x0 + 3, y0 - 2], [x0 + 6, y0 - 5]], 'x'); if (r === 0) { P([[x0 + 5, y0 - 5], [x0 + 2, y0 - 2]], 'p'); cells[(y0 - 4) * N + (flip ? 23 - x0 - 4 : x0 + 4)] = ''; } }      // rust, and a notch out of the edge
-    if (band >= 1 && w === 3) stroke(x0 + 2, y0, len - 3, 1, band >= 2 ? 'd' : 'm');      // a fuller down the blade
-    if (band >= 2 && w === 3) stroke(x0 + 1, y0, len - 1, 1, 'h');                         // ground and polished
-    if (band === 3) P([[x0 + 3, y0 - 1], [x0 + 5, y0 - 3], [x0 + 7, y0 - 5]], 'g');        // gold let into the steel
+  const sword = (L, small) => {
+    const bw = fit === 'quick' ? 1.6 : 2.3, g0 = small ? 6.5 : 8.5;
+    if (hi && (band < 2 || small)) L += 1.2;                                                // a longer blade, or on the finest a broader guard
+    const b0 = g0 + 0.6, b1 = g0 + 1 + L;
+    seg(b0, 0, b1, 0, bw, bw, M3); seg(b1, 0, b1 + bw * 1.5, 0, bw, 0, M3);                 // the blade and its point
+    if (band >= 1 && fit !== 'quick') seg(b0 + 1.4, 0, b1 - 1, 0, 0.5, 0.5, () => 'd');     // a fuller down it
+    if (band >= 2) seg(b0 + 0.6, bw * 0.55, b1 + 0.6, bw * 0.55, 0.36, 0.36, () => 'h');    // ground and polished
+    if (band === 3) for (let a = b0 + 2.4; a < b1 - 1; a += 2.6) dot(a, 0, 'g');            // gold let into the steel
+    rust([[b0 + 3.3, 0.9], [b0 + L * 0.7, -0.8], [b0 + L * 0.45, 0.2], [b0 + 1.6, -1]]);
+    if (r === 0) { const [x, y] = A(b0 + L * 0.55, -bw + 0.2); wipe(Math.floor(x), Math.floor(y)); }      // and a notch out of the edge
+    hilt(g0, small);
   };
   // A pole arm is drawn close: the head fills the picture and the shaft runs out of the bottom corner of the frame.
-  const shaft = n => {
-    stroke(-1, 23, n, 2, 'w'); stroke(0, 24, n, 1, 'W');
-    if (band >= 1) for (const x of [3, 7]) P([[x, 22 - x], [x + 1, 23 - x]], band === 3 ? 'g' : 'd');      // iron bands
-    if (fit === 'weighted') { R(1, 19, 4, 4, 'd'); R(2, 20, 2, 2, 'm'); put(2, 20, 'l'); }  // a lump of lead on the shaft
-    if (fit === 'balanced') { R(4, 17, 3, 3, 'g'); put(4, 17, 'G'); put(6, 19, 'T'); }      // a collar where the hand goes
-    if (fit === 'quick') { stroke(2, 20, 4, 2, 'n'); stroke(3, 21, 4, 1, 'N'); }
+  const shaft = a1 => {
+    limb(-1, 33, ...A(a1), 1.3, 1.3, W3);
+    if (band >= 1) for (const a of [4.6, 8.8]) seg(a, -1.35, a, 1.35, 0.5, 0.5, () => (band === 3 ? 'g' : 'd'));      // iron bands
+    if (fit === 'weighted') { disc(...A(6.2), 2.8, u => (u > 0.45 ? 'm' : u < -0.35 ? 'D' : 'd')); dot(6.2, 1.5, 'l'); }      // a lump of lead on the shaft
+    if (fit === 'balanced') seg(5.6, 0, 8.2, 0, 1.95, 1.95, G3);                            // a collar where the hand goes
+    if (fit === 'quick') { seg(3, 0, 9.6, 0, 1.4, 1.4, u => (u > 0.1 ? 'n' : 'N')); for (let a = 4; a < 9.5; a += 1.8) seg(a, -1.4, a, 1.4, 0.4, 0.4, () => 'N'); }
   };
-  // A blade seen flat, point up and to the right: prof is its half-width at each step along it.
-  const leaf = (cx, cy, prof, rib) => prof.forEach((hw, i) => {
-    for (let k = -hw; k <= hw; k++) {
-      const c = k === 0 ? rib : k < 0 ? (k === -hw && hw > 2 ? 'm' : 'l') : k === hw && hw > 1 ? 'd' : 'm';
-      put(cx + i + k, cy - i + k, c); if (k < hw) put(cx + i + k + 1, cy - i + k, k < 0 ? 'l' : c === 'd' ? 'd' : 'm');
-    }
-    if (!hw) put(cx + i, cy - i, 'l');
-  });
-  if (!relic && slot === 'weapon') {
-    const kind = WEAPON_NAMES[cls] || 'gladius';
-    if (kind === 'gladius') sword([9, 11, 12, 12][band]);
-    else if (kind === 'sica') {                  // a short blade that hooks forward at the end
-      const n = [6, 7, 7, 7][band] + (hi && band < 2 ? 1 : 0);
-      blade(7, 15, n, 3); hilt(band);
-      R(8 + n, 14 - n, 3, 3, 'm'); R(10 + n, 13 - n, 3, 3, 'm'); R(12 + n, 13 - n, 2, 2, 'm'); put(14 + n, 13 - n, 'l');
-      R(8 + n, 14 - n, 5, 1, 'l'); P([[9 + n, 16 - n], [10 + n, 15 - n], [11 + n, 15 - n], [12 + n, 14 - n], [13 + n, 14 - n]], 'd');
-      put(7 + n, 15 - n, 'l');
-      if (r <= 1) { P([[10, 12], [13, 9]], 'x'); if (r === 0) P([[11, 12], [16, 8]], 'p'); }
-      if (band >= 2) stroke(8, 15, n, 1, 'h');
-      if (band === 3) P([[10, 14], [12, 12], [14, 10]], 'g');
-    } else if (kind === 'twin blades') {
-      sword([7, 8, 9, 9][band], true); flip = true; sword([7, 8, 9, 9][band], true); flip = false;
-    } else if (kind === 'spear') {
+  const draw = {
+    gladius: () => sword([10.5, 12, 13.5, 13.5][band]),
+    'twin blades': () => { const L = [7.5, 8.5, 9.5, 9.5][band]; sword(L, true); flip = true; sword(L, true); flip = false; },
+    sica: () => {                                // a short blade that hooks forward at the end
+      const g0 = 8.5, b0 = g0 + 0.6, n = [7, 8, 8.5, 8.5][band] + (hi && band < 2 ? 1 : 0), [x1, y1] = A(b0 + n);
+      disc(x1, y1, 2.3, M3);
+      seg(b0, 0, b0 + n, 0, 2.3, 2.3, M3);
+      limb(x1, y1, x1 + 4.6, y1 - 2.1, 2.3, 1.9, M3); disc(x1 + 4.6, y1 - 2.1, 1.9, M3); limb(x1 + 4.6, y1 - 2.1, x1 + 9.4, y1 - 2.5, 1.9, 0, M3);
+      if (band >= 1) seg(b0 + 1.2, -0.4, b0 + n, -0.4, 0.45, 0.45, () => 'd');
+      if (band >= 2) { seg(b0 + 0.6, 1.3, b0 + n, 1.3, 0.36, 0.36, () => 'h'); limb(x1 + 1, y1 - 2, x1 + 6.5, y1 - 3.7, 0.36, 0.36, () => 'h'); }
+      if (band === 3) for (let a = b0 + 2; a < b0 + n; a += 2.5) dot(a, 0.4, 'g');
+      rust([[b0 + 3, 0.9], [b0 + n - 1, -0.9], [b0 + n * 0.5, 0.2], [b0 + n + 2.5, 0.5]]);
+      hilt(g0);
+    },
+    spear: () => {
       // a narrow head lashed on; a soldier's leaf; a broad polished leaf with a tassel; the same with gold let in
-      const cx = band ? 10 : 11, cy = 23 - cx;
-      const prof = [hi ? [1, 2, 2, 3, 2, 2, 2, 1, 1, 0] : [1, 1, 2, 2, 2, 2, 1, 1, 0], [1, 2, 2, 3, 3, 3, 2, 2, 1, 1, 0], [1, 2, 3, 4, 4, 4, 3, 3, 2, 2, 1, 1, 0], [1, 2, 3, 4, 4, 4, 3, 3, 2, 2, 1, 1, 0]][band];
-      shaft(cx - 1);
-      if (band >= 2) { P([[cx - 2, cy + 4], [cx - 2, cy + 5], [cx - 1, cy + 5], [cx - 2, cy + 6], [cx - 1, cy + 7]], 'r'); put(cx - 1, cy + 4, 'R'); put(cx - 1, cy + 6, 'R'); }      // a tassel under the head
-      stroke(cx - 3, cy + 1, 2, 3, band === 3 ? 'g' : band >= 1 ? 'd' : 'C');               // the socket, or the binding
-      put(cx - 3, cy + 1, band === 3 ? 'G' : band >= 1 ? 'm' : 'c'); put(cx - 2, cy, band === 3 ? 'G' : band >= 1 ? 'm' : 'c');
-      leaf(cx, cy, prof, band >= 2 ? 'h' : 'l');
-      if (hi && band >= 1) { P([[cx - 3, cy - 1], [cx - 4, cy - 2], [cx - 3, cy - 2]], 'l'); P([[cx + 1, cy + 3], [cx + 2, cy + 4], [cx + 2, cy + 3]], 'd'); P([[cx - 2, cy - 1], [cx + 1, cy + 2]], 'm'); }      // a wing each side of the socket
-      if (band === 3) { P([[cx + 2, cy - 2], [cx + 4, cy - 4], [cx + 6, cy - 6]], 'g'); P([[cx - 1, cy - 3], [cx + 3, cy + 1]], 'g'); }      // gold down the rib, and a lug each side
-      if (r <= 1) { P([[cx + 3, cy - 1], [cx + 4, cy - 5]], 'x'); if (r === 0) { P([[cx + 2, cy - 3], [5, 18]], 'p'); } }
-    } else {                                     // trident
-      shaft(12);
-      const sp = band ? 5 : 4, bc = band === 3 ? 'g' : band === 0 ? 'C' : 'd';
-      for (let k = -sp; k <= sp; k++) R(11 + k, 11 + k, 2, 2, bc);                         // the bar the tines stand on
-      if (band >= 1) { put(11 - sp, 11 - sp, band === 3 ? 'G' : 'm'); put(11, 11, band === 3 ? 'G' : 'm'); }
-      for (const k of [-sp, sp, 0]) {
-        const n = (k ? 6 : 8) - (band ? 0 : 1) + (hi && band && !k ? 1 : 0), x0 = 12 + k, y0 = 10 + k;
-        stroke(x0, y0, n, 2, 'm'); stroke(x0, y0, n, 1, 'l'); stroke(x0 + 1, y0 + 1, n, 1, 'd');
-        put(x0 + n, y0 - n, 'l');
-        if (band >= 1 || hi) {                   // a barb on each: the outer tines hooked inward, the middle one both ways
-          if (k <= 0) { put(x0 + n - 1, y0 - n + 3, 'd'); put(x0 + n - 2, y0 - n + 3, 'm'); }
-          if (k >= 0) { put(x0 + n - 3, y0 - n + 1, 'l'); put(x0 + n - 3, y0 - n + 2, 'm'); }
-        }
-        if (band >= 2) stroke(x0, y0, n - 1, 1, 'h');
+      const ah = [12, 10.5, 9, 9][band], len = [12, 15, 17.5, 17.5][band], W = [3, 4.2, 5.4, 5.4][band] + (hi && !band ? 0.9 : 0);
+      shaft(ah - 1);
+      if (band >= 2) { const [tx, ty] = A(ah - 2.2, -1.2), x = Math.floor(tx), y = Math.floor(ty); R(x, y, 2, 6, 'r'); P([[x + 1, y + 1], [x + 1, y + 3], [x, y + 5]], 'R'); put(x, y + 6, 'r'); put(x + 1, y + 7, 'r'); }      // a tassel under the head
+      if (hi && band >= 1) seg(ah - 0.9, -4.2, ah - 0.9, 4.2, 0.95, 0.75, M3);              // a wing each side of the socket
+      seg(ah - 3.4, 0, ah + 0.4, 0, 1.75, 1.5, band === 3 ? G3 : band >= 1 ? I3 : L3);      // the socket, or the binding
+      if (!band) for (const a of [ah - 2.7, ah - 1.3]) seg(a, -1.75, a, 1.75, 0.4, 0.4, () => 'C');
+      const rib = band >= 2 ? 'h' : 'd';
+      const face = (u, t, w) => { const s = u * w; return Math.abs(s) < 0.5 ? rib : u > 0 ? (u > 0.8 && w > 2.4 ? 'm' : 'l') : u < -0.72 && w > 1.6 ? 'd' : 'm'; };
+      seg(ah, 0, ah + len * 0.36, 0, 0.9, W, face); seg(ah + len * 0.36, 0, ah + len, 0, W, 0, face);
+      if (band === 3) for (let a = ah + 2; a < ah + len - 3; a += 2.4) dot(a, 0, 'g');      // gold down the rib
+      rust([[ah + 4, 1.2], [ah + len * 0.6, -0.9], [ah + 3, -1], [7, 0]]);
+    },
+    trident: () => {
+      const a0 = 12.5, sp = band ? 7.4 : 6.2;
+      shaft(a0 - 0.6);
+      if (hi && band) seg(a0 - 3.2, 0, a0 - 0.8, 0, 2.1, 2.1, band === 2 ? T3 : M3);        // a collar where the head meets the shaft
+      seg(a0, -sp, a0, sp, 1.5, 1.5, band === 3 ? G3 : band === 0 ? L3 : I3);              // the bar the tines stand on
+      for (const s of [sp, -sp, 0]) {
+        const n = (s ? 8.5 : 12) - (band ? 0 : 1) + (hi && band && !s ? 1.2 : 0);
+        seg(a0, s, a0 + n - 2.4, s, 1.45, 1.3, M3); seg(a0 + n - 2.4, s, a0 + n + 0.8, s, 1.3, 0.15, M3);
+        if (band >= 1 || hi) for (const k of s ? [-Math.sign(s)] : [1, -1]) seg(a0 + n - 1.6, s, a0 + n - 4.4, s + k * 2.6, 0.95, 0.3, M3);      // a barb on each: the outer tines hooked inward, the middle one both ways
+        if (band >= 2) seg(a0 + 0.8, s + 0.75, a0 + n - 2, s + 0.75, 0.34, 0.34, () => 'h');
       }
-      if (hi && band) { R(8, 12, 4, 4, band === 2 ? 't' : 'm'); put(8, 12, 'l'); R(9, 15, 3, 1, 'd'); R(11, 13, 1, 3, 'd'); }      // a collar where the head meets the shaft
-      if (band === 3) { R(11, 11, 2, 2, 'j'); put(11, 11, 'J'); }
-      if (r <= 1) { P([[14, 7], [19, 11]], 'x'); if (r === 0) P([[10, 3], [5, 18]], 'p'); }
-    }
-  } else if (relic) {
-    if (relic.half) mirror(relic.half);
-    if (relic.greave) { stamp(relic.greave, 3); stamp(relic.greave, 13); }
-    if (relic.full) stamp(relic.full, relic.full.x);
-  } else if (slot === 'legs') {
-    for (const x0 of [2, 13]) {
-      stamp(GREAVE[band], x0);
-      if (hi) {                                  // a cap standing over the knee, and a wing either side of it
-        const y = GREAVE[band].y, L = band ? 'l' : 'e', D = band ? 'd' : 'C', w = band === 2 ? 8 : 7;
-        R(x0 + 3, y - 1, 2, 1, band ? 'm' : 'c'); put(x0 + 3, y - 1, L);
-        R(x0, y + 2, 1, 2, L); R(x0 + w, y + 2, 1, 2, D);
-      }
-    }
-  }
-  else if (slot === 'arms') {
-    // an arm guard on a bent arm: plates down the upper arm from the shoulder at the top left, the elbow at the
-    // bottom, and more up the forearm to a fist. Leather between the plates on the worst; a cop over the elbow
-    // on the best.
-    const trim = band === 3 ? 'g' : 't', edge = band === 3 ? 'G' : 'T';
-    const drop = x => Math.round((x - 3) * 0.8);                                            // the upper arm slopes down to the elbow
-    const lame = (x, y, w, h, lea, up) => {
-      for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
-        const first = up ? j === 0 : i === 0;
-        let c = first ? (lea ? 'e' : band >= 2 ? trim : 'l') : j === h - 1 || i === w - 1 ? (lea ? 'C' : 'd') : j === 0 || i === 0 ? (lea ? 'e' : 'l') : lea ? 'c' : 'm';
-        if (!lea && i === 1 && j === 1) c = 'h';
-        if (!lea && band >= 1 && w > 2 && h > 2 && (up ? i === w - 2 && j === h >> 1 : i === w >> 1 && j === h - 2)) c = 'v';
-        put(x + i, y + j + (up ? 0 : drop(x + i)), c);
-      }
-    };
-    R(1, 4, 2, 10, band === 0 ? 'C' : trim); put(1, 4, band === 0 ? 'c' : edge);            // the strap at the shoulder
-    const plates = [[5, 5], [4, 3, 3], [4, 3, 3], [3, 3, 2, 2]][band];                      // upper arm, shoulder to elbow
-    let x = 3;
-    plates.forEach((w, i) => { lame(x, 5, w, 8, band === 0 && i === 1, false); if (band === 0 && !i) P([[x + 2, 9], [x + 3, 12]], 'x'); x += w; });
-    let y = 14;                                                                             // forearm, elbow up to the wrist
-    [[4, 4], [3, 3, 2], [3, 3, 2], [2, 2, 2, 2]][band].forEach((h, i) => { y -= h; const thin = y < 10 ? 1 : 0; lame(14 + thin, y, 7 - thin * 2, h, band === 0 && i === 1, true); if (band === 0 && !i) put(17, y + 2, 'p'); });
-    R(15, 5, 5, 1, band === 0 ? 'C' : band === 1 ? 'd' : trim);                             // the cuff
-    R(14, 1, 7, 4, 's'); R(15, 0, 5, 1, 's'); P([[16, 1], [18, 1], [14, 3], [15, 3], [16, 3], [20, 4]], 'k');      // the fist
-    // the elbow: a plain joint plate, or a round cop with a boss
-    const E = band === 0 ? ['c', 'e', 'C'] : ['m', 'l', 'd'];
-    R(13, 14, 8, 7, E[0]); R(14, 21, 6, 1, E[2]); R(21, 15, 1, 5, E[2]); R(13, 14, 8, 1, E[1]); R(13, 14, 1, 7, E[1]); R(20, 15, 1, 6, E[2]); R(14, 20, 6, 1, E[2]);
-    if (band === 0) P([[15, 16], [18, 16], [15, 18], [18, 18]], 'C');
-    else if (band === 1) { put(14, 15, 'h'); P([[16, 18], [18, 16]], 'v'); }
-    else { R(15, 15, 4, 4, trim); R(16, 16, 2, 2, band === 3 ? 'j' : 'm'); put(16, 16, band === 3 ? 'J' : 'l'); put(15, 15, edge); put(14, 15, 'h'); R(22, 16, 1, 3, 'd'); R(15, 22, 4, 1, 'd'); }
-    if (hi) {                                    // a point to the elbow, and a cap over the top of the arm
-      R(21, 20, 2, 2, E[0]); put(21, 20, E[1]); put(22, 21, E[2]); put(23, 22, E[2]); put(22, 22, E[2]);
-      R(3, 3, 5, 2, E[0]); R(3, 3, 5, 1, E[1]); put(7, 4, E[2]); R(4, 2, 3, 1, E[1]);
-    }
-  } else if (slot === 'shoulders') {
-    // one pauldron: a domed cap with plates lapping down the arm under it, the whole leaning out over the arm; a
-    // strap up to the neck and another round under the arm
-    const trim = band === 3 ? 'g' : 't', lea = band === 0;
-    const span = (y, x0, x1, base, lit, dk) => { for (let x = x0; x <= x1; x++) put(x, y, x - x0 < 2 ? lit : x1 - x < (y > 6 ? 2 : 1) ? dk : base); };
-    const M3 = lea ? ['c', 'e', 'C'] : ['m', 'l', 'd'];
-    const dome = [[8, 13], [6, 15], [5, 16], [4, 17], [3, 17], [3, 18], [2, 18], [2, 18], [2, 18]];
-    dome.forEach(([a, b], j) => span(3 + j, a, b, M3[0], M3[1], M3[2]));
-    R(2, 12, 17, 1, lea ? 'C' : band >= 2 ? trim : 'd');                                    // the cap's rim
-    if (!lea) { P([[7, 5], [6, 6], [5, 7], [8, 4], [9, 4]], 'h'); R(8, 3, 6, 1, 'l'); }
-    const lames = [[[3, 17, 3]], [[3, 17, 3], [4, 16, 2]], [[3, 17, 2], [4, 16, 2], [5, 15, 2]], [[3, 17, 2], [4, 16, 2], [5, 15, 2]]][band].slice();
-    if (hi && band < 2) lames.push([[4, 16, 2], [5, 15, 2]][band]);                          // one more plate down the arm
-    if (hi && band === 2) { R(7, 2, 8, 1, 'm'); R(9, 1, 4, 1, 'l'); put(7, 2, 'l'); put(14, 2, 'd'); }      // or a ridge standing on the cap
-    let y = 13;
-    for (const [a, b, h] of lames) {
-      for (let j = 0; j < h; j++) span(y + j, a, b, M3[0], M3[1], M3[2]);
-      R(a, y + h, b - a + 1, 1, lea ? 'C' : band >= 2 ? trim : 'd');
-      if (band >= 1) P([[a + 2, y + h - 1], [b - 3, y + h - 1]], 'v');
-      y += h + 1;
-    }
-    if (lea) { R(8, 6, 5, 4, 'm'); R(8, 6, 5, 1, 'l'); R(8, 9, 5, 1, 'd'); R(12, 7, 1, 3, 'd'); put(10, 7, 'x'); if (r === 0) put(9, 8, 'p'); P([[4, 14], [16, 14]], 'C'); }      // a plate sewn to the hide
-    else if (band === 1) P([[4, 11], [10, 11], [16, 11]], 'v');
-    else {                                       // a boss on the cap, and on the best a gilded crown to it
-      R(8, 6, 5, 5, trim); R(9, 7, 3, 3, band === 3 ? 'j' : 'm'); put(9, 7, band === 3 ? 'J' : 'l'); put(8, 6, band === 3 ? 'G' : 'T'); put(12, 10, 'T');
-      if (band === 3) { R(8, 3, 6, 1, 'g'); P([[6, 4], [7, 4], [14, 4], [15, 4]], 'g'); P([[4, 12], [8, 12], [12, 12], [16, 12]], 'G'); }
-    }
-    // lean it: each row slides over, top toward the neck and bottom out along the arm
-    const flat = cells.slice(); cells.fill('');
-    for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) { const c = flat[yy * N + xx], nx = xx + Math.round((12 - yy) / 3); if (c && nx >= 0 && nx < N) cells[yy * N + nx] = c; }
-    const under = (xx, yy, c) => { if (!at(xx, yy)) put(xx, yy, c); };
-    for (let i = 0; i < 5; i++) { under(17 + i, 6 - i, 'e'); under(18 + i, 6 - i, 'c'); under(18 + i, 7 - i, 'C'); under(17 + i, 7 - i, 'c'); }      // to the neck
-    R(20, 3, 2, 2, band === 3 ? 'g' : 'l'); put(21, 4, band === 3 ? 'T' : 'd');             // and its buckle
-    for (let i = 0; i < 7; i++) { under(13 + i, 14 + i, 'c'); under(14 + i, 14 + i, 'e'); under(13 + i, 15 + i, 'C'); under(14 + i, 15 + i, 'c'); }      // under the arm
-  } else {
-    mirror(HALF[slot][band]);
-    if (hi && slot === 'head') {
-      if (band === 0) both([[11, 3], [11, 2], [10, 3]], 'm', 'd');                           // a button on the crown
-      if (band === 1) { both([[11, 1], [11, 0]], 'l', 'm'); both([[0, 13], [0, 14]], 'l', 'd'); both([[1, 14]], 'd'); }      // a spike, and a broader brim
-      if (band === 2) both([[2, 7], [1, 6], [1, 5], [2, 6], [0, 4], [1, 4]], 't', 'T');     // a feather at each temple
-    }
-    if (hi && slot === 'chest') {
-      const y = HALF.chest[band].y + HALF.chest[band].rows.length;                         // a second row to the skirt
-      both([[3, y], [5, y], [7, y], [9, y], [11, y]], band === 2 ? 'T' : 'C');
-      if (band === 1) both([[1, 4], [0, 5], [0, 6], [1, 5]], 'l', 'd');                      // broader at the shoulder
-      if (band === 2) { both([[10, 9], [11, 9], [10, 11], [11, 11]], 't', 'T'); both([[10, 10]], 't', 'T'); both([[11, 10]], 'l', 'm'); }      // a medallion on the breast
-    }
-  }
+      if (band === 3) disc(...A(a0), 1.5, u => (u > 0 ? 'J' : 'j'));
+      rust([[a0 + 4, 0.3], [a0 + 3, -sp], [a0 + 5, sp + 0.4], [6, 0.2]]);
+    },
+  };
 
-  // ---- what the smith has done to it since: armour only; a weapon's fitting is in how it was drawn above ----
-  const metal = c => c === 'm' || c === 'l' || c === 'd' || c === 'h' || c === 'v';
+  // ---- armour ----
+  const strips = (y, n, c, cd, tip) => {         // the skirt of straps under a cuirass
+    for (const [a, b] of [[6, 8], [10, 12], [14, 17], [19, 21], [23, 25]]) {
+      R(a, y, b - a + 1, n, c); R(b, y, 1, n, cd); R(a + 1, y + n, b - a - 1 || 1, 1, cd);
+      if (tip) R(a, y + n - 2, b - a + 1, 2, tip);
+    }
+  };
+  const armour = {
+    head: () => {
+      const B = relic ? 1 : band, lea = B === 0, pal = lea ? HIDE : METAL;
+      if (relic) {                               // the centurion's crest runs from ear to ear
+        mass(1, sym([8, 11, 13, 13, 13, 12]), RED, 0.4);
+        for (let x = 3; x < 29; x += 2) for (let y = 1; y < 7; y++) if (at(x, y)) put(x, y, x < 16 ? 'R' : 'r');
+        for (let x = 4; x < 29; x += 2) for (let y = 1; y < 7; y++) if (at(x, y) === 'R' && x > 16) put(x, y, 'r');
+        R(7, 7, 18, 1, 'g'); R(7, 7, 6, 1, 'G'); R(20, 7, 5, 1, 'y');
+      } else if (B >= 2) {                       // a plume, front to back
+        mass(B === 3 ? 0 : 1, sym(B === 3 ? [2, 3, 4, 5, 5, 4, 4, 3] : [1, 2, 3, 4, 4, 3, 3]), DYED, 0.3);
+        for (let y = 2; y < 8; y++) if (at(15, y)) put(15, y, y % 2 ? 'T' : 't');
+        R(13, 8, 6, 1, B === 3 ? 'g' : 'd');
+      }
+      const top = B >= 2 || relic ? 8 : 5;
+      mass(top, sym(top === 8 ? [6, 8, 9, 10, 10, 11, 11, 11, 11] : [3, 5, 7, 8, 9, 10, 10, 11, 11, 11, 11, 11]), pal, 0.9);
+      if (lea) {
+        // a leather cap, sewn down the middle, with an iron band round the brow and a flap over each ear
+        for (let y = 6; y < 14; y++) { put(16, y, 'C'); if (y % 2) put(15, y, 'e'); }
+        R(5, 14, 22, 1, 'l'); R(5, 15, 22, 1, 'm'); R(5, 16, 22, 1, 'd'); R(21, 15, 6, 1, 'd');
+        P([[9, 15], [19, 15]], 'x'); if (r === 0) P([[13, 15], [24, 14]], 'p');
+        const flap = [[5, 9], [5, 9], [5, 9], [5, 8], [6, 8], [6, 8], [6, 7]];
+        mass(17, flap, HIDE, 0.3); mass(17, flap.map(([a, b]) => [31 - b, 31 - a]), HIDE, 0.3);
+        both([[6, 24], [6, 25], [7, 26]], 'C');
+        R(10, 17, 12, 5, 'k');
+        if (hi) { R(15, 3, 2, 2, 'm'); put(15, 3, 'l'); for (let y = 5; y < 14; y++) { put(15, y, 'l'); put(16, y, 'd'); } }      // a button on the crown, and a strip of iron over it
+      } else if (B === 1) {
+        // a soldier's pot: a knob, a band riveted round the brow, a brim, and a cheek-piece hinged each side
+        if (!relic) { R(15, 3, 2, 2, 'm'); put(15, 3, 'l'); put(16, 4, 'd'); }
+        const G = relic ? ['G', 'g', 'y'] : ['l', 'm', 'd'];
+        R(5, 14, 22, 1, G[0]); R(5, 15, 22, 1, G[1]); R(5, 16, 22, 1, G[2]); R(22, 15, 5, 1, G[2]);
+        P([[8, 15], [13, 15], [18, 15], [23, 15]], relic ? 'G' : 'v');
+        const bw = hi ? 14 : 13;
+        mass(17, sym([bw]), METAL, 0); R(16 - bw + 1, 18, bw * 2 - 2, 1, 'D');
+        R(10, 18, 12, 6, 'k');
+        const cheek = [[5, 9], [5, 9], [5, 9], [5, 9], [5, 9], [6, 9], [6, 10], [7, 10], [8, 10], [9, 10]];
+        mass(18, cheek, METAL, 0.4); mass(18, cheek.map(([a, b]) => [31 - b, 31 - a]), METAL, 0.4);
+        both([[7, 20]], 'v'); both([[5, 18], [6, 18], [7, 18], [8, 18], [9, 18]], 'd', 'D');
+        if (relic) for (let y = 19; y < 28; y++) for (let x = 0; x < 16; x++) if (at(x, y) && at(x, y) !== 'k' && !at(x - 1, y)) { put(x, y, 'g'); put(31 - x, y, 'y'); }
+        if (hi) { R(15, 1, 2, 2, 'm'); put(15, 1, 'l'); }                                    // a spike, and a broader brim
+      } else {
+        // an officer's helm: the brow bound in colour, and a mask over the face with slits for the eyes
+        R(5, 14, 22, 1, 'l');
+        if (B === 3) { for (let x = 5; x < 27; x++) { put(x, 14, x % 2 ? 'q' : 'g'); put(x, 15, x % 2 ? 'g' : 'q'); } R(5, 16, 22, 1, 'y'); }      // a wreath of laurel
+        else { R(5, 15, 22, 1, 't'); R(5, 16, 22, 1, 'T'); }
+        mass(17, sym([13]), METAL, 0);
+        const mask = sym([11, 11, 11, 11, 10, 10, 9, 8, 7, 5]);
+        mass(18, mask, METAL, 0.5);
+        mask.forEach(([a, b], j) => { put(a, 18 + j, B === 3 ? 'g' : 't'); put(b, 18 + j, B === 3 ? 'y' : 'T'); });
+        R(11, 27, 10, 1, B === 3 ? 'y' : 'T');
+        R(9, 19, 5, 1, 'd'); R(18, 19, 5, 1, 'd'); R(9, 20, 5, 2, 'k'); R(18, 20, 5, 2, 'k');
+        R(15, 19, 1, 6, 'l'); R(16, 19, 1, 6, 'd');
+        P([[11, 24], [13, 24], [12, 26], [18, 24], [20, 24], [19, 26]], 'k');
+        if (B === 3) { P([[14, 10], [14, 11], [17, 10], [17, 11], [15, 9], [16, 9], [15, 12], [16, 12]], 'g'); R(15, 10, 2, 2, 'j'); put(15, 10, 'J'); }
+        if (hi) both([[3, 15], [2, 14], [3, 14], [2, 13], [1, 12], [2, 12], [1, 11], [1, 10]], 't', 'T');      // a feather at each temple
+      }
+    },
+    chest: () => {
+      const B = relic ? 2 : band, lea = B === 0, pal = lea ? HIDE : METAL;
+      const tl = relic || B === 3 ? 'g' : 't', td = relic || B === 3 ? 'y' : 'T';
+      const yoke = [[8, 10], [7, 11], [6, 12], [5, 12]];                                    // a strap over each shoulder, broadening into it
+      mass(3, yoke, pal, 0.3); mass(3, yoke.map(([a, b]) => [31 - b, 31 - a]), pal, 0.3);
+      const body = [[5, 26], [4, 27], [4, 27], [5, 26], [6, 25], [6, 25], [6, 25], [7, 24], [7, 24], [7, 24], [7, 24], [7, 24], [6, 25], [6, 25]];
+      mass(7, body, pal, 0.5);
+      wipe(13, 7, 6, 1); wipe(14, 8, 4, 1);                                                // the neck
+      if (relic) {                               // silvered scale, and a legate's red sash knotted over it
+        body.forEach(([a, b], j) => { for (let x = a; x <= b; x++) if (at(x, 7 + j)) { const s = (x + ((j >> 1) & 1) * 2) % 4; put(x, 7 + j, j % 2 ? 'dmdD'[s] : 'lmmd'[s]); } });
+        limb(25, 6, 8, 19, 1.8, 1.8, u => (u > 0 ? 'R' : 'r'));
+        limb(8, 20, 5.5, 27, 1.2, 0.9, u => (u > 0 ? 'R' : 'r')); limb(9.5, 20, 11, 28, 1.2, 0.9, u => (u > 0.2 ? 'R' : 'r'));
+        disc(8.5, 19.5, 2.3, u => (u > 0.2 ? 'R' : 'r'));
+      } else if (lea) {
+        // a hide jerkin, and a plate of iron riveted over the heart
+        R(11, 10, 10, 7, 'm'); R(11, 10, 10, 1, 'l'); R(11, 10, 1, 7, 'l'); R(11, 16, 10, 1, 'd'); R(20, 10, 1, 7, 'd');
+        P([[11, 10], [20, 10], [11, 16], [20, 16]], 'k'); P([[14, 12], [17, 14]], 'x'); if (r === 0) P([[13, 14], [18, 11]], 'p');
+        for (let x = 7; x < 25; x += 2) put(x, 19, 'C');
+      } else {
+        // a breastplate, the chest and belly beaten into it; on the better ones the edges are bound in colour
+        both([[8, 5]], 'v');
+        both([[8, 12], [8, 13], [9, 14], [10, 14], [11, 14], [12, 14], [13, 13], [14, 12]], 'd'); both([[9, 15], [10, 15], [11, 15], [12, 15]], 'l', 'm');
+        for (let y = 10; y < 20; y++) put(16, y, 'd');
+        if (B === 1) P([[9, 19], [13, 19], [18, 19], [22, 19]], 'v');
+        else {
+          both([[11, 17], [12, 17], [13, 17], [11, 19], [12, 19], [13, 19]], 'd'); put(15, 19, 'D');
+          P([[12, 7], [13, 8], [14, 9], [15, 9], [16, 9], [17, 9], [18, 8], [19, 7]], tl);
+          for (let j = 2; j < 7; j++) { put(body[j][0], 7 + j, tl); put(body[j][1], 7 + j, td); }
+          R(6, 20, 20, 1, tl); R(20, 20, 6, 1, td);
+        }
+        if (B === 3) { both([[13, 10], [12, 10], [11, 9], [10, 9], [9, 8], [13, 11], [12, 11], [11, 11], [10, 10]], 'g', 'g'); R(15, 10, 2, 2, 'j'); put(15, 10, 'J'); P([[14, 10], [17, 10], [14, 11], [17, 11]], 'G'); }
+        if (hi && B === 1) both([[3, 8], [3, 9], [4, 10]], 'l', 'D');                         // broader at the shoulder
+        if (hi && B === 2) { R(14, 10, 4, 3, 't'); R(15, 11, 2, 1, 'l'); put(17, 12, 'T'); }  // a medallion on the breast
+      }
+      R(6, 21, 20, 1, relic ? 'g' : 'C'); R(15, 21, 2, 1, B === 3 || relic ? 'G' : lea ? 'd' : 'l');      // the belt
+      if (hi) for (const x of [9, 13, 18, 22]) R(x, 22, 1, 4, B >= 2 ? 'T' : 'C');          // a second row to the skirt, showing between
+      if (relic) strips(22, 5, 'r', 'r', 'g');
+      else if (B >= 2) strips(22, hi ? 6 : 5, 't', 'T', B === 3 ? 'g' : '');
+      else strips(22, hi ? 6 : 5, 'c', 'C');
+      if (B === 2 && !relic) for (const x of [7, 11, 15, 20, 24]) put(x, 25, 'l');
+      if (!lea) for (const x of [6, 10, 14, 19, 23]) put(x, 22, B >= 2 ? (relic ? 'R' : 't') : 'e');
+    },
+    legs: () => {
+      const B = relic ? 1 : band, lea = B === 0, pal = lea ? HIDE : METAL;
+      // a cap for the knee, and under it a plate that is broadest over the calf and narrows to the ankle
+      const shin = [[4, 6], [3, 7], [3, 7], [3, 7], [2, 8], [1, 9], [1, 9], [1, 9], [1, 9], [1, 9], [1, 9], [1, 9], [2, 9], [2, 9], [2, 9], [2, 9], [2, 8], [2, 8], [2, 8], [3, 8], [3, 8]];
+      for (const gx of relic ? [5, 17] : [3, 17]) {
+        mass(3, shin.map(([a, b]) => [gx + a, gx + b]), pal, 0.5);
+        R(gx + 2, 7, 7, 1, lea ? 'C' : 'D');
+        R(gx + 2, 24, 8, 1, 'C'); R(gx + 1, 25, 10, 1, 'w'); R(gx + 1, 26, 10, 1, 'W'); put(gx + 10, 25, 'W');      // the sandal under it
+        if (relic) {                             // beaten thin, with a wing at each ankle
+          const dir = gx < 16 ? -1 : 1, bx = dir < 0 ? gx + 2 : gx + 9, wing = u => (u > -0.1 ? 'n' : 'N');
+          under = true;
+          limb(bx, 21, bx + dir * 5.5, 14.5, 1.3, 0.4, wing); limb(bx, 22, bx + dir * 5, 18.5, 1.1, 0.4, wing); limb(bx, 23, bx + dir * 4, 21.5, 0.9, 0.4, wing);
+          under = false;
+          for (let y = 9; y < 22; y++) put(gx + 4, y, 'h');
+          R(gx + 3, 22, 6, 1, 'd');
+        } else if (lea) {
+          // hide bound round the shin, a splint of iron down the front of it
+          for (const y of [10, 14, 18, 21]) for (let x = 1; x < 10; x++) if (at(gx + x, y)) put(gx + x, y, 'C');
+          for (let y = 3; y < 23; y++) if (y !== 7) { put(gx + 5, y, 'l'); put(gx + 6, y, 'd'); }
+          put(gx + 5, 11, 'x'); put(gx + 6, 19, 'x'); if (r === 0) put(gx + 5, 16, 'p');
+        } else if (B === 1) {
+          P([[gx + 3, 10], [gx + 4, 21], [gx + 5, 5]], 'v');
+          R(gx + 10, 11, 1, 2, 'C'); R(gx + 9, 19, 1, 2, 'C');                              // the straps round the calf
+        } else {
+          // a cap over the knee, a ridge down the shin, and a band at the knee and the ankle
+          const tl = B === 3 ? 'g' : 't', td = B === 3 ? 'y' : 'T';
+          R(gx + 1, 8, 9, 1, tl); R(gx + 8, 8, 2, 1, td); R(gx + 3, 22, 6, 1, tl); put(gx + 8, 22, td);
+          for (let y = 9; y < 22; y++) { put(gx + 4, y, B === 3 ? 'G' : 'h'); put(gx + 5, y, B === 3 ? 'g' : 'd'); }
+          if (B === 3) { R(gx + 3, 4, 5, 3, 'g'); R(gx + 3, 4, 5, 1, 'G'); R(gx + 7, 5, 1, 2, 'y'); R(gx + 4, 5, 3, 1, 'j'); put(gx + 4, 5, 'J'); }
+          else { R(gx + 4, 4, 2, 2, 'l'); put(gx + 4, 4, 'h'); }
+        }
+        if (hi) { R(gx + 4, 2, 3, 1, pal.l); put(gx + 6, 2, pal.m); R(gx + 2, 4, 1, 3, pal.l); R(gx + 8, 4, 1, 3, pal.D); R(gx + 1, 5, 1, 1, pal.l); R(gx + 9, 5, 1, 1, pal.D); }      // a cap standing over the knee, and a wing either side of it
+      }
+    },
+    arms: () => {
+      if (relic) {                               // an arm-ring of three coils, gold over iron
+        for (const front of [false, true]) for (let i = 0; i < 3; i++) {
+          const cy = 9 + i * 6.5;
+          for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+            const ex = (x + 0.5 - 16) / 11.5, ey = (y + 0.5 - cy) / 5, ix = (x + 0.5 - 16) / 8.4, iy = (y + 0.5 - cy) / 2.5;
+            if (ex * ex + ey * ey > 1 || ix * ix + iy * iy <= 1 || (y + 0.5 > cy) !== front) continue;
+            const f = (x - 4.5) / 23, k = (f < 0.28 ? 0 : f < 0.72 ? 1 : 2) + (front ? 0 : 1);
+            put(x, y, ix * ix + iy * iy < 1.45 && front ? 'd' : ['G', 'g', 'y', 'y'][k]);
+          }
+        }
+        R(25, 25, 3, 3, 'g'); R(26, 26, 2, 2, 'j'); put(26, 26, 'J');
+        return;
+      }
+      // an arm guard on a bent arm: plates down the upper arm from the shoulder at the top left, the elbow at the
+      // bottom, and more up the forearm to a fist. Leather between the plates on the worst; a cop over the elbow
+      // on the best.
+      const lea0 = band === 0, trim = band === 3 ? 'g' : 't', trimD = band === 3 ? 'y' : 'T';
+      const drop = x => Math.round((x - 4) * 0.8);                                          // the upper arm slopes down to the elbow
+      const lame = (x, y, w, h, lea, up) => {
+        for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
+          const a = up ? j : i, an = up ? h : w, b = up ? i : j, bn = up ? w : h;           // a runs across the joins, b round the arm
+          let c = a === an - 1 ? 'D' : b < 2 ? (a === 0 ? 'h' : 'l') : b >= bn - 1 ? 'D' : b >= bn - 3 ? 'd' : 'm';
+          if (a === 0 && band >= 2) c = b >= bn - 2 ? trimD : trim;
+          if (band >= 1 && a === an >> 1 && b === bn - 4 && an > 2) c = 'v';
+          if (lea) c = a === an - 1 || b >= bn - 2 ? 'C' : b < 2 ? 'e' : 'c';
+          put(x + i, y + j + (up ? 0 : drop(x + i)), c);
+        }
+      };
+      R(1, 6, 3, 13, lea0 ? 'c' : trim); R(3, 6, 1, 13, lea0 ? 'C' : trimD); put(1, 6, lea0 ? 'e' : band === 3 ? 'G' : trim);      // the strap at the shoulder
+      let x = 4;
+      [[7, 6], [5, 4, 4], [5, 4, 4], [4, 3, 3, 3]][band].forEach((w, i) => { lame(x, 7, w, 10, lea0 && i === 1, false); if (lea0 && !i) P([[x + 2, 12], [x + 4, 16]], 'x'); x += w; });      // upper arm, shoulder to elbow
+      let y = 19;
+      [[6, 5], [4, 4, 3], [4, 4, 3], [3, 3, 3, 2]][band].forEach((h, i) => { y -= h; const thin = y < 13 ? 1 : 0; lame(19 + thin, y, 9 - thin * 2, h, lea0 && i === 1, true); if (lea0 && !i) put(22, y + 3, 'p'); });      // forearm, elbow up to the wrist
+      R(20, 7, 7, 1, lea0 ? 'C' : band === 1 ? 'd' : trim);                                 // the cuff
+      R(19, 2, 9, 5, 's'); R(20, 1, 7, 1, 's'); R(27, 2, 1, 5, 'S'); R(20, 6, 8, 1, 'S');   // the fist
+      P([[22, 1], [22, 2], [24, 1], [24, 2], [26, 1], [26, 2], [19, 4], [20, 4], [21, 4], [22, 4], [23, 4], [23, 3]], 'S');
+      // the elbow: a plain joint plate, or a round cop with a boss
+      mass(19, [[17, 27], [17, 28], [17, 28], [17, 28], [17, 28], [17, 28], [17, 28], [18, 27], [19, 26]], lea0 ? HIDE : METAL, 0.8);
+      if (lea0) P([[20, 21], [24, 21], [20, 25], [24, 25], [22, 23]], 'C');
+      else if (band === 1) P([[20, 22], [25, 22], [22, 25]], 'v');
+      else { disc(22.5, 23.5, 3.2, u => (u > -0.2 ? trim : trimD)); disc(22.5, 23.5, 1.7, band === 3 ? (u => (u > 0 ? 'J' : 'j')) : M3); }
+      if (hi) {                                  // a point to the elbow, and a cap over the top of the arm
+        const E = lea0 ? HIDE : METAL;
+        P([[28, 26], [29, 27]], E.d); P([[28, 27], [29, 28], [27, 27]], E.D);
+        R(4, 4, 7, 3, E.m); R(4, 4, 7, 1, E.l); R(10, 5, 1, 2, E.d); R(5, 3, 5, 1, E.l);
+      }
+    },
+    shoulders: () => {
+      if (relic) {                               // the fell lion, his mask at the collar and a paw over each shoulder
+        both([[10, 4], [11, 3], [12, 3], [11, 4], [12, 4]], 'f', 'F');
+        mass(5, sym([4, 5, 6, 6, 6, 5]), FUR, 0.6); mass(11, sym([9, 12, 13, 14, 14]), FUR, 0.5);
+        const arm = [[2, 13], [2, 11], [2, 10], [2, 9], [2, 8], [3, 8], [3, 8]];
+        mass(16, arm, FUR, 0.3); mass(16, arm.map(([a, b]) => [31 - b, 31 - a]), FUR, 0.3);
+        R(2, 23, 7, 2, 'f'); R(23, 23, 7, 2, 'F'); both([[2, 25], [4, 25], [6, 25], [8, 25]], 'n', 'N');
+        for (let y = 5; y < 25; y++) for (let x = 0; x < N; x++) if (at(x, y) === 'f' && (x * 3 + y * 5) % 7 === 0) put(x, y, 'F');
+        both([[13, 7]], 'k'); R(14, 8, 4, 2, 'n'); R(15, 8, 2, 1, 'k'); R(14, 10, 4, 1, 'N'); P([[15, 10], [16, 10]], 'k');
+        return;
+      }
+      // one pauldron: a domed cap with plates lapping down the arm under it, the whole leaning out over the arm; a
+      // strap up to the neck and another round under the arm
+      const lea = band === 0, pal = lea ? HIDE : METAL, trim = band === 3 ? 'g' : 't', trimD = band === 3 ? 'y' : 'T';
+      mass(4, [[11, 18], [9, 20], [7, 22], [6, 23], [5, 24], [4, 24], [4, 25], [3, 25], [3, 25], [3, 25], [3, 25], [3, 25]], pal, 1);
+      R(3, 16, 23, 1, lea ? 'C' : band >= 2 ? trim : 'D'); if (band >= 2) R(19, 16, 7, 1, trimD);      // the cap's rim
+      const lames = [[[4, 24, 4]], [[4, 24, 3], [5, 23, 3]], [[4, 24, 3], [5, 23, 3], [6, 22, 2]], [[4, 24, 3], [5, 23, 3], [6, 22, 2]]][band].slice();
+      if (hi && band < 2) lames.push([[5, 23, 3], [6, 22, 2]][band]);                        // one more plate down the arm
+      if (hi && band === 2) { R(10, 3, 10, 1, 'm'); R(12, 2, 6, 1, 'l'); put(10, 3, 'l'); put(19, 3, 'd'); }      // or a ridge standing on the cap
+      let y = 17;
+      for (const [a, b, h] of lames) {
+        mass(y, new Array(h).fill([a, b]), pal, 0.5);
+        R(a, y + h, b - a + 1, 1, lea ? 'C' : band >= 2 ? trim : 'D'); if (band >= 2) R(b - 5, y + h, 6, 1, trimD);
+        if (band >= 1) P([[a + 2, y + h - 1], [b - 3, y + h - 1], [(a + b) >> 1, y + h - 1]], 'v');
+        y += h + 1;
+      }
+      if (lea) { R(10, 8, 7, 5, 'm'); R(10, 8, 7, 1, 'l'); R(10, 8, 1, 5, 'l'); R(10, 12, 7, 1, 'd'); R(16, 8, 1, 5, 'd'); P([[13, 10]], 'x'); if (r === 0) put(12, 11, 'p'); P([[6, 18], [10, 18], [14, 18], [18, 18], [22, 18]], 'C'); }      // a plate sewn to the hide
+      else if (band === 1) P([[5, 15], [10, 15], [15, 15], [20, 15], [24, 15]], 'v');
+      else {                                     // a boss on the cap, and on the best a gilded crown to it
+        disc(14, 10.5, 3.4, u => (u > -0.2 ? trim : trimD)); disc(14, 10.5, 1.9, band === 3 ? (u => (u > 0 ? 'J' : 'j')) : M3);
+        if (band === 3) { R(11, 4, 8, 1, 'g'); P([[9, 5], [10, 5], [19, 5], [20, 5]], 'g'); for (let x = 4; x < 25; x += 3) put(x, 16, 'G'); }
+      }
+      // lean it: each row slides over, top toward the neck and bottom out along the arm
+      const flat = cells.slice(); cells.fill('');
+      for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) { const c = flat[yy * N + xx], nx = xx + Math.round((16 - yy) / 3); if (c && nx >= 0 && nx < N) cells[yy * N + nx] = c; }
+      under = true;
+      limb(22, 10, 30.5, 1.5, 1.35, 1.35, L3);                                              // to the neck
+      limb(17, 18, 29, 30, 1.35, 1.35, L3);                                                 // under the arm
+      under = false;
+      R(26, 4, 3, 3, band === 3 ? 'g' : 'l'); R(28, 4, 1, 3, band === 3 ? 'y' : 'd'); R(26, 6, 3, 1, band === 3 ? 'y' : 'd'); put(27, 5, 'k');      // and its buckle
+    },
+  };
+  if (slot === 'weapon' && !relic) draw[WEAPON_NAMES[cls] || 'gladius']();
+  else (armour[slot] || armour.chest)();
+
+  const metal = c => c === 'm' || c === 'l' || c === 'd' || c === 'h' || c === 'v' || c === 'D';
   const inside = (x, y) => at(x - 1, y) && at(x + 1, y) && at(x, y - 1) && at(x, y + 1);
-  // Each is placed by the shape of the piece it is on, so that it sits on the drawing and not across it:
-  //   studded    a line of studs following the rim, just inside it
-  //   braced     two splints riveted on, where the slot's joints are
-  //   lightened  rows of slits cut through the plate
-  //   lined      oiled leather showing along the lower and the shaded edges
-  //   padded     a roll of cloth under the bottom edge
   // ---- what is this piece's alone: no two are quite alike. Each item's number picks its marks of use (a dent or a
   // scratch, and on poor work a nick out of the edge), and further down the tone of its leather, wood and metal
   // and the dye of its cloth. Relics, parade pieces and master-wrought work carry no marks.
@@ -380,16 +457,22 @@ function drawItemArt(ctx, slot, r, cls, o) {
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const c = at(x, y);
       if ((c === 'm' || c === 'c') && inside(x, y)) spots.push([x, y]);
-      if ((c === 'm' || c === 'd') && at(x - 1, y) && at(x, y - 1) && (!at(x + 1, y) || !at(x, y + 1)) && at(x - 1, y - 1)) edges.push([x, y]);
+      if ((c === 'm' || c === 'd' || c === 'D') && at(x - 1, y) && at(x, y - 1) && (!at(x + 1, y) || !at(x, y + 1)) && at(x - 1, y - 1)) edges.push([x, y]);
     }
-    const marks = band === 0 ? 2 : band === 1 ? 1 : rw() < 0.5 ? 1 : 0;
+    const marks = band === 0 ? 3 : band === 1 ? 2 : rw() < 0.5 ? 1 : 0;
     for (let i = 0; i < marks && spots.length; i++) {
-      const [x, y] = spots[Math.floor(rw() * spots.length)], dk = at(x, y) === 'c' ? 'C' : 'd';
-      cells[y * N + x] = dk;
-      if (rw() < 0.6 && (at(x + 1, y - 1) === 'm' || at(x + 1, y - 1) === 'c') && inside(x + 1, y - 1)) cells[(y - 1) * N + x + 1] = dk;      // drawn out into a scratch
+      const [x, y] = spots[Math.floor(rw() * spots.length)], dk = at(x, y) === 'c' ? 'C' : 'd', n = 1 + Math.floor(rw() * 3);
+      for (let k = 0; k < n; k++) if (k === 0 || ((at(x + k, y - k) === 'm' || at(x + k, y - k) === 'c') && inside(x + k, y - k))) cells[(y - k) * N + x + k] = dk; else break;      // drawn out into a scratch
     }
     if (edges.length && (band === 0 || (band === 1 && rw() < 0.5))) { const [x, y] = edges[Math.floor(rw() * edges.length)]; cells[y * N + x] = ''; }
   }
+  // ---- what the smith has done to it since: armour only; a weapon's fitting is in how it was drawn above. Each is
+  // placed by the shape of the piece it is on, so that it sits on the drawing and not across it:
+  //   studded    a line of studs following the rim, just inside it
+  //   braced     two splints riveted on, where the slot's joints are
+  //   lightened  rows of slits cut through the plate
+  //   lined      oiled leather showing along the lower and the shaded edges
+  //   padded     a roll of cloth under the bottom edge
   if (slot !== 'weapon' && fit) {
     const snap = cells.slice(), was = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? '' : snap[y * N + x]);
     const body = c => metal(c) || c === 'c' || c === 'e' || c === 'C';
@@ -405,21 +488,21 @@ function drawItemArt(ctx, slot, r, cls, o) {
         set(x, y, 'o'); if (deep(x, y + 1) && body(was(x, y + 1))) set(x, y + 1, 'O');
       }
     } else if (fit === 'braced') {
-      for (const x of { head: [6, 16], chest: [7, 15], shoulders: [7, 13], legs: [5, 16], arms: [8, 17] }[slot] || []) {
+      for (const x of { head: [8, 22], chest: [10, 20], shoulders: [10, 18], legs: [7, 21], arms: [9, 23] }[slot] || []) {
         let first = true, last = -1;
         for (let y = 0; y < N; y++) {
           if (!(body(was(x, y)) && body(was(x + 1, y)) && deep(x, y) && deep(x + 1, y))) continue;
-          set(x, y, first ? 'h' : 'l'); set(x + 1, y, 'd'); first = false; last = y;
+          set(x, y, first ? 'o' : 'l'); set(x + 1, y, 'D'); first = false; last = y;
         }
-        if (last >= 0) set(x, last, 'h');
+        if (last >= 0) set(x, last, 'o');
       }
     } else if (fit === 'lightened') {
-      const rows = { head: [0.28], chest: [0.3, 0.62], shoulders: [0.3, 0.62], legs: [0.3, 0.62], arms: [0.38, 0.78] }[slot] || [0.5];
+      const rows = { head: [0.3], chest: [0.28, 0.6], shoulders: [0.3, 0.62], legs: [0.3, 0.62], arms: [0.42, 0.8] }[slot] || [0.5];
       for (const t of rows) {
         const ya = Math.round(y0 + (y1 - y0) * t);
-        const slits = y => { const out = []; for (let x = 0; x < N; x++) if (x % 3 === 1 && body(was(x, y)) && body(was(x, y + 1)) && deep(x, y) && deep(x, y + 1) && deep(x + 1, y)) out.push(x); return out; };
+        const slits = y => { const out = []; for (let x = 0; x < N; x++) if (x % 3 === 1 && [0, 1, 2].every(k => body(was(x, y + k)) && deep(x, y + k)) && deep(x + 1, y)) out.push(x); return out; };
         const y = [0, 1, -1, 2, -2, 3].map(k => ya + k).find(y => slits(y).length >= 2);      // a row that has room for them
-        if (y !== undefined) for (const x of slits(y)) { set(x, y, 'k'); set(x, y + 1, 'k'); }
+        if (y !== undefined) for (const x of slits(y)) { set(x, y, 'k'); set(x, y + 1, 'k'); set(x, y + 2, 'k'); }
       }
     } else for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const c = was(x, y);
@@ -431,7 +514,7 @@ function drawItemArt(ctx, slot, r, cls, o) {
   // ---- the outline, then colour (a master-wrought piece shines white where a plain one only catches the light) ----
   const ink = '#1c1310', top = r >= 4 || relic || o.mw;
   // Light is warm and shade is cool: every material's dark leans toward indigo and its light toward straw, so a
-  // piece has weight where three tones of one hue would lie flat.
+  // piece has weight where tones of one hue would lie flat.
   const cool = (c, t) => mixHex(c, '#2b2a5c', t === undefined ? 0.22 : t), warm = (c, t) => mixHex(c, '#ffe9b0', t === undefined ? 0.24 : t);
   let V = M, leather = 1, wood = 1, dye = null;
   if (seed) {
@@ -440,11 +523,13 @@ function drawItemArt(ctx, slot, r, cls, o) {
     dye = [null, ['#2f6db8', '#7fb0e8'], ['#4f8a3a', '#8fc35a'], ['#d8a030', '#f8dc88']][Math.floor(rc() * 4)];
     V = { m: tone(M.m, mf), d: tone(M.d, mf), l: tone(M.l, mf), t: r < 6 ? hueTurn(M.t, turn) : M.t };
   }
+  if (relic) dye = null;
   const C = {
-    m: V.m, d: cool(V.d), l: warm(V.l), h: top ? '#ffffff' : warm(tone(V.l, 1.14), 0.34), t: V.t, T: cool(tone(V.t, 0.68)),
-    w: tone('#7a5a2a', wood), W: cool(tone('#5e4222', wood)), c: tone('#8a5a34', leather), e: warm(tone('#a87244', leather), 0.2), C: cool(tone('#5e3a22', leather)), g: '#e8b545', G: warm('#fbe08a', 0.3),
+    m: V.m, d: cool(V.d), D: cool(tone(V.d, 0.74), 0.34), l: warm(V.l), h: top ? '#ffffff' : warm(tone(V.l, 1.14), 0.34), t: V.t, T: cool(tone(V.t, 0.68)),
+    w: tone('#7a5a2a', wood), W: cool(tone('#5e4222', wood)), c: tone('#8a5a34', leather), e: warm(tone('#a87244', leather), 0.2), C: cool(tone('#5e3a22', leather)),
+    g: '#e8b545', G: warm('#fbe08a', 0.3), y: cool('#a87a26', 0.18),
     j: r === 6 ? '#b77be8' : '#d8402e', J: r === 6 ? '#f0e0ff' : '#ff9a8a', n: '#d8c8a0', N: cool('#a89870', 0.16),
-    r: dye ? dye[0] : '#c23b2e', R: dye ? dye[1] : warm('#ef7a66', 0.16), s: '#d9a57c', f: '#c8913c', F: cool('#8a6226'), q: '#8fc35a', k: ink,
+    r: dye ? dye[0] : '#c23b2e', R: dye ? dye[1] : warm('#ef7a66', 0.16), s: '#d9a57c', S: cool('#a87450', 0.14), f: '#c8913c', F: cool('#8a6226'), q: '#8fc35a', k: ink,
     o: '#fff6d8', O: mixHex(cool(M.d), ink, 0.4),
     x: r <= 1 ? '#a0522d' : V.m, p: r === 0 ? '#3a1c10' : V.m, v: r >= 3 ? cool(V.d) : V.m,
   };
@@ -462,32 +547,32 @@ function drawItemArt(ctx, slot, r, cls, o) {
 }
 
 // Paints a <canvas data-item="slot:rarity:style:fitting:master:relic:number">: a dark plate framed in the grade's colour,
-// 28 units square with the picture in the middle 24. Canvases are sized in whole multiples of 28.
+// 36 units square with the picture in the middle 32. Canvases are sized in whole multiples of 36.
 function paintItem(cv) {
-  const [slot, r0, cls, fit, mw, relic, seed] = cv.dataset.item.split(':'), r = +r0, ctx = cv.getContext('2d'), s = cv.width / 28;
+  const [slot, r0, cls, fit, mw, relic, seed] = cv.dataset.item.split(':'), r = +r0, ctx = cv.getContext('2d'), U = ITEM_N + 4, s = cv.width / U;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
   ctx.setTransform(s, 0, 0, s, 0, 0); ctx.imageSmoothingEnabled = false;
-  const fc = relic ? '#d8a657' : RARITY_COL[r];
-  R(0, 0, 28, 28, fc); R(1, 1, 26, 26, '#17110f'); R(2, 2, 24, 24, relic ? '#33261a' : '#2c211c');
-  R(2, 2, 24, 11, 'rgba(255,255,255,.05)');
+  const fc = relic ? '#d8a657' : RARITY_COL[r], e = U - 1;
+  R(0, 0, U, U, fc); R(1, 1, U - 2, U - 2, '#17110f'); R(2, 2, U - 4, U - 4, relic ? '#33261a' : '#2c211c');
+  R(2, 2, U - 4, 14, 'rgba(255,255,255,.05)');
   if (r >= 3 || relic) {                         // a glow behind the better pieces, in the colour of their grade
     const n = parseInt(fc.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
     const peak = 0.22 + (relic ? 2 : r - 3) * 0.06;                                         // round, and fading out to nothing at the frame
-    for (let y = 2; y < 26; y++) for (let x = 2; x < 26; x++) { const d = Math.hypot(x - 13.5, y - 13.5) / 12.5; if (d < 1) R(x, y, 1, 1, `rgba(${rgb},${(peak * Math.pow(1 - d, 1.4)).toFixed(3)})`); }
+    for (let y = 2; y < U - 2; y++) for (let x = 2; x < U - 2; x++) { const d = Math.hypot(x + 0.5 - U / 2, y + 0.5 - U / 2) / 16.5; if (d < 1) R(x, y, 1, 1, `rgba(${rgb},${(peak * Math.pow(1 - d, 1.4)).toFixed(3)})`); }
   }
   if (r >= 5 || relic) {                         // the best have their corners picked out
-    for (const [x, y] of [[0, 0], [27, 0], [0, 27], [27, 27]]) R(x, y, 1, 1, '#fff6d8');
-    const c = shade(fc, 1.3); R(1, 0, 4, 1, c); R(0, 1, 1, 4, c); R(23, 27, 4, 1, c); R(27, 23, 1, 4, c);
+    for (const [x, y] of [[0, 0], [e, 0], [0, e], [e, e]]) R(x, y, 1, 1, '#fff6d8');
+    const c = shade(fc, 1.3); R(1, 0, 5, 1, c); R(0, 1, 1, 5, c); R(e - 5, e, 5, 1, c); R(e, e - 5, 1, 5, c);
   }
-  if (relic) { R(1, 1, 26, 1, '#7a5a2a'); R(1, 26, 26, 1, '#7a5a2a'); R(1, 1, 1, 26, '#7a5a2a'); R(26, 1, 1, 26, '#7a5a2a'); for (const [x, y] of [[1, 1], [26, 1], [1, 26], [26, 26]]) R(x, y, 1, 1, '#fbe08a'); }      // an old frame inside the new
-  if (r === 0 && !relic) R(2, 19, 24, 7, 'rgba(160,82,45,.10)');                              // and the worst sit in their own rust
+  if (relic) { R(1, 1, U - 2, 1, '#7a5a2a'); R(1, e - 1, U - 2, 1, '#7a5a2a'); R(1, 1, 1, U - 2, '#7a5a2a'); R(e - 1, 1, 1, U - 2, '#7a5a2a'); for (const [x, y] of [[1, 1], [e - 1, 1], [1, e - 1], [e - 1, e - 1]]) R(x, y, 1, 1, '#fbe08a'); }      // an old frame inside the new
+  if (r === 0 && !relic) R(2, 25, U - 4, 9, 'rgba(160,82,45,.10)');                          // and the worst sit in their own rust
   ctx.translate(2, 2);
   drawItemArt(ctx, slot, r, cls, { fit, mw: mw === '1', relic, seed: +seed || 0 });
   ctx.translate(-2, -2);
-  if (r === 6 && !relic) { R(3, 3, 1, 1, '#ffffff'); R(24, 6, 1, 1, '#ffffff'); R(23, 24, 1, 1, '#fbe08a'); R(4, 22, 1, 1, '#fbe08a'); }      // an imperial piece glints
-  if (mw === '1') { R(22, 3, 3, 1, '#fff6d8'); R(23, 2, 1, 3, '#fff6d8'); R(1, 24, 3, 3, '#17110f'); R(2, 24, 1, 3, '#fbe08a'); R(1, 25, 3, 1, '#fbe08a'); }      // a glint, and the maker's mark in the corner
+  if (r === 6 && !relic) { R(4, 4, 1, 1, '#ffffff'); R(31, 7, 1, 1, '#ffffff'); R(30, 31, 1, 1, '#fbe08a'); R(5, 29, 1, 1, '#fbe08a'); }      // an imperial piece glints
+  if (mw === '1') { R(28, 4, 5, 1, '#fff6d8'); R(30, 2, 1, 5, '#fff6d8'); R(1, 31, 4, 4, '#17110f'); R(2, 31, 1, 4, '#fbe08a'); R(1, 32, 4, 1, '#fbe08a'); R(4, 34, 1, 1, '#fbe08a'); }      // a glint, and the maker's mark in the corner
 }
-// size: 28, 56 or 84 (one, two or three screen pixels to each of the picture's).
+// size: 36, 72 or 108 (one, two or three screen pixels to each of the picture's).
 // A relic or an imperial piece is never quite still: its frame breathes light, each in its own time.
 function itemArt(it, size) { const lit = it.relic || it.r === 6; return `<canvas class="itemart${lit ? (it.relic ? ' shim relic' : ' shim') : ''}"${lit ? ` style="animation-delay:-${((it.id || 0) * 617) % 3600}ms"` : ''} width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}:${it.fit || ''}:${it.mw ? 1 : ''}:${it.relic || ''}:${it.id || 0}"></canvas>`; }
 const ic = name => `<i class="ic ic-${name}"></i>`;
@@ -504,10 +589,10 @@ const ic = name => `<i class="ic ic-${name}"></i>`;
     rules.push(`.ic-${name}{background-image:url(${cv.toDataURL()})}`);
   }
   for (const slot of ['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders']) {
-    cv.width = cv.height = 24;
-    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 24, 24);
+    cv.width = cv.height = ITEM_N;
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, ITEM_N, ITEM_N);
     drawItemArt(ctx, slot, 4, 'murmillo');
-    rules.push(`.ic-slot-${slot}{background-image:url(${cv.toDataURL()});width:24px;height:24px}`);
+    rules.push(`.ic-slot-${slot}{background-image:url(${cv.toDataURL()});width:32px;height:32px}`);
   }
   const st = document.createElement('style');
   st.textContent = rules.join('\n');

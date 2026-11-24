@@ -1774,7 +1774,7 @@ function bestSpares(g) {
   return out;
 }
 // A piece's picture, or the empty place where one would go.
-const slotPic = (it, slot, size) => it ? itemArt(it, size || 56) : `<span class="itemart none s${size || 56}">${ic('slot-' + slot)}</span>`;
+const slotPic = (it, slot, size) => it ? itemArt(it, size || 72) : `<span class="itemart none s${size || 72}">${ic('slot-' + slot)}</span>`;
 // A piece of yours, or one on the smith's stall.
 const anyItem = id => { const f = findItem(id); return f ? f.it : G.smith.stock.find(x => x.id === +id) || null; };
 // Pieces that have come to the racks since you last looked at them glint for a few seconds the first time they are shown.
@@ -1832,7 +1832,7 @@ function gearBlock(g) {
   let pick = `<div class="dpick hint"><span class="dim">Click a slot to change it. <span class="good">&#9650;</span> something better is on your racks &middot; <span class="gold">&#9679;</span> the smith has something better today.</span></div>`;
   if (open && SLOT_INFO[open]) {
     const it = g.gear[open], sp = spareOf(open), sm = smithOf(open);
-    const tiles = sp.map(({ x, dl }) => `<button ${tileLook(x, 'rtile big' + (dl.d > 0.05 ? ' gain' : ''))} data-act="equip" data-v="${g.id}" data-w="${x.id}" data-cmp="${x.id}:${g.id}">${itemArt(x, 56)}<em class="${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.short}</em></button>`).join('');
+    const tiles = sp.map(({ x, dl }) => `<button ${tileLook(x, 'rtile big' + (dl.d > 0.05 ? ' gain' : ''))} data-act="equip" data-v="${g.id}" data-w="${x.id}" data-cmp="${x.id}:${g.id}">${itemArt(x, 72)}<em class="${dl.d > 0.05 ? 'good' : dl.d < -0.05 ? 'bad' : 'dim'}">${dl.short}</em></button>`).join('');
     pick = `<div class="dpick"><div class="dpickhead"><span class="lbl">${SLOT_INFO[open].name}</span>
         <span class="grow">${it ? `${itemName(it)} <small class="dim">${itemGist(it)}</small>` : `<span class="dim">${open === 'weapon' ? 'A practice ' + WEAPON_NAMES[g.cls] : 'Nothing worn'}</span>`}</span>
         ${sm ? `<small class="gold"${tip('The blacksmith has something better for this slot today. He will fit it straight onto him.')}>smith: ${sm} better</small>` : ''}
@@ -1868,17 +1868,17 @@ function viewSmith() {
   const it = keepSel('isel', S.stock.concat(mine, wornAll)), own = !!it && G.armoury.includes(it), wearer = it ? G.roster.find(g => SLOTS.some(k => g.gear && g.gear[k] === it)) : null, yours = own || !!wearer;
   noteItems();
   // the stall: a tile to a piece, with its picture, what it is, who it would better, and its price
-  const row = x => lrow('isel', x.id, `<span class="dpic" data-cmp="${x.id}">${itemArt(x, 56)}${best(x).length ? `<u class="up">&#9650;</u>` : ''}${x.pride ? `<u class="pride">&#9733;</u>` : ''}</span>
+  const row = x => lrow('isel', x.id, `<span class="dpic" data-cmp="${x.id}">${itemArt(x, 72)}${best(x).length ? `<u class="up">&#9650;</u>` : ''}${x.pride ? `<u class="pride">&#9733;</u>` : ''}</span>
       <span class="nm"><span class="rar r${x.r}">${RARITY[x.r]}</span> ${x.slot === 'weapon' ? WEAPON_NAMES[x.cls] : SLOT_INFO[x.slot].piece}</span>
       <small${best(x).length ? tip('Better than what they wear now: ' + best(x).join(', ') + '.') : x.pride ? tip('The piece on the stall he is proudest of. He lets it go a fifth cheap, to a house whose men will be seen wearing it.') : ''}>${best(x).length ? `<span class="good">for ${best(x).length === 1 ? best(x)[0] : best(x).length + ' men'}</span>` : x.slot === 'weapon' && !G.roster.some(g => g.cls === x.cls) ? '<span class="dim">no one can use it</span>' : `<span class="dim">${itemGist(x)}</span>`}</small>
       <b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`, 'stile');
   const stock = S.stock.map(x => row(x)).join('') || '<div class="listnote">He has sold everything he had. Come back after the next games.</div>';
-  const tile = x => `<button ${tileLook(x, 'rtile big' + (ui.isel === x.id ? ' sel' : ''))} data-act="rowsel" data-v="isel" data-w="${x.id}" data-cmp="${x.id}">${itemArt(x, 56)}${best(x).length ? '<u>&#9650;</u>' : ''}</button>`;
+  const tile = x => `<button ${tileLook(x, 'rtile big' + (ui.isel === x.id ? ' sel' : ''))} data-act="rowsel" data-v="isel" data-w="${x.id}" data-cmp="${x.id}">${itemArt(x, 72)}${best(x).length ? '<u>&#9650;</u>' : ''}</button>`;
   const racks = mine.length ? mine.map(tile).join('') : '<div class="listnote">The racks are empty. A piece you buy without giving it to a man waits here.</div>';
   // every man's kit at a glance: one cell a slot
   const kit = G.roster.map(g => {
     const gs = gearStats(g);
-    return `<div class="kitrow"><span class="nm">${g.name}</span>${SLOTS.map(slot => { const x = g.gear && g.gear[slot]; return x ? `<span class="kc ${ui.isel === x.id ? 'sel' : ''}" data-act="rowsel" data-v="isel" data-w="${x.id}" data-cmp="${x.id}">${itemArt(x, 28)}</span>` : `<span class="kc"${tip(`${SLOT_INFO[slot].name}: ${slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}.`)}>${slotPic(null, slot, 28)}</span>`; }).join('')}<small class="num ${gs.full ? 'gold' : ''}"${gs.full ? tip(gs.full === 2 ? 'A full harness, all of one grade: 14% more protection.' : 'A full harness: 8% more protection. All five pieces of one grade would make it 14%.') : ''}>+${gs.dmg.toFixed(0)} dmg &middot; ${gs.armor.toFixed(1)} off${gs.full === 2 ? '+' : ''}</small></div>`;
+    return `<div class="kitrow"><span class="nm">${g.name}</span>${SLOTS.map(slot => { const x = g.gear && g.gear[slot]; return x ? `<span class="kc ${ui.isel === x.id ? 'sel' : ''}" data-act="rowsel" data-v="isel" data-w="${x.id}" data-cmp="${x.id}">${itemArt(x, 36)}</span>` : `<span class="kc"${tip(`${SLOT_INFO[slot].name}: ${slot === 'weapon' ? 'a practice ' + WEAPON_NAMES[g.cls] : 'nothing'}.`)}>${slotPic(null, slot, 36)}</span>`; }).join('')}<small class="num ${gs.full ? 'gold' : ''}"${gs.full ? tip(gs.full === 2 ? 'A full harness, all of one grade: 14% more protection.' : 'A full harness: 8% more protection. All five pieces of one grade would make it 14%.') : ''}>+${gs.dmg.toFixed(0)} dmg &middot; ${gs.armor.toFixed(1)} off${gs.full === 2 ? '+' : ''}</small></div>`;
   }).join('');
   const kitHead = `<div class="kitrow head"><span class="nm"></span>${SLOTS.map(slot => `<span${tip(SLOT_INFO[slot].name)}>${ic('slot-' + slot)}</span>`).join('')}<small></small></div>`;
   let card = '';
@@ -1892,7 +1892,7 @@ function viewSmith() {
         ${wearer ? '' : own ? `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="equip" data-v="${g.id}" data-w="${it.id}">Give him</button>`
               : `<button class="mini ${dl.d > 0.05 ? 'primary' : ''}" data-act="smithgive" data-v="${it.id}" data-w="${g.id}" ${short ? 'disabled' : ''}>Buy for him</button>`}</div>`;
     }).join('');
-    card = `<div class="panel item"><div class="itemhead">${itemArt(it, 84)}<div style="flex:1"><h3>${itemTag(it)}</h3>
+    card = `<div class="panel item"><div class="itemhead">${itemArt(it, 108)}<div style="flex:1"><h3>${itemTag(it)}</h3>
       <div class="dim" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em">${SLOT_INFO[it.slot].name}${it.slot === 'weapon' ? ' &middot; ' + CLASSES[it.cls].name : ''}</div>
       <div style="font-size:13px;margin-top:3px">${itemEffect(it)}</div></div></div>
       ${yours ? (() => {
