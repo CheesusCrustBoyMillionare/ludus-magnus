@@ -141,6 +141,24 @@ const RELIC_ART = {
     '.ggGd......dgGg.', '..ggGGGGGGGGgg..', '....gggggggjJ...'] } },
 };
 
+// Colour helpers that keep to #rrggbb, so that their results can be mixed again.
+const tone = (hex, f) => (f <= 1 ? mixHex(hex, '#000000', 1 - f) : mixHex(hex, '#ffffff', f - 1));
+function hueTurn(hex, deg) {
+  const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return hex;
+  const c = d, m = l - c / 2;
+  const h = ((((mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60 + deg) % 360) + 360) % 360;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const out = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return '#' + out.map(v => Math.max(0, Math.min(255, Math.round((v + m) * 255))).toString(16).padStart(2, '0')).join('');
+}
+// A run of numbers from 0 to 1 that is always the same for the same seed.
+function artRng(seed) {
+  let a = (seed * 2654435761) >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
 function drawItemArt(ctx, slot, r, cls, o) {
   o = o || {};
   const relic = o.relic && RELIC_ART[o.relic] ? RELIC_ART[o.relic] : null;
@@ -353,6 +371,25 @@ function drawItemArt(ctx, slot, r, cls, o) {
   //   lightened  rows of slits cut through the plate
   //   lined      oiled leather showing along the lower and the shaded edges
   //   padded     a roll of cloth under the bottom edge
+  // ---- what is this piece's alone: no two are quite alike. Each item's number picks its marks of use (a dent or a
+  // scratch, and on poor work a nick out of the edge), and further down the tone of its leather, wood and metal
+  // and the dye of its cloth. Relics, parade pieces and master-wrought work carry no marks.
+  const seed = relic ? 0 : o.seed | 0;
+  if (seed && !o.mw && band < 3) {
+    const rw = artRng(seed ^ 0x51ed27), spots = [], edges = [];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const c = at(x, y);
+      if ((c === 'm' || c === 'c') && inside(x, y)) spots.push([x, y]);
+      if ((c === 'm' || c === 'd') && at(x - 1, y) && at(x, y - 1) && (!at(x + 1, y) || !at(x, y + 1)) && at(x - 1, y - 1)) edges.push([x, y]);
+    }
+    const marks = band === 0 ? 2 : band === 1 ? 1 : rw() < 0.5 ? 1 : 0;
+    for (let i = 0; i < marks && spots.length; i++) {
+      const [x, y] = spots[Math.floor(rw() * spots.length)], dk = at(x, y) === 'c' ? 'C' : 'd';
+      cells[y * N + x] = dk;
+      if (rw() < 0.6 && (at(x + 1, y - 1) === 'm' || at(x + 1, y - 1) === 'c') && inside(x + 1, y - 1)) cells[(y - 1) * N + x + 1] = dk;      // drawn out into a scratch
+    }
+    if (edges.length && (band === 0 || (band === 1 && rw() < 0.5))) { const [x, y] = edges[Math.floor(rw() * edges.length)]; cells[y * N + x] = ''; }
+  }
   if (slot !== 'weapon' && fit) {
     const snap = cells.slice(), was = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? '' : snap[y * N + x]);
     const body = c => metal(c) || c === 'c' || c === 'e' || c === 'C';
@@ -396,31 +433,38 @@ function drawItemArt(ctx, slot, r, cls, o) {
   // Light is warm and shade is cool: every material's dark leans toward indigo and its light toward straw, so a
   // piece has weight where three tones of one hue would lie flat.
   const cool = (c, t) => mixHex(c, '#2b2a5c', t === undefined ? 0.22 : t), warm = (c, t) => mixHex(c, '#ffe9b0', t === undefined ? 0.24 : t);
+  let V = M, leather = 1, wood = 1, dye = null;
+  if (seed) {
+    const rc = artRng(seed), mf = 0.94 + rc() * 0.12, turn = [-26, 0, 0, 22][Math.floor(rc() * 4)];
+    leather = 0.84 + rc() * 0.3; wood = 0.84 + rc() * 0.3;
+    dye = [null, ['#2f6db8', '#7fb0e8'], ['#4f8a3a', '#8fc35a'], ['#d8a030', '#f8dc88']][Math.floor(rc() * 4)];
+    V = { m: tone(M.m, mf), d: tone(M.d, mf), l: tone(M.l, mf), t: r < 6 ? hueTurn(M.t, turn) : M.t };
+  }
   const C = {
-    m: M.m, d: cool(M.d), l: warm(M.l), h: top ? '#ffffff' : warm(shade(M.l, 1.14), 0.34), t: M.t, T: cool(shade(M.t, 0.68)),
-    w: '#7a5a2a', W: cool('#5e4222'), c: '#8a5a34', e: warm('#a87244', 0.2), C: cool('#5e3a22'), g: '#e8b545', G: warm('#fbe08a', 0.3),
+    m: V.m, d: cool(V.d), l: warm(V.l), h: top ? '#ffffff' : warm(tone(V.l, 1.14), 0.34), t: V.t, T: cool(tone(V.t, 0.68)),
+    w: tone('#7a5a2a', wood), W: cool(tone('#5e4222', wood)), c: tone('#8a5a34', leather), e: warm(tone('#a87244', leather), 0.2), C: cool(tone('#5e3a22', leather)), g: '#e8b545', G: warm('#fbe08a', 0.3),
     j: r === 6 ? '#b77be8' : '#d8402e', J: r === 6 ? '#f0e0ff' : '#ff9a8a', n: '#d8c8a0', N: cool('#a89870', 0.16),
-    r: '#c23b2e', R: warm('#ef7a66', 0.16), s: '#d9a57c', f: '#c8913c', F: cool('#8a6226'), q: '#8fc35a', k: ink,
+    r: dye ? dye[0] : '#c23b2e', R: dye ? dye[1] : warm('#ef7a66', 0.16), s: '#d9a57c', f: '#c8913c', F: cool('#8a6226'), q: '#8fc35a', k: ink,
     o: '#fff6d8', O: mixHex(cool(M.d), ink, 0.4),
-    x: r <= 1 ? '#a0522d' : M.m, p: r === 0 ? '#3a1c10' : M.m, v: r >= 3 ? cool(M.d) : M.m,
+    x: r <= 1 ? '#a0522d' : V.m, p: r === 0 ? '#3a1c10' : V.m, v: r >= 3 ? cool(V.d) : V.m,
   };
   // The outline is ink underneath and on the right, but on the lit side it is only the piece's own colour gone
   // dark; and the whole casts a shadow one pixel down and across.
   const rim = [];
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    if (at(x, y)) { rim.push([x, y, C[at(x, y)] || M.m]); continue; }
+    if (at(x, y)) { rim.push([x, y, C[at(x, y)] || V.m]); continue; }
     const lit = at(x + 1, y) || at(x, y + 1), dark = at(x - 1, y) || at(x, y - 1);
-    if (lit || dark) rim.push([x, y, dark ? ink : mixHex(C[lit] || M.m, ink, 0.6)]);
+    if (lit || dark) rim.push([x, y, dark ? ink : mixHex(C[lit] || V.m, ink, 0.6)]);
   }
   ctx.fillStyle = 'rgba(0,0,0,.4)';
   for (const [x, y] of rim) ctx.fillRect(x + 1, y + 1, 1, 1);
   for (const [x, y, c] of rim) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); }
 }
 
-// Paints a <canvas data-item="slot:rarity:style:fitting:master:relic">: a dark plate framed in the grade's colour,
+// Paints a <canvas data-item="slot:rarity:style:fitting:master:relic:number">: a dark plate framed in the grade's colour,
 // 28 units square with the picture in the middle 24. Canvases are sized in whole multiples of 28.
 function paintItem(cv) {
-  const [slot, r0, cls, fit, mw, relic] = cv.dataset.item.split(':'), r = +r0, ctx = cv.getContext('2d'), s = cv.width / 28;
+  const [slot, r0, cls, fit, mw, relic, seed] = cv.dataset.item.split(':'), r = +r0, ctx = cv.getContext('2d'), s = cv.width / 28;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
   ctx.setTransform(s, 0, 0, s, 0, 0); ctx.imageSmoothingEnabled = false;
   const fc = relic ? '#d8a657' : RARITY_COL[r];
@@ -437,13 +481,13 @@ function paintItem(cv) {
   if (relic) { R(1, 1, 26, 1, '#7a5a2a'); R(1, 26, 26, 1, '#7a5a2a'); R(1, 1, 1, 26, '#7a5a2a'); R(26, 1, 1, 26, '#7a5a2a'); for (const [x, y] of [[1, 1], [26, 1], [1, 26], [26, 26]]) R(x, y, 1, 1, '#fbe08a'); }      // an old frame inside the new
   if (r === 0 && !relic) R(2, 19, 24, 7, 'rgba(160,82,45,.10)');                              // and the worst sit in their own rust
   ctx.translate(2, 2);
-  drawItemArt(ctx, slot, r, cls, { fit, mw: mw === '1', relic });
+  drawItemArt(ctx, slot, r, cls, { fit, mw: mw === '1', relic, seed: +seed || 0 });
   ctx.translate(-2, -2);
   if (r === 6 && !relic) { R(3, 3, 1, 1, '#ffffff'); R(24, 6, 1, 1, '#ffffff'); R(23, 24, 1, 1, '#fbe08a'); R(4, 22, 1, 1, '#fbe08a'); }      // an imperial piece glints
   if (mw === '1') { R(22, 3, 3, 1, '#fff6d8'); R(23, 2, 1, 3, '#fff6d8'); R(1, 24, 3, 3, '#17110f'); R(2, 24, 1, 3, '#fbe08a'); R(1, 25, 3, 1, '#fbe08a'); }      // a glint, and the maker's mark in the corner
 }
 // size: 28, 56 or 84 (one, two or three screen pixels to each of the picture's).
-function itemArt(it, size) { return `<canvas class="itemart" width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}:${it.fit || ''}:${it.mw ? 1 : ''}:${it.relic || ''}"></canvas>`; }
+function itemArt(it, size) { return `<canvas class="itemart" width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}:${it.fit || ''}:${it.mw ? 1 : ''}:${it.relic || ''}:${it.id || 0}"></canvas>`; }
 const ic = name => `<i class="ic ic-${name}"></i>`;
 
 // Turns the icon maps, and a neutral picture of each gear slot, into CSS classes.
