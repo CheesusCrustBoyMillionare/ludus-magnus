@@ -201,8 +201,14 @@ document.addEventListener('mouseover', e => {
   delete box.dataset.by;
   fillTip(box, el); placeTip(e, el);
 });
-// A click on an explanation puts it away, so it is never in the way of what is under it.
-document.addEventListener('click', e => { if (onTip(e.target)) hideTip(); });
+// A click on an explanation puts it away and goes through to whatever is under it, so that an explanation which has
+// stayed where it was put is never in the way of the next thing to be pressed.
+document.addEventListener('click', e => {
+  if (!onTip(e.target)) return;
+  e.stopPropagation(); hideTip();
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  if (under && !onTip(under)) under.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, clientX: e.clientX, clientY: e.clientY }));
+}, true);
 // The name of a gladiator's type explains itself wherever it is written: in a list, on a card, in the middle of a sentence.
 // The word under the mouse is read from the page, so nothing that prints a type's name has to say so.
 const CLASS_WORDS = (() => { const o = {}; for (const k in CLASSES) { const n = CLASSES[k].name.toLowerCase(); o[n] = k; o[n + 's'] = k; } return Object.assign(o, { murmillones: 'murmillo', thraeces: 'thraex', retiarii: 'retiarius', hoplomachi: 'hoplomachus', dimachaeri: 'dimachaerus' }); })();
@@ -3204,7 +3210,8 @@ document.addEventListener('keydown', e => {
 //   W A S D walk the lanista about the village, E end the day, G to the games, up and down through the list on screen,
 //   left and right through a fighter's dossier pages, 1-5 to set the chosen fighter's work, H for the page of help, B to buy the man chosen at market, Enter to dismiss a notice, 1-4 to answer an event.
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G || !$('#arena').hidden) return;       // a fight has its own keys
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !G) return;
+  if (!$('#arena').hidden && ($('#modal').hidden || (fight && !fight.finished))) return;       // a fight has its own keys; its result, once it is over, is a notice like any other
   const at = document.activeElement || document.body;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName) && at.type !== 'checkbox') return;
   if (ui.noKeys && e.key.length === 1 && e.key !== ' ') return;
@@ -3213,7 +3220,7 @@ document.addEventListener('keydown', e => {
   if (!$('#modal').hidden) {
     const btns = [...document.querySelectorAll('#modalBox button:not(:disabled)')], opts = [...document.querySelectorAll('#modalBox [data-act=evopt]')];
     if (k === 'q' && modalQueue[0] && modalQueue[0].startsWith('<div class="quests">')) { e.preventDefault(); closeModal(); }
-    else if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON') press(btns[0]);
+    else if ((k === 'Enter' || k === ' ' || k === 'Escape') && btns.length === 1 && at.tagName !== 'BUTTON' && at.tagName !== 'SUMMARY') press(btns[0]);
     else if (k === 'Escape' && $('#modalBox [data-act=close]')) press($('#modalBox [data-act=close]'));
     else if (/^[1-9]$/.test(k) && opts[+k - 1]) press(opts[+k - 1]);
     else if (/^[1-3]$/.test(k) && document.querySelectorAll('#modalBox .perkcard')[+k - 1]) press(document.querySelectorAll('#modalBox .perkcard')[+k - 1]);
@@ -3295,10 +3302,10 @@ function menuModal() {
       ${sw('abauto', 'Abilities in a fight', !ui.autoCast, 'ask me each time', 'they choose for themselves')}
       ${sw('cutins', 'Cut-ins when an ability is used', !ui.noCut)}
       ${sw('fcam', 'The view of a fight', !ui.fixedCam, 'follows the fighting', 'the whole arena, fixed')}
-      ${sw('stilltoggle', 'The pictures of yard, town and province', !ui.still, 'moving', 'held still')}
-      ${sw('keystoggle', 'Single keys (letters and numbers)', !ui.noKeys, 'on', 'off: Tab, Enter, Esc and the arrows only')}
-      ${sw('tipstops', 'Tab stops at every explanation', !!ui.tipStops, 'on', 'off')}
-      ${sw('sayblows', 'A fight read to a screen reader', !!ui.sayBlows, 'every blow', 'what the log records, and how each man stands')}
+      ${sw('stilltoggle', 'The pictures and the map', !ui.still, 'moving', 'held still')}
+      ${sw('keystoggle', 'Letter and number keys', !ui.noKeys, 'on', 'off')}
+      ${sw('tipstops', 'Tab stops at explanations', !!ui.tipStops, 'on', 'off')}
+      ${sw('sayblows', 'A fight read aloud', !!ui.sayBlows, 'every blow', 'the main events')}
       ${back}</div><p class="dim mnote">These are kept on this ${DESKTOP ? 'computer' : 'browser'}, for every campaign.</p></div>`;
   }
   if (page === 'stats') return `<div class="menu"><h2>The house in figures</h2>${menuStats()}<div class="mlist">${back}</div></div>`;
