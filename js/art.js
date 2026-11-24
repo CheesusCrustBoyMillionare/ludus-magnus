@@ -329,16 +329,27 @@ function drawItemArt(ctx, slot, r, cls, o) {
   }
   // ---- the outline, then colour (a master-wrought piece shines white where a plain one only catches the light) ----
   const ink = '#1c1310', top = r >= 4 || relic || o.mw;
+  // Light is warm and shade is cool: every material's dark leans toward indigo and its light toward straw, so a
+  // piece has weight where three tones of one hue would lie flat.
+  const cool = (c, t) => mixHex(c, '#2b2a5c', t === undefined ? 0.22 : t), warm = (c, t) => mixHex(c, '#ffe9b0', t === undefined ? 0.24 : t);
   const C = {
-    m: M.m, d: M.d, l: M.l, h: top ? '#ffffff' : shade(M.l, 1.14), t: M.t, T: shade(M.t, 0.68),
-    w: '#7a5a2a', W: '#5e4222', c: '#8a5a34', e: '#a87244', C: '#5e3a22', g: '#e8b545', G: '#fbe08a',
-    j: r === 6 ? '#b77be8' : '#d8402e', J: r === 6 ? '#f0e0ff' : '#ff9a8a', n: '#d8c8a0', N: '#a89870',
-    r: '#c23b2e', R: '#ef7a66', s: '#d9a57c', f: '#c8913c', F: '#8a6226', q: '#8fc35a', k: ink,
-    x: r <= 1 ? '#a0522d' : M.m, p: r === 0 ? '#3a1c10' : M.m, v: r >= 3 ? M.d : M.m,
+    m: M.m, d: cool(M.d), l: warm(M.l), h: top ? '#ffffff' : warm(shade(M.l, 1.14), 0.34), t: M.t, T: cool(shade(M.t, 0.68)),
+    w: '#7a5a2a', W: cool('#5e4222'), c: '#8a5a34', e: warm('#a87244', 0.2), C: cool('#5e3a22'), g: '#e8b545', G: warm('#fbe08a', 0.3),
+    j: r === 6 ? '#b77be8' : '#d8402e', J: r === 6 ? '#f0e0ff' : '#ff9a8a', n: '#d8c8a0', N: cool('#a89870', 0.16),
+    r: '#c23b2e', R: warm('#ef7a66', 0.16), s: '#d9a57c', f: '#c8913c', F: cool('#8a6226'), q: '#8fc35a', k: ink,
+    x: r <= 1 ? '#a0522d' : M.m, p: r === 0 ? '#3a1c10' : M.m, v: r >= 3 ? cool(M.d) : M.m,
   };
-  ctx.fillStyle = ink;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!at(x, y) && (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1))) ctx.fillRect(x, y, 1, 1);
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const c = at(x, y); if (c) { ctx.fillStyle = C[c] || M.m; ctx.fillRect(x, y, 1, 1); } }
+  // The outline is ink underneath and on the right, but on the lit side it is only the piece's own colour gone
+  // dark; and the whole casts a shadow one pixel down and across.
+  const rim = [];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if (at(x, y)) { rim.push([x, y, C[at(x, y)] || M.m]); continue; }
+    const lit = at(x + 1, y) || at(x, y + 1), dark = at(x - 1, y) || at(x, y - 1);
+    if (lit || dark) rim.push([x, y, dark ? ink : mixHex(C[lit] || M.m, ink, 0.6)]);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.4)';
+  for (const [x, y] of rim) ctx.fillRect(x + 1, y + 1, 1, 1);
+  for (const [x, y, c] of rim) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); }
 }
 
 // Paints a <canvas data-item="slot:rarity:style:fitting:master:relic">: a dark plate framed in the grade's colour,
