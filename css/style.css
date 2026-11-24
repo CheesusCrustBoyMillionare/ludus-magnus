@@ -1522,3 +1522,75 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .die { display: grid; grid-template-columns: repeat(3, 6px); grid-auto-rows: 6px; gap: 2px; padding: 4px; background: #f3ead2; border: 1px solid #6b573c; border-radius: 4px; box-shadow: 0 2px 0 rgba(60, 40, 15, .45); }
 .die i { border-radius: 50%; } .die i.on { background: #2c1c10; }
 .dice .num { font-size: 18px; text-align: right; }
+
+/* ---------- equipment in pictures: the outfitting figure, tiles for the stall and the racks, and the card under the mouse ---------- */
+.itemart.none { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; background: #1c140f; border: 1px dashed #5a4334; box-shadow: none; }
+.itemart.none.s56 { width: 56px; height: 56px; } .itemart.none.s28 { width: 28px; height: 28px; }
+.itemart.none .ic { width: 48px; height: 48px; opacity: .2; filter: grayscale(1) brightness(1.6); }
+.itemart.none.s28 .ic { width: 24px; height: 24px; }
+.dpic { position: relative; flex: none; line-height: 0; }
+.dpic u { position: absolute; top: 2px; text-decoration: none; font: 11px/11px Georgia, serif; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000; }
+.dpic u.up { right: 3px; color: #9fe07c; } .dpic u.sm, .dpic u.pride { left: 3px; color: var(--gold); }
+/* the man in the middle, three slots to either side of him */
+.doll { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: center; margin: 6px 0; }
+.dollcol { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dslot { display: flex; align-items: center; gap: 8px; padding: 2px; min-width: 0; cursor: pointer; border: 1px solid transparent; border-radius: 2px; }
+.dslot.l { flex-direction: row-reverse; text-align: right; }
+.dslot:hover { background: rgba(232, 194, 122, .07); }
+.dslot.sel { border-color: var(--gold); background: linear-gradient(90deg, rgba(227, 176, 74, .16), rgba(227, 176, 74, .04)); }
+.dslot.l.sel { background: linear-gradient(270deg, rgba(227, 176, 74, .16), rgba(227, 176, 74, .04)); }
+.dtxt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; font-size: 12.5px; }
+.dtxt small { font: 10px var(--display); letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+.dtxt b { font-weight: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dtxt b .rar { min-width: 13px; padding: 0 2px; font-size: 10px; vertical-align: 1px; }
+.dtxt i { font-style: normal; font-size: 11px; color: var(--dim); }
+.dollfig { width: 144px; height: 168px; image-rendering: pixelated; border: 1px solid var(--edge); box-shadow: 0 0 0 1px var(--bronze-d), 0 3px 0 #0006; }
+.dpick { padding: 6px 8px; background: rgba(18, 11, 8, .35); border: 1px solid rgba(92, 64, 32, .5); }
+.dpick.hint { font-size: 12px; text-align: center; }
+.dpickhead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; font-size: 13px; }
+.dpickhead .lbl { flex: none; font: 10px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.dpickhead .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dpickhead small { font-size: 11px; }
+.dpicktiles { display: flex; flex-wrap: wrap; gap: 5px; font-size: 12.5px; }
+/* a piece as a tile: the racks, and what could go in a slot */
+.rtile.big { padding: 2px; display: inline-flex; flex-direction: column; align-items: center; overflow: hidden; }
+.rtile.big u { right: 4px; top: 4px; bottom: auto; font: 11px/11px Georgia, serif; color: #9fe07c; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000; }
+.rtile.big em { display: block; padding: 2px 0 1px; font: normal 11px/12px Consolas, monospace; white-space: nowrap; }
+.rtile.big em.good { color: #9fce86; } .rtile.big em.bad { color: #f08a7c; }
+.rtile.big.gain { border-color: var(--green); }
+.rackrow > div { gap: 5px; }
+.panel.racks { grid-template-columns: minmax(0, 1fr); }
+/* new on the racks: a light passes over it, a few seconds, the first time it is shown */
+.rtile.fresh::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255, 246, 216, .55) 50%, transparent 65%); background-size: 300% 100%; animation: glint 1.5s linear 4 both; animation-delay: var(--age, 0ms); }
+.rtile.fresh { box-shadow: 0 0 0 1px #fff6d8, 0 0 8px rgba(251, 224, 138, .5); }
+@keyframes glint { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+/* the stall */
+.panel.list.stall { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 4px; padding: 5px; }
+.lrow.stile { flex-direction: column; align-items: center; gap: 2px; padding: 5px 3px 4px; min-height: 0; text-align: center; border: 1px solid rgba(92, 64, 32, .45); border-radius: 2px; }
+.lrow.stile.sel { background: linear-gradient(180deg, rgba(227, 176, 74, .22), rgba(227, 176, 74, .05)); box-shadow: inset 0 3px 0 var(--gold); border-color: var(--gold); }
+.lrow.stile canvas { border: 0; background: none; box-shadow: 0 2px 0 #0008; }
+.lrow.stile .nm { font-size: 12px; line-height: 1.2; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lrow.stile .nm .rar { min-width: 13px; padding: 0 2px; font-size: 10px; }
+.lrow.stile small { font-size: 10.5px; max-width: 100%; }
+.lrow.stile b { font-size: 14px; }
+/* every man's kit, a picture a slot */
+.kitrow, .panel.kit.two .kitrow { grid-template-columns: minmax(60px, 1fr) repeat(6, 28px) auto; gap: 3px; }
+.kitrow .kc { line-height: 0; cursor: pointer; } .kitrow .kc.sel canvas { box-shadow: 0 0 0 2px var(--gold); }
+.kitrow.head .ic { width: 16px; height: 16px; }
+/* the card under the mouse */
+#tip.rich { max-width: 330px; padding: 8px 10px; white-space: normal; }
+.cmp { display: flex; gap: 12px; }
+.cmpside { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 0; }
+.cmpside canvas, .cmpside .itemart { flex: none; }
+.cmpside small { display: block; font: 9px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.cmpside b { font-weight: normal; font-size: 12.5px; line-height: 1.2; }
+.cmpside .rar { min-width: 13px; padding: 0 2px; font-size: 10px; }
+.cmprows { margin-top: 7px; border-top: 1px solid rgba(92, 64, 32, .6); padding-top: 4px; }
+.cmprow { display: grid; grid-template-columns: 1fr 58px 58px; gap: 6px; font-size: 12.5px; line-height: 1.45; }
+.cmprow b { font-weight: normal; text-align: right; color: var(--gold); }
+.cmprow i { font-style: normal; text-align: right; }
+.cmprow i.good { color: #9fce86; } .cmprow i.bad { color: #f08a7c; } .cmprow i.dim { color: var(--dim); }
+.cmprow.head b, .cmprow.head i { font: 9px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.cmpnote { margin-top: 6px; font-size: 12px; line-height: 1.35; color: var(--dim); }
+.panel.racks { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px; }
+.panel.racks .listnote { flex: 1 1 100%; padding: 2px; }

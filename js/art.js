@@ -35,136 +35,281 @@ const ITEM_MAT = [
 ];
 const RARITY_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545', '#f0705e'];
 
-// Draws one piece on a 16x16 grid.
-function drawItemArt(ctx, slot, r, cls) {
-  const M = ITEM_MAT[r], wood = '#7a5a2a', woodD = '#5e4222', ink = '#1c1310';
-  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-  const diag = (x0, y0, n, w, c) => { for (let i = 0; i < n; i++) R(x0 + i, y0 - i, w, w, c); };
-  if (slot === 'weapon') {
+// ---------- pictures of equipment ----------
+// Every piece is built in layers on a 24x24 grid of letters, and only turned into colours at the end:
+//   shape     which drawing: the slot, and how well made the piece is. Grades come in four bands, and each band
+//             of a slot is a different object: scrap and leather (F, E), a soldier's plain kit (D, C), an officer's
+//             fine work (B, A), and parade armour (S). Relics each have a drawing of their own.
+//   material  the letters m, d, l, h, t stand for the grade's metal (main, dark, light, shine) and its trim.
+//   fitting   what the smith has done to it since: studs, splints, padding, piping, weight on the pommel.
+//   mark      a master-wrought piece is polished brighter, and its frame carries the maker's mark.
+// The outline is added last, round whatever has been drawn, so no shape has to carry its own.
+// Letters: m d l h metal · t T trim · w W wood · c e C leather (main, light, dark) · g G gold · j J gem ·
+// n N cloth · r R crest red · s skin · f F fur · q laurel · k ink · x rust on the two worst grades · p a pit on the
+// worst · v a rivet from iron upward · '.' nothing.
+const ITEM_BAND = [0, 0, 1, 1, 2, 2, 3];
+
+// Armour that is the same on both sides is drawn as its left half, lit from the left; the right half is the mirror
+// with light and shade changed over.
+const HALF = {
+  head: [
+    { y: 4, rows: [
+      '........eccc', '......eecccc', '.....eeccccc', '....eecccccc', '...eeccccccc', '...ecccccccc', '..eecccccccc',
+      '..lmmxmmmmpm', '..dddddddddd', '..eccCkkkkkk', '..eccCkkkkkk', '..eccCkkkkkk', '...ecCkkkkkk', '...eCC......', '....C.......'] },
+    { y: 2, rows: [
+      '..........mm', '..........mm', '.......lllmm', '.....llhlmmm', '....llhlmmmm', '...llhlmmmmm', '...llmmmmmmm', '..llmmmmmmmm',
+      '..lmmmmmmmmm', '..lmmmmmmmmm', '..dddddddddd', '.llmvmmmvmmm', '.ddddddddddd', '..lmmdkkkkkk', '..lmmdkkkkkk', '..lmmdkkkkkk',
+      '..lmmdkkkkkk', '...lmdkkkkkk', '...lmd......', '....dd......'] },
+    { y: 1, rows: [
+      '.........ttt', '.......ttttT', '......tttTTT', '......tTTmmm', '.....lllmmmm', '....llhlmmmm', '...llhlmmmmm', '...llmmmmmmm',
+      '..llmmmmmmmm', '..lmmmmmmmmm', '..tttttttttt', '.llmmmmmmmmm', 'lllmvmmmvmmm', '.ddddddddddd', '..lmmmdkkmmd', '..lmmmmmmmmd',
+      '..lmmkmkmkmd', '..lmmmmmmmmd', '..lmmkmkmkmd', '...lmmmmmmmd', '...ddddddddd'] },
+    { y: 1, rows: [
+      '........tttt', '......tttttT', '.....ttttTTT', '.....tttTTTT', '......tTTTgg', '.....lllmmgG', '....llhlmmmm', '...llhlmmmmm',
+      '...llmmmmmmm', '..llmmmmmmmJ', '..qgqgqgqgqj', '.llmmmmmmmmm', 'lllmGmmmGmmm', '.ddddddddddd', '..lmmmdkkmmg', '..lmmmmmmmmg',
+      '..gmmkmkmkmg', '..lmmmmmmmmg', '..gmmkmkmkmg', '...lmmmmmmmg', '...ggggggggg'] },
+  ],
+  chest: [
+    { y: 2, rows: [
+      '...eec......', '...ecc......', '...ecc......', '..eeccc...cc', '..eccccccccc', '..ecccccdddd', '..eccccdlmmm', '..eccccdmxmm',
+      '..eccccdmmmp', '..eccccdmmmm', '...ecccdmmmm', '...eccccdddd', '...ecccccccc', '...ecccccccc', '...CCCCCCCCC', '...cCcCcCcCc',
+      '...cCcCcCcCc', '...c.c.c.c.c'] },
+    { y: 1, rows: [
+      '...lm.......', '...lm.......', '..llmm...mmm', '..lmmmmmmmmm', '.llmmmmmmmmm', '.lmhlmmmmmmd', '.lmlmmmmmmmd', '.lmmmmmddmmd',
+      '.lmmmmdmmmmd', '..lmmmmmmmmd', '..lmmmmmmmmd', '..lmmvmmmvmd', '...lmmmmmmmd', '...lmmmmmmmm', '...ddddddddd', '...CCCCCCCCC',
+      '...cCcCcCcCc', '...cCcCcCcCc', '...c.c.c.c.c'] },
+    { y: 1, rows: [
+      '..lmm.......', '..lmmm......', '.llmmmm..mmm', '.lmmmmmmmmmm', 'llmmmmmmmmmm', 'lmhlmmmmmmmd', 'lmlmmmddmmmd', '.lmmmdmmdmmd',
+      '.lmmmmddmmmd', '..lmmmmmmmmd', '..lmmdmmdmmd', '..lmmmmmmmmd', '..lmmdmmdmmd', '...lmmmmmmmd', '...lmmmmmmmm', '...ttttttttt',
+      '...tTtTtTtTt', '...tTtTtTtTt', '...t.t.t.t.t'] },
+    { y: 1, rows: [
+      '..gmm.......', '..gmmm......', '.ggmmmm..ggg', '.lmmmmmmmmmm', 'llmmmmmmmmmm', 'lmhlmmmmmmmJ', 'lmlmmmmmmmmj', '.lmgGggggggg',
+      '.lmmgggGgggg', '..lmmmggmmgg', '..lmmdmmdmgg', '..lmmmmmmmmg', '..lmmdmmdmmd', '...lmmmmmmmd', '...lmmmmmmmm', '...gGgGgGgGg',
+      '...tTtTtTtTt', '...tTtTtTtTt', '...g.g.g.g.g'] },
+  ],
+  shoulders: [
+    { y: 6, rows: [
+      '....eccc....', '..eeccccc...', '.eccccccccc.', '.ecclmmmccc.', '.ecclmxmccC.', '.ecclmmpccC.', '.eccdddcccC.', '.eccccccccC.',
+      '..CcccccCC..', '...CCCCC....'] },
+    { y: 5, rows: [
+      '....llmm....', '..llhmmmmm..', '.llhmmmmmmd.', '.lhmmmmmmmdC', '.lmmmmmmmmdC', '.lmmmmmmmmd.', '.lmvmmmmvmd.', '.dddddddddd.',
+      '..lmmmmmmd..', '..dddddddd..'] },
+    { y: 4, rows: [
+      '....llmm....', '..llhmmmmm..', '.llhmmmmmmd.', '.lhmmmmmmmdC', '.ttttttttttC', '.llmmmmmmmd.', '.lmmmmmmmmd.', '.tttttttttt.',
+      '..lmmmmmmd..', '..lmmmmmmd..', '..tttttttt..', '...lmmmmd...', '...dddddd...'] },
+    { y: 4, rows: [
+      '....ggGg....', '..ggGggggg..', '.llhmmmmmmd.', '.lhmggggmmdg', '.lmgGJjggmdg', '.lmggjjggmd.', '.lmmgkkgmmd.', '.gGgGgGgGgG.',
+      '..lmmmmmmd..', '..lmmmmmmd..', '..gGgGgGgG..', '...lmmmmd...', '...gggggg...'] },
+  ],
+};
+// One greave; a pair is two of them side by side.
+const GREAVE = [
+  { y: 3, rows: [
+    '..eccc...', '.eelmcC..', '.eclmcC..', '.CCCCCC..', '.eclxcC..', '.eclmcC..', '.eclmcC..', '.CCCCCC..', '.eclmcC..',
+    '.eclpcC..', '..elmcC..', '..CCCCC..', '..elmcC..', '..elmcC..', '..ecCC...', '.wwwwww..', 'wwwwwwW..'] },
+  { y: 2, rows: [
+    '..lmmm...', '.llmmmd..', '.lmmmmd..', '.lhmmmd..', '.lhmmmd..', '.lmmmmd..', '.lmmmmd..', '.CCCCCC..', '.lmmmmd..',
+    '.lmmmmd..', '..lmmmd..', '..lmmmd..', '..lmmmd..', '..lmvmd..', '..lmmd...', '..dddd...', '.wwwwww..', 'wwwwwwW..'] },
+  { y: 1, rows: [
+    '...lmm...', '..llmmm..', '.llhmmmd.', '.lhmmmmd.', '.lmmmmmd.', '..ttttt..', '.llmmmd..', '.lhmdmd..', '.lhmdmd..',
+    '.lmmdmd..', '.lmmdmd..', '.lmmdmd..', '..lmdmd..', '..lmdmd..', '..lmmmd..', '..ttttt..', '..lmmmd..', '..lmmd...',
+    '..dddd...', '.wwwwww..', 'wwwwwwW..'] },
+  { y: 1, rows: [
+    '...ggg...', '..gGggg..', '.ggJjggd.', '.lgjjggd.', '.lmgggmd.', '..gGgGg..', '.llmmmd..', '.lhmgmd..', '.lhmgmd..',
+    '.lmmgmd..', '.lmmgmd..', '.lmmgmd..', '..lmgmd..', '..lmgmd..', '..lmmmd..', '..gGgGg..', '..lmmmd..', '..lmmd...',
+    '..gggg...', '.wwwwww..', 'wwwwwwW..'] },
+];
+// The five pieces out of the old stories: a drawing each, in a metal of its own.
+const RELIC_ART = {
+  crest: { mat: 4, half: { y: 1, rows: [      // the centurion's crest runs from ear to ear
+    '..rrrrrrrrrr', '.rRrRrRrRrRr', '.rRrRrRrRrRr', '..rrrrrrrrrr', '.....gggmmgg', '....llhlmmmm', '...llhlmmmmm', '...llmmmmmmm',
+    '..llmmmmmmmm', '..lmmmmmmmmm', '..gggggggggg', '.llmmmmmmmmm', 'lllmgmmmgmmm', '.ddddddddddd', '..lmmdkkkkkk', '..lmmdkkkkkk',
+    '..lmmdkkkkkk', '..gmmdkkkkkk', '...gmdkkkkkk', '...ggd......', '....gd......'] } },
+  cuirass: { mat: 4, half: { y: 1, rows: [    // silvered scale, and a legate's red sash knotted over it
+    '..lmm.......', '..lmmm......', '.llmmmm..mmm', '.lmmmmmmmmmm', 'llmmdlmmdlmm', 'lmdlmmdlmmdl', '.lmmdlmmdlmm', '.ldlmmdlmmdl',
+    '..rrrrrrrrRR', '..RrrrrrrRrr', '..lmdlmmdlRr', '..llmmdlmmdr', '..lmdlmmdlmr', '...lmmdlmmdl', '...ldlmmdlmm', '...ggggggggg',
+    '...rRrRrRrRr', '...rRrRrRrRr', '...r.r.r.r.r'] } },
+  pelt: { mat: 2, half: { y: 3, rows: [       // the fell lion, his mask at the collar and a paw over each shoulder
+    '.......ff.ff', '......ffFfff', '....fffFffff', '...ffFfffkfn', '..ffFfffffnn', '.ffFfFfffnkk', '.fFffffFffn.', '.ffFfffff...',
+    '.fffFfFf....', '.ffffff.....', '..fFfff.....', '..ffff......', '..fff.......', '..n.n.......'] } },
+  greaves: { mat: 2, greave: { y: 2, rows: [  // beaten thin, with a wing at each ankle
+    '..lmmm...', '.llmmmd..', '.lhmmmd..', '.lhmmmd..', '.lmmmmd..', '.lmmmmd..', '.lmmmmd..', '.lmmmmd..', '..lmmmd..',
+    '..lmmmd..', '..lhmmd..', '..lmmmd..', 'nN.lmmd..', 'nnNlmmd..', '.nnNmd...', '..dddd...', '.wwwwww..', 'wwwwwwW..'] } },
+  vambrace: { mat: 3, full: { x: 3, y: 4, rows: [   // an arm-ring of three coils, gold over iron
+    '....gGGGGGGg....', '..gGGggggggGGg..', '.gGgd......dgGg.', '.gGd........dgg.', '.ggGd......dgGg.', '.dggGGGGGGGGggd.',
+    '.gGdgggggggggGg.', '.gGd........dgg.', '.ggGd......dgGg.', '.dggGGGGGGGGggd.', '.gGdgggggggggGg.', '.gGd........dgg.',
+    '.ggGd......dgGg.', '..ggGGGGGGGGgg..', '....gggggggjJ...'] } },
+};
+
+function drawItemArt(ctx, slot, r, cls, o) {
+  o = o || {};
+  const relic = o.relic && RELIC_ART[o.relic] ? RELIC_ART[o.relic] : null;
+  const band = ITEM_BAND[r], M = ITEM_MAT[relic ? relic.mat : r], fit = o.fit || '';
+  const N = 24, cells = new Array(N * N).fill('');
+  let flip = false;
+  const at = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? '' : cells[y * N + x]);
+  const put = (x, y, c) => { if (flip) x = N - 1 - x; if (c && c !== '.' && x >= 0 && y >= 0 && x < N && y < N) cells[y * N + x] = c; };
+  const R = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c); };
+  const P = (pts, c) => { for (const [x, y] of pts) put(x, y, c); };
+  const stroke = (x0, y0, n, w, c) => { for (let i = 0; i < n; i++) R(x0 + i, y0 - i, w, w, c); };      // a band running up and to the right
+  const stamp = (m, x0) => m.rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) put(x0 + i, m.y + j, row[i]); });
+  const SWAP = { l: 'd', d: 'l', h: 'm', e: 'C', C: 'e', G: 'g', N: 'n' };
+  const mirror = m => m.rows.forEach((row, j) => { for (let i = 0; i < 12; i++) { put(i, m.y + j, row[i]); put(23 - i, m.y + j, SWAP[row[i]] || row[i]); } });
+
+  // ---- weapons: drawn along the diagonal, hilt at the bottom left ----
+  const blade = (x0, y0, n, w) => {             // edge to the light, back in shade, and a point
+    stroke(x0, y0, n, w, 'm'); stroke(x0, y0, n, 1, 'l'); stroke(x0 + w - 1, y0 + w - 1, n, 1, 'd');
+    if (w >= 3) { R(x0 + n + 1, y0 - n, 2, 2, 'm'); put(x0 + n + 1, y0 - n, 'l'); put(x0 + n + 3, y0 - n - 1, 'l'); }
+    else { put(x0 + n + 1, y0 - n, 'l'); }
+  };
+  const hilt = (bd, small) => {
+    stroke(2, 20, 4, 2, 'w'); stroke(3, 21, 4, 1, 'W');                                   // the grip
+    if (bd >= 2 && fit !== 'quick') P([[3, 20], [5, 18]], bd === 3 ? 'g' : 't');          // wire round it
+    if (fit === 'quick') { stroke(2, 20, 4, 1, 'n'); P([[4, 20], [6, 18]], 'N'); }         // bound in linen for a light hand
+    const gl = small ? 1 : bd === 0 ? 1 : bd === 1 ? 2 : 3, gc = bd === 3 ? 'g' : bd === 0 ? 'd' : 't';
+    for (let k = -gl; k <= gl; k++) R(6 + k, 16 + k, 2, 2, gc);                           // the guard, across the blade
+    if (bd >= 2) { put(6 - gl, 16 - gl, bd === 3 ? 'G' : 'l'); put(7 + gl, 17 + gl, bd === 3 ? 'j' : 'T'); }
+    if (bd === 3) put(6, 16, 'G');
+    // the pommel: a lump of lead if weighted, a ring if balanced
+    if (fit === 'weighted') { R(0, 20, 4, 4, 'd'); R(1, 21, 2, 2, 'm'); put(1, 21, 'l'); }
+    else if (fit === 'balanced') { R(0, 20, 4, 4, 'g'); R(1, 21, 2, 2, 'k'); put(0, 20, '.'); cells[20 * N + (flip ? 23 : 0)] = ''; put(1, 20, 'G'); }
+    else if (bd === 0) R(1, 21, 2, 2, 'd');
+    else if (bd === 3) { R(1, 20, 3, 3, 'g'); put(2, 21, 'j'); put(1, 20, 'G'); }
+    else { R(1, 20, 3, 3, bd === 2 ? 't' : 'm'); put(1, 20, 'l'); put(3, 22, 'd'); }
+  };
+  const sword = (len, small) => {
+    const w = fit === 'quick' ? 2 : 3, x0 = 7, y0 = w === 2 ? 16 : 15;
+    blade(x0, y0, len, w); hilt(band, small);
+    if (r <= 1) { P([[x0 + 3, y0 - 2], [x0 + 6, y0 - 5]], 'x'); if (r === 0) { P([[x0 + 5, y0 - 5], [x0 + 2, y0 - 2]], 'p'); cells[(y0 - 4) * N + (flip ? 23 - x0 - 4 : x0 + 4)] = ''; } }      // rust, and a notch out of the edge
+    if (band >= 1 && w === 3) stroke(x0 + 2, y0, len - 3, 1, band >= 2 ? 'd' : 'm');      // a fuller down the blade
+    if (band >= 2 && w === 3) stroke(x0 + 1, y0, len - 1, 1, 'h');                         // ground and polished
+    if (band === 3) P([[x0 + 3, y0 - 1], [x0 + 5, y0 - 3], [x0 + 7, y0 - 5]], 'g');        // gold let into the steel
+  };
+  const shaft = n => {
+    stroke(1, 21, n, 2, 'w'); stroke(2, 22, n, 1, 'W');
+    if (band >= 1) P([[5, 18], [9, 14]], 'd');                                             // iron bands
+    if (band >= 2) { R(0, 22, 2, 2, 'm'); put(0, 23, 'd'); }                               // a shod butt
+    if (band === 3) { P([[5, 18], [9, 14]], 'g'); R(0, 22, 2, 2, 'g'); }
+    if (fit === 'weighted') { R(0, 20, 4, 4, 'd'); R(1, 21, 2, 2, 'm'); put(1, 21, 'l'); }
+    if (fit === 'balanced') { R(3, 18, 3, 3, 'g'); put(3, 18, 'G'); }                       // a collar where the hand goes
+    if (fit === 'quick') { stroke(6, 16, 3, 2, 'n'); stroke(7, 17, 3, 1, 'N'); }
+  };
+  if (!relic && slot === 'weapon') {
     const kind = WEAPON_NAMES[cls] || 'gladius';
-    if (kind === 'spear' || kind === 'trident') {
-      diag(2, 13, 9, 2, ink); diag(2, 13, 9, 1, wood); for (let i = 0; i < 9; i++) R(3 + i, 13 - i, 1, 1, woodD);
-      if (kind === 'spear') { diag(10, 5, 4, 3, ink); diag(10, 5, 4, 2, M.m); diag(11, 5, 3, 1, M.l); R(13, 1, 2, 2, M.l); }
-      else { R(9, 3, 5, 1, ink); R(12, 3, 1, 5, ink); diag(10, 5, 3, 1, M.m); R(9, 1, 1, 3, M.m); R(11, 0, 1, 4, M.l); R(14, 3, 1, 3, M.m); R(12, 4, 3, 1, M.m); R(13, 5, 1, 2, M.d); R(9, 0, 1, 1, M.l); R(15, 5, 1, 1, M.l); }
+    if (kind === 'gladius') sword([9, 11, 12, 12][band]);
+    else if (kind === 'sica') {                  // a short blade that hooks forward at the end
+      const n = [6, 7, 7, 7][band];
+      blade(7, 15, n, 3); hilt(band);
+      R(8 + n, 14 - n, 3, 3, 'm'); R(10 + n, 13 - n, 3, 3, 'm'); R(12 + n, 13 - n, 2, 2, 'm'); put(14 + n, 13 - n, 'l');
+      R(8 + n, 14 - n, 5, 1, 'l'); P([[9 + n, 16 - n], [10 + n, 15 - n], [11 + n, 15 - n], [12 + n, 14 - n], [13 + n, 14 - n]], 'd');
+      put(7 + n, 15 - n, 'l');
+      if (r <= 1) { P([[10, 12], [13, 9]], 'x'); if (r === 0) P([[11, 12], [16, 8]], 'p'); }
+      if (band >= 2) stroke(8, 15, n, 1, 'h');
+      if (band === 3) P([[10, 14], [12, 12], [14, 10]], 'g');
     } else if (kind === 'twin blades') {
-      diag(3, 12, 8, 3, ink); diag(4, 11, 7, 2, M.m); diag(4, 11, 7, 1, M.l);
-      for (let i = 0; i < 8; i++) R(12 - i, 12 - i, 3, 3, ink); for (let i = 0; i < 7; i++) { R(11 - i, 11 - i, 2, 2, M.m); R(12 - i, 11 - i, 1, 1, M.d); }
-      R(2, 12, 3, 3, M.t); R(11, 12, 3, 3, M.t); R(3, 13, 1, 1, '#e8b545'); R(12, 13, 1, 1, '#e8b545');
-    } else {
-      const n = kind === 'sica' ? 6 : 9;
-      diag(4, 11, n, 3, ink); diag(5, 10, n - 1, 2, M.m); diag(5, 10, n - 1, 1, M.l);
-      if (kind === 'sica') { R(9, 2, 5, 4, ink); R(10, 3, 3, 2, M.m); R(12, 3, 2, 1, M.l); R(13, 4, 1, 2, M.m); }
-      else R(13, 1, 2, 2, M.l);
-      R(2, 9, 5, 2, ink); R(5, 11, 2, 3, ink); R(3, 9, 3, 1, '#e8b545'); R(5, 11, 1, 2, '#e8b545');     // guard
-      R(1, 12, 4, 3, ink); R(2, 12, 2, 2, wood); R(1, 14, 2, 1, M.t);                                    // grip and pommel
+      sword([7, 8, 9, 9][band], true); flip = true; sword([7, 8, 9, 9][band], true); flip = false;
+    } else if (kind === 'spear') {
+      shaft(15);
+      const n = [3, 4, 4, 4][band];
+      R(14, 7, 3, 3, band === 3 ? 'g' : band >= 1 ? 't' : 'C');                             // the socket, bound on
+      blade(15, 6, n, 3);
+      if (band >= 2) { stroke(15, 5, n - 1, 1, 'l'); stroke(18, 8, n - 1, 1, 'd'); stroke(16, 7, n, 1, 'h'); }      // a broader leaf
+      if (r <= 1) { P([[17, 5]], 'x'); if (r === 0) P([[16, 7], [4, 19]], 'p'); }
+      if (band >= 2) P([[12, 12], [11, 13], [11, 14]], 'r');                                // a tassel under the head
+    } else {                                     // trident
+      shaft(12);
+      for (let k = -3; k <= 3; k++) R(13 + k, 9 + k, 2, 2, band === 3 ? 'g' : 'd');        // the bar the tines stand on
+      for (const k of [-3, 3, 0]) {
+        const n = k ? 5 : 6, x0 = 14 + k, y0 = 8 + k;
+        stroke(x0, y0, n, 2, 'm'); stroke(x0, y0, n, 1, 'l'); stroke(x0 + 1, y0 + 1, n, 1, 'd');
+        put(x0 + n + 1, y0 - n, 'l');
+        if (band >= 1) put(k < 0 ? x0 + n - 2 : x0 + n + 1, k < 0 ? y0 - n + 1 : y0 - n + 3, 'm');      // a barb on each
+      }
+      if (band >= 2) stroke(14, 8, 6, 1, 'h');
+      if (r <= 1) { P([[16, 6], [19, 9]], 'x'); if (r === 0) P([[13, 4], [5, 18]], 'p'); }
     }
-  } else if (slot === 'head') {
-    R(3, 2, 10, 13, ink);
-    R(4, 4, 8, 5, M.m); R(4, 4, 8, 1, M.l); R(5, 5, 2, 2, M.l); R(4, 8, 8, 1, M.d);
-    R(2, 9, 12, 2, ink); R(3, 9, 10, 1, M.l);                                   // brim
-    R(4, 10, 3, 4, M.m); R(9, 10, 3, 4, M.m); R(7, 10, 2, 3, ink); R(4, 13, 3, 1, M.d); R(9, 13, 3, 1, M.d);
-    R(5, 1, 6, 3, ink); R(6, 1, 4, 2, M.t); R(6, 1, 4, 1, r >= 5 ? '#fbe08a' : M.t);   // crest
-  } else if (slot === 'chest') {
-    R(2, 1, 12, 14, ink);
-    R(3, 2, 3, 3, M.m); R(10, 2, 3, 3, M.m); R(6, 2, 4, 2, ink);                // shoulder straps, neck
-    R(3, 5, 10, 6, M.m); R(4, 11, 8, 3, M.m); R(3, 5, 10, 1, M.l); R(3, 5, 1, 6, M.l);
-    R(7, 6, 2, 7, M.d); R(4, 7, 3, 1, M.d); R(9, 7, 3, 1, M.d); R(5, 10, 6, 1, M.d);
-    R(4, 13, 8, 1, M.t); if (r >= 4) { R(5, 6, 1, 1, M.l); R(10, 6, 1, 1, M.l); R(7, 3, 2, 1, '#e8b545'); }
-  } else if (slot === 'legs') {
-    for (const x of [2, 9]) {
-      R(x, 1, 5, 14, ink); R(x + 1, 2, 3, 11, M.m); R(x + 1, 2, 1, 11, M.l); R(x + 3, 3, 1, 9, M.d);
-      R(x + 1, 2, 3, 2, M.l); R(x + 1, 7, 3, 1, M.t); R(x, 13, 5, 2, ink); R(x + 1, 13, 4, 1, wood);
+  } else if (relic) {
+    if (relic.half) mirror(relic.half);
+    if (relic.greave) { stamp(relic.greave, 3); stamp(relic.greave, 13); }
+    if (relic.full) stamp(relic.full, relic.full.x);
+  } else if (slot === 'legs') { stamp(GREAVE[band], 2); stamp(GREAVE[band], 13); }
+  else if (slot === 'arms') {
+    // an arm guard of overlapping plates, shoulder to wrist, with the hand at the end of it
+    const n = [3, 4, 5, 6][band], sw = Math.floor(16 / n);
+    for (let i = 0; i < n; i++) {
+      const x = 2 + i * sw, hh = 11 - Math.round(i * 4 / (n - 1)), top = 6 + Math.floor((11 - hh) / 2), lea = band === 0 && i % 2 === 0;
+      R(x, top, sw, hh, lea ? 'c' : 'm'); R(x, top, sw, 1, lea ? 'e' : 'l'); R(x, top + hh - 1, sw, 1, lea ? 'C' : 'd'); R(x + sw - 1, top, 1, hh, lea ? 'C' : 'd');
+      if (!lea) { put(x, top + 1, 'h'); if (band >= 1) put(x + (sw >> 1), top + (hh >> 1), 'v'); if (band === 0) put(x + 1, top + 3 + i, i === 1 ? 'x' : 'p'); }
+      if (band >= 2) { R(x, top, sw, 1, band === 3 ? 'g' : 't'); R(x, top + hh - 1, sw, 1, band === 3 ? 'g' : 'T'); }
     }
-  } else if (slot === 'arms') {
-    R(2, 4, 12, 9, ink);
-    for (let i = 0; i < 4; i++) { R(3 + i * 3, 5, 2, 7, M.m); R(3 + i * 3, 5, 2, 1, M.l); R(5 + i * 3, 5, 1, 7, M.d); }
-    R(3, 11, 11, 1, M.d); R(13, 6, 2, 5, ink); R(13, 7, 1, 3, '#d9a57c');       // the hand end
-    R(1, 6, 2, 5, M.t);
-  } else {  // shoulders
-    for (const [x, f] of [[1, 1], [9, -1]]) {
-      R(x, 4, 6, 9, ink); R(x + 1, 5, 4, 3, M.m); R(x + 1, 5, 4, 1, M.l);
-      R(x + 1, 8, 4, 2, M.m); R(x + 1, 8, 4, 1, M.d); R(x + 1, 10, 4, 2, M.m); R(x + 1, 10, 4, 1, M.d);
-      R(f > 0 ? x + 4 : x + 1, 6, 1, 1, '#e8b545');
+    const xe = 2 + n * sw;
+    R(xe, 9, 1, 6, band === 3 ? 'g' : band === 2 ? 't' : 'C');                             // the cuff
+    R(xe + 1, 10, 3, 4, 's'); R(xe + 4, 11, 1, 3, 's'); R(xe + 2, 14, 2, 1, 's'); put(xe + 1, 10, 'k'); P([[xe + 4, 12]], 'k');      // the hand
+    if (band >= 2) {                             // a cop over the elbow
+      const cx = 2 + Math.floor(n / 2) * sw - 1;
+      R(cx - 1, 9, 5, 5, 'm'); R(cx, 8, 3, 7, 'm'); R(cx - 1, 9, 1, 5, 'l'); R(cx, 8, 3, 1, 'l'); R(cx + 3, 10, 1, 4, 'd'); R(cx, 14, 3, 1, 'd');
+      R(cx, 10, 3, 3, band === 3 ? 'g' : 't'); put(cx + 1, 11, band === 3 ? 'j' : 'l'); if (band === 3) put(cx, 10, 'G');
     }
-    R(6, 3, 4, 3, ink); R(7, 4, 2, 1, M.t);
-  }
-  // ---- what its grade has done to it: rust and damage at the bottom, rivets and polish in the middle, gold and gems at the top ----
-  const P = (pts, c) => { for (const [x, y] of pts) R(x, y, 1, 1, c); };
-  const rust = '#a0522d', pit = '#3a1c10', gold = '#e8b545', goldL = '#fbe08a', gem = r === 6 ? '#b77be8' : '#d8402e', gemL = r === 6 ? '#f0e0ff' : '#ff9a8a';
-  const long = slot === 'weapon' && ['spear', 'trident'].includes(WEAPON_NAMES[cls]), twin = slot === 'weapon' && WEAPON_NAMES[cls] === 'twin blades';
-  if (slot === 'weapon') {
-    if (long) {
-      if (r <= 1) { P([[11, 4], [12, 2]], rust); if (r === 0) P([[12, 4], [4, 11]], pit); }
-      if (r >= 2) P([[9, 6], [10, 6]], M.t);                                     // a binding under the head
-      if (r >= 3) P([[5, 10], [7, 8]], M.d);                                     // iron bands on the shaft
-      if (r >= 4) P([[12, 3]], '#ffffff');
-      if (r >= 5) { P([[9, 6], [10, 6], [9, 7]], gold); P([[8, 8], [7, 9]], '#c23b2e'); P([[2, 14], [3, 14]], gold); }      // gilt, a tassel, a shod butt
-      if (r === 6) P([[11, 5]], gem);
-    } else if (twin) {
-      if (r <= 1) { P([[6, 9], [9, 9]], rust); if (r === 0) P([[8, 7], [7, 7], [10, 5]], pit); }
-      if (r >= 3) P([[6, 10], [9, 10]], M.d);
-      if (r >= 4) P([[10, 4], [5, 4]], '#ffffff');
-      if (r >= 5) { P([[2, 12], [4, 12], [11, 12], [13, 12]], gold); P([[3, 13], [12, 13]], gem); }
-      if (r === 6) P([[7, 8], [8, 8]], goldL);
-    } else {
-      if (r <= 1) { P([[7, 8], [10, 5]], rust); if (r === 0) P([[8, 8], [11, 5], [9, 5]], pit); }      // rust, and a notch out of the edge
-      if (r >= 3) P([[6, 10], [8, 8], [10, 6]], M.d);                             // a fuller down the blade
-      if (r >= 4) P([[7, 8], [9, 6], [11, 4]], '#ffffff');                        // polished
-      if (r >= 5) { R(2, 9, 5, 1, gold); R(3, 9, 2, 1, goldL); P([[1, 13], [2, 14]], gold); P([[1, 14]], gem); }      // a gilt guard, a jewelled pommel
-      if (r === 6) P([[6, 9], [8, 7], [10, 5]], goldL);                           // gold let into the steel
-    }
-  } else if (slot === 'head') {
-    if (r <= 1) { P([[6, 6], [10, 5], [5, 11]], rust); R(5, 1, 6, 1, ink); R(6, 2, 4, 1, M.d); if (r === 0) P([[9, 7], [10, 12], [7, 5]], pit); }      // rusted, its crest long gone
-    if (r >= 3) P([[4, 9], [7, 9], [11, 9]], M.d);                                // rivets along the brim
-    if (r >= 4) { R(6, 0, 4, 1, M.t); R(7, 0, 2, 1, shade(M.t, 1.3)); P([[10, 5]], '#ffffff'); }      // a full crest
-    if (r >= 5) { R(4, 7, 8, 1, gold); R(5, 7, 2, 1, goldL); P([[4, 11], [11, 11]], gold); }           // a band of gold round the bowl
-    if (r === 6) { P([[7, 6], [8, 6]], gem); P([[7, 5]], gemL); P([[5, 6], [10, 6]], '#8fc35a'); }     // a jewel at the brow, between laurel
-  } else if (slot === 'chest') {
-    if (r <= 1) { P([[5, 8], [10, 9], [6, 12]], rust); if (r === 0) { P([[9, 6], [10, 7], [10, 8]], ink); P([[4, 9], [8, 12]], pit); } else R(9, 8, 2, 2, '#6b4526'); }      // rust and a crack; or a leather patch
-    if (r >= 3) P([[4, 6], [11, 6], [4, 9], [11, 9], [5, 12], [10, 12]], M.d);    // rivets
-    if (r >= 5) { R(4, 13, 8, 1, gold); R(7, 8, 2, 2, gold); P([[7, 8]], goldL); P([[3, 2], [12, 2]], gold); }      // a gilt hem, and a boss on the breast
-    if (r === 6) { P([[5, 7], [6, 8], [9, 8], [10, 7]], gold); P([[7, 9], [8, 9]], gem); P([[8, 8]], gemL); }       // an eagle's wings round it, and a jewel
-  } else if (slot === 'legs') {
-    for (const x of [2, 9]) {
-      if (r <= 1) { P([[x + 2, 5], [x + 1, 10]], rust); if (r === 0) P([[x + 3, 8], [x + 2, 11]], pit); }
-      if (r >= 3) P([[x + 2, 4]], M.l);                                           // a boss at the knee
-      if (r >= 5) { R(x + 1, 2, 3, 1, gold); R(x + 1, 7, 3, 1, gold); P([[x + 2, 4]], goldL); }
-      if (r === 6) P([[x + 2, 9]], gem);
-    }
-  } else if (slot === 'arms') {
-    if (r <= 1) { P([[4, 8], [10, 7]], rust); if (r === 0) P([[7, 9], [3, 6], [12, 10]], pit); }
-    if (r >= 3) for (let i = 0; i < 4; i++) P([[3 + i * 3, 8]], M.d);             // a rivet in every plate
-    if (r >= 5) { R(3, 5, 11, 1, gold); R(3, 11, 11, 1, gold); P([[4, 5], [8, 5]], goldL); }
-    if (r === 6) P([[6, 8], [9, 8]], gem);
-  } else {
-    for (const x of [1, 9]) {
-      if (r <= 1) { P([[x + 2, 6], [x + 3, 10]], rust); if (r === 0) P([[x + 1, 9], [x + 4, 7]], pit); }
-      if (r >= 3) P([[x + 1, 9], [x + 4, 9], [x + 1, 11], [x + 4, 11]], M.l);     // rivets
-      if (r >= 5) { R(x + 1, 5, 4, 1, gold); R(x + 1, 12, 4, 1, gold); }
-      if (r === 6) { R(x + 2, 6, 2, 2, gold); P([[x + 2, 6]], gem); }             // a lion's mask on each
+    R(1, 5, 2, 13, band === 0 ? 'C' : band === 3 ? 'g' : 't');                             // the strap at the shoulder
+  } else mirror(HALF[slot][band]);
+
+  // ---- what the smith has done to it since: armour only; a weapon's fitting is in how it was drawn above ----
+  const metal = c => c === 'm' || c === 'l' || c === 'd' || c === 'h' || c === 'v';
+  const inside = (x, y) => at(x - 1, y) && at(x + 1, y) && at(x, y - 1) && at(x, y + 1);
+  if (slot !== 'weapon' && fit) {
+    const snap = cells.slice(), was = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? '' : snap[y * N + x]);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const c = was(x, y);
+      if (!c) continue;
+      const edge = !(was(x - 1, y) && was(x + 1, y) && was(x, y - 1) && was(x, y + 1));
+      if (fit === 'studded' && c === 'm' && !edge && x % 3 === 1 && y % 3 === 1) { cells[y * N + x] = 'h'; if (was(x, y + 1) === 'm') cells[(y + 1) * N + x] = 'd'; }
+      if (fit === 'braced' && metal(c) && !edge) { if (x % 5 === 2) cells[y * N + x] = 'k'; else if (x % 5 === 3) cells[y * N + x] = 'h'; }
+      if (fit === 'lightened' && c === 'm' && !edge && x % 4 === 1 && y % 4 === 2 && metal(was(x, y - 1)) && metal(was(x, y + 1))) cells[y * N + x] = 'k';
+      if (fit === 'lined' && edge && c !== 'k') cells[y * N + x] = was(x, y - 1) ? 'c' : 'e';
+      if (fit === 'padded' && c !== 'k') { if (!was(x, y + 1)) cells[y * N + x] = 'n'; else if (!was(x, y + 2) && !edge) cells[y * N + x] = 'N'; }
     }
   }
-  if (r === 6) { R(1, 1, 1, 1, '#ffffff'); R(14, 3, 1, 1, '#ffffff'); R(13, 13, 1, 1, '#fbe08a'); R(2, 12, 1, 1, '#fbe08a'); }   // an imperial piece glints
+  // ---- the outline, then colour (a master-wrought piece shines white where a plain one only catches the light) ----
+  const ink = '#1c1310', top = r >= 4 || relic || o.mw;
+  const C = {
+    m: M.m, d: M.d, l: M.l, h: top ? '#ffffff' : shade(M.l, 1.14), t: M.t, T: shade(M.t, 0.68),
+    w: '#7a5a2a', W: '#5e4222', c: '#8a5a34', e: '#a87244', C: '#5e3a22', g: '#e8b545', G: '#fbe08a',
+    j: r === 6 ? '#b77be8' : '#d8402e', J: r === 6 ? '#f0e0ff' : '#ff9a8a', n: '#d8c8a0', N: '#a89870',
+    r: '#c23b2e', R: '#ef7a66', s: '#d9a57c', f: '#c8913c', F: '#8a6226', q: '#8fc35a', k: ink,
+    x: r <= 1 ? '#a0522d' : M.m, p: r === 0 ? '#3a1c10' : M.m, v: r >= 3 ? M.d : M.m,
+  };
+  ctx.fillStyle = ink;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!at(x, y) && (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1))) ctx.fillRect(x, y, 1, 1);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const c = at(x, y); if (c) { ctx.fillStyle = C[c] || M.m; ctx.fillRect(x, y, 1, 1); } }
 }
 
-// Paints a <canvas data-item="slot:rarity:style">: a dark plate framed in the rarity's colour.
+// Paints a <canvas data-item="slot:rarity:style:fitting:master:relic">: a dark plate framed in the grade's colour,
+// 28 units square with the picture in the middle 24. Canvases are sized in whole multiples of 28.
 function paintItem(cv) {
-  const [slot, r, cls] = cv.dataset.item.split(':'), ctx = cv.getContext('2d'), s = cv.width / 20;
+  const [slot, r0, cls, fit, mw, relic] = cv.dataset.item.split(':'), r = +r0, ctx = cv.getContext('2d'), s = cv.width / 28;
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
   ctx.setTransform(s, 0, 0, s, 0, 0); ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = RARITY_COL[+r]; ctx.fillRect(0, 0, 20, 20);
-  ctx.fillStyle = '#17110f'; ctx.fillRect(1, 1, 18, 18);
-  ctx.fillStyle = '#2c211c'; ctx.fillRect(2, 2, 16, 16);
-  ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fillRect(2, 2, 16, 8);
-  if (+r >= 3) {                                 // a glow behind the better pieces, in the colour of their grade
-    const c = RARITY_COL[+r], n = parseInt(c.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
-    for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(${rgb},${(0.05 + (+r - 3) * 0.015).toFixed(3)})`; ctx.fillRect(4 + i, 4 + i, 12 - i * 2, 12 - i * 2); }
+  const fc = relic ? '#d8a657' : RARITY_COL[r];
+  R(0, 0, 28, 28, fc); R(1, 1, 26, 26, '#17110f'); R(2, 2, 24, 24, relic ? '#33261a' : '#2c211c');
+  R(2, 2, 24, 11, 'rgba(255,255,255,.05)');
+  if (r >= 3 || relic) {                         // a glow behind the better pieces, in the colour of their grade
+    const n = parseInt(fc.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
+    for (let i = 0; i < 5; i++) R(5 + i, 5 + i, 18 - i * 2, 18 - i * 2, `rgba(${rgb},${(0.045 + (relic ? 2 : r - 3) * 0.013).toFixed(3)})`);
   }
-  if (+r >= 5) { ctx.fillStyle = '#fff6d8'; for (const [x, y] of [[0, 0], [19, 0], [0, 19], [19, 19]]) ctx.fillRect(x, y, 1, 1); ctx.fillStyle = shade(RARITY_COL[+r], 1.3); ctx.fillRect(1, 0, 3, 1); ctx.fillRect(0, 1, 1, 3); ctx.fillRect(16, 19, 3, 1); ctx.fillRect(19, 16, 1, 3); }
-  if (+r === 0) { ctx.fillStyle = 'rgba(160,82,45,.10)'; ctx.fillRect(2, 12, 16, 6); }      // and the worst sit in their own rust
+  if (r >= 5 || relic) {                         // the best have their corners picked out
+    for (const [x, y] of [[0, 0], [27, 0], [0, 27], [27, 27]]) R(x, y, 1, 1, '#fff6d8');
+    const c = shade(fc, 1.3); R(1, 0, 4, 1, c); R(0, 1, 1, 4, c); R(23, 27, 4, 1, c); R(27, 23, 1, 4, c);
+  }
+  if (relic) { R(1, 1, 26, 1, '#7a5a2a'); R(1, 26, 26, 1, '#7a5a2a'); R(1, 1, 1, 26, '#7a5a2a'); R(26, 1, 1, 26, '#7a5a2a'); for (const [x, y] of [[1, 1], [26, 1], [1, 26], [26, 26]]) R(x, y, 1, 1, '#fbe08a'); }      // an old frame inside the new
+  if (r === 0 && !relic) R(2, 19, 24, 7, 'rgba(160,82,45,.10)');                              // and the worst sit in their own rust
   ctx.translate(2, 2);
-  drawItemArt(ctx, slot, +r, cls);
+  drawItemArt(ctx, slot, r, cls, { fit, mw: mw === '1', relic });
+  ctx.translate(-2, -2);
+  if (r === 6 && !relic) { R(3, 3, 1, 1, '#ffffff'); R(24, 6, 1, 1, '#ffffff'); R(23, 24, 1, 1, '#fbe08a'); R(4, 22, 1, 1, '#fbe08a'); }      // an imperial piece glints
+  if (mw === '1') { R(22, 3, 3, 1, '#fff6d8'); R(23, 2, 1, 3, '#fff6d8'); R(1, 24, 3, 3, '#17110f'); R(2, 24, 1, 3, '#fbe08a'); R(1, 25, 3, 1, '#fbe08a'); }      // a glint, and the maker's mark in the corner
 }
-function itemArt(it, size) { return `<canvas class="itemart" width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}"></canvas>`; }
+// size: 28, 56 or 84 (one, two or three screen pixels to each of the picture's).
+function itemArt(it, size) { return `<canvas class="itemart" width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}:${it.fit || ''}:${it.mw ? 1 : ''}:${it.relic || ''}"></canvas>`; }
 const ic = name => `<i class="ic ic-${name}"></i>`;
 
 // Turns the icon maps, and a neutral picture of each gear slot, into CSS classes.
@@ -179,10 +324,10 @@ const ic = name => `<i class="ic ic-${name}"></i>`;
     rules.push(`.ic-${name}{background-image:url(${cv.toDataURL()})}`);
   }
   for (const slot of ['weapon', 'head', 'chest', 'legs', 'arms', 'shoulders']) {
-    cv.width = cv.height = 16;
-    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 16, 16);
+    cv.width = cv.height = 24;
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 24, 24);
     drawItemArt(ctx, slot, 4, 'murmillo');
-    rules.push(`.ic-slot-${slot}{background-image:url(${cv.toDataURL()});width:26px;height:26px}`);
+    rules.push(`.ic-slot-${slot}{background-image:url(${cv.toDataURL()});width:24px;height:24px}`);
   }
   const st = document.createElement('style');
   st.textContent = rules.join('\n');
