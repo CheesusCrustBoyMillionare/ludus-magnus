@@ -81,6 +81,7 @@ function provLand() {
   };
   const bare = (tx, ty) => Math.round(bareC(tx, ty) * 5) / 5;      // and the same in six steps, for the one colour a tile is spoken of by
   const peakMix = {};
+  const amongPeaks = (tx, ty) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const x = tx + dx, y = ty + dy; if (x >= 0 && y >= 0 && x < TW && y < TH && pkIn[y * TW + x]) return true; } return false; };
   const peakPair = (tx, ty) => { const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return g ? [g[3], PEAK_ROCK[reg] || TILE_COL[T_PEAK]] : [TILE_COL[T_PEAK], TILE_COL[T_PEAK]]; };
   const ground = (k, tx, ty) => { tx = Math.max(0, Math.min(TW - 1, tx)); ty = Math.max(0, Math.min(TH - 1, ty)); const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : k === T_PEAK ? mixHex(g[3], PEAK_ROCK[reg] || TILE_COL[T_PEAK], bare(tx, ty)) : TILE_COL[k]; };
   const col = (k, tx, ty) => k === T_WATER ? (deep(tx, ty) ? '#3f7dab' : '#5a9cc6') : k === T_BRIDGE ? '#5a9cc6' : tint(ground(k === T_ROAD ? T_GRASS : k, tx, ty), tone(tx, ty));
@@ -88,11 +89,12 @@ function provLand() {
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, base = col(k, tx, ty);
     R(x, y, 10, 10, base);
-    if (k === T_PEAK) {                          // turf going over to rock a little at a time across the tile, not a tile at a time: no squares of it
+    if (k === T_PEAK || (k === T_HILL && amongPeaks(tx, ty))) {      // turf going over to rock a little at a time across the tile, not a tile at a time: no squares of it. Hill country that lies in a range, or up against one, is painted the same way, so that a pocket of it does not show as a square of plainer ground
       // (and where two countries meet under the mountains, each bit of ground takes its turf and its rock from one side or the other, so that their colours run together too)
-      const tn = tone(tx, ty), cl = (v, n) => Math.max(0, Math.min(n - 1, v));
+      // (and the broad light and dark of the country, which goes by the tile everywhere else, is taken the same way here: from one side or the other, so that it shades off and does not step)
+      const cl = (v, n) => Math.max(0, Math.min(n - 1, v));
       for (let sy = 0; sy < 5; sy++) for (let sx = 0; sx < 5; sx++) {
-        const jx = cl(Math.round(tx + (sx * 2 + 1) / 10 - 0.5 + (h(tx * 5 + sx, ty * 5 + sy, 1368) - 0.5) * 1.6), TW), jy = cl(Math.round(ty + (sy * 2 + 1) / 10 - 0.5 + (h(ty * 5 + sy, tx * 5 + sx, 1369) - 0.5) * 1.6), TH), pk = regT[jy * TW + jx] + '|' + tn;
+        const jx = cl(Math.round(tx + (sx * 2 + 1) / 10 - 0.5 + (h(tx * 5 + sx, ty * 5 + sy, 1368) - 0.5) * 1.6), TW), jy = cl(Math.round(ty + (sy * 2 + 1) / 10 - 0.5 + (h(ty * 5 + sy, tx * 5 + sx, 1369) - 0.5) * 1.6), TH), tn = tone(jx, jy), pk = regT[jy * TW + jx] + '|' + tn;
         const mixes = peakMix[pk] || (peakMix[pk] = (([turf, rk]) => [0, 1, 2, 3, 4].map(q => tint(mixHex(turf, rk, q / 4), tn)))(peakPair(jx, jy)));
         const u = tx + (sx * 2 + 1) / 10 - 0.5, v = ty + (sy * 2 + 1) / 10 - 0.5, x0 = Math.floor(u), y0 = Math.floor(v), fu = u - x0, fv = v - y0;
         const f = (bareC(x0, y0) * (1 - fu) + bareC(x0 + 1, y0) * fu) * (1 - fv) + (bareC(x0, y0 + 1) * (1 - fu) + bareC(x0 + 1, y0 + 1) * fu) * fv;
@@ -560,7 +562,7 @@ function provLand() {
     const k = at(tx, ty), x = tx * 10, y = ty * 10;
     if (k === T_PEAK) continue;
     const n = at(tx, ty - 1), w = at(tx - 1, ty), nw = at(tx - 1, ty - 1);
-    if (!wet(k) && (n === T_PEAK || w === T_PEAK || nw === T_PEAK)) {      // under the mountains: deepest against them, and running out ragged, not a square of it laid on the tile
+    if (!wet(k) && k !== T_HILL && (n === T_PEAK || w === T_PEAK || nw === T_PEAK)) {      // (not on hill country: that is high ground too, and a pocket of it in a range is not in shadow)      // under the mountains: deepest against them, and running out ragged, not a square of it laid on the tile
       const sh = 'rgba(18,20,40,.055)';
       if (n === T_PEAK) for (let q = 0; q < 5; q++) { const len = 3 + Math.floor(h(tx * 5 + q, ty, 1362) * 6); R(x + q * 2, y, 2, len, sh); R(x + q * 2, y, 2, len >> 1, sh); }
       if (w === T_PEAK) for (let q = 0; q < 5; q++) { const len = 2 + Math.floor(h(tx, ty * 5 + q, 1363) * 5); R(x, y + q * 2, len, 2, sh); R(x, y + q * 2, len >> 1, 2, sh); }
