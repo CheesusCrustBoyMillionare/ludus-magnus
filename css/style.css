@@ -1225,6 +1225,15 @@ table.keys td:first-child { white-space: nowrap; font-family: Consolas, monospac
 .wearers.twoup .lrow { min-height: 32px; padding-top: 3px; padding-bottom: 3px; }
 .wearers.twoup .lrow small { display: none; }
 .wearers.twoup .lrow { min-height: 28px; padding-top: 2px; padding-bottom: 2px; }
+/* two abreast, a man's name had what was left after his gain and the button, which in a narrow window was nothing.
+   The gain now goes under the name, the button stands beside the pair, and the list falls to one column where
+   two will not fit. */
+.wearers.twoup { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.wearers.twoup .lrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 0; align-items: center; }
+.wearers.twoup .lrow .grow { grid-column: 1; grid-row: 1; }
+.wearers.twoup .lrow .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+.wearers.twoup .lrow .end { grid-column: 1; grid-row: 2; justify-self: start; margin: 0; font-size: 11.5px; line-height: 1.2; white-space: nowrap; }
+.wearers.twoup .lrow button { grid-column: 2; grid-row: 1 / span 2; }
 
 /* ---- the arena: wagers, stakes, standings ---- */
 .wagerrow { flex-wrap: nowrap; }
