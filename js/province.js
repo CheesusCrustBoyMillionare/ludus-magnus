@@ -2146,6 +2146,15 @@ function provLand() {
 // A herd wanders round its home, slowly, by a path that is the same for everyone and for every time it is looked at:
 // where it stands is worked out from the clock, not remembered. Sheep graze and drift, with a shepherd and his dog
 // to some of them; cattle hardly move; goats keep to the hills; deer run from the column.
+// A coat of its own for one beast: the colour of its kind, a little lighter or darker (a, 0 to 1) and a little redder
+// or duller (b, 0 to 1). In a few steps each way, so that there are not endless colours to keep.
+const _coats = {};
+function coatOf(base, a, b) {
+  const la = Math.floor(clamp(a, 0, 0.999) * 7), wb = Math.floor(clamp(b, 0, 0.999) * 5), k = base + la + wb;
+  if (_coats[k]) return _coats[k];
+  const n = parseInt(base.slice(1), 16), f = 0.8 + la * 0.065, w = (wb - 2) * 7, ch = v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0');
+  return (_coats[k] = '#' + ch((n >> 16) * f + w) + ch(((n >> 8) & 255) * f) + ch((n & 255) * f - w));
+}
 function drawHerds(ctx, T, R, inView) {
   const F = G.field;
   for (const H of (prov.herds || [])) {
@@ -2183,8 +2192,9 @@ function drawHerds(ctx, T, R, inView) {
         R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 3 - hop, 4, 2, c); R(right ? x + 2 : x - 3, y - 4 - hop + (graze ? 1 : 0), 2, 2, c); R(right ? x + 2 : x - 2, y - 5 - hop + (graze ? 1 : 0), 1, 1, '#5a4a3a'); R(right ? x + 3 : x - 4, y - 3 - hop + (graze ? 1 : 0), 1, 1, c);
         R(x - 2 + step, y - 1 - hop, 1, 2, '#3a2a22'); R(x + 1 - step, y - 1 - hop, 1, 2, '#3a2a22');
       } else if (K === 'horses') {
-        const c = ['#7a4a2a', '#2a2220', '#c9c2ae', '#a8642e', '#c8a868'][Math.floor(B.b1 * 5)], dk = shade(c, 0.6), foal = B.b3 < 0.2, w = foal ? 5 : 8, bh = foal ? 3 : 4, lg = foal ? 2 : 3, hw = w >> 1, hx = right ? x + hw - 1 : x - hw - 1, trot = moving && Math.sin(T * 8 + B.i) > 0 ? 1 : 0;
-        R(x - hw, y + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(x - hw, y - lg - bh - trot, w, bh, c); if (B.b2 > 0.7 && c !== '#c9c2ae') R(x - 1, y - lg - bh - trot, 2, 2, '#e8e2d2');
+        // five coats, and no two horses of a coat quite the same: each a little lighter or darker than the next, and a little redder or duller
+        const base = ['#7a4a2a', '#2a2220', '#c9c2ae', '#a8642e', '#c8a868'][Math.floor(B.b1 * 5)], c = coatOf(base, B.b2, B.b3), dk = shade(c, 0.6), foal = B.b3 < 0.2, w = foal ? 5 : 8, bh = foal ? 3 : 4, lg = foal ? 2 : 3, hw = w >> 1, hx = right ? x + hw - 1 : x - hw - 1, trot = moving && Math.sin(T * 8 + B.i) > 0 ? 1 : 0;
+        R(x - hw, y + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(x - hw, y - lg - bh - trot, w, bh, c); if (B.b2 > 0.7 && base !== '#c9c2ae') R(x - 1, y - lg - bh - trot, 2, 2, '#e8e2d2');
         if (graze) { R(hx, y - lg - bh + 1, 2, bh, c); R(right ? hx + 1 : hx - 1, y - lg, 2, 2, c); } else { R(hx, y - lg - bh - 3 - trot, 2, 4, c); R(right ? hx + 1 : hx - 2, y - lg - bh - 3 - trot, 3, 2, c); R(right ? hx - 1 : hx + 2, y - lg - bh - 2 - trot, 1, 3, dk); }
         R(right ? x - hw - 1 : x + hw, y - lg - bh + 1 - trot, 1, 3, dk); R(x - hw + step, y - lg, 1, lg, dk); R(x + hw - 1 - step, y - lg, 1, lg, dk);
       } else if (K === 'pigs') {
@@ -3272,11 +3282,21 @@ function provRider(ctx, X, Y, o, lvl, who) {
     if (lvl >= 2) { R(-4, -10 - bob, 9, 3, cloth); R(-4, -8 - bob, 9, 1, shade(cloth, 0.7)); if (!up) { R(-2, -7 - bob, 5, 1, leather); R(0, -7 - bob, 1, 1, gold); } }
     if (lvl >= 3) { R(-4, -10 - bob, 9, 6, cloth); R(-4, -5 - bob, 9, 1, gold); R(-4, -10 - bob, 9, 1, shade(cloth, 1.25)); if (!up) { R(-1, -8 - bob, 3, 3, '#c9a23a'); R(-1, -8 - bob, 3, 1, '#f5d584'); R(0, -11 - bob, 1, 2, who === 0 ? '#f4f0e6' : '#c23b2e'); } }
   }
-  // the rider, sitting it: drawn from the waist up, with a leg down the near side
-  ctx.save(); ctx.beginPath(); ctx.rect(Math.round(X - 8), Math.round(Y - 30), 16, 20 - bob + (side ? 0 : 1)); ctx.clip();
-  vilPerson(ctx, X + (side ? -d : 0), Y - 7 - bob, Object.assign({}, o, { moving: false }));
+  // the rider, sitting it: drawn from the hips up and set down into the horse's back, so that no leg shows under him to
+  // stand on; and his legs drawn again where a rider's are: one down the near side, bent at the knee, when the horse is
+  // seen from the side, and one down each flank when it is seen end on
+  const sit = side ? 5 : 6, leg = o.skin || '#d9a57c', shin = lvl >= 3 ? '#c9a23a' : leg, shoe = '#4a3320';      // on a war-horse he rides in greaves
+  ctx.save(); ctx.beginPath(); ctx.rect(Math.round(X - 8), Math.round(Y - 30), 16, 26 - sit - bob); ctx.clip();
+  vilPerson(ctx, X + (side ? -d : 0), Y - sit - bob, Object.assign({}, o, { moving: false }));
   ctx.restore();
-  if (side) R(d > 0 ? -1 : 0, -9 - bob, 2, 4, lvl >= 3 ? shade(o.tunic, 0.8) : (o.skin || '#d9a57c'));
+  if (side) {
+    const F = (x, y, w, h, c) => R(d > 0 ? x : -x - w, y, w, h, c);
+    F(-1, -9 - bob, 3, 2, leg); F(1, -7 - bob, 2, 2, shin); F(1, -5 - bob, 3, 1, shoe);            // thigh forward, shin down, a foot
+    if (lvl >= 2) F(2, -11 - bob, 1, 2, lvl >= 3 ? gold : leather);                               // the pommel, in front of him
+    F(3, -11 - bob, 3, 1, leather);                                                               // the rein, from his hand to its neck
+  } else {
+    for (const s of [-1, 1]) { const lx = s < 0 ? -5 : 4; R(lx, -10 - bob, 2, 2, leg); R(lx, -8 - bob, 2, 2, shin); R(lx, -6 - bob, 2, 1, shoe); }      // astride: a leg down each flank
+  }
 }
 
 // ---------- the column on the move ----------
