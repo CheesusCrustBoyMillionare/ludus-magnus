@@ -185,15 +185,22 @@ function drawItemArt(ctx, slot, r, cls, o) {
     if (band >= 2 && w === 3) stroke(x0 + 1, y0, len - 1, 1, 'h');                         // ground and polished
     if (band === 3) P([[x0 + 3, y0 - 1], [x0 + 5, y0 - 3], [x0 + 7, y0 - 5]], 'g');        // gold let into the steel
   };
+  // A pole arm is drawn close: the head fills the picture and the shaft runs out of the bottom corner of the frame.
   const shaft = n => {
-    stroke(1, 21, n, 2, 'w'); stroke(2, 22, n, 1, 'W');
-    if (band >= 1) P([[5, 18], [9, 14]], 'd');                                             // iron bands
-    if (band >= 2) { R(0, 22, 2, 2, 'm'); put(0, 23, 'd'); }                               // a shod butt
-    if (band === 3) { P([[5, 18], [9, 14]], 'g'); R(0, 22, 2, 2, 'g'); }
-    if (fit === 'weighted') { R(0, 20, 4, 4, 'd'); R(1, 21, 2, 2, 'm'); put(1, 21, 'l'); }
-    if (fit === 'balanced') { R(3, 18, 3, 3, 'g'); put(3, 18, 'G'); }                       // a collar where the hand goes
-    if (fit === 'quick') { stroke(6, 16, 3, 2, 'n'); stroke(7, 17, 3, 1, 'N'); }
+    stroke(-1, 23, n, 2, 'w'); stroke(0, 24, n, 1, 'W');
+    if (band >= 1) for (const x of [3, 7]) P([[x, 22 - x], [x + 1, 23 - x]], band === 3 ? 'g' : 'd');      // iron bands
+    if (fit === 'weighted') { R(1, 19, 4, 4, 'd'); R(2, 20, 2, 2, 'm'); put(2, 20, 'l'); }  // a lump of lead on the shaft
+    if (fit === 'balanced') { R(4, 17, 3, 3, 'g'); put(4, 17, 'G'); put(6, 19, 'T'); }      // a collar where the hand goes
+    if (fit === 'quick') { stroke(2, 20, 4, 2, 'n'); stroke(3, 21, 4, 1, 'N'); }
   };
+  // A blade seen flat, point up and to the right: prof is its half-width at each step along it.
+  const leaf = (cx, cy, prof, rib) => prof.forEach((hw, i) => {
+    for (let k = -hw; k <= hw; k++) {
+      const c = k === 0 ? rib : k < 0 ? (k === -hw && hw > 2 ? 'm' : 'l') : k === hw && hw > 1 ? 'd' : 'm';
+      put(cx + i + k, cy - i + k, c); if (k < hw) put(cx + i + k + 1, cy - i + k, k < 0 ? 'l' : c === 'd' ? 'd' : 'm');
+    }
+    if (!hw) put(cx + i, cy - i, 'l');
+  });
   if (!relic && slot === 'weapon') {
     const kind = WEAPON_NAMES[cls] || 'gladius';
     if (kind === 'gladius') sword([9, 11, 12, 12][band]);
@@ -209,24 +216,33 @@ function drawItemArt(ctx, slot, r, cls, o) {
     } else if (kind === 'twin blades') {
       sword([7, 8, 9, 9][band], true); flip = true; sword([7, 8, 9, 9][band], true); flip = false;
     } else if (kind === 'spear') {
-      shaft(15);
-      const n = [3, 4, 4, 4][band];
-      R(14, 7, 3, 3, band === 3 ? 'g' : band >= 1 ? 't' : 'C');                             // the socket, bound on
-      blade(15, 6, n, 3);
-      if (band >= 2) { stroke(15, 5, n - 1, 1, 'l'); stroke(18, 8, n - 1, 1, 'd'); stroke(16, 7, n, 1, 'h'); }      // a broader leaf
-      if (r <= 1) { P([[17, 5]], 'x'); if (r === 0) P([[16, 7], [4, 19]], 'p'); }
-      if (band >= 2) P([[12, 12], [11, 13], [11, 14]], 'r');                                // a tassel under the head
+      // a narrow head lashed on; a soldier's leaf; a broad polished leaf with a tassel; the same with gold let in
+      const cx = band ? 10 : 11, cy = 23 - cx;
+      const prof = [[1, 1, 2, 2, 2, 2, 1, 1, 0], [1, 2, 2, 3, 3, 3, 2, 2, 1, 1, 0], [1, 2, 3, 4, 4, 4, 3, 3, 2, 2, 1, 1, 0], [1, 2, 3, 4, 4, 4, 3, 3, 2, 2, 1, 1, 0]][band];
+      shaft(cx - 1);
+      if (band >= 2) { P([[cx - 2, cy + 4], [cx - 2, cy + 5], [cx - 1, cy + 5], [cx - 2, cy + 6], [cx - 1, cy + 7]], 'r'); put(cx - 1, cy + 4, 'R'); put(cx - 1, cy + 6, 'R'); }      // a tassel under the head
+      stroke(cx - 3, cy + 1, 2, 3, band === 3 ? 'g' : band >= 1 ? 'd' : 'C');               // the socket, or the binding
+      put(cx - 3, cy + 1, band === 3 ? 'G' : band >= 1 ? 'm' : 'c'); put(cx - 2, cy, band === 3 ? 'G' : band >= 1 ? 'm' : 'c');
+      leaf(cx, cy, prof, band >= 2 ? 'h' : 'l');
+      if (band === 3) { P([[cx + 2, cy - 2], [cx + 4, cy - 4], [cx + 6, cy - 6]], 'g'); P([[cx - 1, cy - 3], [cx + 3, cy + 1]], 'g'); }      // gold down the rib, and a lug each side
+      if (r <= 1) { P([[cx + 3, cy - 1], [cx + 4, cy - 5]], 'x'); if (r === 0) { P([[cx + 2, cy - 3], [5, 18]], 'p'); } }
     } else {                                     // trident
       shaft(12);
-      for (let k = -3; k <= 3; k++) R(13 + k, 9 + k, 2, 2, band === 3 ? 'g' : 'd');        // the bar the tines stand on
-      for (const k of [-3, 3, 0]) {
-        const n = k ? 5 : 6, x0 = 14 + k, y0 = 8 + k;
+      const sp = band ? 5 : 4, bc = band === 3 ? 'g' : band === 0 ? 'C' : 'd';
+      for (let k = -sp; k <= sp; k++) R(11 + k, 11 + k, 2, 2, bc);                         // the bar the tines stand on
+      if (band >= 1) { put(11 - sp, 11 - sp, band === 3 ? 'G' : 'm'); put(11, 11, band === 3 ? 'G' : 'm'); }
+      for (const k of [-sp, sp, 0]) {
+        const n = (k ? 6 : 8) - (band ? 0 : 1), x0 = 12 + k, y0 = 10 + k;
         stroke(x0, y0, n, 2, 'm'); stroke(x0, y0, n, 1, 'l'); stroke(x0 + 1, y0 + 1, n, 1, 'd');
-        put(x0 + n + 1, y0 - n, 'l');
-        if (band >= 1) put(k < 0 ? x0 + n - 2 : x0 + n + 1, k < 0 ? y0 - n + 1 : y0 - n + 3, 'm');      // a barb on each
+        put(x0 + n, y0 - n, 'l');
+        if (band >= 1) {                         // a barb on each: the outer tines hooked inward, the middle one both ways
+          if (k <= 0) { put(x0 + n - 1, y0 - n + 3, 'd'); put(x0 + n - 2, y0 - n + 3, 'm'); }
+          if (k >= 0) { put(x0 + n - 3, y0 - n + 1, 'l'); put(x0 + n - 3, y0 - n + 2, 'm'); }
+        }
+        if (band >= 2) stroke(x0, y0, n - 1, 1, 'h');
       }
-      if (band >= 2) stroke(14, 8, 6, 1, 'h');
-      if (r <= 1) { P([[16, 6], [19, 9]], 'x'); if (r === 0) P([[13, 4], [5, 18]], 'p'); }
+      if (band === 3) { R(11, 11, 2, 2, 'j'); put(11, 11, 'J'); }
+      if (r <= 1) { P([[14, 7], [19, 11]], 'x'); if (r === 0) P([[10, 3], [5, 18]], 'p'); }
     }
   } else if (relic) {
     if (relic.half) mirror(relic.half);
@@ -234,23 +250,65 @@ function drawItemArt(ctx, slot, r, cls, o) {
     if (relic.full) stamp(relic.full, relic.full.x);
   } else if (slot === 'legs') { stamp(GREAVE[band], 2); stamp(GREAVE[band], 13); }
   else if (slot === 'arms') {
-    // an arm guard of overlapping plates, shoulder to wrist, with the hand at the end of it
-    const n = [3, 4, 5, 6][band], sw = Math.floor(16 / n);
-    for (let i = 0; i < n; i++) {
-      const x = 2 + i * sw, hh = 11 - Math.round(i * 4 / (n - 1)), top = 6 + Math.floor((11 - hh) / 2), lea = band === 0 && i % 2 === 0;
-      R(x, top, sw, hh, lea ? 'c' : 'm'); R(x, top, sw, 1, lea ? 'e' : 'l'); R(x, top + hh - 1, sw, 1, lea ? 'C' : 'd'); R(x + sw - 1, top, 1, hh, lea ? 'C' : 'd');
-      if (!lea) { put(x, top + 1, 'h'); if (band >= 1) put(x + (sw >> 1), top + (hh >> 1), 'v'); if (band === 0) put(x + 1, top + 3 + i, i === 1 ? 'x' : 'p'); }
-      if (band >= 2) { R(x, top, sw, 1, band === 3 ? 'g' : 't'); R(x, top + hh - 1, sw, 1, band === 3 ? 'g' : 'T'); }
+    // an arm guard on a bent arm: plates down the upper arm from the shoulder at the top left, the elbow at the
+    // bottom, and more up the forearm to a fist. Leather between the plates on the worst; a cop over the elbow
+    // on the best.
+    const trim = band === 3 ? 'g' : 't', edge = band === 3 ? 'G' : 'T';
+    const drop = x => Math.round((x - 3) * 0.8);                                            // the upper arm slopes down to the elbow
+    const lame = (x, y, w, h, lea, up) => {
+      for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
+        const first = up ? j === 0 : i === 0;
+        let c = first ? (lea ? 'e' : band >= 2 ? trim : 'l') : j === h - 1 || i === w - 1 ? (lea ? 'C' : 'd') : j === 0 || i === 0 ? (lea ? 'e' : 'l') : lea ? 'c' : 'm';
+        if (!lea && i === 1 && j === 1) c = 'h';
+        if (!lea && band >= 1 && w > 2 && h > 2 && (up ? i === w - 2 && j === h >> 1 : i === w >> 1 && j === h - 2)) c = 'v';
+        put(x + i, y + j + (up ? 0 : drop(x + i)), c);
+      }
+    };
+    R(1, 4, 2, 10, band === 0 ? 'C' : trim); put(1, 4, band === 0 ? 'c' : edge);            // the strap at the shoulder
+    const plates = [[5, 5], [4, 3, 3], [4, 3, 3], [3, 3, 2, 2]][band];                      // upper arm, shoulder to elbow
+    let x = 3;
+    plates.forEach((w, i) => { lame(x, 5, w, 8, band === 0 && i === 1, false); if (band === 0 && !i) P([[x + 2, 9], [x + 3, 12]], 'x'); x += w; });
+    let y = 14;                                                                             // forearm, elbow up to the wrist
+    [[4, 4], [3, 3, 2], [3, 3, 2], [2, 2, 2, 2]][band].forEach((h, i) => { y -= h; const thin = y < 10 ? 1 : 0; lame(14 + thin, y, 7 - thin * 2, h, band === 0 && i === 1, true); if (band === 0 && !i) put(17, y + 2, 'p'); });
+    R(15, 5, 5, 1, band === 0 ? 'C' : band === 1 ? 'd' : trim);                             // the cuff
+    R(14, 1, 7, 4, 's'); R(15, 0, 5, 1, 's'); P([[16, 1], [18, 1], [14, 3], [15, 3], [16, 3], [20, 4]], 'k');      // the fist
+    // the elbow: a plain joint plate, or a round cop with a boss
+    const E = band === 0 ? ['c', 'e', 'C'] : ['m', 'l', 'd'];
+    R(13, 14, 8, 7, E[0]); R(14, 21, 6, 1, E[2]); R(21, 15, 1, 5, E[2]); R(13, 14, 8, 1, E[1]); R(13, 14, 1, 7, E[1]); R(20, 15, 1, 6, E[2]); R(14, 20, 6, 1, E[2]);
+    if (band === 0) P([[15, 16], [18, 16], [15, 18], [18, 18]], 'C');
+    else if (band === 1) { put(14, 15, 'h'); P([[16, 18], [18, 16]], 'v'); }
+    else { R(15, 15, 4, 4, trim); R(16, 16, 2, 2, band === 3 ? 'j' : 'm'); put(16, 16, band === 3 ? 'J' : 'l'); put(15, 15, edge); put(14, 15, 'h'); R(22, 16, 1, 3, 'd'); R(15, 22, 4, 1, 'd'); }
+  } else if (slot === 'shoulders') {
+    // one pauldron: a domed cap with plates lapping down the arm under it, the whole leaning out over the arm; a
+    // strap up to the neck and another round under the arm
+    const trim = band === 3 ? 'g' : 't', lea = band === 0;
+    const span = (y, x0, x1, base, lit, dk) => { for (let x = x0; x <= x1; x++) put(x, y, x - x0 < 2 ? lit : x1 - x < (y > 6 ? 2 : 1) ? dk : base); };
+    const M3 = lea ? ['c', 'e', 'C'] : ['m', 'l', 'd'];
+    const dome = [[8, 13], [6, 15], [5, 16], [4, 17], [3, 17], [3, 18], [2, 18], [2, 18], [2, 18]];
+    dome.forEach(([a, b], j) => span(3 + j, a, b, M3[0], M3[1], M3[2]));
+    R(2, 12, 17, 1, lea ? 'C' : band >= 2 ? trim : 'd');                                    // the cap's rim
+    if (!lea) { P([[7, 5], [6, 6], [5, 7], [8, 4], [9, 4]], 'h'); R(8, 3, 6, 1, 'l'); }
+    const lames = [[[3, 17, 3]], [[3, 17, 3], [4, 16, 2]], [[3, 17, 2], [4, 16, 2], [5, 15, 2]], [[3, 17, 2], [4, 16, 2], [5, 15, 2]]][band];
+    let y = 13;
+    for (const [a, b, h] of lames) {
+      for (let j = 0; j < h; j++) span(y + j, a, b, M3[0], M3[1], M3[2]);
+      R(a, y + h, b - a + 1, 1, lea ? 'C' : band >= 2 ? trim : 'd');
+      if (band >= 1) P([[a + 2, y + h - 1], [b - 3, y + h - 1]], 'v');
+      y += h + 1;
     }
-    const xe = 2 + n * sw;
-    R(xe, 9, 1, 6, band === 3 ? 'g' : band === 2 ? 't' : 'C');                             // the cuff
-    R(xe + 1, 10, 3, 4, 's'); R(xe + 4, 11, 1, 3, 's'); R(xe + 2, 14, 2, 1, 's'); put(xe + 1, 10, 'k'); P([[xe + 4, 12]], 'k');      // the hand
-    if (band >= 2) {                             // a cop over the elbow
-      const cx = 2 + Math.floor(n / 2) * sw - 1;
-      R(cx - 1, 9, 5, 5, 'm'); R(cx, 8, 3, 7, 'm'); R(cx - 1, 9, 1, 5, 'l'); R(cx, 8, 3, 1, 'l'); R(cx + 3, 10, 1, 4, 'd'); R(cx, 14, 3, 1, 'd');
-      R(cx, 10, 3, 3, band === 3 ? 'g' : 't'); put(cx + 1, 11, band === 3 ? 'j' : 'l'); if (band === 3) put(cx, 10, 'G');
+    if (lea) { R(8, 6, 5, 4, 'm'); R(8, 6, 5, 1, 'l'); R(8, 9, 5, 1, 'd'); R(12, 7, 1, 3, 'd'); put(10, 7, 'x'); if (r === 0) put(9, 8, 'p'); P([[4, 14], [16, 14]], 'C'); }      // a plate sewn to the hide
+    else if (band === 1) P([[4, 11], [10, 11], [16, 11]], 'v');
+    else {                                       // a boss on the cap, and on the best a gilded crown to it
+      R(8, 6, 5, 5, trim); R(9, 7, 3, 3, band === 3 ? 'j' : 'm'); put(9, 7, band === 3 ? 'J' : 'l'); put(8, 6, band === 3 ? 'G' : 'T'); put(12, 10, 'T');
+      if (band === 3) { R(8, 3, 6, 1, 'g'); P([[6, 4], [7, 4], [14, 4], [15, 4]], 'g'); P([[4, 12], [8, 12], [12, 12], [16, 12]], 'G'); }
     }
-    R(1, 5, 2, 13, band === 0 ? 'C' : band === 3 ? 'g' : 't');                             // the strap at the shoulder
+    // lean it: each row slides over, top toward the neck and bottom out along the arm
+    const flat = cells.slice(); cells.fill('');
+    for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) { const c = flat[yy * N + xx], nx = xx + Math.round((12 - yy) / 3); if (c && nx >= 0 && nx < N) cells[yy * N + nx] = c; }
+    const under = (xx, yy, c) => { if (!at(xx, yy)) put(xx, yy, c); };
+    for (let i = 0; i < 5; i++) { under(17 + i, 6 - i, 'e'); under(18 + i, 6 - i, 'c'); under(18 + i, 7 - i, 'C'); under(17 + i, 7 - i, 'c'); }      // to the neck
+    R(20, 3, 2, 2, band === 3 ? 'g' : 'l'); put(21, 4, band === 3 ? 'T' : 'd');             // and its buckle
+    for (let i = 0; i < 7; i++) { under(13 + i, 14 + i, 'c'); under(14 + i, 14 + i, 'e'); under(13 + i, 15 + i, 'C'); under(14 + i, 15 + i, 'c'); }      // under the arm
   } else mirror(HALF[slot][band]);
 
   // ---- what the smith has done to it since: armour only; a weapon's fitting is in how it was drawn above ----
