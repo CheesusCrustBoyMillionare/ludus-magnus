@@ -314,17 +314,48 @@ function drawItemArt(ctx, slot, r, cls, o) {
   // ---- what the smith has done to it since: armour only; a weapon's fitting is in how it was drawn above ----
   const metal = c => c === 'm' || c === 'l' || c === 'd' || c === 'h' || c === 'v';
   const inside = (x, y) => at(x - 1, y) && at(x + 1, y) && at(x, y - 1) && at(x, y + 1);
+  // Each is placed by the shape of the piece it is on, so that it sits on the drawing and not across it:
+  //   studded    a line of studs following the rim, just inside it
+  //   braced     two splints riveted on, where the slot's joints are
+  //   lightened  rows of slits cut through the plate
+  //   lined      oiled leather showing along the lower and the shaded edges
+  //   padded     a roll of cloth under the bottom edge
   if (slot !== 'weapon' && fit) {
     const snap = cells.slice(), was = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? '' : snap[y * N + x]);
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const body = c => metal(c) || c === 'c' || c === 'e' || c === 'C';
+    const rimmed = (x, y) => !(was(x - 1, y) && was(x + 1, y) && was(x, y - 1) && was(x, y + 1));
+    const deep = (x, y) => was(x, y) && !rimmed(x, y);
+    const set = (x, y, c) => { cells[y * N + x] = c; };
+    let y0 = N, y1 = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (body(was(x, y))) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    if (fit === 'studded') {
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        if (!body(was(x, y)) || !deep(x, y) || (x + 2 * y) % 5) continue;
+        if (!(rimmed(x - 1, y) || rimmed(x + 1, y) || rimmed(x, y - 1) || rimmed(x, y + 1))) continue;
+        set(x, y, 'o'); if (deep(x, y + 1) && body(was(x, y + 1))) set(x, y + 1, 'O');
+      }
+    } else if (fit === 'braced') {
+      for (const x of { head: [6, 16], chest: [7, 15], shoulders: [7, 13], legs: [5, 16], arms: [8, 17] }[slot] || []) {
+        let first = true, last = -1;
+        for (let y = 0; y < N; y++) {
+          if (!(body(was(x, y)) && body(was(x + 1, y)) && deep(x, y) && deep(x + 1, y))) continue;
+          set(x, y, first ? 'h' : 'l'); set(x + 1, y, 'd'); first = false; last = y;
+        }
+        if (last >= 0) set(x, last, 'h');
+      }
+    } else if (fit === 'lightened') {
+      const rows = { head: [0.28], chest: [0.3, 0.62], shoulders: [0.3, 0.62], legs: [0.3, 0.62], arms: [0.38, 0.78] }[slot] || [0.5];
+      for (const t of rows) {
+        const ya = Math.round(y0 + (y1 - y0) * t);
+        const slits = y => { const out = []; for (let x = 0; x < N; x++) if (x % 3 === 1 && body(was(x, y)) && body(was(x, y + 1)) && deep(x, y) && deep(x, y + 1) && deep(x + 1, y)) out.push(x); return out; };
+        const y = [0, 1, -1, 2, -2, 3].map(k => ya + k).find(y => slits(y).length >= 2);      // a row that has room for them
+        if (y !== undefined) for (const x of slits(y)) { set(x, y, 'k'); set(x, y + 1, 'k'); }
+      }
+    } else for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const c = was(x, y);
-      if (!c) continue;
-      const edge = !(was(x - 1, y) && was(x + 1, y) && was(x, y - 1) && was(x, y + 1));
-      if (fit === 'studded' && c === 'm' && !edge && x % 3 === 1 && y % 3 === 1) { cells[y * N + x] = 'h'; if (was(x, y + 1) === 'm') cells[(y + 1) * N + x] = 'd'; }
-      if (fit === 'braced' && metal(c) && !edge) { if (x % 5 === 2) cells[y * N + x] = 'k'; else if (x % 5 === 3) cells[y * N + x] = 'h'; }
-      if (fit === 'lightened' && c === 'm' && !edge && x % 4 === 1 && y % 4 === 2 && metal(was(x, y - 1)) && metal(was(x, y + 1))) cells[y * N + x] = 'k';
-      if (fit === 'lined' && edge && c !== 'k') cells[y * N + x] = was(x, y - 1) ? 'c' : 'e';
-      if (fit === 'padded' && c !== 'k') { if (!was(x, y + 1)) cells[y * N + x] = 'n'; else if (!was(x, y + 2) && !edge) cells[y * N + x] = 'N'; }
+      if (!c || c === 'k') continue;
+      if (fit === 'lined' && body(c)) { if (!was(x, y + 1)) set(x, y, 'e'); else if (!was(x + 1, y) || (!was(x, y + 2) && !rimmed(x, y))) set(x, y, 'c'); }
+      if (fit === 'padded') { if (!was(x, y + 1)) set(x, y, 'n'); else if (!was(x, y + 2) && !rimmed(x, y)) set(x, y, 'N'); }
     }
   }
   // ---- the outline, then colour (a master-wrought piece shines white where a plain one only catches the light) ----
@@ -337,6 +368,7 @@ function drawItemArt(ctx, slot, r, cls, o) {
     w: '#7a5a2a', W: cool('#5e4222'), c: '#8a5a34', e: warm('#a87244', 0.2), C: cool('#5e3a22'), g: '#e8b545', G: warm('#fbe08a', 0.3),
     j: r === 6 ? '#b77be8' : '#d8402e', J: r === 6 ? '#f0e0ff' : '#ff9a8a', n: '#d8c8a0', N: cool('#a89870', 0.16),
     r: '#c23b2e', R: warm('#ef7a66', 0.16), s: '#d9a57c', f: '#c8913c', F: cool('#8a6226'), q: '#8fc35a', k: ink,
+    o: '#fff6d8', O: mixHex(cool(M.d), ink, 0.4),
     x: r <= 1 ? '#a0522d' : M.m, p: r === 0 ? '#3a1c10' : M.m, v: r >= 3 ? cool(M.d) : M.m,
   };
   // The outline is ink underneath and on the right, but on the lit side it is only the piece's own colour gone
