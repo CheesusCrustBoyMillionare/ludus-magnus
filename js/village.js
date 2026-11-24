@@ -23,7 +23,7 @@ const placeOf = key => PLACES.find(p => p.key === key) || PLACES[1];
 const arenaGeom = () => { const p = PLACES.find(q => q.kind === 'arena'); return { p, cx: p.x + p.w / 2, cy: p.y + 35, RX: p.w / 2 - 1, RY: 33 }; };
 // Things in the way that are not buildings: the fountain, trees, the well.
 const VIL_TREES = [[98, 21], [477, 24], [580, 52], [6, 102], [140, 120], [248, 108], [342, 108], [482, 124], [584, 98], [20, 168], [300, 182], [440, 180], [150, 182], [560, 178]];
-const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 148, y: 158, w: 8, h: 6 }, { x: 366, y: 173, w: 30, h: 9 }].concat(VIL_TREES.map(([x, y]) => ({ x: x - 1, y: y - 2, w: 3, h: 3 })));      // a tree stops you at its trunk, not its shade
+const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 126, y: 176, w: 8, h: 6 }, { x: 366, y: 173, w: 30, h: 9 }].concat(VIL_TREES.map(([x, y]) => ({ x: x - 1, y: y - 2, w: 3, h: 3 })));      // a tree stops you at its trunk, not its shade
 
 const vil = {
   x: 0, y: 0, face: 'down', walk: 0, moving: false, at: null,      // the lanista, and whose doorstep he stands on
@@ -251,7 +251,7 @@ function villageLayer() {
   ell(381, 178, 16, 5, '#5f7f3f'); ell(381, 177, 15, 4, '#4f8fb8'); ell(379, 176, 11, 2, '#6fa8cc');
   for (const [rx, ry] of [[366, 176], [369, 180], [395, 175], [392, 181]]) { R(rx, ry - 4, 1, 5, '#6f8a3a'); R(rx + 1, ry - 3, 1, 4, '#8aa64a'); R(rx, ry - 5, 1, 1, '#7a5a2a'); }
   // the two streets and the lanes between them
-  const road = (x, y, w, h) => { R(x - 1, y - 1, w + 2, h + 2, '#a98a58'); R(x, y, w, h, '#cdae78'); for (let i = 0; i < w * h / 26; i++) R(x + rnd(i + x, w - 2), y + rnd(i + y + 7, h - 1), 2, 1, i % 2 ? '#bf9f6a' : '#d9bd8a'); };
+  const road = (x, y, w, h) => { R(x, y, w, h, '#cdae78'); for (let i = 0; i < w * h / 26; i++) R(x + rnd(i + x, w - 2), y + rnd(i + y + 7, h - 1), 2, 1, i % 2 ? '#bf9f6a' : '#d9bd8a'); };
   road(4, 74, 582, 18); road(4, 152, 582, 16);
   for (const x of [14, 146, 464, 566]) road(x, 92, 12, 60);
   for (const lx of [14, 146, 464, 566]) for (let y = 94; y < 150; y += 2) { if (rnd(lx + y, 1) > 0.55) R(lx - 1 + (rnd(y + 3, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx + y + 50, 1) > 0.55) R(lx + 11 - (rnd(y + 9, 1) > 0.5 ? 0 : 1), y, 1, 2, '#7e9a4b'); if (rnd(lx * 3 + y, 1) > 0.9) R(lx + 3 + rnd(y, 5), y, 2, 1, '#b8985f'); }
@@ -261,9 +261,8 @@ function villageLayer() {
     if (i % 3 === 0) { ell(bx + 1, by + 1, 4, 2, 'rgba(0,0,0,.18)'); ell(bx, by - 1, 4, 3, '#4a7a36'); ell(bx - 1, by - 2, 2, 2, '#63903f'); if (i % 2) R(bx + 1, by - 1, 1, 1, '#e06a8a'); }
     else for (let q = 0; q < 5; q++) R(bx + rnd(i + q * 7, 7), by + rnd(i * 5 + q, 4), 1, 1, [['#f2e6a0', '#f4f4f0'], ['#e8a0a0', '#b9a0e0'], ['#f4f4f0', '#e06a8a']][i % 3][q % 2]);
   }
-  // the streets are kerbed with stone and rutted by carts
+  // the streets are rutted by carts
   for (const [ry, rh] of [[74, 18], [152, 16]]) {
-    for (let x = 6; x < 584; x += 4) { R(x, ry - 1, 3, 1, x % 8 ? '#bdb39c' : '#a39a84'); R(x + 1, ry + rh, 3, 1, x % 8 ? '#a39a84' : '#bdb39c'); }
     for (let x = 6; x < 584; x += 3) { if (rnd(x + ry, 1) > 0.25) { R(x, ry + Math.round(rh * 0.36), 2, 1, 'rgba(120,85,40,.28)'); R(x, ry + Math.round(rh * 0.64), 2, 1, 'rgba(120,85,40,.28)'); } }
   }
   // the square, paved, with the fountain in it
@@ -279,8 +278,8 @@ function villageLayer() {
   for (const bx of [478, 562]) { R(bx, 142, 6, 7, '#7a5a2a'); R(bx, 142, 6, 1, '#3a2a1c'); R(bx, 145, 6, 1, '#3a2a1c'); R(bx + 1, 141, 4, 1, '#a8834a'); }
   R(138, 140, 7, 7, '#a8834a'); R(138, 140, 7, 1, '#c9a25a'); R(141, 135, 6, 6, '#a8834a'); R(141, 135, 6, 1, '#c9a25a');
   R(238, 112, 1, 12, '#5a4326'); R(250, 112, 1, 12, '#5a4326'); R(238, 113, 13, 1, '#3a2a1c'); R(240, 114, 3, 4, '#e8e2d0'); R(244, 114, 2, 5, '#b85a48'); R(247, 114, 3, 3, '#8fa8c8');
-  // a well, and a cart by the lower street
-  R(148, 158, 8, 6, '#8f8872'); R(149, 159, 6, 4, '#2c3f52'); R(147, 154, 1, 5, '#6b4a2a'); R(156, 154, 1, 5, '#6b4a2a'); R(147, 153, 10, 1, '#6b4a2a');
+  // a well on the grass by the kitchen garden, and a cart by the lower street
+  R(126, 176, 8, 6, '#8f8872'); R(127, 177, 6, 4, '#2c3f52'); R(125, 172, 1, 5, '#6b4a2a'); R(134, 172, 1, 5, '#6b4a2a'); R(125, 171, 10, 1, '#6b4a2a');
   R(214, 172, 14, 5, '#8a6a3a'); R(214, 171, 14, 1, '#a8834a'); R(216, 176, 3, 3, '#3a2a1c'); R(223, 176, 3, 3, '#3a2a1c'); R(216, 168, 10, 3, '#d9c27a');
 
   // ----- buildings -----
