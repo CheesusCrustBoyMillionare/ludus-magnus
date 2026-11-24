@@ -2756,22 +2756,36 @@ function gateLeave(ctx, k) { if (k > 0) ctx.restore(); }
 // its own place, as the men of the column follow the lanista: so a cart comes round a bend behind its mule, and does
 // not swing out over the grass. How far apart they go is what it would be across the map where the way runs across,
 // what it would be up and down where it runs up and down, and between the two on a slant.
+// What joins two of them (the shafts of a cart, the pole of a litter, a drag rope) is given as a link: an end on each,
+// where it would be on a road running across the map. It is drawn from the one to the other wherever the way has
+// put them, and under them both.
 function rowOf(ctx, d, face, along) {
-  const parts = [];
+  const parts = [], links = [];
   return {
     part(off, fn, h) { parts.push({ off, fn, h: h || 12 }); return this; },
+    link(offA, xa, ya, offB, xb, yb, c) { links.push({ offA, xa, ya, offB, xb, yb, c }); return this; },
     draw() {
       if (!parts.length) return;
       const lead = along && along(0), on = along && along(6), hx = on ? on.x - lead.x : 0, hy = on ? on.y - lead.y : 0;
       const vert = along ? (Math.abs(hx) + Math.abs(hy) > 0.01 ? Math.abs(hy) / (Math.abs(hx) + Math.abs(hy)) : 0) : (face === 'up' || face === 'down' ? 1 : 0);
-      if (!vert && !along) { parts.forEach(q => q.fn()); return; }
-      const v = along ? (hy >= 0 ? 1 : -1) : face === 'down' ? 1 : -1;
-      parts.sort((a, b) => v * (a.off - b.off));
-      let yy = 0; parts.forEach((q, i) => { if (i) yy += Math.round(q.h * 0.75) + 2; q.y = yy; });
-      const ref = parts.reduce((m, q) => Math.abs(q.off) < Math.abs(m.off) ? q : m, parts[0]).y;
-      if (!along) { parts.forEach(q => { ctx.save(); ctx.translate(-d * q.off, q.y - ref); q.fn(); ctx.restore(); }); return; }
-      parts.forEach(q => { const at = along(q.off + (v * (q.y - ref) - q.off) * vert); q.tx = Math.round(at.x - lead.x) - d * q.off; q.ty = Math.round(at.y - lead.y); });
-      parts.sort((a, b) => a.ty - b.ty).forEach(q => { ctx.save(); ctx.translate(q.tx, q.ty); q.fn(); ctx.restore(); });
+      if (!vert && !along) parts.forEach(q => { q.tx = 0; q.ty = 0; });
+      else {
+        const v = along ? (hy >= 0 ? 1 : -1) : face === 'down' ? 1 : -1;
+        parts.sort((a, b) => v * (a.off - b.off));
+        let yy = 0; parts.forEach((q, i) => { if (i) yy += Math.round(q.h * 0.75) + 2; q.y = yy; });
+        const ref = parts.reduce((m, q) => Math.abs(q.off) < Math.abs(m.off) ? q : m, parts[0]).y;
+        if (!along) parts.forEach(q => { q.tx = -d * q.off; q.ty = q.y - ref; });
+        else {
+          parts.forEach(q => { const at = along(q.off + (v * (q.y - ref) - q.off) * vert); q.tx = Math.round(at.x - lead.x) - d * q.off; q.ty = Math.round(at.y - lead.y); });
+          parts.sort((a, b) => a.ty - b.ty);
+        }
+      }
+      for (const l of links) {
+        const a = parts.find(q => q.off === l.offA), b = parts.find(q => q.off === l.offB); if (!a || !b) continue;
+        const x0 = l.xa + a.tx, y0 = l.ya + a.ty, x1 = l.xb + b.tx, y1 = l.yb + b.ty, n = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
+        ctx.fillStyle = l.c; for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), 1, 1);
+      }
+      parts.forEach(q => { ctx.save(); ctx.translate(q.tx, q.ty); q.fn(); ctx.restore(); });
     },
   };
 }
@@ -2808,7 +2822,7 @@ function drawTraffic(ctx, T, R, inView) {
       else if (kind === 'soldiers') { for (let q = 0; q < 2 + Math.floor(hv(3) * 2); q++) { row.part(-q * 8, () => { man(-d * q * 8, (q % 2) * 2, '#a8261c', '#2a1c14'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 20, 1, 16, '#6b4f2c'); R(x - d * q * 8 + d * 4, y + (q % 2) * 2 - 22, 1, 2, '#c1c7cc'); R(x - d * q * 8 - d * 4, y + (q % 2) * 2 - 12, 3, 6, '#8a2a20'); R(x - d * q * 8 - d * 4 + 1, y + (q % 2) * 2 - 10, 1, 2, '#c9a21e'); }, 20); } }
       else if (kind === 'merchant') { row.part(-10, () => { beast(x - d * 10, y, '#9a8a72'); R(x - d * 10 - 3, y - 9, 7, 4, hv(3) > 0.5 ? '#b93a2e' : '#2f6db8'); R(x - d * 10 - 3, y - 9, 7, 1, '#f1ead8'); }, 10); row.part(0, () => man(0, 0, hv(4) > 0.5 ? '#7a2a8a' : '#3f7a5a'), 20); }
       else if (kind === 'rider') { beast(x, y, hv(3) > 0.5 ? '#5a3a26' : '#c9c2ae', true); R(x - 1, y - 12, 3, 6, hv(4) > 0.5 ? '#a8261c' : '#4a6a8a'); R(x - 1, y - 15, 3, 3, '#d9a57c'); R(x - 1, y - 16, 3, 1, '#3a2a1c'); R(x - d * 2, y - 11, 2, 3, '#7a2a20'); }
-      else if (kind === 'litter') { const lc = ['#8a2a6a', '#a8261c', '#2f6db8', '#c9a21e'][Math.floor(hv(3) * 4)]; row.part(9, () => man(d * 9, 0, '#8a6a4a'), 20); row.part(-9, () => man(-d * 9, 0, '#8a6a4a'), 20); row.part(0, () => { if (face === 'left' || face === 'right') R(x - 11, y - 9, 23, 1, '#5a4326'); R(x - 6, y - 15, 13, 7, lc); R(x - 6, y - 16, 13, 1, shade(lc, 1.25)); R(x - 4, y - 13, 4, 4, '#f1ead8'); R(x - 3, y - 12, 2, 2, '#d9a57c'); R(x + 2, y - 15, 1, 7, shade(lc, 0.75)); }, 16); if (hv(4) > 0.5) row.part(-17, () => man(-d * 17, 2, '#e8e2d2'), 20); }      // somebody of account, carried
+      else if (kind === 'litter') { const lc = ['#8a2a6a', '#a8261c', '#2f6db8', '#c9a21e'][Math.floor(hv(3) * 4)]; row.part(9, () => man(d * 9, 0, '#8a6a4a'), 20); row.part(-9, () => man(-d * 9, 0, '#8a6a4a'), 20); row.link(0, x - d * 6, y - 9, -9, x - d * 10, y - 9, '#5a4326').link(0, x + d * 6, y - 9, 9, x + d * 10, y - 9, '#5a4326'); row.part(0, () => { R(x - 6, y - 15, 13, 7, lc); R(x - 6, y - 16, 13, 1, shade(lc, 1.25)); R(x - 4, y - 13, 4, 4, '#f1ead8'); R(x - 3, y - 12, 2, 2, '#d9a57c'); R(x + 2, y - 15, 1, 7, shade(lc, 0.75)); }, 16); if (hv(4) > 0.5) row.part(-17, () => man(-d * 17, 2, '#e8e2d2'), 20); }      // somebody of account, carried
       else if (kind === 'mules') { for (let q = 0, n2 = 2 + Math.floor(hv(3) * 2); q < n2; q++) { const mx = x - d * (10 + q * 11); row.part(-(10 + q * 11), () => { beast(mx, y + (q % 2), ['#9a8a72', '#6f5a48', '#b8a888'][q % 3]); R(mx - 3, y - 9 + (q % 2), 7, 4, ['#b93a2e', '#c9b25a', '#5a6a4a', '#8a6a3a'][Math.floor(hv(5 + q) * 4)]); R(mx - 3, y - 9 + (q % 2), 7, 1, '#3a2a1c'); }, 13); } row.part(0, () => man(0, 0, hv(4) > 0.5 ? '#6a5a3a' : '#7a4a3a'), 20); }      // a string of pack mules
       else if (kind === 'woodman') { man(0, 0, '#6a5a3a', hv(3) > 0.5 ? '#8a8a8a' : '#3a2a1c'); R(x - d * 4 - 1, y - 17, 4, 7, '#6b4f2c'); R(x - d * 4 - 2, y - 18, 6, 1, '#8a6a3a'); R(x - d * 4, y - 16, 1, 6, '#8a6a3a'); R(x - d * 4 - 1, y - 14, 4, 1, '#c8b890'); if (hv(4) > 0.5) { R(x + d * 5, y - 9, 1, 6, '#6b4f2c'); R(x + d * 5, y - 10, 2, 2, '#b8c0c8'); } }      // a man under a load of sticks
       else if (kind === 'oxwagon') { const wx = x - d * 20, load = hv(3); row.part(-20, () => { R(wx - 9, y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, y - 6, 16, 5, '#7a5a34'); R(wx - 8, y - 7, 16, 1, '#a8834a'); if (load > 0.6) { R(wx - 6, y - 12, 12, 5, '#d8d2c0'); R(wx - 6, y - 12, 12, 1, '#f0ece0'); R(wx + 4, y - 12, 2, 5, '#b8b0a0'); } else if (load > 0.3) for (let q = 0; q < 3; q++) { R(wx - 6 + q * 4, y - 11, 3, 4, '#8a5a34'); R(wx - 6 + q * 4, y - 10, 3, 1, '#3a2a1c'); } else { R(wx - 7, y - 11, 14, 4, '#d9c070'); R(wx - 5, y - 12, 10, 1, '#e6d088'); } for (const o of [-6, 3]) { R(wx + o, y - 2, 4, 4, '#3a2a1c'); R(wx + o + 1, y - 1, 2, 2, '#8a6a3a'); } }, 16); row.part(-6, () => beast(x - d * 6, y, '#e8e2d2', true), 12); row.part(4, () => beast(x + d * 4, y + 1, hv(4) > 0.5 ? '#8a6a4a' : '#d8d0b8', true), 12); row.part(12, () => man(d * 12, 1, '#7a6a4a'), 20); }      // oxen, and a wagon of stone, wine or hay
@@ -2853,9 +2867,9 @@ function drawMillCart(ctx, T, R, inView) {
   for (let q = 0; q < n; q++) { const [ox, oy] = spots[q]; R(cx + ox, cy + oy, 3, 3, sack[0]); R(cx + ox, cy + oy + 2, 3, 1, sack[1]); R(cx + ox + 1, cy + oy - 1, 1, 1, sack[2]); }      // sacks, tied at the neck
   R(cx - 5, y - 2, 4, 4, '#3a2a1c'); R(cx - 4, y - 1, 2, 2, '#8a6a3a'); R(cx + 2, y - 2, 4, 4, '#3a2a1c'); R(cx + 3, y - 1, 2, 2, '#8a6a3a');      // the wheels
   if (C.moving && Math.floor(walk) % 2) { R(cx - 4, y - 2, 1, 1, '#8a6a3a'); R(cx + 3, y - 2, 1, 1, '#8a6a3a'); }
-  if (C.face === 'left' || C.face === 'right') R(cx + d * 6, cy - 5, d * 4, 1, '#6b4f2c');                          // the shafts
   if (C.flour && C.moving && Math.floor(T * 3) % 4 === 0) R(cx - d * 8, cy - 9 - Math.floor(T * 6) % 3, 1, 1, 'rgba(255,255,255,.7)');      // flour, shaken out of the weave
   }, 18);
+  row.link(-12, cx + d * 6, cy - 5, 0, x - d * 3, y - 5, '#6b4f2c');                                                 // the shafts
   const mc = '#9a8a72', bx = x;                                                                                      // the mule
   row.part(0, () => {
   R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
@@ -3009,7 +3023,7 @@ function drawTrade(ctx, T, R, inView) {
       const row = rowC(C); row.part(-17, () => { R(wx - 9, C.y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, C.y - 6, 17, 5, '#7a5a34'); R(wx - 8, C.y - 7, 17, 1, '#a8834a'); R(wx - 8, C.y - 2, 17, 1, '#5e4426');
       if (loaded) { R(wx - 6, C.y - 12, 6, 5, '#d6ccb8'); R(wx - 6, C.y - 12, 6, 1, '#f0e8d6'); R(wx + 1, C.y - 11, 6, 4, '#c9c0aa'); R(wx + 1, C.y - 11, 6, 1, '#e4dcc8'); R(wx - 3, C.y - 16, 6, 4, '#d6ccb8'); R(wx - 3, C.y - 16, 6, 1, '#f0e8d6'); }
       for (const ox of [-6, 3]) { R(wx + ox, C.y - 3, 5, 5, '#3a2a1c'); R(wx + ox + 1, C.y - 2, 3, 3, '#8a6a3a'); R(wx + ox + 2, C.y - 1, 1, 1, '#3a2a1c'); } }, 20);
-      if (C.face === 'left' || C.face === 'right') R(wx + d * 9, C.y - 5, d * 5, 1, '#5e4426');
+      row.link(-17, wx + d * 9, C.y - 5, 0, C.x - d * 4, C.y - 5, '#5e4426');
       row.part(0, () => beast(C.x, C.y, '#8a6444', d, true, step), 12);
       row.part(10, () => { if (!struck) man(C.x + d * 10, C.y + 1, C.face, C.moving, '#8a7a5a'); else { R(C.x + d * 9, C.y - 3, 4, 3, '#8a7a5a'); R(C.x + d * 9, C.y - 6, 3, 3, '#d9a57c'); } }, 20); row.draw();      // on strike, the carter sits by his ox
       provUnder(ctx, C.x, C.y, 28); }
@@ -3075,7 +3089,7 @@ function drawTrade(ctx, T, R, inView) {
   if (W.logs) {
     const C = shuttleAt(W.logs, T, 7, 10, 0.45);
     if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1, mx = C.x - d * 9;
-      const row = rowC(C); row.part(-24, () => { if (loaded) { const lx = mx - d * 15; R(Math.min(mx - d * 4, lx), C.y - 1, Math.abs(d * 11), 1, '#6b4f2c'); R(lx - 6, C.y - 2, 12, 3, '#7a5a34'); R(lx - 6, C.y - 2, 12, 1, '#94703f'); R(d > 0 ? lx - 6 : lx + 5, C.y - 2, 1, 3, '#d8c090'); R(lx - 6, C.y + 1, 13, 1, 'rgba(0,0,0,.2)'); if (C.moving && Math.sin(T * 9) > 0.4) R(lx - d * 8, C.y, 1, 1, '#c8b078'); } }, 8);
+      const row = rowC(C); if (loaded) row.link(-9, mx - d * 4, C.y - 1, -24, mx - d * 10, C.y - 1, '#6b4f2c'); row.part(-24, () => { if (loaded) { const lx = mx - d * 15; R(lx - 6, C.y - 2, 12, 3, '#7a5a34'); R(lx - 6, C.y - 2, 12, 1, '#94703f'); R(d > 0 ? lx - 6 : lx + 5, C.y - 2, 1, 3, '#d8c090'); R(lx - 6, C.y + 1, 13, 1, 'rgba(0,0,0,.2)'); if (C.moving && Math.sin(T * 9) > 0.4) R(lx - d * 8, C.y, 1, 1, '#c8b078'); } }, 8);
       row.part(-9, () => beast(mx, C.y, '#8a6a4a', d, false, step), 10);
       row.part(0, () => { man(C.x, C.y, C.face, C.moving, '#6a5a3a', '#6a4a2a'); R(C.x - d * 4, C.y - 14, 1, 8, '#6b4f2c'); R(C.x - d * 4 - (d > 0 ? 2 : 0), C.y - 15, 3, 2, '#b8c0c8'); }, 20); row.draw();      // his axe over his shoulder
       provUnder(ctx, C.x, C.y, 26); }
@@ -3096,7 +3110,7 @@ function drawTrade(ctx, T, R, inView) {
       const row = rowC(C); row.part(-14, () => { R(cx - 7, C.y + 1, 15, 2, 'rgba(0,0,0,.25)'); R(cx - 6, C.y - 6, 12, 5, '#8a6a3a'); R(cx - 6, C.y - 7, 12, 1, '#a8834a'); R(cx - 6, C.y - 2, 12, 1, '#6b4f2c');
       if (loaded) { R(cx - 5, C.y - 8, 10, 2, '#d9c070'); for (let q = 0; q < 3; q++) { const jx = cx - 5 + q * 4; R(jx, C.y - 12, 3, 5, '#b8703c'); R(jx + 1, C.y - 14, 1, 2, '#b8703c'); R(jx, C.y - 12, 1, 5, '#d08a54'); R(jx + 1, C.y - 15, 1, 1, '#6b4f2c'); } }
       for (const ox of [-5, 2]) { R(cx + ox, C.y - 2, 4, 4, '#3a2a1c'); R(cx + ox + 1, C.y - 1, 2, 2, '#8a6a3a'); } }, 18);
-      if (C.face === 'left' || C.face === 'right') R(cx + d * 6, C.y - 5, d * 4, 1, '#6b4f2c'); row.part(0, () => beast(C.x, C.y, '#9a8a72', d, false, step), 10);
+      row.link(-14, cx + d * 6, C.y - 5, 0, C.x - d * 3, C.y - 5, '#6b4f2c'); row.part(0, () => beast(C.x, C.y, '#9a8a72', d, false, step), 10);
       row.part(8, () => man(C.x + d * 8, C.y + 1, C.face, C.moving, '#7a4a6a'), 20); row.draw();
       gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 24); } }
   }
@@ -3159,7 +3173,7 @@ function drawTrade(ctx, T, R, inView) {
       const dog = (gx, gy, c) => { R(gx - 3, gy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 5, 2, c); R(d > 0 ? gx + 3 : gx - 4, gy - 4, 2, 2, c); R(d > 0 ? gx - 3 : gx + 3, gy - 4, 1, 2, c); R(gx - 2 + step, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - step, gy - 1, 1, 2, shade(c, 0.7)); };
       const a = { x: C.x, y: C.y }, b = { x: C.x - d * 12, y: C.y + 1 };
       const row = rowC(C);
-      if (home) row.part(-6, () => { if (C.face === 'left' || C.face === 'right') R(b.x, C.y - 13, a.x - b.x, 1, '#6b4f2c'); const mx = Math.round((a.x + b.x) / 2); R(mx - 4, C.y - 12, 8, 4, '#a8703c'); R(mx - 4, C.y - 9, 8, 1, '#8a5a2c'); R(mx - 3, C.y - 14, 1, 2, '#a8703c'); R(mx + 2, C.y - 14, 1, 2, '#a8703c'); R(d > 0 ? mx - 6 : mx + 4, C.y - 11, 2, 3, '#a8703c'); R(d > 0 ? mx - 7 : mx + 5, C.y - 13, 1, 2, '#d8c8a0'); }, 8);      // the deer, slung by its feet
+      if (home) row.link(-12, b.x, C.y - 13, 0, a.x, C.y - 13, '#6b4f2c').part(-6, () => { const mx = Math.round((a.x + b.x) / 2); R(mx - 4, C.y - 12, 8, 4, '#a8703c'); R(mx - 4, C.y - 9, 8, 1, '#8a5a2c'); R(mx - 3, C.y - 14, 1, 2, '#a8703c'); R(mx + 2, C.y - 14, 1, 2, '#a8703c'); R(d > 0 ? mx - 6 : mx + 4, C.y - 11, 2, 3, '#a8703c'); R(d > 0 ? mx - 7 : mx + 5, C.y - 13, 1, 2, '#d8c8a0'); }, 8);      // the deer, slung by its feet
       row.part(-12, () => { man(b.x, b.y, C.face, C.moving, '#5a6a3a', '#6a4a2a'); if (!home) { R(b.x - d * 3, b.y - 16, 1, 9, '#6b4f2c'); R(b.x - d * 4, b.y - 15, 1, 7, '#c9b890'); } }, 20);      // a bow
       row.part(0, () => { man(a.x, a.y, C.face, C.moving, '#6a5a3a', '#2a1c14'); if (!home) { R(a.x + d * 4, a.y - 20, 1, 16, '#6b4f2c'); R(a.x + d * 4, a.y - 22, 1, 2, '#c1c7cc'); } }, 20);      // a boar-spear
       const o1 = home ? -26 : 14, o2 = home ? -32 : 20; row.part(o1, () => dog(C.x + d * o1, C.y + 3, '#8a6a4a'), 6); row.part(o2, () => dog(C.x + d * o2, C.y - 2, '#3a2e24'), 6); row.draw();
