@@ -166,7 +166,7 @@ const CONTRACTS = {
   pyre: {
     name: 'Blood for a great man\'s pyre', patron: 'temple', tier: 1, days: [1, 2], size: 2, danger: 0.55, pay: 1.3, fame: 3, glory: true, scar: 'cut',
     w: { str: 0.3, agi: 0.2, end: 0, skl: 0.5 }, cls: ['thraex', 'murmillo', 'dimachaerus'], likes: ['showy', 'steady', 'blessed', 'duelist'], hates: ['nervous', 'embittered'],
-    trait: 'blessed', events: ['crowd', 'insult', 'omen'],
+    trait: 'blessed', events: ['crowd', 'insult', 'jobOmen'],
     text: () => 'A man who was three times duumvir is to be burned at dusk, and his sons mean to do it in the old way: two pairs fighting beside the pyre, so that he does not go down with nothing. The priests want men who will give a death its due and not make a butcher\'s yard of it.',
     win: n => `${n} fought by firelight in front of the whole town standing silent, and when it was done the eldest son put a coin in each man's hand himself.`,
     fail: n => `It was clumsy, and long, and the widow turned her face away. ${n} came home by the back streets.`,
@@ -521,7 +521,7 @@ function nextEvent() {
 // ---------- what happens on the road ----------
 // Each is raised for one outing. c.job is the outing; c.g the man it turns on.
 
-const GONE = 'The matter had settled itself before your answer reached them.';
+const GONE = 'By the time your answer reached them, the matter had already been settled without you.';
 const fieldCtx = (J, more) => Object.assign({ job: J.id, g: pick(J.ids) }, more || {});
 const lowest = J => jobMen(J).sort((a, b) => a.morale - b.morale)[0];
 // runs fn with the outing and its men, or says the moment has passed
@@ -530,281 +530,281 @@ const abandon = J => { J.abandon = true; J.end = G.day + 1; J.eventDay = 0; };
 
 const FIELD_EVENTS = {
   ambush: {
-    title: 'Word from the road',
+    title: 'Your men are stopped on the road',
     can: () => true,
     make: J => fieldCtx(J, { cost: 25 + tier() * 25 }),
-    text: c => `A carter brings word: armed men have stopped <b>${jn(jobById(c.job))}</b> at a ford and are asking a toll of ${c.cost} denarii to let ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'} cross.`,
+    text: c => `A message arrives from the road. Armed men have stopped <b>${jn(jobById(c.job))}</b> at a river crossing, and demand ${c.cost} denarii to let ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'} pass.`,
     opts: [
-      { label: () => 'Tell them to cut their way through', run: c => onJob(c, (J, men, g) => {
+      { label: () => 'Tell them to fight their way through (risky)', run: c => onJob(c, (J, men, g) => {
         if (chance(clamp(jobOdds(jobDef(J), J.need, men, 0.1, J.land), 0.2, 0.9))) {
           J.edge += 0.1; men.forEach(x => { x.morale = clamp(x.morale + 5, 0, 100); });
-          return `The toll-takers were farmers with boar spears. ${namesOf(men)} left two of them in the water and went on.`;
+          return `The armed men turned out to be only farmers with spears. ${namesOf(men)} beat them easily and went on. Morale +5, and the work is more likely to succeed.`;
         }
         J.edge -= 0.15; fieldWound(g, rint(2, 4));
-        return `There were more of them in the reeds. ${g.name} took a spear in the thigh before they broke through.`;
+        return `More armed men were hiding nearby. Your men broke through, but ${g.name} was wounded, and the work is less likely to succeed.`;
       }) },
-      { label: c => `Send the toll (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'The silver goes down the road with the carter. They are let through.'; }) },
-      { label: () => 'Have them go round by the hills', run: c => onJob(c, (J, men) => {
+      { label: c => `Pay what they ask (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return `You send the ${c.cost} denarii, and your men are allowed to pass.`; }) },
+      { label: () => 'Tell them to go another way (a day late, tiring)', run: c => onJob(c, (J, men) => {
         J.end++; men.forEach(x => { x.fatigue = clamp(x.fatigue + 15, 0, 100); });
-        return 'A day lost on goat tracks. They will be back a day later than agreed.';
+        return 'Your men go round through the hills. It tires them, and they will come home a day later than planned.';
       }) },
     ],
   },
   bribe: {
-    title: 'A purse in the dark',
+    title: 'Your fighter is offered a bribe',
     can: J => J.kind === 'contract',
     make: J => fieldCtx(J, { pay: 30 + tier() * 30 }),
-    text: c => `<b>${gn(c.g)}</b> sends word by a tavern boy. A stranger has offered ${c.pay} denarii if he will be looking the other way tomorrow night. He asks what the house wants done.`,
+    text: c => `<b>${gn(c.g)}</b> sends you a message from his job. A stranger has offered him ${c.pay} denarii to look the other way tomorrow night, while something happens that he is supposed to prevent. He asks what you want him to do.`,
     opts: [
-      { label: c => `Take it (+${c.pay})`, run: c => onJob(c, J => { G.denarii += c.pay; J.edge -= 0.35; J.bribed = true; return 'The purse comes home ahead of him. What it bought, you will find out.'; }) },
-      { label: () => 'Refuse it', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; g.morale = clamp(g.morale + 4, 0, 100); return `${g.name} sends the stranger away. He seems glad to have been told to.`; }) },
-      { label: () => 'Take it, and tell his employer', run: c => onJob(c, (J, men, g) => {
-        if (chance(0.55)) { G.denarii += c.pay; J.edge += 0.15; return `The employer laughs, lets ${g.name} keep the purse, and sets a trap with it.`; }
+      { label: c => `Take the bribe (+${c.pay} denarii; the job will probably fail)`, run: c => onJob(c, J => { G.denarii += c.pay; J.edge -= 0.35; J.bribed = true; return `You tell him to take it, and the ${c.pay} denarii are sent to you. The job is now much less likely to succeed.`; }) },
+      { label: () => 'Refuse the bribe', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; g.morale = clamp(g.morale + 4, 0, 100); return `${g.name} sends the stranger away, and is glad you told him to: morale +4. The job is a little more likely to succeed.`; }) },
+      { label: () => 'Take it, and warn his employer (risky)', run: c => onJob(c, (J, men, g) => {
+        if (chance(0.55)) { G.denarii += c.pay; J.edge += 0.15; return `The employer is pleased to be warned. He lets ${g.name} keep the money, and uses the warning to set a trap. You gain ${c.pay} denarii, and the job is more likely to succeed.`; }
         J.edge -= 0.1; fieldWound(g, rint(2, 3));
-        return `The stranger had friends, and they found ${g.name} in an alley the same night.`;
+        return `The stranger found out. His friends attacked ${g.name} that night and wounded him, and the job is less likely to succeed.`;
       }) },
     ],
   },
   insult: {
-    title: 'Treated like a dog',
+    title: 'Your fighter is being treated badly',
     can: J => J.kind === 'contract',
     make: J => fieldCtx(J),
-    text: c => `Word comes that <b>${gn(c.g)}</b> is being fed with the kitchen slaves and spoken to like one. He has not answered back yet. He wants to.`,
+    text: c => `You hear that <b>${gn(c.g)}</b>'s employer is treating him like a kitchen slave. He has kept quiet so far, but he wants to answer back.`,
     opts: [
-      { label: () => 'He bears it', run: c => onJob(c, (J, men, g) => { J.edge += 0.08; g.morale = clamp(g.morale - 10, 0, 100); return `${g.name} bears it. He will remember that you told him to.`; }) },
-      { label: () => 'He may answer as he likes', run: c => onJob(c, (J, men, g) => {
+      { label: () => 'Tell him to put up with it (his morale -10)', run: c => onJob(c, (J, men, g) => { J.edge += 0.08; g.morale = clamp(g.morale - 10, 0, 100); return `${g.name} puts up with it, as you ordered. He resents it: morale -10. The job is a little more likely to succeed.`; }) },
+      { label: () => 'Let him answer back (his morale +10; hurts the job)', run: c => onJob(c, (J, men, g) => {
         g.morale = clamp(g.morale + 10, 0, 100); J.edge -= 0.2;
-        return `${g.name} said something short in front of the whole household. It was understood.`;
+        return `${g.name} tells his employer what he thinks, in front of the whole household. He feels better: morale +10. The employer is offended, and the job is less likely to succeed.`;
       }) },
     ],
   },
   wound: {
-    title: 'Hurt on the job',
+    title: 'Your fighter is hurt on the job',
     can: J => jobDef(J).danger > 0,
     make: J => fieldCtx(J, { cost: 30 + tier() * 20 }),
-    text: c => `<b>${gn(c.g)}</b> has been hurt: a blade across the ribs, not deep, already hot to the touch. A local physician will see to it for ${c.cost} denarii.`,
+    text: c => `<b>${gn(c.g)}</b> has been cut across the ribs while working. The wound is not deep, but it is becoming infected. A local physician will treat it for ${c.cost} denarii.`,
     opts: [
-      { label: c => `Pay the physician (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'Vinegar, honey and clean linen. He will carry on.'; }) },
-      { label: () => 'He carries on as he is', run: c => onJob(c, (J, men, g) => { J.edge -= 0.1; fieldWound(g, rint(3, 5)); return `${g.name} binds it himself and carries on. He will come home the worse for it.`; }) },
-      { label: () => 'Call them home', run: c => onJob(c, (J, men, g) => { abandon(J); fieldWound(g, 2); return 'The work is given up. They will be home tomorrow.'; }) },
+      { label: c => `Pay the physician (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'The physician cleans and dresses the wound. Your fighter can go on working, with no harm done.'; }) },
+      { label: () => 'Have him carry on untreated (he comes home injured)', run: c => onJob(c, (J, men, g) => { J.edge -= 0.1; fieldWound(g, rint(3, 5)); return `${g.name} bandages the wound himself and goes on working. He will come home injured, and the job is less likely to succeed.`; }) },
+      { label: () => 'Call them home (the job is abandoned)', run: c => onJob(c, (J, men, g) => { abandon(J); fieldWound(g, 2); return 'You call your men home. The job is abandoned, and they will be back tomorrow. The hurt man needs two days to heal.'; }) },
     ],
   },
   dice: {
-    title: 'Dice at an inn',
+    title: 'Your men want to gamble',
     can: () => true,
     make: J => fieldCtx(J, { stake: 20 + tier() * 20 }),
-    text: c => `<b>${jn(jobById(c.job))}</b> ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'have' : 'has'} fallen in with a table of mule-drivers and a set of dice, and ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'ask' : 'asks'} leave to play with the house's travelling money.`,
+    text: c => `<b>${jn(jobById(c.job))}</b> ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'have' : 'has'} met some mule-drivers playing dice at an inn, and ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'ask' : 'asks'} your permission to gamble with ${c.stake} denarii of the money you gave ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'} for the journey.`,
     opts: [
-      { label: () => 'Let them play', run: c => onJob(c, (J, men) => {
+      { label: c => `Let them play (morale +6; win or lose ${c.stake} denarii)`, run: c => onJob(c, (J, men) => {
         men.forEach(x => { x.morale = clamp(x.morale + 6, 0, 100); });
-        if (chance(0.5)) { G.denarii += c.stake; return `The dice were kind. ${c.stake} denarii come home, most of what was won.`; }
+        if (chance(0.5)) { G.denarii += c.stake; return `They win. You gain ${c.stake} denarii, and their morale is +6.`; }
         G.denarii -= c.stake; men.forEach(x => { x.fatigue = clamp(x.fatigue + 10, 0, 100); });
-        return `The mule-drivers had played before. ${c.stake} denarii of your money stays at the inn.`;
+        return `They lose. You are ${c.stake} denarii poorer, and they are more tired after a late night, though their morale is +6.`;
       }) },
-      { label: () => 'Forbid it', run: c => onJob(c, (J, men) => { men.forEach(x => { x.morale = clamp(x.morale - 5, 0, 100); }); J.edge += 0.05; return 'They go to bed sober and sour.'; }) },
+      { label: () => 'Forbid it (morale -5)', run: c => onJob(c, (J, men) => { men.forEach(x => { x.morale = clamp(x.morale - 5, 0, 100); }); J.edge += 0.05; return 'You forbid it, and they go to bed early and annoyed: morale -5. The job is a little more likely to succeed.'; }) },
     ],
   },
   rivals: {
-    title: 'Familiar colours',
+    title: 'A rival school\'s men insult yours',
     can: () => true,
     make: J => fieldCtx(J, { h: pick(G.houses).id }),
-    text: c => `Men of ${houseDef(c.h).name} are in the same town on business of their own, and have been saying what they think of your house where <b>${jn(jobById(c.job))}</b> can hear it.`,
+    text: c => `Fighters from ${houseDef(c.h).name} are in the same town as <b>${jn(jobById(c.job))}</b>, and are loudly insulting your school.`,
     opts: [
-      { label: () => 'Keep away from them', run: c => onJob(c, (J, men) => { men.forEach(x => { x.morale = clamp(x.morale - 3, 0, 100); }); return 'They cross the street. It costs them something.'; }) },
-      { label: () => 'Let it be settled', run: c => onJob(c, (J, men, g) => {
+      { label: () => 'Tell them to keep away (morale -3)', run: c => onJob(c, (J, men) => { men.forEach(x => { x.morale = clamp(x.morale - 3, 0, 100); }); return 'Your men avoid them, as you ordered. It hurts their pride: morale -3.'; }) },
+      { label: () => 'Let them fight it out (risky; deepens the feud)', run: c => onJob(c, (J, men, g) => {
         const H = houseOf(c.h);
         if (chance(clamp(0.35 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.3, 0.8))) {
           feud(H, 8); H.prestige = Math.max(0, H.prestige - 5); J.edge += 0.08;
           men.forEach(x => { x.xp++; x.morale = clamp(x.morale + 8, 0, 100); });
-          return `It was settled behind a stable. ${houseDef(c.h).name} will be short a man for a week, and they know who to thank.`;
+          return `Your men win the fight. ${houseDef(c.h).name} loses 5 renown, and your men gain experience and morale +8. The job is more likely to succeed. Feud +8.`;
         }
         feud(H, 5); J.edge -= 0.1; fieldWound(g, rint(2, 4));
-        return `There were more of them than was said. ${g.name} came out of it with a broken hand.`;
+        return `There were more of them than expected, and your men lost. ${g.name} was injured, and the job is less likely to succeed. Feud +5.`;
       }) },
     ],
   },
   homesick: {
-    title: 'A long way from the ludus',
+    title: 'A fighter may be planning to run',
     can: J => J.kind === 'contract' && jobMen(J).some(g => !g.traits.includes('atpeace')),
     make: J => ({ job: J.id, g: lowest(J).id, cost: 30 + tier() * 30 }),
-    text: c => { const g = byId(c.g), J = jobById(c.job); return `<b>${gn(c.g)}</b> has been asking the way to ${g && J && J.land === g.origin ? 'his own village, which is not two days from here' : 'the coast, and what a passage costs'}. It may be nothing.`; },
+    text: c => { const g = byId(c.g), J = jobById(c.job); return `<b>${gn(c.g)}</b>, away on a job, has been asking the way to ${g && J && J.land === g.origin ? 'his home village, which is less than two days from where he is' : 'the coast, and what a ship\'s passage costs'}. He may be thinking of running away. Or it may mean nothing.`; },
     opts: [
-      { label: c => `Promise him a bonus when he is home (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, (J, men, g) => { G.denarii -= c.cost; g.morale = clamp(g.morale + 15, 0, 100); return `${g.name} is told there is silver waiting for him. He stops asking questions.`; }) },
-      { label: () => 'Trust him', run: c => onJob(c, (J, men, g) => {
-        if (g.morale < 45 && !g.grateful && !g.traits.includes('atpeace') && chance(0.6)) { J.flight = g.id; return 'You send no word. There is nothing to do now but wait and see who comes back.'; }
+      { label: c => `Promise him a bonus for coming home (${c.cost} denarii; his morale +15)`, ok: c => G.denarii >= c.cost, run: c => onJob(c, (J, men, g) => { G.denarii -= c.cost; g.morale = clamp(g.morale + 15, 0, 100); return `You send word that ${c.cost} denarii are waiting for ${g.name} at home. He stops asking about the road: morale +15.`; }) },
+      { label: () => 'Trust him (an unhappy man may desert)', run: c => onJob(c, (J, men, g) => {
+        if (g.morale < 45 && !g.grateful && !g.traits.includes('atpeace') && chance(0.6)) { J.flight = g.id; return 'You do nothing. You will find out whether he comes back when the job ends.'; }
         g.morale = clamp(g.morale + 6, 0, 100);
-        return `${g.name} was only asking after news of home. He hears that you trusted him, and it matters to him.`;
+        return `${g.name} was only asking for news of home. He hears that you trusted him, and is glad of it: morale +6.`;
       }) },
-      { label: () => 'Have them all brought back', run: c => onJob(c, J => { abandon(J); return 'The doctore rides out to fetch them. The work is given up.'; }) },
+      { label: () => 'Bring them all home (the job is abandoned)', run: c => onJob(c, J => { abandon(J); return 'You send your trainer to bring them home. The job is abandoned.'; }) },
     ],
   },
   windfall: {
-    title: 'A grateful household',
+    title: 'Your fighter saved a child',
     can: J => J.kind === 'contract',
     make: J => fieldCtx(J, { pay: 25 + tier() * 25 }),
-    text: c => `<b>${gn(c.g)}</b> pulled the employer's child out from under a cart horse. The family would like to thank the house, and ask how.`,
+    text: c => `<b>${gn(c.g)}</b> has saved his employer's child from being trampled by a horse. The family wants to reward your school, and asks what you would like.`,
     opts: [
-      { label: c => `In silver (+${c.pay})`, run: c => onJob(c, () => { G.denarii += c.pay; return 'A purse arrives with a note in a good hand.'; }) },
-      { label: () => 'In iron: something from their armoury', run: c => onJob(c, () => {
+      { label: c => `Ask for money (+${c.pay} denarii)`, run: c => onJob(c, () => { G.denarii += c.pay; return `The family sends you ${c.pay} denarii, with a letter of thanks.`; }) },
+      { label: () => 'Ask for a piece of armour', run: c => onJob(c, () => {
         const it = makeItem(pick(ARMOR_SLOTS), clamp(tier() + rint(0, 1), 0, 6));
         G.armoury.push(it);
-        return `They send ${itemName(it).toLowerCase()} that belonged to an uncle. It is in your armoury.`;
+        return `The family sends you ${itemName(it).toLowerCase()} from their own collection. It is now in your armoury.`;
       }) },
-      { label: () => 'In good words to their friends', run: c => onJob(c, J => { favor(J.patron, 6); J.edge += 0.05; return `They speak well of you where it counts. ${PATRONS[J.patron].name}: favour +6.`; }) },
+      { label: () => 'Ask them to speak well of you (favour +6)', run: c => onJob(c, J => { favor(J.patron, 6); J.edge += 0.05; return `The family praises your school to their powerful friends. ${PATRONS[J.patron].name}: favour +6. The job is a little more likely to succeed.`; }) },
     ],
   },
   crowd: {
-    title: 'They know his face',
+    title: 'A crowd wants your fighter to perform',
     can: J => J.kind === 'contract',
     make: J => fieldCtx(J),
-    text: c => `A crowd has gathered where <b>${gn(c.g)}</b> is working and is shouting for him to show them something from the arena. His employer has not said he may.`,
+    text: c => `A crowd has recognised <b>${gn(c.g)}</b> at his job, and is calling for him to show off his arena skills. His employer has not given permission.`,
     opts: [
-      { label: () => 'Give them a show', run: c => onJob(c, (J, men, g) => {
+      { label: () => 'Let him perform (fame; may annoy the employer)', run: c => onJob(c, (J, men, g) => {
         const f = 2 + tier(); G.fame += f; g.fame += f; g.morale = clamp(g.morale + 6, 0, 100);
-        if (!g.traits.includes('showy') && chance(0.4)) { J.edge -= 0.2; return `${g.name} gives them the salute and six cuts at the air. The street roars; the employer is tight-lipped. Fame +${f}.`; }
-        return `${g.name} gives them the salute and six cuts at the air, and bows to his employer after. Everyone is pleased. Fame +${f}.`;
+        if (!g.traits.includes('showy') && chance(0.4)) { J.edge -= 0.2; return `${g.name} performs for the crowd, and they love it. Fame +${f}, and his morale is +6. But his employer is annoyed, and the job is less likely to succeed.`; }
+        return `${g.name} performs for the crowd, and then bows to his employer. Everyone is pleased. Fame +${f}, and his morale is +6.`;
       }) },
-      { label: () => 'He keeps to his work', run: c => onJob(c, J => { J.edge += 0.06; return 'The crowd drifts off. The employer notices that he stayed where he was put.'; }) },
+      { label: () => 'Tell him to keep working', run: c => onJob(c, J => { J.edge += 0.06; return 'He goes on with his work, and the crowd leaves. His employer is pleased, and the job is a little more likely to succeed.'; }) },
     ],
   },
   // ---- more from the road. These are not tied to one kind of work: `fits` says which kinds they can come up on. ----
   shortpay: {
-    title: 'A light purse', fits: () => true,
+    title: 'The employer wants to pay partly in wine', fits: () => true,
     can: J => J.kind === 'contract' && J.pay > 0,
     make: J => fieldCtx(J),
-    text: c => `The employer has let <b>${gn(c.g)}</b> know that money is tight this month, and that part of what was agreed might be paid in wine: good wine, he says. ${gn(c.g)} asks whether the house takes wine.`,
+    text: c => `<b>${gn(c.g)}</b>'s employer says he is short of money this month, and wants to pay part of the agreed fee in wine instead of coin. ${gn(c.g)} asks what you want him to answer.`,
     opts: [
-      { label: () => 'Coin, as agreed', run: c => onJob(c, J => { favor(J.patron, -1); return `It will be coin. The employer pays as a man pays who has been made to. ${PATRONS[J.patron].name}: favour -1.`; }) },
-      { label: () => 'Take the wine for a fifth of it', run: c => onJob(c, (J, men) => { J.pay = round5(J.pay * 0.8); men.forEach(x => evMor(x, 8)); home().forEach(x => evMor(x, 3)); return `Four amphorae come home on a cart. The pay will be ${J.pay} denarii, and there is not a sour face in the barracks.`; }) },
-      { label: () => 'Let him argue it out himself', run: c => onJob(c, (J, men, g) => {
-        if (chance(clamp(0.3 + g.stats.skl * 0.025, 0.3, 0.8))) { J.pay = round5(J.pay * 1.1); return `${g.name} says very little, and stands rather close while he says it. The pay will be ${J.pay} denarii, in coin.`; }
-        J.edge -= 0.12; return `${g.name} is a better swordsman than he is a bargainer. Nothing is changed but the employer's temper.`;
+      { label: () => 'Insist on coin, as agreed (favour -1)', run: c => onJob(c, J => { favor(J.patron, -1); return `You insist on the full fee in coin. The employer agrees, but he is not pleased. ${PATRONS[J.patron].name}: favour -1.`; }) },
+      { label: () => 'Take wine for a fifth of the fee (less pay, more morale)', run: c => onJob(c, (J, men) => { J.pay = round5(J.pay * 0.8); men.forEach(x => evMor(x, 8)); home().forEach(x => evMor(x, 3)); return `You accept wine for a fifth of the fee, so the pay will be ${J.pay} denarii. The men on the job gain 8 morale, and the men at home gain 3.`; }) },
+      { label: () => 'Let your fighter bargain for it (may gain or lose)', run: c => onJob(c, (J, men, g) => {
+        if (chance(clamp(0.3 + g.stats.skl * 0.025, 0.3, 0.8))) { J.pay = round5(J.pay * 1.1); return `${g.name} frightens the employer into paying more. The pay will now be ${J.pay} denarii, all in coin.`; }
+        J.edge -= 0.12; return `${g.name} bargains badly. The pay stays the same, but the employer is annoyed, and the job is less likely to succeed.`;
       }) },
     ],
   },
   sickness: {
-    title: 'Bad water', fits: D => !!D.travel,
+    title: 'Your men are sick from bad water', fits: D => !!D.travel,
     can: () => true,
     make: J => fieldCtx(J, { cost: 20 + tier() * 15 }),
-    text: c => `<b>${jn(jobById(c.job))}</b> drank from a well that the local people have more sense than to use, and ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'have' : 'has'} been paying for it since midnight. A woman in the village sells a cure for ${c.cost} denarii.`,
+    text: c => `<b>${jn(jobById(c.job))}</b> drank from a bad well on the road, and ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'have' : 'has'} been sick all night. A woman in the village sells a cure for ${c.cost} denarii.`,
     opts: [
-      { label: c => `Buy the cure (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'It is mostly charcoal and mint. By noon they are on the road again, pale and uncomplaining.'; }) },
-      { label: () => 'Lie up a day', run: c => onJob(c, (J, men) => { J.end++; men.forEach(x => { x.fatigue = clamp(x.fatigue - 10, 0, 100); }); return 'A day in a barn with a bucket. They will be home a day later than agreed.'; }) },
-      { label: () => 'They march as they are', run: c => onJob(c, (J, men) => { J.edge -= 0.1; men.forEach(x => { x.fatigue = clamp(x.fatigue + 20, 0, 100); evMor(x, -5); }); return 'They march, stopping often. The work will get what is left of them.'; }) },
+      { label: c => `Buy the cure (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'The cure works. By noon your men are well enough to travel, and no time is lost.'; }) },
+      { label: () => 'Rest for a day (home a day late)', run: c => onJob(c, (J, men) => { J.end++; men.forEach(x => { x.fatigue = clamp(x.fatigue - 10, 0, 100); }); return 'Your men rest for a day until they are better. They will come home a day later than planned.'; }) },
+      { label: () => 'Make them go on sick (tiring, morale -5, hurts the job)', run: c => onJob(c, (J, men) => { J.edge -= 0.1; men.forEach(x => { x.fatigue = clamp(x.fatigue + 20, 0, 100); evMor(x, -5); }); return 'Your men travel on while still sick. They are much more tired, morale is -5, and the job is less likely to succeed.'; }) },
     ],
   },
   stranger: {
-    title: 'A man going the same way', fits: D => !!D.travel,
+    title: 'A stranger wants to travel with your men', fits: D => !!D.travel,
     can: () => true,
     make: J => fieldCtx(J, { stake: 15 + tier() * 15 }),
-    text: c => `A lean man with a soldier's walk has fallen in beside <b>${jn(jobById(c.job))}</b> and asks to keep company as far as the next town. He is good talk, and he looks at the baggage a little too often.`,
+    text: c => `A stranger on the road, who looks like an old soldier, asks to travel with <b>${jn(jobById(c.job))}</b> as far as the next town. He is good company, but he keeps looking at the baggage. He may be a thief.`,
     opts: [
-      { label: () => 'He is welcome', run: c => onJob(c, (J, men) => {
-        if (chance(0.6)) { J.edge += 0.06; men.forEach(x => evMor(x, 3)); return 'He was twenty years with the legions, knows every mile of this road, and shows them a trick with a shield rim before he goes his way.'; }
-        G.denarii -= c.stake; return `He is gone before dawn, and so is ${c.stake} denarii of the travelling money.`;
+      { label: () => 'Let him come along (may help, or he may rob you)', run: c => onJob(c, (J, men) => {
+        if (chance(0.6)) { J.edge += 0.06; men.forEach(x => evMor(x, 3)); return 'He turns out to be an honest old soldier who knows the road well, and he teaches your men a useful trick before he leaves. Morale +3, and the job is a little more likely to succeed.'; }
+        G.denarii -= c.stake; return `He was a thief. He is gone before dawn, with ${c.stake} denarii of your travelling money.`;
       }) },
-      { label: () => 'He walks alone', run: c => onJob(c, () => 'He shrugs and drops back. Nobody will ever know which kind he was.') },
+      { label: () => 'Send him away', run: c => onJob(c, () => 'Your men send him away. You will never know whether he was honest.') },
     ],
   },
   sidebout: {
-    title: 'A private wager', fits: D => D.danger > 0 || !!D.glory,
+    title: 'An offer of a private fight', fits: D => D.danger > 0 || !!D.glory,
     can: J => J.kind === 'contract',
     make: J => fieldCtx(J, { pay: 40 + tier() * 35 }),
-    text: c => `A man with rings on his thumbs has seen <b>${gn(c.g)}</b> and wants him to fight his cook's son tonight, in a courtyard, for ${c.pay} denarii to the winner. The cook's son is said to be very large.`,
+    text: c => `A rich man has seen <b>${gn(c.g)}</b> at his job, and wants him to fight a private bout tonight against his cook's son, who is said to be very big. The winner gets ${c.pay} denarii.`,
     opts: [
-      { label: () => 'Let him fight', run: c => onJob(c, (J, men, g) => {
-        if (chance(clamp(0.4 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.35, 0.85))) { G.denarii += c.pay; g.xp++; evMor(g, 8); return `The cook's son was very large and very slow. <b>${c.pay}</b> denarii come home, and ${g.name} has a story.`; }
-        J.edge -= 0.1; fieldWound(g, rint(2, 3)); return `The cook's son had done this before. ${g.name} will do the rest of his work with one eye shut.`;
+      { label: c => `Let him fight (+${c.pay} denarii if he wins; risk of injury)`, run: c => onJob(c, (J, men, g) => {
+        if (chance(clamp(0.4 + statSum(g) / (ENEMY_BUDGET[tier()] * 2.2) * 0.4, 0.35, 0.85))) { G.denarii += c.pay; g.xp++; evMor(g, 8); return `${g.name} wins: the cook's son was big, but slow. You gain <b>${c.pay}</b> denarii, and he gains experience and morale +8.`; }
+        J.edge -= 0.1; fieldWound(g, rint(2, 3)); return `${g.name} loses: the cook's son was an experienced fighter. He is injured, and the job is less likely to succeed.`;
       }) },
-      { label: () => 'He is there to work', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -3); return `${g.name} sends his regrets. His employer hears that he did, and approves.`; }) },
+      { label: () => 'Refuse: he is there to work (his morale -3)', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -3); return `${g.name} turns the fight down. He is a little disappointed: morale -3. His employer approves, and the job is a little more likely to succeed.`; }) },
     ],
   },
   admirer: {
-    title: 'A letter, scented', fits: D => !D.travel,
+    title: 'Someone in the household admires your fighter', fits: D => !D.travel,
     can: J => J.kind === 'contract',
     make: J => fieldCtx(J, { gift: 25 + tier() * 25 }),
-    text: c => `Somebody in the employer's household has been leaving figs, and now a letter, where <b>${gn(c.g)}</b> will find them. He cannot read it. He has a fair idea what it says.`,
+    text: c => `Someone in his employer's household has been leaving small gifts for <b>${gn(c.g)}</b>, and now a love letter. He does not know who it is.`,
     opts: [
-      { label: () => 'He is to find it has all been a mistake', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -5); return `${g.name} returns the letter unopened, by way of the steward, which is the safest insult there is.`; }) },
-      { label: () => 'What he does after dark is his own affair', run: c => onJob(c, (J, men, g) => {
-        if (chance(0.6)) { G.denarii += c.gift; evMor(g, 12); return `Nothing is ever said. ${g.name} comes off duty whistling, and a purse of ${c.gift} denarii reaches the house from a hand nobody names.`; }
-        J.edge -= 0.3; favor(J.patron, -3); return `It is the employer's wife, and the employer is not a fool. ${PATRONS[J.patron].name}: favour -3.`;
+      { label: () => 'Tell him to refuse politely (his morale -5)', run: c => onJob(c, (J, men, g) => { J.edge += 0.05; evMor(g, -5); return `${g.name} sends the letter back unopened. He is sorry to: morale -5. The job is a little more likely to succeed.`; }) },
+      { label: () => 'Let him do as he likes (may pay well, or ruin the job)', run: c => onJob(c, (J, men, g) => {
+        if (chance(0.6)) { G.denarii += c.gift; evMor(g, 12); return `Nobody finds out. ${g.name} is very happy (morale +12), and his admirer secretly sends your school ${c.gift} denarii.`; }
+        J.edge -= 0.3; favor(J.patron, -3); return `The admirer was the employer's wife, and the employer finds out. The job is now much less likely to succeed. ${PATRONS[J.patron].name}: favour -3.`;
       }) },
     ],
   },
-  thief: {
-    title: 'A hand in the baggage', fits: () => true,
+  jobThief: {      // (the school has events called thief, omen and brawl of its own: these must not take their names)
+    title: 'A boy tries to rob your fighter', fits: () => true,
     can: () => true,
     make: J => fieldCtx(J),
-    text: c => `<b>${gn(c.g)}</b> woke with a hand in his pack and has the owner of it by the wrist: a boy of ten or so, all ribs, who has not made a sound.`,
+    text: c => `<b>${gn(c.g)}</b> woke in the night and caught a thief with his hand in his pack. It is a thin, hungry boy of about ten.`,
     opts: [
-      { label: () => 'Give him to the watch', run: c => onJob(c, () => { favor('magistrate', 2); return 'The watch are glad of somebody to be seen catching. The Magistrate: favour +2.'; }) },
-      { label: () => 'A clip round the ear, and let him run', run: c => onJob(c, () => 'He runs. He will try an easier pack tomorrow.') },
-      { label: () => 'Feed him', run: c => onJob(c, (J, men, g) => {
+      { label: () => 'Hand him to the town watch (Magistrate favour +2)', run: c => onJob(c, () => { favor('magistrate', 2); return 'Your fighter hands the boy over to the town watch. Magistrate favour +2.'; }) },
+      { label: () => 'Let him go', run: c => onJob(c, () => 'Your fighter lets the boy go, and he runs off.') },
+      { label: () => 'Feed him (his morale +5; the boy may help)', run: c => onJob(c, (J, men, g) => {
         evMor(g, 5);
-        if (chance(0.35)) { J.edge += 0.1; return `He eats like a dog, watching the door. Then he tells ${g.name} who in this town is asking about him, and why. It is worth knowing.`; }
-        return `He eats like a dog, watching the door, and is gone with the bread that was left. ${g.name} seems the better for it.`;
+        if (chance(0.35)) { J.edge += 0.1; return `The boy eats hungrily. In return he warns ${g.name} about people in the town who mean him harm. ${g.name}'s morale is +5, and the job is more likely to succeed.`; }
+        return `The boy eats hungrily and runs off with the rest of the bread. ${g.name} is glad he fed him: morale +5.`;
       }) },
     ],
   },
   washout: {
-    title: 'The bridge is down', fits: D => !!D.travel,
+    title: 'The bridge has been washed away', fits: D => !!D.travel,
     can: () => true,
     make: J => fieldCtx(J, { cost: 15 + tier() * 15 }),
-    text: c => `Three days of rain in the hills, and the bridge <b>${jn(jobById(c.job))}</b> meant to cross is somewhere downstream. A man with a flat boat will take them over for ${c.cost} denarii, which is robbery.`,
+    text: c => `Heavy rain has washed away the bridge that <b>${jn(jobById(c.job))}</b> needed to cross. A boatman will ferry ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'} over for ${c.cost} denarii, which is far too much.`,
     opts: [
-      { label: c => `Pay the boatman (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'He poles them across, singing. It is a good boat.'; }) },
-      { label: () => 'Ford it higher up', run: c => onJob(c, (J, men, g) => {
-        if (chance(clamp(0.35 + g.stats.agi * 0.03, 0.35, 0.85))) { men.forEach(x => { x.fatigue = clamp(x.fatigue + 10, 0, 100); }); return 'Chest-deep and very cold, with the packs held overhead. They are across, and no time lost.'; }
-        J.edge -= 0.08; fieldWound(g, rint(1, 3)); return `The river took ${g.name}'s feet from under him and put him against a rock. He is across, and the worse for it.`;
+      { label: c => `Pay the boatman (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => onJob(c, () => { G.denarii -= c.cost; return 'The boatman takes your men across safely, and no time is lost.'; }) },
+      { label: () => 'Wade across further upstream (risky)', run: c => onJob(c, (J, men, g) => {
+        if (chance(clamp(0.35 + g.stats.agi * 0.03, 0.35, 0.85))) { men.forEach(x => { x.fatigue = clamp(x.fatigue + 10, 0, 100); }); return 'Your men wade across in deep, cold water. They are more tired, but they get across safely and lose no time.'; }
+        J.edge -= 0.08; fieldWound(g, rint(1, 3)); return `The current knocks ${g.name} off his feet and throws him against a rock. He gets across, but he is injured, and the job is less likely to succeed.`;
       }) },
-      { label: () => 'Wait for the water to fall', run: c => onJob(c, J => { J.end++; return 'A day watching brown water. They will be home a day later than agreed.'; }) },
+      { label: () => 'Wait for the river to go down (home a day late)', run: c => onJob(c, J => { J.end++; return 'Your men wait a day for the river to go down. They will come home a day later than planned.'; }) },
     ],
   },
   oldfoe: {
-    title: 'A face from the sand', fits: () => true,
+    title: 'A retired gladiator invites your fighter to drink', fits: () => true,
     can: () => true,
     make: J => fieldCtx(J),
-    text: c => `The man who keeps the tavern nearest the work has a wooden sword over his door and knows <b>${gn(c.g)}</b> by sight: he fought in this province for eleven years. He has put a jug on the table and pulled out a stool.`,
+    text: c => `The keeper of the nearest tavern is a retired gladiator who fought in this province for eleven years. He has recognised <b>${gn(c.g)}</b>, and invites him to sit down and drink with him.`,
     opts: [
-      { label: () => 'Sit down with him', run: c => onJob(c, (J, men, g) => { g.xp++; evMor(g, 6); men.forEach(x => { x.fatigue = clamp(x.fatigue + 8, 0, 100); }); return `It goes on until the lamp is out. ${g.name} comes away with a sore head and two things about footwork he had never been told.`; }) },
-      { label: () => 'Another time', run: c => onJob(c, J => { J.edge += 0.05; return 'The old man nods: he remembers what it was to be on somebody else\'s time.'; }) },
+      { label: () => 'Let him drink with the old man (experience, morale +6, tiring)', run: c => onJob(c, (J, men, g) => { g.xp++; evMor(g, 6); men.forEach(x => { x.fatigue = clamp(x.fatigue + 8, 0, 100); }); return `They drink and talk until late. ${g.name} learns some useful things from him: he gains experience and morale +6. Everyone on the job is a little more tired.`; }) },
+      { label: () => 'Tell him to refuse and keep working', run: c => onJob(c, J => { J.edge += 0.05; return 'Your fighter refuses politely, and the old man understands. The job is a little more likely to succeed.'; }) },
     ],
   },
-  omen: {
-    title: 'A bad sign', fits: () => true,
+  jobOmen: {
+    title: 'Your men have seen a bad omen', fits: () => true,
     can: () => true,
     make: J => fieldCtx(J, { cost: 10 + tier() * 5 }),
-    text: c => `An owl sat on the roof-tree all day in full sun, where <b>${jn(jobById(c.job))}</b> could not help but see it. Nothing has been said. A good deal is being thought.`,
+    text: c => `An owl sat on the roof in full daylight all day, where <b>${jn(jobById(c.job))}</b> could see it. That is a sign of bad luck, and it is worrying ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'}.`,
     opts: [
-      { label: c => `A cock to the household gods (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => onJob(c, (J, men) => { G.denarii -= c.cost; men.forEach(x => evMor(x, 6)); return 'The blood goes on the threshold and the bird goes in the pot. Everybody feels a great deal better.'; }) },
-      { label: () => 'It is a bird', run: c => onJob(c, (J, men) => {
-        if (men.some(x => x.traits.includes('blessed')) || chance(0.55)) return 'It is a bird. By evening it has gone, and nothing has happened to anybody.';
-        J.edge -= 0.06; men.forEach(x => evMor(x, -8)); return 'It is a bird; but they do the rest of the work looking over their shoulders.';
+      { label: c => `Pay for a small sacrifice (${c.cost} denarii; morale +6)`, ok: c => G.denarii >= c.cost, run: c => onJob(c, (J, men) => { G.denarii -= c.cost; men.forEach(x => evMor(x, 6)); return 'Your men sacrifice a cockerel to turn the bad luck away, and feel much better: morale +6.'; }) },
+      { label: () => 'Tell them to ignore it (may hurt morale and the job)', run: c => onJob(c, (J, men) => {
+        if (men.some(x => x.traits.includes('blessed')) || chance(0.55)) return 'By evening the owl has gone, and nothing bad has happened. Your men forget about it.';
+        J.edge -= 0.06; men.forEach(x => evMor(x, -8)); return 'Your men cannot stop worrying about it. Morale -8, and the job is a little less likely to succeed.';
       }) },
     ],
   },
   staylonger: {
-    title: 'Two days more', fits: D => !D.travel,
+    title: 'The employer wants to keep your men longer', fits: D => !D.travel,
     can: J => J.kind === 'contract' && J.pay > 0,
     make: J => fieldCtx(J, { more: round5(Math.max(15, (jobById(J.id) || J).pay * 0.35)) }),
     text: c => `The employer is pleased with <b>${jn(jobById(c.job))}</b>, and asks to keep ${jobMen(jobById(c.job) || { ids: [] }).length > 1 ? 'them' : 'him'} two days beyond what was agreed, for ${c.more} denarii more.`,
     opts: [
-      { label: c => `Two days more (+${c.more})`, run: c => onJob(c, J => { J.end += 2; J.pay += c.more; return `It is agreed. They will be home two days later, and the pay will be ${J.pay} denarii.`; }) },
-      { label: () => 'They are wanted at home', run: c => onJob(c, () => 'The employer is sorry, and says so civilly.') },
+      { label: c => `Agree (+${c.more} denarii, home two days later)`, run: c => onJob(c, J => { J.end += 2; J.pay += c.more; return `You agree. Your men will come home two days later, and the pay will be ${J.pay} denarii.`; }) },
+      { label: () => 'Refuse', run: c => onJob(c, () => 'You refuse. The employer is sorry, but accepts it. Your men will come home on time.') },
     ],
   },
-  brawl: {
-    title: 'Words in the street', fits: D => D.danger > 0,
+  jobBrawl: {
+    title: 'Drunk young men insult your fighter', fits: D => D.danger > 0,
     can: () => true,
     make: J => fieldCtx(J),
-    text: c => `Some young men of the town, with wine in them, have decided that <b>${gn(c.g)}</b> does not look so much, and have said so across the width of the street. There are five of them.`,
+    text: c => `Five drunk young men of the town have been shouting insults at <b>${gn(c.g)}</b> in the street, saying he does not look like much of a fighter.`,
     opts: [
-      { label: () => 'He walks on', run: c => onJob(c, (J, men, g) => { evMor(g, -4); return `${g.name} walks on. It is harder than fighting, and he says so afterwards.`; }) },
-      { label: () => 'He may teach them better', run: c => onJob(c, (J, men, g) => {
+      { label: () => 'Tell him to walk away (his morale -4)', run: c => onJob(c, (J, men, g) => { evMor(g, -4); return `${g.name} walks away, which he finds harder than fighting: morale -4.`; }) },
+      { label: () => 'Let him fight them (fame; may anger the Magistrate)', run: c => onJob(c, (J, men, g) => {
         const f = 1 + tier();
-        if (chance(0.7)) { G.fame += f; g.fame += f; evMor(g, 8); return `It takes about as long as it takes to say. Nobody is badly hurt, and the town talks of nothing else. Fame +${f}.`; }
-        favor('magistrate', -3); J.edge -= 0.1; return 'One of them is the son of a town councillor, and has a broken jaw. The Magistrate hears of it: favour -3.';
+        if (chance(0.7)) { G.fame += f; g.fame += f; evMor(g, 8); return `${g.name} beats all five in moments, without hurting any of them badly. The whole town talks about it: fame +${f}, and his morale is +8.`; }
+        favor('magistrate', -3); J.edge -= 0.1; return 'One of the young men is a town councillor\'s son, and your fighter breaks his jaw. The Magistrate hears of it: favour -3. The job is less likely to succeed.';
       }) },
     ],
   },

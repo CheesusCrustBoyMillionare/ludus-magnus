@@ -206,6 +206,17 @@ test('the tavern: the book on the houses, the dice, and a night for the men', ()
   assert(!badNumber(G), 'the tavern left a bad number');
 }));
 
+test('events: no two tables of events use the same name', () => {
+  // every table is poured into EVENTS, where a second event of the same name silently replaces the first: three of the
+  // school's events were lost that way to three of the road's
+  const keys = (f, start) => { const s = read('js/' + f), a = s.indexOf(start), b = s.indexOf('\n};', a); assert(a >= 0 && b > a, 'table not found: ' + start); return [...s.slice(a, b).matchAll(/^  ([a-zA-Z_]+): \{/gm)].map(x => x[1]); };
+  const sets = { school: keys('sim.js', 'const EVENTS = {'), work: keys('jobs.js', 'const FIELD_EVENTS = {'), wild: keys('wilds.js', 'const WILD_EVENTS = {'), errand: keys('wilds.js', 'const ERRAND_EVENTS = {'), road: keys('wilds.js', 'const ROAD_EVENTS = {'), town: keys('wilds.js', 'const TOWN_EVENTS = {') }, seen = {};
+  for (const k in sets) { assert(sets[k].length >= 5, 'too few events read from ' + k); for (const id of sets[k]) (seen[id] = seen[id] || []).push(k); }
+  const twice = Object.keys(seen).filter(id => seen[id].length > 1);
+  assert(!twice.length, 'the same name in two tables: ' + twice.map(id => id + ' (' + seen[id].join(', ') + ')').join('; '));
+  assert(sets.school.includes('thief') && sets.school.includes('omen') && sets.school.includes('brawl') && sets.work.includes('jobThief'), 'the school keeps its three, and the road has its own');
+});
+
 test('rival houses: dealings, challenges, and the houses fighting each other', () => game()(function () {
   newGame(); G.denarii = 5000; G.fac.barracks = 1;
   const H = G.houses[0];

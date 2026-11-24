@@ -2371,131 +2371,131 @@ const EVENTS = {
     title: 'A magistrate\'s banquet',
     can: () => fit().length > 0,
     make: () => ({ g: pick(fit()).id, pay: 50 + tier() * 40 }),
-    text: c => `A magistrate wants <b>${gn(c.g)}</b> to stand at his banquet door like a trophy. He pays well. The gladiator will get no sleep.`,
+    text: c => `A magistrate wants to hire <b>${gn(c.g)}</b> for a night, to stand at the door of his banquet and impress the guests. He will pay ${c.pay} denarii. The gladiator will get no sleep, and will be very tired tomorrow.`,
     opts: [
-      { label: c => `Send him (+${c.pay} denarii)`, run: c => { const g = byId(c.g); G.denarii += c.pay; if (g) g.fatigue = clamp(g.fatigue + 35, 0, 100); return `${gn(c.g)} returns at dawn, hollow-eyed. The purse is heavy.`; } },
-      { label: () => 'Refuse', run: () => 'The magistrate\'s steward leaves without a word.' },
+      { label: c => `Send him (+${c.pay} denarii, very tiring)`, run: c => { const g = byId(c.g); G.denarii += c.pay; if (g) g.fatigue = clamp(g.fatigue + 35, 0, 100); return `${gn(c.g)} comes back at dawn, exhausted. You are paid ${c.pay} denarii.`; } },
+      { label: () => 'Refuse', run: () => 'You refuse. The magistrate\'s servant leaves without a word.' },
     ],
   },
   trainer: {
-    title: 'The old champion',
+    title: 'A retired champion',
     can: () => fit().length > 0 && G.denarii >= 60,
     make: () => ({ g: pick(fit()).id, cost: 60 + tier() * 30 }),
-    text: c => `A scarred freedman who once won the wooden sword offers to drill <b>${gn(c.g)}</b> for a day. He wants ${c.cost} denarii.`,
+    text: c => `A retired gladiator, who won his freedom in the arena long ago, offers to train <b>${gn(c.g)}</b> for a day. He wants ${c.cost} denarii.`,
     opts: [
-      { label: c => `Pay ${c.cost} denarii`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; if (g && g.stats.skl < 20) g.stats.skl++; return `By dusk ${gn(c.g)} moves differently. Skill +1.`; } },
-      { label: () => 'Send him away', run: () => 'He shrugs and limps off toward the next ludus.' },
+      { label: c => `Pay ${c.cost} denarii (skill +1)`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; if (g && g.stats.skl < 20) g.stats.skl++; return `After a day of his training, ${gn(c.g)} is a better fighter. Skill +1.`; } },
+      { label: () => 'Send him away', run: () => 'He shrugs, and goes off to offer his lessons to another school.' },
     ],
   },
   fever: {
     title: 'Fever in the barracks',
     can: () => G.roster.length >= 2,
     make: () => ({ cost: 20 + 12 * G.roster.length }),
-    text: c => `Two men woke shivering and the rest are watching them. A physician can be had for ${c.cost} denarii.`,
+    text: c => `Two of your men have woken with a fever, and it may spread to the others. A physician will treat the whole school for ${c.cost} denarii.`,
     opts: [
-      { label: c => `Fetch the physician (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'Bitter draughts and a day of sweating. The fever breaks.'; } },
-      { label: () => 'Let it run its course', run: () => {
+      { label: c => `Pay the physician (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'The physician gives the men medicine, and after a day the fever is gone. Nobody is laid up.'; } },
+      { label: () => 'Do nothing (men may fall sick)', run: () => {
         const sick = fit().filter(() => chance(0.4));
         sick.forEach(g => { g.injury = rint(2, 4); });
-        return sick.length ? `${sick.map(g => g.name).join(', ')} ${sick.length > 1 ? 'are' : 'is'} laid low for days.` : 'By luck alone, it passes.';
+        return sick.length ? `The fever spreads. ${sick.map(g => g.name).join(', ')} ${sick.length > 1 ? 'are' : 'is'} too sick to train or fight for several days.` : 'You are lucky: the fever passes, and nobody else falls sick.';
       } },
     ],
   },
   brawl: {
-    title: 'Blood in the mess hall',
+    title: 'A fight in the mess hall',
     can: () => fit().length >= 2,
     make: () => { const f = fit().slice().sort(() => Math.random() - 0.5); return { a: f[0].id, b: f[1].id }; },
-    text: c => `<b>${gn(c.a)}</b> and <b>${gn(c.b)}</b> came to blows over a bowl of barley. The others are waiting to see what you do.`,
+    text: c => `<b>${gn(c.a)}</b> and <b>${gn(c.b)}</b> have had a fist fight over food. The other men are waiting to see how you deal with it.`,
     opts: [
-      { label: () => 'Flog them both', run: c => { [c.a, c.b].forEach(id => { const g = byId(id); if (g) g.morale = clamp(g.morale - 12, 0, 100); }); return 'Order is restored. Nobody thanks you for it.'; } },
-      { label: () => 'Let them settle it', run: c => {
-        if (chance(0.5)) { const g = byId(chance(0.5) ? c.a : c.b); if (g) { g.injury = rint(2, 3); const a = byId(c.a), b = byId(c.b); if (a && b) makeBond(a, b, 'rival'); return `It ends with ${g.name} on the floor and a cracked rib. Out for ${g.injury} day${g.injury === 1 ? "" : "s"}.`; } }
+      { label: () => 'Whip them both (morale -12 each)', run: c => { [c.a, c.b].forEach(id => { const g = byId(id); if (g) g.morale = clamp(g.morale - 12, 0, 100); }); return 'Both men are whipped, and there is no more trouble. Each of them loses 12 morale.'; } },
+      { label: () => 'Let them fight it out (may end well or badly)', run: c => {
+        if (chance(0.5)) { const g = byId(chance(0.5) ? c.a : c.b); if (g) { g.injury = rint(2, 3); const a = byId(c.a), b = byId(c.b); if (a && b) makeBond(a, b, 'rival'); return `The fight ends badly. ${g.name} has a cracked rib and is out for ${g.injury} day${g.injury === 1 ? "" : "s"}, and the two men are now rivals.`; } }
         [c.a, c.b].forEach(id => { const g = byId(id); if (g) g.morale = clamp(g.morale + 8, 0, 100); });
         const a = byId(c.a), b = byId(c.b); if (a && b) makeBond(a, b, 'friend');
-        return 'They beat each other bloody and end the night sharing wine. Morale rises.';
+        return 'They fight until both are tired, and end the night drinking together. They are friends now, and each gains 8 morale.';
       } },
     ],
   },
   volunteer: {
-    title: 'A free man at the gate',
+    title: 'A volunteer at the gate',
     can: () => G.roster.length < capacity(),
     make: () => ({ fee: 40 + tier() * 40, g: makeGladiator(19 + tier() * 8 + rint(0, 5)) }),
-    text: c => `<b>${c.g.name}</b> of ${c.g.origin}, drowning in debt, offers to swear the gladiator's oath as a ${CLASSES[c.g.cls].name}. He asks ${c.fee} denarii to pay off his creditors.`,
+    text: c => `<b>${c.g.name}</b> of ${c.g.origin} is a free man with heavy debts. He offers to join your school as a ${CLASSES[c.g.cls].name}, if you will pay ${c.fee} denarii to clear what he owes.`,
     opts: [
-      { label: c => `Take his oath (${c.fee})`, ok: c => G.denarii >= c.fee && G.roster.length < capacity(), run: c => { G.denarii -= c.fee; welcome(c.g); G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A free man who swore the oath to pay his debts.'); return `${c.g.name} swears to be burned, bound, beaten and killed by the sword. He joins the ludus.`; } },
-      { label: () => 'Turn him away', run: () => 'He walks back down the road.' },
+      { label: c => `Pay his debts and take him (${c.fee} denarii)`, ok: c => G.denarii >= c.fee && G.roster.length < capacity(), run: c => { G.denarii -= c.fee; welcome(c.g); G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A free man who swore the oath to pay his debts.'); return `You pay his debts. ${c.g.name} swears the gladiator's oath and joins your school.`; } },
+      { label: () => 'Turn him away', run: () => 'You turn him away, and he walks back down the road.' },
     ],
   },
   gift: {
-    title: 'An admirer\'s gift',
+    title: 'A gift of wine',
     can: () => G.roster.some(g => g.wins > 0),
     make: () => ({ g: pick(G.roster.filter(g => g.wins > 0)).id, sell: 30 + tier() * 25 }),
-    text: c => `An amphora of good Falernian arrives, sent by an admirer of <b>${gn(c.g)}</b>.`,
+    text: c => `A large jar of expensive wine arrives at the school. It is a gift from someone who admires <b>${gn(c.g)}</b>.`,
     opts: [
-      { label: () => 'Share it among the men', run: () => { G.roster.forEach(g => { g.morale = clamp(g.morale + 10, 0, 100); }); return 'For one night the barracks sounds like a tavern. Morale rises.'; } },
-      { label: c => `Sell it (+${c.sell} denarii)`, run: c => { G.denarii += c.sell; return 'Wine is wasted on them anyway.'; } },
+      { label: () => 'Share it among the men (morale +10)', run: () => { G.roster.forEach(g => { g.morale = clamp(g.morale + 10, 0, 100); }); return 'The men drink it together and have a loud, happy night. Morale +10 for everyone.'; } },
+      { label: c => `Sell it (+${c.sell} denarii)`, run: c => { G.denarii += c.sell; return `You sell the wine for ${c.sell} denarii. The men never hear about it.`; } },
     ],
   },
   merchant: {
-    title: 'Short measure',
+    title: 'The grain merchant cheats you',
     can: () => G.roster.length > 0,
     make: () => ({ loss: 20 + tier() * 15 }),
-    text: c => `The grain merchant has shorted this month's delivery. Making up the difference will cost ${c.loss} denarii.`,
+    text: c => `The grain merchant has delivered less than you paid for this month. Buying the missing grain elsewhere will cost ${c.loss} denarii.`,
     opts: [
-      { label: c => `Pay (${c.loss})`, run: c => { G.denarii -= c.loss; return 'You pay, and remember his face.'; } },
-      { label: () => 'Send your largest man to discuss it', run: c => {
-        if (chance(0.55)) { G.denarii += c.loss; return `The merchant discovers a clerical error in your favour. +${c.loss} denarii.`; }
-        G.denarii -= c.loss * 2; return `The merchant has friends on the town council. The fine costs you ${c.loss * 2} denarii.`;
+      { label: c => `Buy the missing grain (${c.loss} denarii)`, run: c => { G.denarii -= c.loss; return `You pay ${c.loss} denarii for the missing grain, and say nothing to the merchant.`; } },
+      { label: () => 'Send your biggest man to threaten him (risky)', run: c => {
+        if (chance(0.55)) { G.denarii += c.loss; return `The merchant is frightened. He admits a mistake and pays you back: +${c.loss} denarii.`; }
+        G.denarii -= c.loss * 2; return `The merchant complains to his friends on the town council, and you are fined ${c.loss * 2} denarii.`;
       } },
     ],
   },
   dinner: {
-    title: 'The Magistrate\'s table',
+    title: 'The Magistrate\'s dinner',
     can: () => G.denarii >= 30,
     make: () => ({ cost: 30 + tier() * 30 }),
-    text: c => `The Magistrate is hosting the town's better families, and a lanista who arrives empty-handed is not invited twice. A suitable gift would cost ${c.cost} denarii.`,
+    text: c => `The Magistrate is giving a dinner for the leading families of the town, and you are invited. Guests are expected to bring a gift. A suitable one would cost ${c.cost} denarii.`,
     opts: [
-      { label: c => `Bring a gift (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; favor('magistrate', 10); return 'He seats you within earshot. Magistrate favour +10.'; } },
-      { label: () => 'Stay home', run: () => { favor('magistrate', -6); return 'Your absence is noted. Magistrate favour -6.'; } },
+      { label: c => `Go, and bring a gift (${c.cost} denarii; Magistrate favour +10)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; favor('magistrate', 10); return 'The Magistrate is pleased with your gift, and gives you a seat near him. Magistrate favour +10.'; } },
+      { label: () => 'Stay at home (Magistrate favour -6)', run: () => { favor('magistrate', -6); return 'You stay at home, and the Magistrate notices that you did not come. Magistrate favour -6.'; } },
     ],
   },
   fix: {
-    title: 'A quiet word',
+    title: 'An offer to lose on purpose',
     can: () => !G.fix && fit().length > 0 && daysToGames() <= 3,
     make: () => ({ pay: 80 + tier() * 90 }),
-    text: c => `A man who works for the Grain Guild's gamblers finds you at the baths. Lose your next bout, he says, and ${c.pay} denarii will find their way to you. Win it after taking his word, and the Guild will remember.`,
+    text: c => `A man who works for the Grain Guild's gamblers comes to you with an offer. If your school loses its next bout on purpose, they will pay you ${c.pay} denarii. But if you agree and then win, the Guild will hold it against you.`,
     opts: [
-      { label: () => 'Agree to lose', run: c => { G.fix = { pay: c.pay }; return 'He nods and is gone. Your next bout is spoken for.'; } },
-      { label: () => 'Refuse', run: () => 'He shrugs. There are other lanistae.' },
+      { label: c => `Agree to lose your next bout (+${c.pay} denarii if you lose)`, run: c => { G.fix = { pay: c.pay }; return `You agree. If your school loses its next bout, you will be paid ${c.pay} denarii.`; } },
+      { label: () => 'Refuse', run: () => 'You refuse. He shrugs, and goes to make the same offer to another school.' },
     ],
   },
   vigil: {
     title: 'The priests of Nemesis',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 25 + tier() * 20 }),
-    text: c => `Priests of Nemesis come asking an offering of ${c.cost} denarii for the goddess who watches over the arena. Your fighters are listening from the yard.`,
+    text: c => `Priests of Nemesis, the goddess who watches over the arena, have come to ask your school for an offering of ${c.cost} denarii. Your fighters are listening to hear what you answer.`,
     opts: [
-      { label: c => `Make the offering (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; favor('temple', 10); G.roster.forEach(g => { g.morale = clamp(g.morale + 5, 0, 100); }); return 'Incense, a prayer, a blessing over the practice swords. Temple favour +10. Morale rises.'; } },
-      { label: () => 'Send them away', run: () => { favor('temple', -5); G.roster.forEach(g => { g.morale = clamp(g.morale - 4, 0, 100); }); return 'The men watch the priests leave. Temple favour -5.'; } },
+      { label: c => `Make the offering (${c.cost} denarii; Temple favour +10, morale +5)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; favor('temple', 10); G.roster.forEach(g => { g.morale = clamp(g.morale + 5, 0, 100); }); return 'You pay, and the priests bless your fighters and their weapons. Temple favour +10, and morale +5 for everyone.'; } },
+      { label: () => 'Send them away (Temple favour -5, morale -4)', run: () => { favor('temple', -5); G.roster.forEach(g => { g.morale = clamp(g.morale - 4, 0, 100); }); return 'You send the priests away with nothing. Your men are uneasy about it: morale -4 for everyone. Temple favour -5.'; } },
     ],
   },
   sponsor: {
-    title: 'A painted shield',
+    title: 'The Guild wants its mark on your fighter',
     can: () => G.roster.some(g => g.wins > 0),
     make: () => ({ g: pick(G.roster.filter(g => g.wins > 0)).id, pay: 40 + tier() * 40 }),
-    text: c => `The Grain Guild will pay ${c.pay} denarii to have their mark painted on <b>${gn(c.g)}</b>'s gear. The Magistrate dislikes merchants buying their way into his games.`,
+    text: c => `The Grain Guild offers ${c.pay} denarii to have its symbol painted on <b>${gn(c.g)}</b>'s shield and armour, so that the crowd sees it. The Magistrate does not like merchants advertising at his games.`,
     opts: [
-      { label: c => `Take the money (+${c.pay})`, run: c => { G.denarii += c.pay; favor('guild', 8); favor('magistrate', -4); return 'The paint is still wet when the coin arrives. Guild favour +8. Magistrate favour -4.'; } },
-      { label: () => 'Decline', run: () => { favor('guild', -3); return 'The Guild finds another ludus. Guild favour -3.'; } },
+      { label: c => `Accept (+${c.pay} denarii; Guild favour +8, Magistrate favour -4)`, run: c => { G.denarii += c.pay; favor('guild', 8); favor('magistrate', -4); return `The Guild's symbol is painted on, and you are paid ${c.pay} denarii. Guild favour +8, Magistrate favour -4.`; } },
+      { label: () => 'Refuse (Guild favour -3)', run: () => { favor('guild', -3); return 'You refuse, and the Guild takes its offer to another school. Guild favour -3.'; } },
     ],
   },
   poach: {
-    title: 'An offer from a rival',
+    title: 'A rival wants to buy your fighter',
     can: () => G.roster.length > 2 && fit().some(g => g.wins >= 2),
     make: () => { const g = pick(fit().filter(x => x.wins >= 2)); return { g: g.id, h: pick(G.houses).id, pay: Math.round(value(g) * 1.3 / 5) * 5 }; },
-    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} has watched <b>${gn(c.g)}</b> fight and wants him. The offer is ${c.pay} denarii, well over the market price. You would likely meet him again across the sand.`,
+    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} has watched <b>${gn(c.g)}</b> fight, and wants to buy him. The offer is ${c.pay} denarii, which is well above his market price. If you sell him, he will fight for that house, and you may have to face him in the arena.`,
     opts: [
-      { label: c => `Sell him (+${c.pay})`, run: c => {
+      { label: c => `Sell him (+${c.pay} denarii; morale -5)`, run: c => {
         const g = byId(c.g); if (!g) return 'The deal falls through.';
         G.roster = G.roster.filter(x => x !== g); G.denarii += c.pay; departed(g, 'sold');
         g.wish = null; g.promise = null; g.lostTo = null;
@@ -2503,484 +2503,484 @@ const EVENTS = {
         g.house = c.h; g.vs = { w: 0, l: 0 }; g.slew = []; g.exYours = true; g.hp = maxHp(g); g.fatigue = 0; g.activity = 'rest';
         houseOf(c.h).roster.push(g);
         G.roster.forEach(x => { x.morale = clamp(x.morale - 5, 0, 100); });
-        return `${g.name} leaves in the colours of ${houseDef(c.h).name}. The men watch him go.`;
+        return `You sell ${g.name} for ${c.pay} denarii, and he leaves to fight for ${houseDef(c.h).name}. Your other men do not like seeing him sold: morale -5 for everyone.`;
       } },
-      { label: () => 'Refuse', run: c => { feud(houseOf(c.h), 5); return 'The refusal is taken as an insult.'; } },
+      { label: () => 'Refuse (feud +5)', run: c => { feud(houseOf(c.h), 5); return `You refuse. ${houseDef(c.h).name} takes it as an insult: your feud with them grows by 5.`; } },
     ],
   },
   poison: {
-    title: 'Something in the water',
+    title: 'A fighter has been poisoned',
     can: () => fit().length > 0 && G.houses.some(H => H.grudge >= 30),
     make: () => ({ g: pick(fit()).id, h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 30 + tier() * 25 }),
-    text: c => `<b>${gn(c.g)}</b> is doubled over in the yard, grey and sweating. A kitchen boy saw a stranger by the water barrels, wearing the colours of ${houseDef(c.h).name}.`,
+    text: c => `<b>${gn(c.g)}</b> is suddenly very sick. It looks like poison. A kitchen boy saw a stranger near the water barrels, wearing the colours of ${houseDef(c.h).name}.`,
     opts: [
-      { label: c => `Send for a physician (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const g = byId(c.g); if (g) g.injury = 1; return 'Purged and furious, he will be on his feet in a day.'; } },
-      { label: () => 'Let him sweat it out', run: c => { const g = byId(c.g); if (!g) return 'It passes.'; g.injury = rint(3, 5); return `He will not train for ${g.injury} days.`; } },
-      { label: () => 'Accuse them before the Magistrate', ok: () => G.patrons.magistrate >= 40, run: c => {
+      { label: c => `Pay a physician (${c.cost} denarii; out 1 day)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const g = byId(c.g); if (g) g.injury = 1; return 'The physician treats him. He will be well again in one day.'; } },
+      { label: () => 'Leave him to recover alone (out 3 to 5 days)', run: c => { const g = byId(c.g); if (!g) return 'It passes.'; g.injury = rint(3, 5); return `He recovers slowly, without a physician. He cannot train or fight for ${g.injury} days.`; } },
+      { label: () => 'Accuse them to the Magistrate (needs favour 40; feud +10)', ok: () => G.patrons.magistrate >= 40, run: c => {
         const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 30); feud(H, 10); favor('magistrate', -5);
         const g = byId(c.g); if (g) g.injury = 2;
-        return `The Magistrate fines ${houseDef(c.h).name} and has their man flogged in the forum. They will not forget it.`;
+        return `The Magistrate believes you. He fines ${houseDef(c.h).name} and has their man whipped in public, and they lose 30 renown. They will want revenge: your feud with them grows by 10. Asking cost you 5 Magistrate favour, and your fighter is out for 2 days.`;
       } },
     ],
   },
   truce: {
-    title: 'An olive branch',
+    title: 'A rival offers peace',
     can: () => G.houses.some(H => H.grudge >= 25),
     make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 40 + tier() * 40 }),
-    text: c => `${houseDef(c.h).lanista} sends a slave with a message: the feud is bad for business. A gift of ${c.cost} denarii, and both houses can call it settled.`,
+    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} sends you a message: the feud between your schools is bad for business. If you send a gift of ${c.cost} denarii, both sides can treat the quarrel as ended.`,
     opts: [
-      { label: c => `Send the gift (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; feud(houseOf(c.h), -30); return 'Wine is exchanged. Nobody means a word of it, but the knives go away.'; } },
-      { label: () => 'Let them stew', run: () => 'The slave goes home with nothing.' },
+      { label: c => `Send the gift (${c.cost} denarii; feud -30)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; feud(houseOf(c.h), -30); return 'You send the gift, and they send wine in return. Neither side is really friendly, but the feud with them falls by 30.'; } },
+      { label: () => 'Send nothing', run: () => 'You send their messenger home with nothing. The feud goes on as before.' },
     ],
   },
   kinship: {
-    title: 'Two of a kind',
+    title: 'Two fighters are becoming friends',
     can: () => !!unbondedPair(),
     make: () => { const p = unbondedPair(); return { a: p[0].id, b: p[1].id }; },
-    text: c => `<b>${gn(c.a)}</b> and <b>${gn(c.b)}</b> have taken to training together, eating together and watching each other's backs. The doctore says men like that fight harder side by side, and break harder when one of them falls.`,
+    text: c => `<b>${gn(c.a)}</b> and <b>${gn(c.b)}</b> have started training and eating together, and looking out for each other. Friends fight harder when they are on the same side, but one takes it very badly if the other is killed.`,
     opts: [
-      { label: () => 'Let it grow', run: c => { const a = byId(c.a), b = byId(c.b); return a && b && makeBond(a, b, 'friend') ? `${a.name} and ${b.name} are sworn friends.` : 'Nothing comes of it.'; } },
-      { label: () => 'Keep them apart', run: c => { [c.a, c.b].forEach(id => { const g = byId(id); if (g) g.morale = clamp(g.morale - 4, 0, 100); }); return 'They are given separate cells and separate hours. Neither thanks you.'; } },
+      { label: () => 'Let them be friends', run: c => { const a = byId(c.a), b = byId(c.b); return a && b && makeBond(a, b, 'friend') ? `${a.name} and ${b.name} are now friends.` : 'In the end, nothing comes of it.'; } },
+      { label: () => 'Keep them apart (morale -4 each)', run: c => { [c.a, c.b].forEach(id => { const g = byId(id); if (g) g.morale = clamp(g.morale - 4, 0, 100); }); return 'You give them separate cells and separate training hours. They do not become friends, and each loses 4 morale.'; } },
     ],
   },
   rivalry: {
-    title: 'Bad blood',
+    title: 'Two fighters are falling out',
     can: () => !!unbondedPair(),
     make: () => { const p = unbondedPair(); return { a: p[0].id, b: p[1].id }; },
-    text: c => `<b>${gn(c.a)}</b> has been telling the yard that <b>${gn(c.b)}</b> only wins when the opposition is soft. ${gn(c.b)} has started training until dark.`,
+    text: c => `<b>${gn(c.a)}</b> has been telling everyone that <b>${gn(c.b)}</b> only wins against weak opponents. ${gn(c.b)} is angry, and has started training until dark to prove him wrong. Rivals train harder, but fight worse when they are on the same side.`,
     opts: [
-      { label: () => 'Let it burn', run: c => { const a = byId(c.a), b = byId(c.b); return a && b && makeBond(a, b, 'rival') ? 'They will not speak to each other again. Both train like men possessed.' : 'It blows over.'; } },
-      { label: () => 'Make them clasp hands', run: c => {
+      { label: () => 'Let them be rivals', run: c => { const a = byId(c.a), b = byId(c.b); return a && b && makeBond(a, b, 'rival') ? 'The two men are now rivals. They no longer speak to each other, and both train harder to outdo the other.' : 'The quarrel is forgotten after a few days.'; } },
+      { label: () => 'Make them shake hands (may make them friends)', run: c => {
         const a = byId(c.a), b = byId(c.b);
-        if (a && b && chance(0.5) && makeBond(a, b, 'friend')) return 'To the surprise of the whole yard, it takes. They are friends by nightfall.';
+        if (a && b && chance(0.5) && makeBond(a, b, 'friend')) return 'To everyone\'s surprise, it works. The two men are friends by the end of the day.';
         [a, b].forEach(g => { if (g) g.morale = clamp(g.morale - 4, 0, 100); });
-        return 'They clasp hands and mean none of it.';
+        return 'They shake hands, but neither of them means it. Each loses 4 morale.';
       } },
     ],
   },
   rematch: {
-    title: 'A matter of pride',
+    title: 'A fighter wants a rematch',
     can: () => fit().some(g => g.lostTo && !g.wish),
     make: () => ({ g: pick(fit().filter(x => x.lostTo && !x.wish)).id }),
-    text: c => { const g = byId(c.g), L = g && g.lostTo; return L ? `<b>${g.name}</b> has not slept properly since ${L.name} of ${houseDef(L.hid).name} put him on the sand. He asks you to get him that fight again.` : 'A fighter broods over an old defeat.'; },
+    text: c => { const g = byId(c.g), L = g && g.lostTo; return L ? `<b>${g.name}</b> cannot forget being beaten by ${L.name} of ${houseDef(L.hid).name}. He asks you to promise him another fight against the same man.` : 'A fighter cannot forget an old defeat.'; },
     opts: [
-      { label: () => 'Promise him the rematch', run: c => {
+      { label: () => 'Promise him the rematch (morale +8)', run: c => {
         const g = byId(c.g); if (!g || !g.lostTo) return 'The moment has passed.';
         g.wish = { type: 'rematch', hid: g.lostTo.hid, gid: g.lostTo.gid, name: g.lostTo.name };
         g.morale = clamp(g.morale + 8, 0, 100); addStory(g, `Vowed to face ${g.wish.name} again.`);
-        return `${g.name} will get his chance when ${g.wish.name} next appears on a card. He hits the training post until his hands bleed.`;
+        return `You promise it. ${g.name} will get his rematch the next time ${g.wish.name} is on the list of bouts at the games. He trains hard for it: morale +8.`;
       } },
-      { label: () => 'Tell him to forget it', run: c => { const g = byId(c.g); if (g) { g.lostTo = null; g.morale = clamp(g.morale - 8, 0, 100); } return 'He nods, and says nothing for two days.'; } },
+      { label: () => 'Tell him to forget it (morale -8)', run: c => { const g = byId(c.g); if (g) { g.lostTo = null; g.morale = clamp(g.morale - 8, 0, 100); } return 'He accepts it, but he is unhappy: morale -8.'; } },
     ],
   },
   freedom: {
-    title: 'The wooden sword',
+    title: 'A fighter asks about his freedom',
     can: () => G.roster.length > 2 && home().some(g => g.wins >= 6 && g.rank >= 2 && !g.promise && !g.askedFree),
     make: () => ({ g: pick(home().filter(x => x.wins >= 6 && x.rank >= 2 && !x.promise && !x.askedFree)).id, more: 3 }),
-    text: c => { const g = byId(c.g); return `<b>${gn(c.g)}</b> asks to speak with you alone. He has won ${g ? g.wins : 'many'} times for this house, and he wants to know what it would take to walk out of the gate a free man.`; },
+    text: c => { const g = byId(c.g); return `<b>${gn(c.g)}</b> asks to speak with you alone. He has won ${g ? g.wins : 'many'} fights for your school, and he wants to know what he must do to be set free.`; },
     opts: [
-      { label: c => `Promise it after ${c.more} more victories`, run: c => {
+      { label: c => `Promise to free him after ${c.more} more wins (morale +15)`, run: c => {
         const g = byId(c.g); if (!g) return 'The moment has passed.';
         g.promise = { at: g.wins + c.more }; g.askedFree = true; g.morale = clamp(g.morale + 15, 0, 100);
         addStory(g, `Was promised his freedom after ${c.more} more victories.`);
-        return `${g.name} takes your hand on it. He will hold you to the count.`;
+        return `You promise to free ${g.name} after ${c.more} more wins, and he shakes your hand on it. Morale +15. He will expect you to keep your word.`;
       } },
-      { label: () => 'Promise nothing', run: c => { const g = byId(c.g); if (g) { g.askedFree = true; g.morale = clamp(g.morale - 10, 0, 100); } return 'He takes it without a word. He will not ask again.'; } },
+      { label: () => 'Promise nothing (morale -10)', run: c => { const g = byId(c.g); if (g) { g.askedFree = true; g.morale = clamp(g.morale - 10, 0, 100); } return 'You promise him nothing. He says no more about it, and will not ask again. Morale -10.'; } },
     ],
   },
   promiseDue: {
-    title: 'A promise falls due',
+    title: 'Time to keep your promise',
     auto: true,                      // raised when the victories are won, never at random
     can: () => G.roster.some(g => g.promise && g.wins >= g.promise.at),
     make: () => ({ g: G.roster.find(g => g.promise && g.wins >= g.promise.at).id }),
-    text: c => `<b>${gn(c.g)}</b> has won the victories you asked of him. He is standing at your door, and half the yard is pretending not to watch.`,
+    text: c => `<b>${gn(c.g)}</b> has won all the fights you asked for when you promised him his freedom. He has come to claim it, and the whole school is watching to see whether you keep your word.`,
     opts: [
-      { label: () => 'Keep your word', run: c => {
+      { label: () => 'Free him (you lose him; fame, morale +20)', run: c => {
         const g = byId(c.g); if (!g) return 'He is gone.';
         const gain = 40 + g.wins * 5;
         G.roster = G.roster.filter(x => x !== g); departed(g, 'freed');
         G.fame += gain; G.roster.forEach(x => { x.morale = clamp(x.morale + 20, 0, 100); });
         log(`${g.name} is given the wooden sword, as promised. +${gain} fame.`, 'gold');
-        return `${g.name} takes the wooden sword and walks out a free man. The whole yard saw you keep your word. Fame +${gain}.`;
+        return `You give ${g.name} the wooden sword that marks a freed gladiator, and he leaves a free man. Everyone saw you keep your word: fame +${gain}, and morale +20 for every man who remains.`;
       } },
-      { label: () => 'Break it', run: c => {
+      { label: () => 'Break your promise (you keep him; morale collapses)', run: c => {
         const g = byId(c.g); if (!g) return 'He is gone.';
         g.promise = null; g.morale = 5;
         if (!g.traits.includes('embittered')) g.traits.push('embittered');
         addStory(g, 'Was promised his freedom, and denied it.');
         G.roster.forEach(x => { if (x !== g) x.morale = clamp(x.morale - 12, 0, 100); });
-        return `${g.name} looks at you for a long moment and walks back to his cell. Every man in the ludus now knows what your word is worth.`;
+        return `You refuse to free him. ${g.name} goes back to his cell, bitter, with almost no morale left. Every other man now knows you do not keep your promises: morale -12 for all of them.`;
       } },
     ],
   },
   leave: {
-    title: 'A night in town',
+    title: 'A fighter asks for a night off',
     can: () => fit().length > 0 && daysToGames() >= 2,
     make: () => ({ g: pick(fit()).id }),
-    text: c => `<b>${gn(c.g)}</b> asks for a night's leave in town before the games.`,
+    text: c => `<b>${gn(c.g)}</b> asks you to let him spend a night in town before the games.`,
     opts: [
-      { label: () => 'Let him go', run: c => {
+      { label: () => 'Let him go (morale +15; he may come back tired)', run: c => {
         const g = byId(c.g); if (!g) return 'He thinks better of it.';
         g.morale = clamp(g.morale + 15, 0, 100);
-        if (chance(0.4)) { g.fatigue = clamp(g.fatigue + 25, 0, 100); return `${g.name} comes back at dawn, grinning and useless for a day.`; }
-        return `${g.name} comes back at dusk, sober and grateful.`;
+        if (chance(0.4)) { g.fatigue = clamp(g.fatigue + 25, 0, 100); return `${g.name} comes back at dawn, happy but worn out. Morale +15, but he is much more tired.`; }
+        return `${g.name} comes back in good time, sober and grateful. Morale +15.`;
       } },
-      { label: () => 'Refuse', run: c => { const g = byId(c.g); if (g) g.morale = clamp(g.morale - 6, 0, 100); return 'He goes back to the training post.'; } },
+      { label: () => 'Refuse (morale -6)', run: c => { const g = byId(c.g); if (g) g.morale = clamp(g.morale - 6, 0, 100); return 'You refuse, and he goes back to his training. Morale -6.'; } },
     ],
   },
 
   // ---- what a feud brings to your door ----
   slander: {
-    title: 'Talk in the taverns',
+    title: 'A rival is spreading lies about you',
     can: () => G.houses.some(H => H.grudge >= 25),
     make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 30 + tier() * 30 }),
-    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} has men in every tavern saying your fighters are drugged before the games and your victories bought. People are beginning to repeat it.`,
+    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} is paying men to say in the taverns that you drug your fighters and buy your victories. People are starting to believe it.`,
     opts: [
-      { label: c => `Pay criers to answer it (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 12); feud(H, 6); return `By the week's end the town has a new story, and it is about ${houseDef(c.h).name}. They know who paid for it.`; } },
-      { label: () => 'Let the sand answer: call them out', ok: c => !houseOf(c.h).called, run: c => { const H = houseOf(c.h); H.called = true; feud(H, 8); G.fame += 2; return `Your herald reads the challenge in the forum. Their champion will be on the next card, for a double purse. Fame +2.`; } },
-      { label: () => 'Ignore it', run: () => { const f = 4 + tier() * 2; G.fame = Math.max(0, G.fame - f); return `It runs its course, and leaves a stain. Fame -${f}.`; } },
+      { label: c => `Pay to spread stories about them (${c.cost} denarii; feud +6)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 12); feud(H, 6); return `You pay men to spread stories about ${houseDef(c.h).name} instead. Within a week the town is talking about them, not you: they lose 12 renown. They know who paid for it: feud +6.`; } },
+      { label: () => 'Challenge their champion (fame +2, feud +8)', ok: c => !houseOf(c.h).called, run: c => { const H = houseOf(c.h); H.called = true; feud(H, 8); G.fame += 2; return `You challenge them publicly. Their champion will fight one of your men at the next games, for double the usual prize. Fame +2, feud +8.`; } },
+      { label: () => 'Ignore it (lose fame)', run: () => { const f = 4 + tier() * 2; G.fame = Math.max(0, G.fame - f); return `You do nothing. The talk dies down in time, but some people still believe it. Fame -${f}.`; } },
     ],
   },
   editorsEar: {
-    title: 'The editor\'s ear',
+    title: 'A rival has bribed the games official',
     can: () => fit().length > 0 && daysToGames() <= 3 && G.houses.some(H => H.grudge >= 40),
     make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 50 + tier() * 50 }),
-    text: c => `Your steward has it from a clerk: ${houseDef(c.h).name} has paid the man who stands at the editor's elbow. At the next games, when one of yours is down, the thumb will turn more easily.`,
+    text: c => `Your steward has learned that ${houseDef(c.h).name} has bribed an official at the games. At the next games, when one of your men is beaten, he will be less likely to be spared.`,
     opts: [
-      { label: c => `Pay him more (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'He takes both purses, as such men do, and whispers nothing to anyone.'; } },
-      { label: () => 'Lay it before the Magistrate', ok: () => G.patrons.magistrate >= 40, run: c => { const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 20); feud(H, 10); favor('magistrate', -3); return `The clerk is flogged and ${houseDef(c.h).name} fined before the council. The Magistrate does not enjoy being made to notice such things. Magistrate favour -3.`; } },
-      { label: () => 'Let it stand', run: () => { G.rigged = G.day + daysToGames(); return 'Then your men had better stay on their feet. At the next games, the fallen will find less mercy.'; } },
+      { label: c => `Pay the official more (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'The official takes your money as well as theirs, and does nothing for either side. Your men will be judged fairly.'; } },
+      { label: () => 'Report it to the Magistrate (needs favour 40; feud +10)', ok: () => G.patrons.magistrate >= 40, run: c => { const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 20); feud(H, 10); favor('magistrate', -3); return `The official is whipped and ${houseDef(c.h).name} is fined, and loses 20 renown. Your men will be judged fairly. The Magistrate dislikes being dragged into such things: favour -3. Feud +10.`; } },
+      { label: () => 'Do nothing (your men spared less often)', run: () => { G.rigged = G.day + daysToGames(); return 'You do nothing. At the next games, any of your men who is beaten is less likely to be spared.'; } },
     ],
   },
   arson: {
-    title: 'Fire in the night',
+    title: 'A rival has set fire to your stores',
     can: () => G.houses.some(H => H.grudge >= 45),
     make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, cost: 50 + tier() * 40 }),
-    text: c => `The fodder store went up after midnight. It was out before it reached the barracks, but a boy saw a man running, and he wore the colours of ${houseDef(c.h).name}.`,
+    text: c => `Someone set fire to your storehouse in the night. The fire was put out before it reached the barracks, but the store is badly damaged. A boy saw a man running away, wearing the colours of ${houseDef(c.h).name}.`,
     opts: [
-      { label: c => `Rebuild, and say nothing (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'New timber, new thatch, and a second man on the wall at night.'; } },
-      { label: c => `Answer fire with fire (${Math.round(c.cost / 2)})`, run: c => {
+      { label: c => `Rebuild it properly, and take no revenge (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'You pay to rebuild the store, and put an extra guard on the wall at night.'; } },
+      { label: c => `Burn their stable in revenge (${Math.round(c.cost / 2)} denarii; feud +20, morale +5, risky)`, run: c => {
         const H = houseOf(c.h); G.denarii -= Math.round(c.cost / 2); feud(H, 20); H.prestige = Math.max(0, H.prestige - 20); evAllMor(5);
-        if (chance(0.3)) { favor('magistrate', -8); return `Their stable burns two nights later. The watch comes asking where your men were. Magistrate favour -8.`; }
-        return `Their stable burns two nights later, and nobody saw anything. Your men are grimly pleased.`;
+        if (chance(0.3)) { favor('magistrate', -8); return `Two nights later their stable burns down. They lose 20 renown, and your men are pleased: morale +5. But the town watch suspects you: Magistrate favour -8. Feud +20.`; }
+        return `Two nights later their stable burns down, and nobody can prove who did it. They lose 20 renown, and your men are pleased: morale +5. Feud +20.`;
       } },
-      { label: () => 'Patch it and make do', run: c => { G.denarii -= Math.round(c.cost / 3); evAllMor(-5); return 'The men mend what they can. They would have liked an answer made.'; } },
+      { label: c => `Make cheap repairs (${Math.round(c.cost / 3)} denarii; morale -5)`, run: c => { G.denarii -= Math.round(c.cost / 3); evAllMor(-5); return 'Your men patch the store as well as they can. They wanted revenge and did not get it: morale -5 for everyone.'; } },
     ],
   },
   defector: {
-    title: 'A knock at the back gate',
+    title: 'A rival\'s fighter wants to join you',
     can: () => G.houses.some(H => H.roster.length >= 3),
     make: () => { const H = pick(G.houses.filter(X => X.roster.length >= 3)), g = H.roster.slice().sort((a, b) => statSum(a) - statSum(b))[0]; return { h: H.id, r: g.id, pay: Math.round(value(g) * 0.5 / 5) * 5 }; },
-    text: c => { const g = houseOf(c.h).roster.find(x => x.id === c.r); return g ? `<b>${g.name}</b>, a ${CLASSES[g.cls].name} of ${houseDef(c.h).name}, is at the back gate with a cloak over his head. He says ${houseDef(c.h).lanista} works men to death, and that he would sooner fight for you.` : 'There was a man at the back gate. He is gone now.'; },
+    text: c => { const g = houseOf(c.h).roster.find(x => x.id === c.r); return g ? `<b>${g.name}</b>, a ${CLASSES[g.cls].name} who fights for ${houseDef(c.h).name}, has come secretly to your back gate. He says ${houseDef(c.h).lanista} works his men to death, and he wants to fight for you instead.` : 'There was a man at the back gate. He is gone now.'; },
     opts: [
-      { label: () => 'Take him in', ok: c => G.roster.length < capacity() && !!houseOf(c.h).roster.find(x => x.id === c.r), run: c => { const H = houseOf(c.h), g = H.roster.find(x => x.id === c.r); takeRival(g); feud(H, 15); return `${g.name} swears to you before dawn. ${houseDef(c.h).name} will know where he went by noon.`; } },
-      { label: c => `Sell him back to them (+${c.pay})`, run: c => { G.denarii += c.pay; feud(houseOf(c.h), -5); evAllMor(-3); return `${houseDef(c.h).lanista} pays for the return of his property. Your men watched him led away.`; } },
-      { label: () => 'Send him back with an escort', run: c => { feud(houseOf(c.h), -10); return `He is walked home between two of your men. ${houseDef(c.h).lanista} sends a stiff word of thanks.`; } },
+      { label: () => 'Take him in (feud +15)', ok: c => G.roster.length < capacity() && !!houseOf(c.h).roster.find(x => x.id === c.r), run: c => { const H = houseOf(c.h), g = H.roster.find(x => x.id === c.r); takeRival(g); feud(H, 15); return `${g.name} joins your school. ${houseDef(c.h).name} will soon know where he went: feud +15.`; } },
+      { label: c => `Sell him back to them (+${c.pay} denarii; feud -5, morale -3)`, run: c => { G.denarii += c.pay; feud(houseOf(c.h), -5); evAllMor(-3); return `${houseDef(c.h).lanista} pays you ${c.pay} denarii to get his fighter back. Your men saw him led away, and did not like it: morale -3. Feud -5.`; } },
+      { label: () => 'Send him back for nothing (feud -10)', run: c => { feud(houseOf(c.h), -10); return `Two of your men walk him back to his own school. ${houseDef(c.h).lanista} sends his thanks: feud -10.`; } },
     ],
   },
 
   // ---- the yard and the barracks ----
   roof: {
-    title: 'The barracks roof',
+    title: 'The barracks roof is leaking',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 35 + tier() * 30 }),
-    text: c => `Last night's storm took a run of tiles off the barracks. Rain is coming through onto the cots. A roofer wants ${c.cost} denarii.`,
+    text: c => `Last night's storm blew tiles off the barracks roof, and rain is coming in on the men's beds. A roofer will fix it for ${c.cost} denarii.`,
     opts: [
-      { label: c => `Pay the roofer (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'New tiles by nightfall. The men sleep dry.'; } },
-      { label: () => 'Have the men mend it', run: () => { fit().forEach(g => evTire(g, 14)); evAllMor(-2); return 'A day on the roof with mortar and bad language. It holds. Everyone is tired.'; } },
-      { label: () => 'Leave it', run: () => {
+      { label: c => `Pay the roofer (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'The roofer fixes it the same day, and the men sleep dry.'; } },
+      { label: () => 'Have the men fix it (tiring, morale -2)', run: () => { fit().forEach(g => evTire(g, 14)); evAllMor(-2); return 'Your men spend a day on the roof and fix it themselves. Everyone is more tired, and morale is -2.'; } },
+      { label: () => 'Leave it (morale -7, men may fall sick)', run: () => {
         evAllMor(-7); const sick = fit().filter(() => chance(0.25)).slice(0, 2); sick.forEach(g => { g.injury = rint(1, 3); });
-        return sick.length ? `The men sleep wet. ${sick.map(g => g.name).join(' and ')} wake${sick.length > 1 ? '' : 's'} coughing and cannot train.` : 'The men sleep wet, and say so.';
+        return sick.length ? `The men sleep in wet beds: morale -7. ${sick.map(g => g.name).join(' and ')} ${sick.length > 1 ? 'fall' : 'falls'} sick and cannot train for a few days.` : 'The men sleep in wet beds, and complain about it: morale -7.';
       } },
     ],
   },
   rats: {
-    title: 'Rats in the granary',
+    title: 'Rats in the grain store',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 20 + tier() * 15 }),
-    text: c => `The cook has found rats in the barley, and a great deal less barley than there should be. A rat-catcher and his dogs can be had for ${c.cost} denarii.`,
+    text: c => `The cook has found rats in the grain store, and they have already eaten a good deal of it. A rat-catcher with dogs will clear them out for ${c.cost} denarii.`,
     opts: [
-      { label: c => `Hire the rat-catcher (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'His terriers work through the store in an afternoon. He leaves with a sack that moves.'; } },
-      { label: () => 'Turn the men loose on them', run: () => { evAllMor(4); fit().forEach(g => evTire(g, 6)); return 'It becomes a contest. By dusk there is a tally chalked on the wall and the store is clear. The men are pleased with themselves.'; } },
-      { label: () => 'Ignore it', run: c => { if (chance(0.65)) { G.denarii -= c.cost * 2; return `Within the week half the store is spoiled. Replacing it costs ${c.cost * 2} denarii.`; } return 'A stray cat moves in and settles the matter for nothing.'; } },
+      { label: c => `Hire the rat-catcher (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'The rat-catcher and his dogs clear the store in an afternoon.'; } },
+      { label: () => 'Have the men hunt them (morale +4, a little tiring)', run: () => { evAllMor(4); fit().forEach(g => evTire(g, 6)); return 'The men make a contest of it, and by evening the store is clear. They enjoyed it: morale +4, and they are a little more tired.'; } },
+      { label: () => 'Ignore it (may cost more later)', run: c => { if (chance(0.65)) { G.denarii -= c.cost * 2; return `Within a week the rats have ruined half the grain. Replacing it costs ${c.cost * 2} denarii.`; } return 'You are lucky: a stray cat moves in and kills the rats for nothing.'; } },
     ],
   },
   rain: {
     title: 'A week of rain',
     can: () => fit().length > 0,
     make: () => ({}),
-    text: () => 'It has rained for four days and the yard is a brown lake. The doctore wants to know whether the men train in it.',
+    text: () => 'It has rained for four days, and the training yard is deep in mud. Your trainer asks whether the men should train in it.',
     opts: [
-      { label: () => 'Train in the mud', run: () => {
+      { label: () => 'Train in the mud (agility practice, tiring, risk of injury)', run: () => {
         fit().forEach(g => { addProg(g, 'agi', 1.2); evTire(g, 8); });
-        const g = chance(0.3) ? pick(fit()) : null; if (g) { g.injury = rint(1, 2); return `Footwork learned in mud stays learned. ${g.name} goes down hard on a buried post and is out for ${evDays(g.injury)}.`; }
-        return 'Footwork learned in mud stays learned. They come in looking like river gods.';
+        const g = chance(0.3) ? pick(fit()) : null; if (g) { g.injury = rint(1, 2); return `The men train in the mud, which is good practice for their agility, and tiring. But ${g.name} falls badly and is out for ${evDays(g.injury)}.`; }
+        return 'The men train in the mud, which is good practice for their agility. They are more tired, but nobody is hurt.';
       } },
-      { label: () => 'Rest them indoors', run: () => { fit().forEach(g => evTire(g, -18)); evAllMor(-2); return 'They sleep, mend straps and stare at the rain. Rested, and restless.'; } },
-      { label: () => 'Dice, wine and stories', run: () => { evAllMor(7); fit().forEach(g => evTire(g, -6)); return 'The oldest lies are told again and believed again. Morale rises.'; } },
+      { label: () => 'Rest them indoors (much less tired, morale -2)', run: () => { fit().forEach(g => evTire(g, -18)); evAllMor(-2); return 'The men stay indoors and rest. They are much less tired, but bored: morale -2.'; } },
+      { label: () => 'Give them a day of dice and wine (morale +7)', run: () => { evAllMor(7); fit().forEach(g => evTire(g, -6)); return 'The men spend the day drinking, playing dice and telling stories. Morale +7, and they are a little less tired.'; } },
     ],
   },
   heat: {
-    title: 'The dog days',
+    title: 'A week of great heat',
     can: () => fit().length > 0,
     make: () => ({ cost: 15 + tier() * 10 }),
-    text: c => `The heat has not broken in a week. Men are dropping at the training posts. Snow-cooled water and an awning over the yard would cost ${c.cost} denarii.`,
+    text: c => `It has been extremely hot for a week, and men are collapsing during training. Cold water and a shade over the yard would cost ${c.cost} denarii.`,
     opts: [
-      { label: c => `Buy shade and cold water (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; fit().forEach(g => evTire(g, -12)); evAllMor(4); return 'The men train under canvas and bless your name, for a day.'; } },
-      { label: () => 'They will fight in worse', run: () => {
+      { label: c => `Buy shade and cold water (${c.cost} denarii; less tired, morale +4)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; fit().forEach(g => evTire(g, -12)); evAllMor(4); return 'The men train in the shade with cold water to drink. They are less tired, and grateful: morale +4.'; } },
+      { label: () => 'Train in the heat anyway (strength practice, very tiring, risky)', run: () => {
         fit().forEach(g => { addProg(g, 'str', 1); evTire(g, 15); });
-        const g = chance(0.35) ? pick(fit()) : null; if (g) { g.injury = rint(1, 2); evMor(g, -6); return `They harden. ${g.name} is carried in from the yard, raving, and needs ${evDays(g.injury)} in the dark.`; }
-        return 'They harden. Nobody thanks you.';
+        const g = chance(0.35) ? pick(fit()) : null; if (g) { g.injury = rint(1, 2); evMor(g, -6); return `The men train in the heat, which builds their strength, and they are much more tired. ${g.name} collapses with sunstroke and is out for ${evDays(g.injury)}.`; }
+        return 'The men train in the heat, which builds their strength. They are much more tired, but nobody collapses.';
       } },
-      { label: () => 'Train at dawn and dusk only', run: () => { fit().forEach(g => evTire(g, -5)); return 'The yard is empty at noon and loud at first light. Nothing is lost.'; } },
+      { label: () => 'Train only at dawn and dusk (a little less tired)', run: () => { fit().forEach(g => evTire(g, -5)); return 'The men train in the cool of the morning and evening, and rest at midday. They are a little less tired, and nothing is lost.'; } },
     ],
   },
   diceGame: {
-    title: 'Dice after dark',
+    title: 'Gambling in the barracks',
     can: () => home().length >= 2,
     make: () => { const f = home().slice().sort(() => Math.random() - 0.5); return { a: f[0].id, b: f[1].id }; },
-    text: c => `The night guard reports a dice game running in the barracks. <b>${gn(c.a)}</b> is winning, and <b>${gn(c.b)}</b> has lost his next three purses to him.`,
+    text: c => `The night guard reports that the men are playing dice for money in the barracks. <b>${gn(c.a)}</b> is winning, and <b>${gn(c.b)}</b> has lost a great deal to him.`,
     opts: [
-      { label: () => 'Forbid it', run: () => { evAllMor(-5); return 'The dice go into the well. The men find other things to resent.'; } },
-      { label: () => 'Look the other way', run: c => {
+      { label: () => 'Forbid it (morale -5)', run: () => { evAllMor(-5); return 'You take away the dice. The men resent it: morale -5 for everyone.'; } },
+      { label: () => 'Allow it (the two men may become rivals)', run: c => {
         const a = byId(c.a), b = byId(c.b); evMor(a, 8); evMor(b, -8);
-        if (a && b && chance(0.4) && makeBond(a, b, 'rival')) return `${b.name} is sure the dice were loaded. He and ${a.name} are not speaking.`;
-        return `${gn(c.a)} struts for a week. ${gn(c.b)} learns to count.`;
+        if (a && b && chance(0.4) && makeBond(a, b, 'rival')) return `${b.name} is sure that ${a.name} cheated. The two men are now rivals. ${a.name} gains 8 morale and ${b.name} loses 8.`;
+        return `The game goes on. ${gn(c.a)} is pleased with his winnings (morale +8), and ${gn(c.b)} is sore about his losses (morale -8).`;
       } },
-      { label: () => 'The house takes a tenth', run: () => { const cut = 10 + 5 * home().length; G.denarii += cut; evAllMor(-3); return `The game goes on, a little poorer. +${cut} denarii, and some muttering.`; } },
+      { label: () => 'Allow it, and take a share (coin, morale -3)', run: () => { const cut = 10 + 5 * home().length; G.denarii += cut; evAllMor(-3); return `You let the game go on and take a tenth of the money: +${cut} denarii. The men grumble: morale -3.`; } },
     ],
   },
   stray: {
-    title: 'A dog at the gate',
+    title: 'A stray dog',
     can: () => G.roster.length > 0,
     make: () => ({}),
-    text: () => 'A half-starved yellow dog has attached itself to the ludus. The men are feeding it from their bowls and have given it the name of a rival lanista.',
+    text: () => 'A hungry stray dog has started living at the school. The men are feeding it from their own bowls, and have named it after a rival lanista.',
     opts: [
-      { label: () => 'Let them keep it', run: () => { evAllMor(6); G.denarii -= 5; return 'It sleeps across the barracks door and bites the grain merchant. Morale rises.'; } },
-      { label: () => 'Drive it off', run: () => { evAllMor(-4); return 'It is back by evening, and driven off again. The men watch it go.'; } },
+      { label: () => 'Let them keep it (5 denarii; morale +6)', run: () => { evAllMor(6); G.denarii -= 5; return 'The men keep the dog, and it sleeps at the barracks door. Feeding it costs 5 denarii. Morale +6 for everyone.'; } },
+      { label: () => 'Drive it away (morale -4)', run: () => { evAllMor(-4); return 'You have the dog driven away. The men are sorry to see it go: morale -4 for everyone.'; } },
     ],
   },
   mentor: {
-    title: 'The old hand',
+    title: 'A veteran offers to teach',
     can: () => home().length >= 2,
     make: () => { const h = home(), old = evBest(h, g => g.wins * 3 + evPower(g)), young = evBest(h.filter(g => g !== old), g => -evPower(g)); return { a: old.id, b: young.id, s: evBest(STATS, k => old.stats[k]) }; },
-    text: c => `<b>${gn(c.a)}</b> has been watching <b>${gn(c.b)}</b> at the posts and shaking his head. He offers to take the younger man in hand: his own way, and nobody else's.`,
+    text: c => `<b>${gn(c.a)}</b>, your most experienced fighter, has been watching <b>${gn(c.b)}</b> train, and thinks he is doing it badly. He offers to teach the younger man himself, in his own way.`,
     opts: [
-      { label: () => 'Let him teach', run: c => {
+      { label: () => 'Let him teach (a stat +1 for the pupil; tiring for both)', run: c => {
         const a = byId(c.a), b = byId(c.b); if (!a || !b) return 'Nothing comes of it.';
         const up = b.stats[c.s] < 20; if (up) b.stats[c.s]++; evTire(a, 18); evTire(b, 18);
         const friends = makeBond(a, b, 'friend');
-        return `A week of being knocked down and told why. ${up ? `${b.name}: ${STAT_NAMES[c.s]} +1.` : `${b.name} has little left to learn there.`}${friends ? ' The two of them are thick as thieves now.' : ''}`;
+        return `${a.name} trains ${b.name} hard for a week, and both are much more tired. ${up ? `${b.name} gains ${STAT_NAMES[c.s]} +1.` : `${b.name} had nothing left to learn from him there.`}${friends ? ' The two men are now friends.' : ''}`;
       } },
-      { label: () => 'The doctore trains my men', run: c => { evMor(byId(c.a), -6); return `${gn(c.a)} shrugs and goes back to his own work.`; } },
+      { label: () => 'Refuse: training is the trainer\'s job (his morale -6)', run: c => { evMor(byId(c.a), -6); return `You refuse. ${gn(c.a)} shrugs and goes back to his own training: morale -6.`; } },
     ],
   },
   runaway: {
-    title: 'Over the wall',
+    title: 'A fighter tried to escape',
     can: () => home().length > 2,
     make: () => ({ g: evBest(home(), g => -g.morale).id, cost: 25 + tier() * 15 }),
-    text: c => `The night guard caught <b>${gn(c.g)}</b> halfway over the wall with a blanket and a stolen loaf. He says nothing at all.`,
+    text: c => `The night guard caught <b>${gn(c.g)}</b> climbing over the wall with a blanket and a stolen loaf of bread. He was trying to run away, and he will not say why.`,
     opts: [
-      { label: () => 'Flog him before the others', run: c => { const g = byId(c.g); evMor(g, -12); evTire(g, 15); G.roster.forEach(x => { if (x !== g) evMor(x, -3); }); return 'Twenty strokes at the post. Nobody else will try the wall this month.'; } },
-      { label: () => 'Ask him why', run: c => {
+      { label: () => 'Whip him in front of the others (his morale -12, others -3)', run: c => { const g = byId(c.g); evMor(g, -12); evTire(g, 15); G.roster.forEach(x => { if (x !== g) evMor(x, -3); }); return 'He is whipped in front of the whole school. He loses 12 morale and is more tired, and every other man loses 3 morale.'; } },
+      { label: () => 'Talk to him (morale +20, or he may desert)', run: c => {
         const g = byId(c.g); if (!g) return 'He is gone.';
-        if (chance(0.7)) { evMor(g, 20); addStory(g, 'Tried the wall, and was talked back down.'); return `It comes out slowly: a wife, a debt, a village he will not see again. You listen. ${g.name} goes back to his cell a different man.`; }
+        if (chance(0.7)) { evMor(g, 20); addStory(g, 'Tried the wall, and was talked back down.'); return `Slowly he tells you about it: a wife, a debt, and a village he will never see again. You listen. ${g.name} goes back to his cell feeling much better: morale +20.`; }
         G.roster = G.roster.filter(x => x !== g); departed(g, 'deserted'); log(`${g.name} deserted in the night.`, 'bad');
-        return `He hears you out, nods, and is gone before dawn by a way nobody has found. ${g.name} has deserted.`;
+        return `He listens to you and nods. But before dawn he escapes by some way nobody has found. ${g.name} has deserted, and you have lost him.`;
       } },
-      { label: c => `Double the watch (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evMor(byId(c.g), -5); return 'Two more men on the wall and a bolt on his door. It is a ludus again, not an inn.'; } },
+      { label: c => `Pay for more guards (${c.cost} denarii; his morale -5)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evMor(byId(c.g), -5); return 'You pay for two more guards on the wall and a lock on his door. He will not get out again: morale -5.'; } },
     ],
   },
   nightmare: {
-    title: 'A bad dream',
+    title: 'A fighter dreams of his death',
     can: () => fit().length > 0,
     make: () => ({ g: pick(fit()).id, cost: 20 + tier() * 15 }),
-    text: c => `<b>${gn(c.g)}</b> woke the barracks screaming. He has dreamed his own death on the sand, in detail, and he believes it.`,
+    text: c => `<b>${gn(c.g)}</b> woke the whole barracks screaming. He dreamed that he was killed in the arena, and he believes the dream will come true.`,
     opts: [
-      { label: c => `A sacrifice to turn it aside (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evMor(byId(c.g), 12); favor('temple', 4); return 'A black cock, a priest, the right words. He sleeps. Temple favour +4.'; } },
-      { label: () => 'Tell him dreams are for children', run: c => { const g = byId(c.g); evMor(g, -9); if (g && chance(0.25) && !g.traits.includes('nervous') && g.traits.length < 4) { g.traits.push('nervous'); return `${g.name} says nothing more about it. He has started looking over his shoulder. He is Nervous now.`; } return `${gn(c.g)} says nothing more about it.`; } },
-      { label: () => 'Give him a day of rest', run: c => { const g = byId(c.g); evMor(g, 6); evTire(g, -20); if (g) g.activity = 'rest'; return 'He sits in the sun and sharpens things. By evening he can laugh about it.'; } },
+      { label: c => `Pay for a sacrifice (${c.cost} denarii; morale +12, Temple favour +4)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evMor(byId(c.g), 12); favor('temple', 4); return 'A priest makes a sacrifice to turn the bad luck away. The fighter is calmer and sleeps: morale +12. Temple favour +4.'; } },
+      { label: () => 'Tell him to forget it (morale -9, may turn nervous)', run: c => { const g = byId(c.g); evMor(g, -9); if (g && chance(0.25) && !g.traits.includes('nervous') && g.traits.length < 4) { g.traits.push('nervous'); return `${g.name} says no more about it, but he is still afraid: morale -9. He has become Nervous.`; } return `${gn(c.g)} says no more about it, but he is still uneasy: morale -9.`; } },
+      { label: () => 'Give him a day of rest (morale +6, less tired)', run: c => { const g = byId(c.g); evMor(g, 6); evTire(g, -20); if (g) g.activity = 'rest'; return 'He rests for the day, and by evening he can laugh about the dream. Morale +6, and he is much less tired.'; } },
     ],
   },
   meat: {
-    title: 'The butcher\'s bargain',
+    title: 'The meat has gone bad',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 20 + 6 * G.roster.length }),
-    text: c => `The pork that came this morning is green at the bone. The butcher swears it was sound when it left him. Fresh meat would cost ${c.cost} denarii.`,
+    text: c => `The pork delivered this morning has gone bad. The butcher swears it was fresh when he sent it. Buying fresh meat would cost ${c.cost} denarii.`,
     opts: [
-      { label: c => `Throw it out and buy fresh (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'The dogs get the pork. The men eat well and never know.'; } },
-      { label: () => 'Boil it long and salt it hard', run: () => {
-        if (chance(0.45)) { const sick = fit().filter(() => chance(0.5)); sick.forEach(g => { g.injury = Math.max(g.injury, 1); evTire(g, 20); }); evAllMor(-6); return sick.length ? `By midnight the latrine has a queue. ${sick.map(g => g.name).join(', ')} cannot stand up tomorrow.` : 'A bad night for stomachs, but nobody is laid up.'; }
-        return 'Nobody notices. Nobody dies.';
+      { label: c => `Throw it out and buy fresh (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'You throw the bad pork away and buy fresh meat. The men eat well.'; } },
+      { label: () => 'Cook it thoroughly and serve it (men may fall sick)', run: () => {
+        if (chance(0.45)) { const sick = fit().filter(() => chance(0.5)); sick.forEach(g => { g.injury = Math.max(g.injury, 1); evTire(g, 20); }); evAllMor(-6); return sick.length ? `The meat makes the men sick. ${sick.map(g => g.name).join(', ')} cannot train or fight tomorrow, and morale is -6 for everyone.` : 'The meat upsets the men\'s stomachs, but nobody is too sick to train. Morale -6 for everyone.'; }
+        return 'You are lucky: nobody notices anything wrong, and nobody falls sick.';
       } },
-      { label: () => 'Barley and beans this week', run: () => { evAllMor(-4); return 'The men eat like oxen and complain like senators.'; } },
+      { label: () => 'Give them no meat this week (morale -4)', run: () => { evAllMor(-4); return 'The men eat barley and beans all week, and complain about it: morale -4 for everyone.'; } },
     ],
   },
   dig: {
-    title: 'Under the yard',
+    title: 'Something buried under the yard',
     can: () => G.roster.length > 0,
     make: () => { const g = pick(G.roster), slot = pick(SLOTS), r = clamp(tier() + rint(2, 3), 2, 5), it = { slot, r, cls: g.cls }; return { slot, r, cls: g.cls, sell: Math.max(20, Math.round(itemPrice(it) * 0.5 / 5) * 5) }; },
-    text: c => `Men digging a new latrine have struck a rotted chest. Inside, wrapped in oiled wool, is a piece of old kit: ${itemName(c)}, better work than anything made in this town.`,
+    text: c => `Men digging a new latrine have found an old chest buried in the yard. Inside is a piece of equipment in very good condition: ${itemName(c)}. It is better made than anything you could buy in this town.`,
     opts: [
-      { label: () => 'Put it in the armoury', run: c => { const it = makeItem(c.slot, c.r, c.cls); G.armoury.push(it); return `Cleaned and oiled, it goes on the rack: ${itemName(it)}.`; } },
-      { label: c => `Sell it (+${c.sell} denarii)`, run: c => { G.denarii += c.sell; return 'A collector in town pays without haggling, which means you asked too little.'; } },
-      { label: () => 'Dedicate it at the temple', run: () => { favor('temple', 9); evAllMor(4); return 'It hangs in the shrine of Nemesis with your name beneath it. Temple favour +9. The men approve.'; } },
+      { label: () => 'Keep it for your fighters', run: c => { const it = makeItem(c.slot, c.r, c.cls); G.armoury.push(it); return `You clean it and add it to your armoury: ${itemName(it)}. It is there for any of your fighters to use.`; } },
+      { label: c => `Sell it (+${c.sell} denarii)`, run: c => { G.denarii += c.sell; return `A collector in town buys it for ${c.sell} denarii.`; } },
+      { label: () => 'Give it to the temple (Temple favour +9, morale +4)', run: () => { favor('temple', 9); evAllMor(4); return 'You give it to the temple of Nemesis, where it is hung up with your name under it. Temple favour +9, and your men approve: morale +4.'; } },
     ],
   },
   tremor: {
-    title: 'The ground moves',
+    title: 'An earthquake damages the school',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 30 + tier() * 25 }),
-    text: c => `A tremor in the night has cracked the cistern and thrown down two training posts. The men are saying Vulcan is angry with the house. Repairs will cost ${c.cost} denarii.`,
+    text: c => `A small earthquake in the night has cracked your water tank and knocked down two training posts. The men are saying the god Vulcan is angry with the school. Repairs will cost ${c.cost} denarii.`,
     opts: [
-      { label: c => `Repair it all (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'Masons, mortar, new oak. By the next market day there is nothing to see.'; } },
-      { label: c => `Repair, and sacrifice to Vulcan (${c.cost + 20})`, ok: c => G.denarii >= c.cost + 20, run: c => { G.denarii -= c.cost + 20; evAllMor(6); favor('temple', 5); return 'The smoke goes straight up, which the priest says is good. The men stop whispering. Temple favour +5.'; } },
-      { label: () => 'Make do', run: () => { evAllMor(-6); fit().forEach(g => evTire(g, 5)); return 'Water is carried from the street and the men train round the rubble. They take it as a sign, and not a good one.'; } },
+      { label: c => `Repair everything (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'You pay for the repairs, and within a few days everything is as it was.'; } },
+      { label: c => `Repair, and sacrifice to Vulcan (${c.cost + 20} denarii; morale +6, Temple favour +5)`, ok: c => G.denarii >= c.cost + 20, run: c => { G.denarii -= c.cost + 20; evAllMor(6); favor('temple', 5); return 'You pay for the repairs and for a sacrifice to Vulcan. The priest says the god is satisfied, and the men stop worrying: morale +6. Temple favour +5.'; } },
+      { label: () => 'Repair nothing (morale -6, a little tiring)', run: () => { evAllMor(-6); fit().forEach(g => evTire(g, 5)); return 'You repair nothing. The men have to carry water in from the street and train among the rubble. They think the school is unlucky: morale -6, and they are a little more tired.'; } },
     ],
   },
 
   // ---- the town ----
   foundersDay: {
-    title: 'The procession',
+    title: 'The town asks for gladiators in its parade',
     can: () => fit().length > 0,
     make: () => ({ g: evBest(fit(), g => g.wins * 3 + evPower(g)).id }),
-    text: c => `The town honours its founder tomorrow, and the council would like gladiators in the procession: oiled, armed and looking dangerous. <b>${gn(c.g)}</b> is asked for by name.`,
+    text: c => `Tomorrow the town holds a parade in honour of its founder, and the council would like gladiators to march in it, armed and looking dangerous. They ask for <b>${gn(c.g)}</b> by name.`,
     opts: [
-      { label: () => 'Send every man who can walk', run: () => { const f = 4 + fit().length * 2; fit().forEach(g => evTire(g, 12)); G.fame += f; favor('magistrate', 6); return `They march behind the priests and before the elephants. Fame +${f}. Magistrate favour +6. A long day on their feet.`; } },
-      { label: c => `Send ${gn(c.g)} alone`, run: c => { const g = byId(c.g); evTire(g, 12); evMor(g, 6); if (g) g.fame = (g.fame || 0) + 4; G.fame += 4; favor('magistrate', 3); return `${gn(c.g)} is pelted with flowers and kissed by a stranger. Fame +4. Magistrate favour +3.`; } },
-      { label: () => 'My men are not ornaments', run: () => { favor('magistrate', -4); return 'The council finds its ornaments elsewhere. Magistrate favour -4.'; } },
+      { label: () => 'Send every fit man (most fame, Magistrate favour +6, tiring)', run: () => { const f = 4 + fit().length * 2; fit().forEach(g => evTire(g, 12)); G.fame += f; favor('magistrate', 6); return `All your fit men march in the parade. Fame +${f}, Magistrate favour +6. They are more tired after a long day on their feet.`; } },
+      { label: c => `Send only ${gn(c.g)} (fame +4, Magistrate favour +3)`, run: c => { const g = byId(c.g); evTire(g, 12); evMor(g, 6); if (g) g.fame = (g.fame || 0) + 4; G.fame += 4; favor('magistrate', 3); return `${gn(c.g)} marches in the parade, and the crowd throws flowers at him. Fame +4, Magistrate favour +3. He is more tired, but pleased: morale +6.`; } },
+      { label: () => 'Refuse (Magistrate favour -4)', run: () => { favor('magistrate', -4); return 'You refuse, and the council asks another school. Magistrate favour -4.'; } },
     ],
   },
   graffiti: {
-    title: 'Written on the walls',
+    title: 'A fighter\'s name painted on the walls',
     can: () => G.roster.some(g => g.wins > 0),
     make: () => ({ g: pick(G.roster.filter(g => g.wins > 0)).id, cost: 20 + tier() * 20 }),
-    text: c => `Somebody has been painting <b>${gn(c.g)}</b>'s name on walls all over town: "the girls' sigh", "lord of the sand", and worse. The aedile is not amused. The crowd is.`,
+    text: c => `Admirers have been painting <b>${gn(c.g)}</b>'s name and praise of him on walls all over town. The crowd enjoys it. The town official in charge of public order does not.`,
     opts: [
-      { label: c => `Pay the painters to do more (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const g = byId(c.g); if (g) g.fame = (g.fame || 0) + 8; G.fame += 8; favor('magistrate', -3); return `By the next games there is not a tavern wall without him on it. Fame +8. Magistrate favour -3.`; } },
-      { label: () => 'Let it be', run: c => { const g = byId(c.g); evMor(g, 8); if (g) g.fame = (g.fame || 0) + 3; G.fame += 3; return `${gn(c.g)} pretends not to have noticed, badly. Fame +3.`; } },
-      { label: () => 'Have it scrubbed off', run: c => { favor('magistrate', 5); evMor(byId(c.g), -5); return 'Your slaves spend a night with brushes. The aedile sends his thanks. Magistrate favour +5.'; } },
+      { label: c => `Pay for more of it (${c.cost} denarii; fame +8, Magistrate favour -3)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const g = byId(c.g); if (g) g.fame = (g.fame || 0) + 8; G.fame += 8; favor('magistrate', -3); return `You pay the painters to do more, and soon his name is on every wall in town. Fame +8, Magistrate favour -3.`; } },
+      { label: () => 'Leave it alone (fame +3, his morale +8)', run: c => { const g = byId(c.g); evMor(g, 8); if (g) g.fame = (g.fame || 0) + 3; G.fame += 3; return `You leave the writing where it is. ${gn(c.g)} is secretly delighted: morale +8. Fame +3.`; } },
+      { label: () => 'Have it cleaned off (Magistrate favour +5, his morale -5)', run: c => { favor('magistrate', 5); evMor(byId(c.g), -5); return 'You have your slaves scrub the walls clean. The town official sends his thanks: Magistrate favour +5. Your fighter is disappointed: morale -5.'; } },
     ],
   },
   poet: {
-    title: 'A poet at the door',
+    title: 'A poet offers to praise your school',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 30 + tier() * 30 }),
-    text: c => `A threadbare Greek offers to write the deeds of your house in elegiacs and recite them in the forum. He would like ${c.cost} denarii, or failing that, dinner.`,
+    text: c => `A poor Greek poet offers to write a poem about the victories of your school and recite it in the town square. He asks ${c.cost} denarii, or, if you will not pay that, a dinner.`,
     opts: [
-      { label: c => `Commission the poem (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const f = 8 + tier() * 4; G.fame += f; return `It is very long, and people stay to the end. Fame +${f}.`; } },
-      { label: () => 'Give him dinner', run: () => { if (chance(0.5)) { G.fame += 3; return 'He eats for three and writes four lines, all of them good. Fame +3.'; } return 'He eats for three and is gone in the morning with a spoon.'; } },
-      { label: () => 'Send him away', run: () => chance(0.3) ? (G.fame = Math.max(0, G.fame - 2), 'His next poem is about a miserly lanista. People laugh at it. Fame -2.') : 'He bows, and tries next door.' },
+      { label: c => `Pay for the poem (${c.cost} denarii; fame)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; const f = 8 + tier() * 4; G.fame += f; return `He recites the poem in the town square. It is very long, but people stay to hear all of it. Fame +${f}.`; } },
+      { label: () => 'Give him dinner instead (may bring a little fame)', run: () => { if (chance(0.5)) { G.fame += 3; return 'He eats a great deal, and writes a short poem about you that is very good. Fame +3.'; } return 'He eats a great deal, writes nothing, and leaves in the morning with one of your spoons.'; } },
+      { label: () => 'Send him away (may cost a little fame)', run: () => chance(0.3) ? (G.fame = Math.max(0, G.fame - 2), 'He takes his revenge: his next poem is about a mean lanista, and the town laughs at you. Fame -2.') : 'He bows politely and goes to try somewhere else.' },
     ],
   },
   sculptor: {
-    title: 'In bronze',
+    title: 'A sculptor wants a model',
     can: () => G.roster.some(g => g.wins >= 2),
     make: () => ({ g: evBest(G.roster.filter(g => g.wins >= 2), g => g.wins).id, fee: 40 + tier() * 40 }),
-    text: c => `A sculptor with a commission from the town wants <b>${gn(c.g)}</b> to stand for a statue of a victorious gladiator. It means days of standing still with his arm in the air.`,
+    text: c => `The town has ordered a bronze statue of a victorious gladiator, and the sculptor wants <b>${gn(c.g)}</b> to pose for it. He would have to stand still for days.`,
     opts: [
-      { label: () => 'Lend him gladly', run: c => { const g = byId(c.g); evTire(g, 10); evMor(g, 10); if (g) { g.fame = (g.fame || 0) + 6; addStory(g, 'Stood for a bronze in the forum.'); } G.fame += 6; favor('magistrate', 3); return `It will stand in the forum when you are both dust. Fame +6. Magistrate favour +3.`; } },
-      { label: c => `Charge for his time (+${c.fee})`, run: c => { G.denarii += c.fee; evTire(byId(c.g), 10); G.fame += 2; return `The sculptor pays, and gives the statue a slightly weaker chin. Fame +2.`; } },
-      { label: () => 'He has work to do', run: () => 'The sculptor finds his model at another ludus.' },
+      { label: () => 'Lend him for free (fame +6, Magistrate favour +3)', run: c => { const g = byId(c.g); evTire(g, 10); evMor(g, 10); if (g) { g.fame = (g.fame || 0) + 6; addStory(g, 'Stood for a bronze in the forum.'); } G.fame += 6; favor('magistrate', 3); return `He poses for the statue, which will stand in the town square for generations. Fame +6, Magistrate favour +3. He is proud of it (morale +10), and a little more tired.`; } },
+      { label: c => `Charge for his time (+${c.fee} denarii; fame +2)`, run: c => { G.denarii += c.fee; evTire(byId(c.g), 10); G.fame += 2; return `The sculptor pays you ${c.fee} denarii, and your fighter poses for the statue. Fame +2. He is a little more tired.`; } },
+      { label: () => 'Refuse', run: () => 'You refuse, and the sculptor finds his model at another school.' },
     ],
   },
   admirers: {
-    title: 'A crowd at the gate',
+    title: 'Admirers at the gate',
     can: () => fit().some(g => g.wins > 0),
     make: () => ({ g: evBest(fit().filter(g => g.wins > 0), g => g.wins).id, pay: 25 + tier() * 25 }),
-    text: c => `Since the last games there have been people outside the gate every morning, hoping for a sight of <b>${gn(c.g)}</b>. Today there are forty.`,
+    text: c => `Since the last games, people have been gathering outside your gate every morning, hoping to see <b>${gn(c.g)}</b>. Today there are forty of them.`,
     opts: [
-      { label: c => `Let them watch him train, for a coin each (+${c.pay})`, run: c => { G.denarii += c.pay; const g = byId(c.g); evTire(g, 8); evMor(g, 4); return `He has never hit a post so hard. +${c.pay} denarii.`; } },
-      { label: () => 'Send him out to them', run: c => { const g = byId(c.g); evMor(g, 10); if (g) g.fame = (g.fame || 0) + 5; G.fame += 5; return `${gn(c.g)} clasps hands, lifts a child, loses a lock of hair. Fame +5.`; } },
-      { label: () => 'Clear the street', run: () => { G.fame = Math.max(0, G.fame - 2); return 'They go, slowly, and tell people about it. Fame -2.'; } },
+      { label: c => `Charge them to watch him train (+${c.pay} denarii)`, run: c => { G.denarii += c.pay; const g = byId(c.g); evTire(g, 8); evMor(g, 4); return `The crowd pays to watch him train, and he shows off for them. +${c.pay} denarii. He is a little more tired, and pleased: morale +4.`; } },
+      { label: () => 'Send him out to meet them (fame +5, his morale +10)', run: c => { const g = byId(c.g); evMor(g, 10); if (g) g.fame = (g.fame || 0) + 5; G.fame += 5; return `${gn(c.g)} goes out to greet his admirers, and they love him for it. Fame +5, and his morale is +10.`; } },
+      { label: () => 'Send them away (fame -2)', run: () => { G.fame = Math.max(0, G.fame - 2); return 'You have the crowd sent away. They leave unhappily, and complain about it in town. Fame -2.'; } },
     ],
   },
   widow: {
-    title: 'A lady\'s invitation',
+    title: 'A rich widow invites a fighter',
     can: () => fit().some(g => g.wins > 0),
     make: () => ({ g: pick(fit().filter(g => g.wins > 0)).id, pay: 60 + tier() * 50 }),
-    text: c => `A litter with drawn curtains stops at the gate. A rich widow of the town would like <b>${gn(c.g)}</b> to dine with her this evening, and has sent ${c.pay} denarii to cover the inconvenience.`,
+    text: c => `A rich widow of the town has sent a servant to your gate. She would like <b>${gn(c.g)}</b> to spend the evening with her, and offers ${c.pay} denarii for it.`,
     opts: [
-      { label: c => `Send him (+${c.pay})`, run: c => {
+      { label: c => `Send him (+${c.pay} denarii; tiring, his mood may go either way)`, run: c => {
         const g = byId(c.g); G.denarii += c.pay; evTire(g, 15);
-        if (chance(0.5)) { evMor(g, 12); return `${gn(c.g)} comes back at dawn wearing a ring he did not leave with. +${c.pay} denarii.`; }
-        evMor(g, -8); return `${gn(c.g)} comes back at dawn and will not talk about it. +${c.pay} denarii.`;
+        if (chance(0.5)) { evMor(g, 12); return `${gn(c.g)} comes back at dawn, tired and happy, with a ring she gave him. +${c.pay} denarii, and his morale is +12.`; }
+        evMor(g, -8); return `${gn(c.g)} comes back at dawn, tired and unhappy, and will not talk about it. +${c.pay} denarii, and his morale is -8.`;
       } },
-      { label: c => `Ask twice the price`, run: c => { if (chance(0.5)) { G.denarii += c.pay * 2; evTire(byId(c.g), 15); return `The steward does not blink. +${c.pay * 2} denarii.`; } return 'The curtains close and the litter moves on.'; } },
-      { label: () => 'He is not for hire', run: c => { evMor(byId(c.g), 5); return 'The litter leaves. He heard what you said, and stands a little straighter.'; } },
+      { label: c => `Ask for twice as much (${c.pay * 2} denarii, or nothing)`, run: c => { if (chance(0.5)) { G.denarii += c.pay * 2; evTire(byId(c.g), 15); return `She agrees to the higher price, and he goes. +${c.pay * 2} denarii. He comes back tired.`; } return 'She will not pay that much, and her servant leaves. You get nothing.'; } },
+      { label: () => 'Refuse (his morale +5)', run: c => { evMor(byId(c.g), 5); return 'You refuse, and her servant leaves. Your fighter heard you say he was not for hire, and is proud of it: morale +5.'; } },
     ],
   },
   noble: {
-    title: 'A young man of family',
+    title: 'A senator\'s son wants to train with you',
     can: () => fit().length > 0,
     make: () => ({ g: pick(fit()).id, pay: 50 + tier() * 50 }),
-    text: c => `A senator's son, bored, drunk and nineteen, wants to spend a day training with real gladiators. He offers ${c.pay} denarii and wants to cross swords with <b>${gn(c.g)}</b>.`,
+    text: c => `A senator's son, nineteen years old, bored and drunk, wants to spend a day training with real gladiators. He offers ${c.pay} denarii, and wants to fight a practice bout against <b>${gn(c.g)}</b>.`,
     opts: [
-      { label: c => `Take his money and let him try (+${c.pay})`, run: c => {
+      { label: c => `Let him have a real practice bout (+${c.pay} denarii; risky)`, run: c => {
         G.denarii += c.pay;
-        if (chance(0.35)) { favor('magistrate', -10); return `${gn(c.g)} forgets himself for one stroke. The boy goes home on a door, and his father writes to the Magistrate. +${c.pay} denarii. Magistrate favour -10.`; }
-        favor('magistrate', 4); return `The boy goes home with bruises, a story and a new respect for the trade. +${c.pay} denarii. Magistrate favour +4.`;
+        if (chance(0.35)) { favor('magistrate', -10); return `${gn(c.g)} hits the boy too hard, and he has to be carried home. His father complains to the Magistrate. +${c.pay} denarii, Magistrate favour -10.`; }
+        favor('magistrate', 4); return `The boy goes home with a few bruises and a good story, and is very pleased. +${c.pay} denarii, Magistrate favour +4.`;
       } },
-      { label: c => `Take his money and have him humoured (+${Math.round(c.pay / 2)})`, run: c => { G.denarii += Math.round(c.pay / 2); evMor(byId(c.g), -5); return `${gn(c.g)} loses three bouts to a child with a wooden sword, and takes it as an insult.`; } },
-      { label: () => 'This is not a playground', run: () => { favor('magistrate', -2); return 'He calls you several things on the way out. Magistrate favour -2.'; } },
+      { label: c => `Have your fighter let him win (+${Math.round(c.pay / 2)} denarii; his morale -5)`, run: c => { G.denarii += Math.round(c.pay / 2); evMor(byId(c.g), -5); return `${gn(c.g)} lets the boy win three practice bouts, and hates doing it. +${Math.round(c.pay / 2)} denarii, and his morale is -5.`; } },
+      { label: () => 'Refuse (Magistrate favour -2)', run: () => { favor('magistrate', -2); return 'You refuse, and he insults you on his way out. Magistrate favour -2.'; } },
     ],
   },
   tax: {
-    title: 'The assessor',
+    title: 'The tax collector',
     can: () => G.denarii >= 40,
     make: () => ({ cost: Math.round((40 + tier() * 40 + G.denarii * 0.05) / 5) * 5 }),
-    text: c => `The town's assessor has been through your books and finds ${c.cost} denarii owing on "entertainments". The law he cites is older than the town.`,
+    text: c => `The town's tax collector has gone through your accounts, and says you owe ${c.cost} denarii in tax under a very old law.`,
     opts: [
-      { label: c => `Pay it (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return 'He writes you a receipt in a very fine hand.'; } },
-      { label: c => `A gift to the assessor (${Math.round(c.cost / 3)})`, ok: c => G.denarii >= Math.round(c.cost / 3), run: c => {
-        if (chance(0.65)) { G.denarii -= Math.round(c.cost / 3); return 'He discovers an error in his own arithmetic.'; }
-        G.denarii -= c.cost * 2; favor('magistrate', -6); return `He is, of all things, honest. The fine is ${c.cost * 2} denarii. Magistrate favour -6.`;
+      { label: c => `Pay the tax (${c.cost} denarii)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; return `You pay the ${c.cost} denarii, and he gives you a receipt.`; } },
+      { label: c => `Bribe him instead (${Math.round(c.cost / 3)} denarii; risky)`, ok: c => G.denarii >= Math.round(c.cost / 3), run: c => {
+        if (chance(0.65)) { G.denarii -= Math.round(c.cost / 3); return `He takes the bribe of ${Math.round(c.cost / 3)} denarii, and decides that you owe no tax after all.`; }
+        G.denarii -= c.cost * 2; favor('magistrate', -6); return `He turns out to be honest, and reports the bribe. You are fined ${c.cost * 2} denarii. Magistrate favour -6.`;
       } },
-      { label: () => 'Appeal to the Magistrate', run: c => {
-        if (G.patrons.magistrate >= 40) { favor('magistrate', -5); return 'The Magistrate waves it away, and lets you know he has done so. Magistrate favour -5.'; }
-        G.denarii -= Math.round(c.cost * 1.5 / 5) * 5; return `The Magistrate does not know your face well enough. The tax stands, with costs: ${Math.round(c.cost * 1.5 / 5) * 5} denarii.`;
+      { label: () => 'Ask the Magistrate to cancel it (works at favour 40 or more)', run: c => {
+        if (G.patrons.magistrate >= 40) { favor('magistrate', -5); return 'The Magistrate cancels the tax as a favour to you, and you pay nothing. It uses up some goodwill: Magistrate favour -5.'; }
+        G.denarii -= Math.round(c.cost * 1.5 / 5) * 5; return `The Magistrate does not think well enough of you to help. You must pay the tax and extra costs: ${Math.round(c.cost * 1.5 / 5) * 5} denarii.`;
       } },
     ],
   },
   coins: {
-    title: 'Light money',
+    title: 'You were paid in bad coin',
     can: () => G.roster.length > 0,
     make: () => ({ loss: 25 + tier() * 25 }),
-    text: c => `Your steward has been weighing the last purse from the games. A good part of it is clipped coin, short by ${c.loss} denarii in all.`,
+    text: c => `Your steward has weighed the prize money from the last games. Many of the coins have had silver shaved off them, and are worth ${c.loss} denarii less than they should be.`,
     opts: [
-      { label: () => 'Complain to the Magistrate', run: c => { favor('magistrate', -4); if (chance(0.6)) { G.denarii += c.loss; return `He makes it good from his own chest, sourly. +${c.loss} denarii. Magistrate favour -4.`; } return 'He is astonished that you would suggest it. Magistrate favour -4.'; } },
-      { label: () => 'Pass it on in the market', run: c => { if (chance(0.7)) return 'It buys barley as well as honest silver does.'; G.denarii -= c.loss; favor('guild', -6); return `The Guild's money-changer catches it. You pay, and are remembered. -${c.loss} denarii. Guild favour -6.`; } },
-      { label: () => 'Swallow the loss', run: c => { G.denarii -= c.loss; return `You write off ${c.loss} denarii and say nothing.`; } },
+      { label: () => 'Complain to the Magistrate (favour -4; may be repaid)', run: c => { favor('magistrate', -4); if (chance(0.6)) { G.denarii += c.loss; return `The Magistrate pays you the difference, but he is not pleased to be asked. +${c.loss} denarii, Magistrate favour -4.`; } return 'The Magistrate refuses to believe it, and pays nothing. Magistrate favour -4.'; } },
+      { label: () => 'Spend the bad coins in the market (risky)', run: c => { if (chance(0.7)) return 'You spend the bad coins in the market, and nobody notices. You lose nothing.'; G.denarii -= c.loss; favor('guild', -6); return `A Guild money-changer spots the bad coins. You have to make up the difference: -${c.loss} denarii. Guild favour -6.`; } },
+      { label: c => `Accept the loss (-${c.loss} denarii)`, run: c => { G.denarii -= c.loss; return `You accept the loss of ${c.loss} denarii, and say nothing.`; } },
     ],
   },
   cargo: {
-    title: 'A share in a cargo',
+    title: 'A chance to invest in a ship',
     can: () => G.denarii >= 80,
     make: () => ({ cost: 60 + tier() * 60 }),
-    text: c => `A Guild shipper has a hull loading wine for Massilia and one share unsold. ${c.cost} denarii buys it. He says it cannot fail, which is what they all say.`,
+    text: c => `A Guild ship owner is sending a cargo of wine overseas, and offers you a share in it for ${c.cost} denarii. If the voyage goes well, you will be paid back double. If it goes badly, you could lose it all.`,
     opts: [
-      { label: c => `Buy the share (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => {
+      { label: c => `Buy the share (${c.cost} denarii; Guild favour +3)`, ok: c => G.denarii >= c.cost, run: c => {
         G.denarii -= c.cost; favor('guild', 3); const r = Math.random();
-        if (r < 0.45) { G.denarii += c.cost * 2; return `Word comes back within the week: sold on the quay at double. +${c.cost * 2} denarii.`; }
-        if (r < 0.75) { G.denarii += c.cost; return 'A slow passage and a glutted market. You get your stake back and no more.'; }
-        return 'The ship is seen off Corsica and not again. The share is worth the wax it is written on.';
+        if (r < 0.45) { G.denarii += c.cost * 2; return `The voyage goes well, and the wine sells for double. You are paid ${c.cost * 2} denarii. Guild favour +3.`; }
+        if (r < 0.75) { G.denarii += c.cost; return `The voyage is slow and the wine sells poorly. You get your ${c.cost} denarii back, and no more. Guild favour +3.`; }
+        return `The ship is lost at sea, and you lose all ${c.cost} denarii. Guild favour +3.`;
       } },
-      { label: () => 'I know nothing about ships', run: () => 'The share goes to a fuller, who talks of nothing else for a month.' },
+      { label: () => 'Refuse', run: () => 'You refuse, and he sells the share to somebody else.' },
     ],
   },
   fugitive: {
-    title: 'A man in the hayloft',
+    title: 'A runaway slave is hiding in your stable',
     can: () => G.roster.length > 0,
     make: () => ({ reward: 40 + tier() * 30, g: makeGladiator(15 + tier() * 6 + rint(0, 4)) }),
-    text: c => `The stable boy has found a runaway hiding in the hay: <b>${c.g.name}</b>, a field slave from an estate up the valley, with the marks of the whip on him. He begs to be allowed to fight instead. His owner has posted ${c.reward} denarii for his return.`,
+    text: c => `Your stable boy has found a runaway slave hiding in the hay. He is <b>${c.g.name}</b>, a farm slave who has been badly whipped, and he begs you to let him become a gladiator instead of going back. His owner is offering ${c.reward} denarii for his return.`,
     opts: [
-      { label: () => 'Hide him among the men', ok: () => G.roster.length < capacity(), run: c => {
+      { label: () => 'Take him in as a fighter (free; the Magistrate may find out)', ok: () => G.roster.length < capacity(), run: c => {
         welcome(c.g); G.roster.push(c.g); if (!c.g.story) c.g.story = []; addStory(c.g, 'A runaway, hidden in the ludus under another name.'); evMor(c.g, 20);
-        if (chance(0.3)) { favor('magistrate', -8); return `${c.g.name} takes the oath under a new name. Somebody talks; the Magistrate chooses not to look too closely, this once. Magistrate favour -8.`; }
-        return `${c.g.name} takes the oath under a new name. Nobody comes asking.`;
+        if (chance(0.3)) { favor('magistrate', -8); return `${c.g.name} joins your school under a false name. But somebody talks, and the Magistrate hears of it. He lets it pass this once: Magistrate favour -8.`; }
+        return `${c.g.name} joins your school under a false name, and nobody comes looking for him.`;
       } },
-      { label: c => `Return him (+${c.reward})`, run: c => { G.denarii += c.reward; evAllMor(-5); return `He is taken away in a cart. The men watched from the yard. +${c.reward} denarii.`; } },
-      { label: () => 'Give him bread and a head start', run: () => { evAllMor(3); return 'He is gone over the back wall before the moon is up. The men pretend to know nothing.'; } },
+      { label: c => `Hand him back for the reward (+${c.reward} denarii; morale -5)`, run: c => { G.denarii += c.reward; evAllMor(-5); return `You hand him back to his owner and collect the reward: +${c.reward} denarii. Your men watched him taken away, and did not like it: morale -5 for everyone.`; } },
+      { label: () => 'Give him food and let him go (morale +3)', run: () => { evAllMor(3); return 'You give him bread and let him escape over the back wall. Your men approve: morale +3 for everyone.'; } },
     ],
   },
 
@@ -2989,161 +2989,161 @@ const EVENTS = {
     title: 'The travelling smith',
     can: () => G.roster.length > 0,
     make: () => { const g = pick(G.roster), slot = pick(SLOTS), r = clamp(tier() + rint(2, 3), 2, 6), it = { slot, r, cls: g.cls }; return { slot, r, cls: g.cls, price: Math.max(25, Math.round(itemPrice(it) * 0.7 / 5) * 5) }; },      // a third under what the town's smith would ask
-    text: c => `A smith on his way to the legions has stopped his cart at your gate. He has one piece he will part with: ${itemName(c)}. He wants ${c.price} denarii and is leaving at noon.`,
+    text: c => `A travelling smith has stopped his cart at your gate. He has one piece of equipment for sale: ${itemName(c)}. He wants ${c.price} denarii, which is cheaper than the town smith would charge, and he is leaving today.`,
     opts: [
-      { label: c => `Buy it (${c.price})`, ok: c => G.denarii >= c.price, run: c => { G.denarii -= c.price; const it = makeItem(c.slot, c.r, c.cls); G.armoury.push(it); return `It goes into the armoury: ${itemName(it)}.`; } },
-      { label: c => `Offer ${Math.round(c.price * 0.6)}`, ok: c => G.denarii >= Math.round(c.price * 0.6), run: c => {
-        if (chance(0.45)) { G.denarii -= Math.round(c.price * 0.6); const it = makeItem(c.slot, c.r, c.cls); G.armoury.push(it); return `He spits, counts the coins twice, and takes them. ${itemName(it)} is yours.`; }
-        return 'He laughs, whips up the mule and is gone.';
+      { label: c => `Buy it (${c.price} denarii)`, ok: c => G.denarii >= c.price, run: c => { G.denarii -= c.price; const it = makeItem(c.slot, c.r, c.cls); G.armoury.push(it); return `You buy it, and it goes into your armoury: ${itemName(it)}.`; } },
+      { label: c => `Offer only ${Math.round(c.price * 0.6)} denarii (he may refuse and leave)`, ok: c => G.denarii >= Math.round(c.price * 0.6), run: c => {
+        if (chance(0.45)) { G.denarii -= Math.round(c.price * 0.6); const it = makeItem(c.slot, c.r, c.cls); G.armoury.push(it); return `He grumbles, but accepts your lower offer. ${itemName(it)} goes into your armoury.`; }
+        return 'He laughs at your offer and drives away. You get nothing.';
       } },
-      { label: () => 'Let him go', run: () => 'The cart rattles off toward the frontier.' },
+      { label: () => 'Buy nothing', run: () => 'You buy nothing, and he drives on.' },
     ],
   },
   healer: {
-    title: 'A Greek physician',
+    title: 'A skilled physician is passing through',
     can: () => G.roster.length > 0,
     make: () => ({ g: evBest(G.roster, g => g.injury * 20 + g.fatigue + (maxHp(g) - g.hp)).id, cost: 35 + tier() * 30 }),
-    text: c => `A physician of the school of Pergamum, who has patched gladiators for twenty years, is passing through. For ${c.cost} denarii he will give <b>${gn(c.g)}</b> a day of his whole attention.`,
+    text: c => `A Greek physician who has treated gladiators for twenty years is passing through town. For ${c.cost} denarii he will spend a day treating <b>${gn(c.g)}</b>, the man who needs it most.`,
     opts: [
-      { label: c => `Pay him (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; if (g) { g.injury = 0; g.hp = maxHp(g); g.fatigue = clamp(g.fatigue - 40, 0, 100); } return `Oil, hot stones, a needle, and a diet nobody will keep. ${gn(c.g)} gets up whole.`; } },
-      { label: c => `Have him look over everyone (${c.cost * 2})`, ok: c => G.denarii >= c.cost * 2, run: c => { G.denarii -= c.cost * 2; G.roster.forEach(g => { g.injury = Math.max(0, g.injury - 2); g.fatigue = clamp(g.fatigue - 20, 0, 100); g.hp = Math.min(maxHp(g), g.hp + Math.round(maxHp(g) * 0.3)); }); return 'He works down the line of cots until dark. Every man is the better for it.'; } },
-      { label: () => 'We have our own ways', run: () => 'He looks at your infirmary, says something in Greek, and leaves.' },
+      { label: c => `Have him treat that one man (${c.cost} denarii; fully healed)`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; if (g) { g.injury = 0; g.hp = maxHp(g); g.fatigue = clamp(g.fatigue - 40, 0, 100); } return `The physician treats ${gn(c.g)} for a day. His injury is healed, his health is full again, and he is much less tired.`; } },
+      { label: c => `Have him treat everyone (${c.cost * 2} denarii; a smaller benefit each)`, ok: c => G.denarii >= c.cost * 2, run: c => { G.denarii -= c.cost * 2; G.roster.forEach(g => { g.injury = Math.max(0, g.injury - 2); g.fatigue = clamp(g.fatigue - 20, 0, 100); g.hp = Math.min(maxHp(g), g.hp + Math.round(maxHp(g) * 0.3)); }); return 'The physician treats every man in turn. Each one recovers two days sooner from any injury, gets back some health, and is less tired.'; } },
+      { label: () => 'Refuse', run: () => 'You refuse, and he travels on.' },
     ],
   },
   masseur: {
-    title: 'Hands from the baths',
+    title: 'Masseurs for hire',
     can: () => fit().length > 0,
     make: () => ({ cost: 12 * Math.max(1, fit().length) + tier() * 10 }),
-    text: c => `The bath-house is closed for repairs and its masseurs are idle. Their master offers the lot of them for a day, for ${c.cost} denarii.`,
+    text: c => `The town bath-house is closed for repairs, so its masseurs have no work. Their master offers to send all of them to your school for a day, for ${c.cost} denarii.`,
     opts: [
-      { label: c => `Hire them (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; G.roster.forEach(g => evTire(g, -30)); evAllMor(5); return 'Oil, strigils and a great deal of groaning. The men walk like younger men.'; } },
-      { label: () => 'Not this month', run: () => 'They go to the next ludus down the road.' },
+      { label: c => `Hire them (${c.cost} denarii; much less tired, morale +5)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; G.roster.forEach(g => evTire(g, -30)); evAllMor(5); return 'The masseurs work on every man. Your fighters are much less tired, and morale is +5.'; } },
+      { label: () => 'Refuse', run: () => 'You refuse, and they go to another school.' },
     ],
   },
   tout: {
-    title: 'A man who knows things',
+    title: 'A man selling information',
     can: () => fit().length > 0 && daysToGames() <= 3,
     make: () => ({ cost: 30 + tier() * 30 }),
-    text: c => `A tout who drinks with the other schools' trainers says he knows who your men will meet at the next games, and how those men fight. He wants ${c.cost} denarii.`,
+    text: c => `A man who drinks with the trainers of the other schools says he knows who your men will face at the next games, and how those men fight. He will tell you for ${c.cost} denarii. His information may or may not be any good.`,
     opts: [
-      { label: c => `Buy what he knows (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => {
+      { label: c => `Pay him (${c.cost} denarii; usually worth it)`, ok: c => G.denarii >= c.cost, run: c => {
         G.denarii -= c.cost;
-        if (chance(0.75)) { fit().forEach(g => { addProg(g, 'skl', 1.5); evMor(g, 4); }); return 'It is good: which shoulder drops, who tires, who hates a low line. The doctore drills it into them.'; }
-        return 'It is tavern gossip, and half of it about a man who died last year.';
+        if (chance(0.75)) { fit().forEach(g => { addProg(g, 'skl', 1.5); evMor(g, 4); }); return 'His information is good. Your trainer uses it to prepare the men: every fit man gets some skill practice, and morale is +4.'; }
+        return 'His information is worthless gossip. You have wasted your money.';
       } },
-      { label: () => 'My men need no spies', run: () => 'He sells it to someone else, about you.' },
+      { label: () => 'Refuse', run: () => 'You refuse, and he goes to sell what he knows about your school to somebody else.' },
     ],
   },
   hound: {
-    title: 'The beast-dealer',
+    title: 'A fierce dog for sale',
     can: () => fit().length > 0,
     make: () => ({ cost: 40 + tier() * 30 }),
-    text: c => `A dealer bringing animals for the hunts has a Molossian hound too savage for his handlers. For ${c.cost} denarii it is yours: a guard for the gate, and something quick for the men to practise against.`,
+    text: c => `An animal dealer has a big, fierce dog that his own men cannot handle. He will sell it to you for ${c.cost} denarii. It would guard your gate, and your men could practise dodging it.`,
     opts: [
-      { label: c => `Buy the hound (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => {
+      { label: c => `Buy the dog (${c.cost} denarii; agility practice, small risk of a bite)`, ok: c => G.denarii >= c.cost, run: c => {
         G.denarii -= c.cost; fit().forEach(g => addProg(g, 'agi', 1.5));
-        const g = chance(0.25) ? pick(fit()) : null; if (g) { g.injury = 1; addScar(g, 'claw'); return `Nothing teaches footwork like teeth. ${g.name} learns it the slow way and wears the marks.`; }
-        return 'Nothing teaches footwork like teeth. The men are quicker for it, and the grain merchant now knocks.';
+        const g = chance(0.25) ? pick(fit()) : null; if (g) { g.injury = 1; addScar(g, 'claw'); return `Dodging the dog is good agility practice for every fit man. But it bites ${g.name}, who is out for a day and will carry the scar.`; }
+        return 'Dodging the dog is good agility practice for every fit man, and nobody is bitten.';
       } },
-      { label: () => 'No', run: () => 'The hound goes to the arena, where it will have a short career.' },
+      { label: () => 'Refuse', run: () => 'You refuse, and the dealer sells the dog to the arena.' },
     ],
   },
   veteran: {
-    title: 'An old gladiator',
+    title: 'A retired gladiator asks for a home',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 15 + tier() * 10 }),
-    text: c => `A one-eyed man with a wooden sword on his belt asks for a corner of the stable and a bowl a day. In return he will keep the gate and tell your men what he knows. It would cost perhaps ${c.cost} denarii to feed him through the season.`,
+    text: c => `A one-eyed old gladiator, long since freed, asks for a place to sleep in your stable and one meal a day. In return he will guard the gate and teach your men what he knows. Feeding him would cost about ${c.cost} denarii.`,
     opts: [
-      { label: c => `Take him in (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; G.roster.forEach(g => { g.xp = (g.xp || 0) + 1; }); evAllMor(4); return 'He sits by the gate in the evenings and the men sit round him. They are learning things the doctore never fought long enough to know.'; } },
-      { label: () => 'There are no free bowls here', run: () => { evAllMor(-3); return 'He nods and goes. The men saw what a wooden sword is worth at your gate.'; } },
+      { label: c => `Take him in (${c.cost} denarii; experience, morale +4)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; G.roster.forEach(g => { g.xp = (g.xp || 0) + 1; }); evAllMor(4); return 'You take him in. In the evenings the men sit round him and listen to what he learned in the arena. Every man gains a little experience, and morale is +4.'; } },
+      { label: () => 'Turn him away (morale -3)', run: () => { evAllMor(-3); return 'You turn him away. Your men saw how you treat an old gladiator, and they do not like it: morale -3.'; } },
     ],
   },
 
   // ---- the gods, and the men who speak for them ----
   omen: {
-    title: 'Birds over the yard',
+    title: 'The men have seen an omen',
     can: () => G.roster.length > 0,
     make: () => ({ cost: 20 + tier() * 20, good: chance(0.5) }),
     text: c => `${c.good ? 'An eagle circled the yard three times at dawn and flew toward the arena.' : 'Crows have been sitting on the barracks roof since dawn, all facing the same way.'} The men have stopped training to argue about what it means.`,
     opts: [
-      { label: c => `Pay an augur to read it (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evAllMor(9); favor('temple', 4); return `${c.good ? 'Victory, he says, without hesitation.' : 'He looks a long time, and finds a way to call it favourable.'} The men believe him. Temple favour +4.`; } },
-      { label: () => 'Read it yourself', run: c => { if (c.good || chance(0.5)) { evAllMor(5); return 'You tell them it means the gods are watching this house. They want to believe it, and do.'; } evAllMor(-6); return 'You tell them it means nothing. They do not want to believe that.'; } },
-      { label: () => 'Birds are birds. Back to work', run: c => { evAllMor(c.good ? -2 : -5); return 'They go back to the posts, looking up.'; } },
+      { label: c => `Pay a priest to explain it (${c.cost} denarii; morale +9, Temple favour +4)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evAllMor(9); favor('temple', 4); return `${c.good ? 'The priest says at once that it means victory.' : 'The priest studies it for a long time, and then finds a way to call it a good sign.'} The men believe him: morale +9. Temple favour +4.`; } },
+      { label: c => c.good ? 'Tell them yourself that it is a good sign (morale +5)' : 'Tell them yourself what it means (morale +5 or -6)', run: c => { if (c.good || chance(0.5)) { evAllMor(5); return 'You tell the men it means the gods are watching over this school. They believe you: morale +5.'; } evAllMor(-6); return 'You tell the men it means nothing. They do not believe you, and go on worrying: morale -6.'; } },
+      { label: c => `Order them back to training (morale ${c.good ? -2 : -5})`, run: c => { evAllMor(c.good ? -2 : -5); return `You order the men back to training. They obey, but they are still uneasy: morale ${c.good ? -2 : -5}.`; } },
     ],
   },
   rites: {
     title: 'The feast of Hercules',
     can: () => fit().length > 0,
     make: () => ({ cost: 45 + tier() * 35 }),
-    text: c => `Tomorrow is the feast of Hercules, the gladiators' own god. The men ask leave to keep it. A bull for the altar would cost ${c.cost} denarii, and would be remembered.`,
+    text: c => `Tomorrow is the feast of Hercules, the god of gladiators, and your men ask to be allowed to celebrate it. A bull to sacrifice would cost ${c.cost} denarii.`,
     opts: [
-      { label: c => `Give them the bull (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evAllMor(13); favor('temple', 8); fit().forEach(g => evTire(g, -10)); return 'Smoke, roast meat, and every man swearing his next kill to the god. Temple favour +8. Morale soars.'; } },
-      { label: () => 'A day\'s leave, no more', run: () => { evAllMor(6); favor('temple', 2); return 'They keep it with garlands and watered wine. Temple favour +2.'; } },
-      { label: () => 'Hercules trained every day', run: () => { evAllMor(-7); favor('temple', -3); return 'They train. Badly, and on purpose. Temple favour -3.'; } },
+      { label: c => `Buy the bull and give them the feast (${c.cost} denarii; morale +13, Temple favour +8)`, ok: c => G.denarii >= c.cost, run: c => { G.denarii -= c.cost; evAllMor(13); favor('temple', 8); fit().forEach(g => evTire(g, -10)); return 'You buy the bull. The men sacrifice it and feast on the meat. Morale +13, Temple favour +8, and they are less tired for the day off.'; } },
+      { label: () => 'Give them the day off, but no bull (morale +6, Temple favour +2)', run: () => { evAllMor(6); favor('temple', 2); return 'You give the men the day off, and they celebrate simply, with a little wine. Morale +6, Temple favour +2.'; } },
+      { label: () => 'Make them train as usual (morale -7, Temple favour -3)', run: () => { evAllMor(-7); favor('temple', -3); return 'You make the men train as usual, and they resent it: morale -7. Temple favour -3.'; } },
     ],
   },
   letter: {
-    title: 'A letter from home',
+    title: 'A fighter\'s family is in debt',
     can: () => home().length > 0,
     make: () => { const g = pick(home()); return { g: g.id, cost: 40 + tier() * 30 }; },
-    text: c => { const g = byId(c.g); return `A trader has carried a message all the way from ${g ? g.origin : 'the provinces'} for <b>${gn(c.g)}</b>: his mother is sick and the family's land is pledged. ${c.cost} denarii would clear the debt. He has never asked you for anything.`; },
+    text: c => { const g = byId(c.g); return `A trader has brought <b>${gn(c.g)}</b> a message from his family in ${g ? g.origin : 'the provinces'}. His mother is sick, and the family will lose its land unless a debt is paid. ${c.cost} denarii would pay it. He has never asked you for anything before.`; },
     opts: [
-      { label: c => `Send the money (${c.cost})`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; evMor(g, 25); if (g) addStory(g, 'His family\'s debt was paid by the house.'); G.roster.forEach(x => { if (x !== g) evMor(x, 3); }); return `${gn(c.g)} cannot find words, and stops trying. He will fight for this house as if it were his own.`; } },
-      { label: () => 'Promise it from his next purse', run: c => { evMor(byId(c.g), 8); return `${gn(c.g)} nods. He means to win it.`; } },
-      { label: () => 'A ludus is not a bank', run: c => { evMor(byId(c.g), -15); return `${gn(c.g)} folds the letter very small and puts it away.`; } },
+      { label: c => `Pay the debt for him (${c.cost} denarii; his morale +25)`, ok: c => G.denarii >= c.cost, run: c => { const g = byId(c.g); G.denarii -= c.cost; evMor(g, 25); if (g) addStory(g, 'His family\'s debt was paid by the house.'); G.roster.forEach(x => { if (x !== g) evMor(x, 3); }); return `You pay his family's debt. ${gn(c.g)} is too grateful to speak: morale +25. The other men are pleased too: morale +3 each.`; } },
+      { label: () => 'Promise to pay it from his next winnings (his morale +8)', run: c => { evMor(byId(c.g), 8); return `You promise that his next winnings will go to pay the debt. ${gn(c.g)} is determined to win: morale +8.`; } },
+      { label: () => 'Refuse (his morale -15)', run: c => { evMor(byId(c.g), -15); return `You refuse. ${gn(c.g)} puts the letter away and says nothing: morale -15.`; } },
     ],
   },
   thief: {
-    title: 'A boy in the kitchen',
+    title: 'A boy caught stealing bread',
     can: () => G.roster.length > 0,
     make: () => ({}),
-    text: () => 'The cook has a street boy by the ear, caught with a loaf under his tunic. He is perhaps ten, and has plainly done this before.',
+    text: () => 'The cook has caught a street boy, about ten years old, stealing a loaf of bread from the kitchen. He has clearly stolen before.',
     opts: [
-      { label: () => 'Put him to work in the kitchen', run: () => {
-        if (chance(0.65)) { evAllMor(4); return 'He scrubs pots, runs messages and knows everything said in every tavern in town. The men make a pet of him.'; }
-        const loss = 15 + tier() * 15; G.denarii -= loss; return `He works a week, then leaves in the night with the kitchen silver. -${loss} denarii.`;
+      { label: () => 'Give him work in the kitchen (may turn out well or badly)', run: () => {
+        if (chance(0.65)) { evAllMor(4); return 'The boy works hard in the kitchen and runs errands, and the men grow fond of him. Morale +4 for everyone.'; }
+        const loss = 15 + tier() * 15; G.denarii -= loss; return `The boy works for a week, and then runs off in the night with your kitchen silver. You lose ${loss} denarii.`;
       } },
-      { label: () => 'Hand him to the watch', run: () => { favor('magistrate', 2); evAllMor(-2); return 'The watch takes him away. Magistrate favour +2.'; } },
-      { label: () => 'Let him keep the loaf', run: () => { evAllMor(2); return 'He is over the wall before you finish the sentence.'; } },
+      { label: () => 'Hand him to the town watch (Magistrate favour +2, morale -2)', run: () => { favor('magistrate', 2); evAllMor(-2); return 'You hand the boy over to the town watch. Magistrate favour +2. Your men think it was hard on a child: morale -2.'; } },
+      { label: () => 'Let him go with the bread (morale +2)', run: () => { evAllMor(2); return 'You let him keep the loaf, and he runs off at once. Your men approve: morale +2.'; } },
     ],
   },
 
   // ---- the other houses ----
   sparring: {
-    title: 'A friendly wager',
+    title: 'A rival proposes a practice match for money',
     can: () => fit().length > 0 && G.denarii >= 40,
     make: () => { const g = evBest(fit(), evPower), H = pick(G.houses); return { g: g.id, h: H.id, stake: 40 + tier() * 40 }; },
-    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} proposes a match with wooden swords in your yard: his best against <b>${gn(c.g)}</b>, ${c.stake} denarii a side, no blood and no crowd.`,
+    text: c => `${houseDef(c.h).lanista} of ${houseDef(c.h).name} proposes a private practice match with wooden swords: his best man against <b>${gn(c.g)}</b>, your strongest. Each of you would put up ${c.stake} denarii, and the winner takes both.`,
     opts: [
-      { label: c => `Take the wager (${c.stake})`, ok: c => G.denarii >= c.stake, run: c => {
+      { label: c => `Accept (win or lose ${c.stake} denarii)`, ok: c => G.denarii >= c.stake, run: c => {
         const g = byId(c.g); if (!g) return 'It comes to nothing.';
         const p = clamp(0.5 + (evPower(g) - (22 + tier() * 9)) * 0.03, 0.2, 0.85); evTire(g, 12);
-        if (chance(p)) { G.denarii += c.stake; evMor(g, 10); g.xp = (g.xp || 0) + 1; feud(houseOf(c.h), 3); return `${g.name} takes him apart in front of both schools. +${c.stake} denarii. ${houseDef(c.h).lanista} pays with a smile like a cut.`; }
-        G.denarii -= c.stake; evMor(g, -8); return `${g.name} is a touch slow on the day. -${c.stake} denarii, and a long silent walk back to the barracks.`;
+        if (chance(p)) { G.denarii += c.stake; evMor(g, 10); g.xp = (g.xp || 0) + 1; feud(houseOf(c.h), 3); return `${g.name} wins the match easily. You win ${c.stake} denarii, and he gains morale +10 and a little experience. ${houseDef(c.h).lanista} is not pleased to pay: feud +3.`; }
+        G.denarii -= c.stake; evMor(g, -8); return `${g.name} loses the match. You lose ${c.stake} denarii, and his morale is -8.`;
       } },
-      { label: () => 'Decline', run: c => { feud(houseOf(c.h), 2); return 'He lets it be known in town that you were afraid to.'; } },
+      { label: () => 'Refuse (feud +2)', run: c => { feud(houseOf(c.h), 2); return 'You refuse, and he tells the town you were afraid to accept: feud +2.'; } },
     ],
   },
   boast: {
-    title: 'Big words in the tavern',
+    title: 'A fighter has insulted another school',
     can: () => fit().length > 0,
     make: () => ({ g: pick(fit()).id, h: pick(G.houses).id }),
-    text: c => `On his last night's leave <b>${gn(c.g)}</b> stood on a table and told the town that nobody in ${houseDef(c.h).name} could stand in front of him for a count of twenty. ${houseDef(c.h).lanista} has heard.`,
+    text: c => `On his last night in town, <b>${gn(c.g)}</b> stood on a tavern table and announced that no fighter of ${houseDef(c.h).name} could last a moment against him. ${houseDef(c.h).lanista} has heard about it, and is angry.`,
     opts: [
-      { label: () => 'Stand behind every word', run: c => { const g = byId(c.g); evMor(g, 10); if (g) g.fame = (g.fame || 0) + 3; G.fame += 3; feud(houseOf(c.h), 8); return `The town is talking about nothing else. Fame +3. ${houseDef(c.h).name} will want an answer on the sand.`; } },
-      { label: () => 'Have him apologise', run: c => { evMor(byId(c.g), -10); feud(houseOf(c.h), -6); return `${gn(c.g)} says the words through his teeth. The matter is closed, and he will not forget who closed it.`; } },
-      { label: () => 'Say it was the wine', run: () => 'Everyone agrees it was the wine. Nobody believes it.' },
+      { label: () => 'Back him up (fame +3, his morale +10, feud +8)', run: c => { const g = byId(c.g); evMor(g, 10); if (g) g.fame = (g.fame || 0) + 3; G.fame += 3; feud(houseOf(c.h), 8); return `You say that he meant every word. The whole town is talking about it: fame +3, and his morale is +10. ${houseDef(c.h).name} is furious: feud +8.`; } },
+      { label: () => 'Make him apologise (his morale -10, feud -6)', run: c => { evMor(byId(c.g), -10); feud(houseOf(c.h), -6); return `You make ${gn(c.g)} apologise, which he hates: morale -10. The quarrel is settled: feud -6.`; } },
+      { label: () => 'Say he was only drunk (nothing changes)', run: () => 'You say he was only drunk. Nobody quite believes it, but the matter is dropped.' },
     ],
   },
   spy: {
-    title: 'A face at the wall',
+    title: 'A rival\'s spy is watching your training',
     can: () => fit().length > 0 && G.houses.some(H => H.grudge >= 15),
     make: () => ({ h: G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0].id, pay: 30 + tier() * 30 }),
-    text: c => `The gate-keeper has caught a man on the roof of the wine shop opposite, counting your fighters' strokes onto a wax tablet. He is a freedman of ${houseDef(c.h).name}.`,
+    text: c => `Your gate-keeper has caught a man on a nearby roof, watching your fighters train and taking notes. He works for ${houseDef(c.h).name}.`,
     opts: [
-      { label: () => 'Beat him and send him back', run: c => { feud(houseOf(c.h), 8); evAllMor(5); return 'He goes home across a mule. The men enjoyed that more than they should have.'; } },
-      { label: () => 'Let him watch the wrong things', run: c => { fit().forEach(g => evMor(g, 3)); const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 10); return `For a week your men train left-handed and badly. ${houseDef(c.h).name} will prepare for a school that does not exist.`; } },
-      { label: c => `Turn him: what does his master pay? (${c.pay})`, ok: c => G.denarii >= c.pay, run: c => { G.denarii -= c.pay; fit().forEach(g => addProg(g, 'skl', 1)); feud(houseOf(c.h), -3); return `He is cheap. Now the tablet travels the other way, and your doctore knows how ${houseDef(c.h).name} drills.`; } },
+      { label: () => 'Beat him and send him back (morale +5, feud +8)', run: c => { feud(houseOf(c.h), 8); evAllMor(5); return 'Your men beat him and send him back to his master. They enjoy it: morale +5. Feud +8.'; } },
+      { label: () => 'Let him watch, and show him the wrong things (their renown -10)', run: c => { fit().forEach(g => evMor(g, 3)); const H = houseOf(c.h); H.prestige = Math.max(0, H.prestige - 10); return `For a week your men train badly on purpose while he watches. ${houseDef(c.h).name} is fooled, and looks foolish later: they lose 10 renown. Your men enjoy the trick: morale +3.`; } },
+      { label: c => `Pay him to spy for you instead (${c.pay} denarii; skill practice)`, ok: c => G.denarii >= c.pay, run: c => { G.denarii -= c.pay; fit().forEach(g => addProg(g, 'skl', 1)); feud(houseOf(c.h), -3); return `You pay him, and now he reports to you. Your trainer learns how ${houseDef(c.h).name} trains, and every fit man gets some skill practice from it. Feud -3.`; } },
     ],
   },
 };

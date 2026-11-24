@@ -2116,6 +2116,7 @@ function eventDiff(b) {
 }
 function showEvent() {
   const pe = G.pendingEvent;
+  if (pe && pe.c && pe.c.job !== undefined && { thief: 1, omen: 1, brawl: 1 }[pe.id]) pe.id = 'job' + pe.id[0].toUpperCase() + pe.id.slice(1);      // a save from when three events of the road went by the names of three at the school
   if (!pe || !EVENTS[pe.id]) { G.pendingEvent = null; return; }
   const E = EVENTS[pe.id];
   const btns = E.opts.map((o, i) => { const ok = !o.ok || o.ok(pe.c); return `<button class="evopt" data-act="evopt" data-v="${i}" ${ok ? '' : 'disabled'}><span class="k">${i + 1}</span><span>${o.label(pe.c)}</span>${ok ? '' : '<small>not possible now</small>'}</button>`; }).join('');
