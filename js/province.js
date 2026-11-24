@@ -2700,6 +2700,7 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
 
 // Those who use the roads: carters, pilgrims, a file of soldiers, a merchant with his donkey, a man in a hurry on a
 // horse. Each keeps to one road and goes up and down it for ever; where he is comes from the clock, like the herds.
+const TRAVEL_HALT = 5;      // seconds a traveller stands at the end of his road before he turns back
 const TRAVELLERS = ['cart', 'pilgrim', 'soldiers', 'merchant', 'rider', 'herdsman', 'litter', 'mules', 'woodman', 'oxwagon', 'runner', 'family'];
 // Whatever stands tall (an arch, the aqueduct: see overs in provLand) is painted again over anybody who has just
 // been drawn north of the line it stands on, so that travellers, herds and roaming bands pass behind and under it
@@ -2751,19 +2752,41 @@ function gateLeave(ctx, k) { if (k > 0) ctx.restore(); }
 // is drawn where it would stand on a road running across the map, so many pixels ahead of the leader (off, less than
 // nothing for behind); on a road running up or down the map the same things are set out up and down it instead, each
 // clear of the one above by most of its own height (h), and the further ones drawn first.
-function rowOf(ctx, d, face) {
-  const vert = face === 'up' || face === 'down', v = face === 'down' ? 1 : -1, parts = [];
+// Given the way itself (along: where on it a point so far ahead of the leader lies), each thing is set on the way at
+// its own place, as the men of the column follow the lanista: so a cart comes round a bend behind its mule, and does
+// not swing out over the grass. How far apart they go is what it would be across the map where the way runs across,
+// what it would be up and down where it runs up and down, and between the two on a slant.
+function rowOf(ctx, d, face, along) {
+  const parts = [];
   return {
     part(off, fn, h) { parts.push({ off, fn, h: h || 12 }); return this; },
     draw() {
-      if (!vert) { parts.forEach(q => q.fn()); return; }
       if (!parts.length) return;
+      const lead = along && along(0), on = along && along(6), hx = on ? on.x - lead.x : 0, hy = on ? on.y - lead.y : 0;
+      const vert = along ? (Math.abs(hx) + Math.abs(hy) > 0.01 ? Math.abs(hy) / (Math.abs(hx) + Math.abs(hy)) : 0) : (face === 'up' || face === 'down' ? 1 : 0);
+      if (!vert && !along) { parts.forEach(q => q.fn()); return; }
+      const v = along ? (hy >= 0 ? 1 : -1) : face === 'down' ? 1 : -1;
       parts.sort((a, b) => v * (a.off - b.off));
       let yy = 0; parts.forEach((q, i) => { if (i) yy += Math.round(q.h * 0.75) + 2; q.y = yy; });
       const ref = parts.reduce((m, q) => Math.abs(q.off) < Math.abs(m.off) ? q : m, parts[0]).y;
-      parts.forEach(q => { ctx.save(); ctx.translate(-d * q.off, q.y - ref); q.fn(); ctx.restore(); });
+      if (!along) { parts.forEach(q => { ctx.save(); ctx.translate(-d * q.off, q.y - ref); q.fn(); ctx.restore(); }); return; }
+      parts.forEach(q => { const at = along(q.off + (v * (q.y - ref) - q.off) * vert); q.tx = Math.round(at.x - lead.x) - d * q.off; q.ty = Math.round(at.y - lead.y); });
+      parts.sort((a, b) => a.ty - b.ty).forEach(q => { ctx.save(); ctx.translate(q.tx, q.ty); q.fn(); ctx.restore(); });
     },
   };
+}
+// A road as it was laid (a list of tile centres), measured: its points, how far along each is, and how long it is.
+function lineOf(way) {
+  if (way.line) return way.line;
+  const pts = way.map(q => ({ x: q[0], y: q[1] })), len = [0];
+  for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  return (way.line = { pts, len, total: len[len.length - 1] });
+}
+// Where along a way, so far from its start; and past either end of it, straight on as it was going there.
+function wayOn(W, d) {
+  if (d >= 0 && d <= W.total) return wayAt(W, d);
+  const n = W.pts.length, a = d < 0 ? W.pts[0] : W.pts[n - 1], b = d < 0 ? W.pts[1] : W.pts[n - 2], seg = Math.hypot(a.x - b.x, a.y - b.y) || 1, over = d < 0 ? -d : d - W.total;
+  return { x: a.x + (a.x - b.x) / seg * over, y: a.y + (a.y - b.y) / seg * over };
 }
 function drawTraffic(ctx, T, R, inView) {
   (prov.ways || []).forEach((way, wi) => {
@@ -2771,13 +2794,12 @@ function drawTraffic(ctx, T, R, inView) {
     for (let j = 0; j < n; j++) {
       const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)];
       const speed = kind === 'rider' ? 3.4 : kind === 'runner' ? 2.8 : kind === 'cart' ? 1.1 : kind === 'oxwagon' ? 0.8 : kind === 'litter' ? 1.2 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
-      const sraw = (T * speed + hv(2) * len * 2) % (len * 2), idx = sraw <= len ? sraw : len * 2 - sraw, dir = sraw <= len ? 1 : -1;
-      const i0 = Math.min(len - 1, Math.floor(idx)), fr = idx - i0, a = way[i0], b = way[i0 + 1], x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
+      const C = shuttleAt(lineOf(way), T, speed * 10, TRAVEL_HALT, hv(2)), x = C.x, y = C.y;      // up the road and down it, with a halt at each end
       if (!inView(x, y, 30) || !wildSeen(x, y) || inTownWalls(x, y)) continue;
       const gk = gateEnter(ctx, x, y); if (gk < 0) continue;      // in at the gate, or coming out of it
-      const dx = (b[0] - a[0]) * dir, dy = (b[1] - a[1]) * dir, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, walk = T * 9 + j * 3, step = Math.sin(walk) > 0 ? 1 : 0;
-      const row = rowOf(ctx, d, face);
-      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: true, tunic, hair: hair || '#3a2a1c' }, extra));
+      const face = C.face, d = C.dir, walk = T * 9 + j * 3, step = C.moving && Math.sin(walk) > 0 ? 1 : 0;
+      const row = rowOf(ctx, d, face, C.along);
+      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c' }, extra));
       const beast = (bx, by, c, big) => { const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
       if (kind === 'cart') {
         const cx = x - d * 12; row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 14);
@@ -2811,7 +2833,8 @@ function millCartAt(T) {
   const idx = leg === 0 ? len : leg === 1 ? len - (t - w) * MILL_CART.speed : leg === 2 ? 0 : (t - w * 2 - go) * MILL_CART.speed;
   const i0 = Math.max(0, Math.min(len - 1, Math.floor(idx))), fr = Math.max(0, Math.min(1, idx - i0)), a = way[i0], b = way[i0 + 1];
   const dir = leg === 1 || leg === 2 ? -1 : 1, dx = (b[0] - a[0]) * dir, dy = (b[1] - a[1]) * dir;
-  return { x: Math.round(a[0] + (b[0] - a[0]) * fr), y: Math.round(a[1] + (b[1] - a[1]) * fr), leg, moving: leg === 1 || leg === 3, flour: leg === 3 || (leg === 2 && t - w - go > w / 2),
+  const L = lineOf(way), far = L.len[i0] + (L.len[i0 + 1] - L.len[i0]) * fr;
+  return { x: Math.round(a[0] + (b[0] - a[0]) * fr), y: Math.round(a[1] + (b[1] - a[1]) * fr), leg, moving: leg === 1 || leg === 3, flour: leg === 3 || (leg === 2 && t - w - go > w / 2), along: off => wayOn(L, far + dir * off),
     full: leg === 0 ? t / w : leg === 2 ? Math.abs((t - w - go) / w - 0.5) * 2 : 1,
     face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up') };
 }
@@ -2820,7 +2843,7 @@ function drawMillCart(ctx, T, R, inView) {
   const { x, y } = C;
   if (!inView(x, y, 30) || !wildSeen(x, y)) return;
   const d = C.face === 'left' ? -1 : 1, walk = T * 8, step = C.moving && Math.sin(walk) > 0 ? 1 : 0, jog = C.moving && Math.sin(walk * 0.5) > 0.6 ? 1 : 0;
-  const cx = x - d * 12, cy = y - jog, row = rowOf(ctx, d, C.face);
+  const cx = x - d * 12, cy = y - jog, row = rowOf(ctx, d, C.face, C.along);
   row.part(-12, () => {
   R(cx - 7, y + 1, 15, 2, 'rgba(0,0,0,.25)');
   R(cx - 6, cy - 6, 12, 5, '#8a6a3a'); R(cx - 6, cy - 7, 12, 1, '#a8834a'); R(cx - 6, cy - 2, 12, 1, '#6b4f2c');      // the bed, and its rails
@@ -2960,7 +2983,8 @@ function shuttleAt(W, T, speed, wait, phase) {
   const leg = t < wait ? 0 : t < wait + go ? 1 : t < wait * 2 + go ? 2 : 3;
   const d = leg === 0 ? 0 : leg === 1 ? (t - wait) * speed : leg === 2 ? W.total : W.total - (t - wait * 2 - go) * speed, back = leg === 3 || leg === 0;
   const at = wayAt(W, d), on = wayAt(W, d + (back ? -5 : 5)), dx = on.x - at.x, dy = on.y - at.y;
-  return { x: Math.round(at.x), y: Math.round(at.y), d, leg, moving: leg === 1 || leg === 3, face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), dir: dx >= 0 ? 1 : -1 };
+  return { x: Math.round(at.x), y: Math.round(at.y), d, leg, moving: leg === 1 || leg === 3, face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), dir: dx >= 0 ? 1 : -1,
+    along: off => wayOn(W, d + (back ? -off : off)) };
 }
 // The year, such as it is out here: a hundred and twenty days, and the vintage in the third quarter of them.
 const VINTAGE = { year: 120, from: 60, to: 90 };
@@ -2973,7 +2997,7 @@ const FLOCK_PACE = 24;      // a flock goes at the pace of an outlaw band walkin
 const dayOut = () => { const u = dayPart(); return u < 0.1 ? 0 : u < 0.36 ? (u - 0.1) / 0.26 : u < 0.66 ? 1 : u < 0.92 ? 1 - (u - 0.66) / 0.26 : 0; };
 function drawTrade(ctx, T, R, inView) {
   const W = tradeWays();
-  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => rowOf(ctx, C.dir, C.face);
+  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => rowOf(ctx, C.dir, C.face, C.along);
   const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c' });
   const beast = (bx, by, c, d, big, step) => { const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
     R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
@@ -3161,7 +3185,7 @@ function drawTrade(ctx, T, R, inView) {
       const x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
       if (!shown(x, y)) continue;
       const gk = gateEnter(ctx, x, y); if (gk < 0) continue;
-      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0, row = rowOf(ctx, d, face);
+      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0, ML = lineOf(way), far = ML.len[i0] + (ML.len[i0 + 1] - ML.len[i0]) * fr, row = rowOf(ctx, d, face, off => wayOn(ML, far + sg * off));
       if (kind === 0) {                             // a cart of stuff to sell, under a cloth
         const cx = x - d * 12, cloth = ['#b93a2e', '#2f6db8', '#c9b25a', '#5a8a4a'][Math.floor(hv(3) * 4)];
         row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 11, 8, 4, cloth); R(cx - 4, y - 11, 8, 1, shade(cloth, 1.25)); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 16);
@@ -3254,6 +3278,55 @@ function provClick(cv, e) {
   if (p) { prov.path = p; prov.dest = st ? 'stables' : null; prov.big = false; } else prov.hint = performance.now() + 1600;
 }
 
+// ---------- roaming bands on the move ----------
+// A band finds its way as the column does (wildRoute): round a pond, not up against it. Outlaws go as men leading
+// mules would, by the road where one serves and slower over rough ground; wolves keep to the woods and the hills for
+// choice, and shun a road. What a band is doing from one moment to the next (its way, and the trail its leader has
+// left for the rest to follow) is kept here and not in the save: a band that is loaded again picks a new way.
+const PACK = { roam: 70, far: 240, near: 95, plan: 0.5, trail: 16 };
+const packCost = kind => { if (kind !== 'wolves') return null; if (!PACK.wolf) { const c = []; c[T_GRASS] = 1; c[T_MEADOW] = 1.1; c[T_SAND] = 1.2; c[T_FOREST] = 0.7; c[T_HILL] = 0.85; c[T_MARSH] = 1.6; c[T_ROAD] = 1.8; c[T_BRIDGE] = 1.3; PACK.wolf = c; } return PACK.wolf; };
+function packMind(p) {
+  const M = prov.minds || (prov.minds = new Map());
+  let m = M.get(p.id);
+  if (!m) { m = { path: null, plan: 0, chasing: false, moving: false, dir: 1, trail: [] }; for (let k = 0; k < PACK.trail; k++) m.trail.push({ x: p.x - k * 4, y: p.y + (k % 3) }); M.set(p.id, m); }      // they begin in a loose file
+  return m;
+}
+function packStep(p, dt) {
+  const F = G.field, m = packMind(p), near = Math.hypot(p.x - F.x, p.y - F.y), chase = p.kind === 'patrol' && near < PACK.near;
+  m.moving = false;
+  if (chase) {                                 // after you: and the way is looked at again as you move
+    p.wait = 0; m.plan -= dt;
+    if (!m.chasing || m.plan <= 0 || !m.path) { m.plan = PACK.plan; m.path = wildRoute(p.x, p.y, F.x, F.y); p.tx = F.x; p.ty = F.y; }
+    m.chasing = true;
+  } else {
+    if (m.chasing) { m.chasing = false; m.path = null; p.tx = p.x; p.ty = p.y; }      // you have got clear: they stand, and then go back to their round
+    if (p.wait > 0) { p.wait -= dt; return; }
+    if (!m.path) {
+      if (Math.hypot(p.tx - p.x, p.ty - p.y) < 2) {      // somewhere new on their own ground, after a halt
+        p.tx = clamp(p.hx + rand(-PACK.roam, PACK.roam), 20, WILD.W - 20); p.ty = clamp(p.hy + rand(-PACK.roam, PACK.roam), 20, WILD.H - 20); p.wait = rand(1, 5); return;
+      }
+      const way = wildRoute(p.x, p.y, p.tx, p.ty, packCost(p.kind));
+      if (!way || pathLength(p.x, p.y, way) > PACK.far) { p.tx = p.x; p.ty = p.y; return; }      // in the water, or the far side of it: they think again
+      m.path = way;
+    }
+  }
+  if (!m.path) return;
+  const x0 = p.x, y0 = p.y;
+  let left = (p.kind === 'wolves' ? 34 : chase ? 52 : 24) * (p.kind === 'wolves' ? 1 : wildPace(p.x, p.y)) * dt;
+  while (m.path.length && left > 0) {
+    const t = m.path[0], dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
+    if (d > 0.01) { p.face = faceOf(dx, dy, p.face || 'down'); if (Math.abs(dx) > 0.3) m.dir = dx > 0 ? 1 : -1; }
+    if (d <= left) { p.x = t.x; p.y = t.y; left -= d; m.path.shift(); } else { p.x += dx / d * left; p.y += dy / d * left; left = 0; }
+  }
+  if (!m.path.length) { m.path = null; if (!chase) { p.tx = p.x; p.ty = p.y; } }
+  if (Math.hypot(p.x - x0, p.y - y0) > 0.001) {
+    m.moving = true; p.walk = (p.walk || 0) + dt * 9;
+    const last = m.trail[0];
+    if (!last || Math.hypot(last.x - p.x, last.y - p.y) > 4) { m.trail.unshift({ x: p.x, y: p.y }); if (m.trail.length > PACK.trail) m.trail.pop(); }
+  }
+}
+function pathLength(x, y, path) { let c = 0; for (const q of path) { c += Math.hypot(q.x - x, q.y - y); x = q.x; y = q.y; } return c; }
+
 function provStep(dt) {
   const F = G.field, k = vil.keys, kx = (k.r ? 1 : 0) - (k.l ? 1 : 0), ky = (k.d ? 1 : 0) - (k.u ? 1 : 0);
   const camped = performance.now() - (prov.night || -1e9) < 1500;                    // night has fallen: nobody walks until it lifts
@@ -3292,15 +3365,7 @@ function provStep(dt) {
     prov.stepT = (prov.stepT || 0) - dt; if (prov.stepT <= 0) { prov.stepT = 0.34; SFX.ui('march'); }
   }
   // roaming bands: they wander their own ground; outlaws come for you if you stray close
-  for (const p of F.packs) {
-    const near = Math.hypot(p.x - F.x, p.y - F.y);
-    if (p.kind === 'patrol' && near < 95) { p.tx = F.x; p.ty = F.y; p.wait = 0; }
-    else if (p.wait > 0) { p.wait -= dt; continue; }
-    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy), s = (p.kind === 'wolves' ? 34 : near < 95 ? 52 : 24) * dt;
-    if (d < 2) { p.tx = clamp(p.hx + rand(-70, 70), 20, WILD.W - 20); p.ty = clamp(p.hy + rand(-70, 70), 20, WILD.H - 20); p.wait = rand(1, 5); continue; }
-    const nx = p.x + dx / d * Math.min(s, d), ny = p.y + dy / d * Math.min(s, d);
-    if (wildWalk(nx, ny)) { p.x = nx; p.y = ny; p.face = faceOf(dx, dy, p.face || 'down'); p.walk = (p.walk || 0) + dt * 9; } else { p.tx = p.x; p.ty = p.y; }
-  }
+  for (const p of F.packs) packStep(p, dt);
   if (G.pendingEvent || F.fight) return;
   const town = Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y);
   if (town > 44) F.armed = true;
@@ -3857,15 +3922,17 @@ function drawProvince(cv, T) {
   // roaming bands
   for (const p of F.packs) {
     if (!inView(p.x, p.y, 20) || !wildSeen(p.x, p.y)) continue;
-    const pv = n => wildHash(p.id, n, 640), spots = [[0, 0], [-7, 3], [6, 4], [-2, 7], [10, -2]];
+    // each of them where the leader was a little while ago, as the men of the column follow the lanista, and a step to one side of it
+    const pv = n => wildHash(p.id, n, 640), pm = packMind(p), pface = pm.dir < 0 ? 'left' : 'right';
+    const spots = [0, 1, 2, 3, 4].map(q => { if (!q) return [0, 0]; const t = pm.trail[Math.min(pm.trail.length - 1, q * 2 + (p.kind === 'wolves' ? 0 : 1))]; return [Math.round(t.x - p.x) + (q % 2 ? 2 : -2), Math.round(t.y - p.y) + (q % 2 ? 2 : -1)]; });
     if (p.kind === 'wolves') {                 // two to five of them, grey, black or brown, one bigger than the rest
       const n = 2 + Math.floor(pv(1) * 4), coats = [['#77777a', '#8a8a8e', '#55555a'], ['#3a3a40', '#4a4a52', '#26262a'], ['#7a6a52', '#8f7e62', '#57493a'], ['#9a9a9e', '#b0b0b4', '#6a6a70']];
-      for (let q = 0; q < n; q++) { const [ox, oy] = spots[q], c = coats[Math.floor(pv(10 + q) * (q ? 4 : 3))], big = q === 0 ? 1 : 0, b = Math.sin((p.walk || 0) + ox) > 0 ? 1 : 0;
-        R(p.x + ox - 4, p.y + oy - 1, 8 + big, 2, 'rgba(0,0,0,.25)'); R(p.x + ox - 4, p.y + oy - 5 - big, 7 + big, 3 + big, c[0]); R(p.x + ox + (p.face === 'left' ? -6 : 3 + big), p.y + oy - 6 - big, 3, 3, c[1]); R(p.x + ox + (p.face === 'left' ? 3 + big : -5), p.y + oy - 5 - big, 2, 1, c[2]);
+      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q], c = coats[Math.floor(pv(10 + q) * (q ? 4 : 3))], big = q === 0 ? 1 : 0, b = pm.moving && Math.sin((p.walk || 0) + q * 1.9) > 0 ? 1 : 0;
+        R(p.x + ox - 4, p.y + oy - 1, 8 + big, 2, 'rgba(0,0,0,.25)'); R(p.x + ox - 4, p.y + oy - 5 - big, 7 + big, 3 + big, c[0]); R(p.x + ox + (pface === 'left' ? -6 : 3 + big), p.y + oy - 6 - big, 3, 3, c[1]); R(p.x + ox + (pface === 'left' ? 3 + big : -5), p.y + oy - 5 - big, 2, 1, c[2]);
         R(p.x + ox - 3, p.y + oy - 2, 1, 2 - b, c[2]); R(p.x + ox + 2, p.y + oy - 2, 1, 1 + b, c[2]); }
     } else {                                   // two to four men, each in what he stole, and one carrying their rag of a banner
       const n = 2 + Math.floor(pv(2) * 3), tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
-      for (let q = 0; q < n; q++) { const [ox, oy] = spots[q]; vilPerson(ctx, p.x + ox, p.y + oy, { face: p.face || 'down', walk: (p.walk || 0) + ox, moving: true, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
+      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; vilPerson(ctx, p.x + ox, p.y + oy, { face: p.face || 'down', walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
       if (pv(3) > 0.4) { const [ox, oy] = spots[n - 1]; R(p.x + ox + 4, p.y + oy - 20, 1, 14, '#3a2a1c'); R(p.x + ox + 5, p.y + oy - 20, 5, 3, ['#5a5a4a', '#7a2a20', '#2a3a5a'][Math.floor(pv(4) * 3)]); R(p.x + ox + 5, p.y + oy - 17, 2, 1, '#3a2a1c'); }
     }
     R(p.x - 1, p.y - 22, 3, 3, '#c23b2e'); R(p.x, p.y - 18, 1, 1, '#c23b2e');

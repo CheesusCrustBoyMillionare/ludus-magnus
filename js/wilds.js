@@ -581,7 +581,8 @@ const marchCost = (x0, y0, x1, y1) => Math.hypot(x1 - x0, y1 - y0) / wildPace((x
 // tries the water. What each kind of ground costs to cross, a tile: a road is cheaper than its speed alone would make
 // it, so that the column will go some way round to stay on one.
 const ROUTE_COST = (() => { const c = []; c[T_GRASS] = 1; c[T_MEADOW] = 1; c[T_SAND] = 1.05; c[T_FOREST] = 1.45; c[T_HILL] = 1.45; c[T_MARSH] = 1.85; c[T_ROAD] = 0.6; c[T_BRIDGE] = 0.6; return c; })();
-function wildRoute(x0, y0, x1, y1) {
+function wildRoute(x0, y0, x1, y1, cost) {
+  cost = cost || ROUTE_COST;
   const L = wildLand(), w = WILD.TW, hgt = WILD.TH, a = Math.floor(y0 / 10) * w + Math.floor(x0 / 10), b = Math.floor(y1 / 10) * w + Math.floor(x1 / 10);
   if (L.t[b] >= T_WATER || a === b) return a === b ? [{ x: x1, y: y1 }] : null;
   const dist = new Float32Array(w * hgt).fill(Infinity), from = new Int32Array(w * hgt).fill(-1), done = new Uint8Array(w * hgt);
@@ -596,7 +597,7 @@ function wildRoute(x0, y0, x1, y1) {
       const nx = cx + dx, ny = cy + dy, n = ny * w + nx;
       if (nx < 0 || ny < 0 || nx >= w || ny >= hgt || done[n] || L.t[n] >= T_WATER) continue;
       if (dx && dy && (L.t[cy * w + nx] >= T_WATER || L.t[ny * w + cx] >= T_WATER)) continue;      // not across the corner of a pond
-      const nd = d + (dx && dy ? 1.414 : 1) * (ROUTE_COST[L.t[n]] || 1);
+      const nd = d + (dx && dy ? 1.414 : 1) * (cost[L.t[n]] || 1);
       if (nd < dist[n]) { dist[n] = nd; from[n] = c; push(nd, n); }
     }
   }
