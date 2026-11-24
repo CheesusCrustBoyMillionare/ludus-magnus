@@ -487,6 +487,10 @@ function drawItemArt(ctx, slot, r, cls, o) {
         if (!(rimmed(x - 1, y) || rimmed(x + 1, y) || rimmed(x, y - 1) || rimmed(x, y + 1))) continue;
         set(x, y, 'o'); if (deep(x, y + 1) && body(was(x, y + 1))) set(x, y + 1, 'O');
       }
+    } else if (fit === 'braced' && slot === 'arms' && !relic) {
+      // on an arm the splints run the way the arm does: one down the slope of the upper arm, one up the forearm
+      for (let x = 5; x < 16; x++) { const y = 11 + Math.round((x - 4) * 0.8); if (was(x, y) && was(x, y + 1)) { set(x, y, x === 5 || x === 15 ? 'o' : 'l'); set(x, y + 1, 'D'); } }
+      for (let y = 8; y < 19; y++) if (was(22, y) && was(23, y)) { set(22, y, y === 8 || y === 18 ? 'o' : 'l'); set(23, y, 'D'); }
     } else if (fit === 'braced') {
       for (const x of { head: [8, 22], chest: [10, 20], shoulders: [10, 18], legs: [7, 21], arms: [9, 23] }[slot] || []) {
         let first = true, last = -1;
