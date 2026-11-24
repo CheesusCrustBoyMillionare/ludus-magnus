@@ -472,7 +472,8 @@ function paintItem(cv) {
   R(2, 2, 24, 11, 'rgba(255,255,255,.05)');
   if (r >= 3 || relic) {                         // a glow behind the better pieces, in the colour of their grade
     const n = parseInt(fc.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
-    for (let i = 0; i < 5; i++) R(5 + i, 5 + i, 18 - i * 2, 18 - i * 2, `rgba(${rgb},${(0.045 + (relic ? 2 : r - 3) * 0.013).toFixed(3)})`);
+    const peak = 0.22 + (relic ? 2 : r - 3) * 0.06;                                         // round, and fading out to nothing at the frame
+    for (let y = 2; y < 26; y++) for (let x = 2; x < 26; x++) { const d = Math.hypot(x - 13.5, y - 13.5) / 12.5; if (d < 1) R(x, y, 1, 1, `rgba(${rgb},${(peak * Math.pow(1 - d, 1.4)).toFixed(3)})`); }
   }
   if (r >= 5 || relic) {                         // the best have their corners picked out
     for (const [x, y] of [[0, 0], [27, 0], [0, 27], [27, 27]]) R(x, y, 1, 1, '#fff6d8');
@@ -487,7 +488,8 @@ function paintItem(cv) {
   if (mw === '1') { R(22, 3, 3, 1, '#fff6d8'); R(23, 2, 1, 3, '#fff6d8'); R(1, 24, 3, 3, '#17110f'); R(2, 24, 1, 3, '#fbe08a'); R(1, 25, 3, 1, '#fbe08a'); }      // a glint, and the maker's mark in the corner
 }
 // size: 28, 56 or 84 (one, two or three screen pixels to each of the picture's).
-function itemArt(it, size) { return `<canvas class="itemart" width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}:${it.fit || ''}:${it.mw ? 1 : ''}:${it.relic || ''}:${it.id || 0}"></canvas>`; }
+// A relic or an imperial piece is never quite still: its frame breathes light, each in its own time.
+function itemArt(it, size) { const lit = it.relic || it.r === 6; return `<canvas class="itemart${lit ? (it.relic ? ' shim relic' : ' shim') : ''}"${lit ? ` style="animation-delay:-${((it.id || 0) * 617) % 3600}ms"` : ''} width="${size}" height="${size}" data-item="${it.slot}:${it.r}:${it.cls || ''}:${it.fit || ''}:${it.mw ? 1 : ''}:${it.relic || ''}:${it.id || 0}"></canvas>`; }
 const ic = name => `<i class="ic ic-${name}"></i>`;
 
 // Turns the icon maps, and a neutral picture of each gear slot, into CSS classes.
