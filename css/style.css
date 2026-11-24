@@ -1651,3 +1651,22 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .cmpnote { margin-top: 6px; font-size: 12px; line-height: 1.35; color: var(--dim); }
 .panel.racks { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px; }
 .panel.racks .listnote { flex: 1 1 100%; padding: 2px; }
+
+/* ---------- narrow windows: the roster, the market and a contract ---------- */
+/* the roster in a narrow window: a man's name had what his gauges and his seven orders left it, which was four
+   letters. His orders now go on a line of their own under his name and his gauges. */
+[data-pane="roster"] { container: roster / inline-size; }
+@container roster (max-width: 530px) {
+  .lrow.lud { display: grid; grid-template-columns: 34px minmax(0, 1fr) 84px; column-gap: 8px; row-gap: 3px; align-items: center; }
+  .lrow.lud > canvas { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+  .lrow.lud > .grow { grid-column: 2; grid-row: 1; }
+  .lrow.lud > .gauges { grid-column: 3; grid-row: 1; }
+  .lrow.lud > .acts, .lrow.lud > .awaynote { grid-column: 2 / -1; grid-row: 2; justify-self: start; }
+}
+/* the market: what is known of a man for sale runs on to a second line where one will not hold it, and the list
+   of your own men takes as many columns as there is room for */
+[data-pane="market"] .lrow.lud .l2 { flex-wrap: wrap; height: auto; min-height: 17px; row-gap: 2px; overflow: visible; }
+.panel.list.threeup { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+/* a contract: the skills it calls for get the room they need, and break between skills if they must */
+.offer .kvs { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); }
+.offer .kvs b.calls { white-space: normal; }
