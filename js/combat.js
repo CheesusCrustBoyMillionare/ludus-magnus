@@ -132,7 +132,17 @@ function createBattle(teamA, teamB, opts) {
 
 // ---------- effects ----------
 
-function fxText(B, f, str, col, big) { B.texts.push({ x: f.x + rand(-3, 3), y: f.y - 28, str, col, life: big ? 1.6 : 0.9, big: !!big }); }
+// Words written straight onto the sand, a crowd or a coloured card are given a dark edge all the way round, so that
+// they can be read whatever is behind them. (Words on a plate of their own do not need it.)
+const EDGE8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+function edgedText(ctx, str, x, y, col, d, edge) {
+  ctx.fillStyle = edge || '#0c0704';
+  for (const [ox, oy] of EDGE8) ctx.fillText(str, x + ox * d, y + oy * d);
+  ctx.fillStyle = col; ctx.fillText(str, x, y);
+}
+// Every word that rises over a man on the sand comes through here. When someone is having the fight read to him
+// (B.spoken is then a list: see a11y.js) the same word is kept, with the name of the man it rose over.
+function fxText(B, f, str, col, big) { if (B.spoken) B.spoken.push([f.g.beast ? 'The ' + f.c.name : f.g.name, String(str)]); B.texts.push({ x: f.x + rand(-3, 3), y: f.y - 28, str, col, life: big ? 1.6 : 0.9, big: !!big }); }
 function fxBlood(B, f, n, dir) {
   for (let i = 0; i < n; i++) {
     B.parts.push({ x: f.x, y: f.y + rand(-2, 2), h: rand(8, 14), vx: dir * rand(5, 40) + rand(-12, 12), vh: rand(10, 45), col: chance(0.5) ? '#8e1b14' : '#b3261c' });
@@ -1200,7 +1210,7 @@ function drawIntro(ctx, B, T) {
       const ns = fs.map(f => f.g.beast ? f.c.name : f.g.name);
       for (let i = 0; i < Math.min(ns.length, 6); i += 2) lines.push([ns.slice(i, i + 2).join(', ').toUpperCase() + (i + 2 >= 6 && ns.length > 6 ? ' ...' : ''), '#c9b9a0']);
     }
-    lines.forEach(([str, c], i) => { ctx.fillStyle = 'rgba(20,10,4,.7)'; ctx.fillText(str, tx + 0.6, 79.6 + i * 7); ctx.fillStyle = c; ctx.fillText(str, tx, 79 + i * 7); });
+    lines.forEach(([str, c], i) => edgedText(ctx, str, tx, 79 + i * 7, c, 0.6));
     ctx.globalAlpha = 1;
   }
   // VS, struck where the halves meet
@@ -1242,7 +1252,7 @@ function drawIntro(ctx, B, T) {
     if (B.death) { const str = 'SINE MISSIONE  -  TO THE DEATH', sw = ctx.measureText(str).width; ctx.fillStyle = 'rgba(40,6,4,.9)'; ctx.fillRect(mid - sw / 2 - 5, top - 13, sw + 10, 8); ctx.fillStyle = '#ff6a5a'; ctx.fillText(str, mid, top - 7.2); }
     ctx.globalAlpha = 1;
   }
-  if (ti > 1.6 && !o) { ctx.globalAlpha = 0.5; ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO SKIP', 316, 176); ctx.globalAlpha = 1; }
+  if (ti > 1.6 && !o) { ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; edgedText(ctx, 'CLICK TO SKIP', 316, 176, '#e8dcc0', 0.4); }
   ctx.restore();
 }
 
@@ -1291,7 +1301,7 @@ function drawOutro(ctx, B, T) {
     if (age >= 0) {
       const pop = age < 0.16 ? 1 - age / 0.16 : 0, y = 59 - pop * 5;
       ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillText(msg[i], x + 1, y + 1.5);
-      ctx.fillStyle = pop > 0.4 ? '#ffffff' : won ? '#ffd24a' : '#e2695c'; ctx.fillText(msg[i], x, y);
+      edgedText(ctx, msg[i], x, y, pop > 0.4 ? '#ffffff' : won ? '#ffd24a' : '#f08a7c', 0.7);
     }
     x += cw + sp;
   }
@@ -1302,7 +1312,7 @@ function drawOutro(ctx, B, T) {
       ctx.globalAlpha = ua; ctx.fillStyle = i % 2 ? '#5a9a3a' : '#8fc35a'; ctx.fillRect(lx - 1.5, ly - 1, 3, 2); ctx.fillRect(lx - 0.5, ly + 1, 1, 1.5);
     }
     ctx.globalAlpha = ua; ctx.font = 'bold 4.5px Consolas, monospace'; ctx.textAlign = 'center';
-    if (B.endWord) { ctx.fillStyle = won ? '#f1e6c8' : '#d8b0a8'; ctx.fillText(B.endWord, 160, 64.2); }
+    if (B.endWord) edgedText(ctx, B.endWord, 160, 64.2, won ? '#f1e6c8' : '#e8c8c0', 0.45);
     ctx.globalAlpha = 1;
   }
 
@@ -1338,7 +1348,7 @@ function drawOutro(ctx, B, T) {
     if (mine.length > 1) parts.push(`${up} OF ${mine.length} OF YOURS STANDING`);
     if (!B.wild && !B.hunt) parts.push(avg > 0.55 ? 'THE CROWD ROARS' : avg > 0.3 ? 'THE CROWD IS PLEASED' : 'THE CROWD WANTED MORE');
     ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = '#f1e6c8'; ctx.fillText(parts.join('   -   '), tx, cy + 46.5);
-    if (o > B.cardAt + 1) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 5); ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO GO ON', cx + cw - 3, cy + 6); ctx.globalAlpha = 1; }
+    if (o > B.cardAt + 1) { ctx.font = '4px Consolas, monospace'; ctx.textAlign = 'right'; edgedText(ctx, 'CLICK TO GO ON', cx + cw - 3, cy + 6, '#e8dcc0', 0.4); }
   }
   ctx.restore();
 }
@@ -1491,7 +1501,7 @@ function drawFatal(ctx, B, T) {
     const w = ctx.measureText(line).width; ctx.fillStyle = '#c2180e'; ctx.fillRect(160 - w / 2 * sa, 158.5, w * sa, 0.8);
     if (!f.g.beast) {                           // and what he was
       const wins = f.g.wins || 0, epi = `${f.c.name.toUpperCase()}   -   ${wins} ${wins === 1 ? 'VICTORY' : 'VICTORIES'}${f.g.kills ? `   -   ${f.g.kills} KILLED` : ''}`;
-      ctx.font = 'bold 4.5px Consolas, monospace'; ctx.fillStyle = f.team === 0 ? '#ff9a8a' : '#c9a8a0'; ctx.fillText(epi, 160, 165);
+      ctx.font = 'bold 4.5px Consolas, monospace'; edgedText(ctx, epi, 160, 165, f.team === 0 ? '#ffb0a2' : '#dcc4bc', 0.45);
     }
   }
   if (hit >= 0 && hit < 0.1) { ctx.globalAlpha = 1 - hit / 0.1; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 320, 180); }
@@ -1554,7 +1564,7 @@ function drawInspect(ctx, B, who, T) {
   ctx.fillStyle = '#2a2418'; ctx.fillRect(tx, cy + 20.5, rw, 2.5); ctx.fillStyle = who.charge >= 100 ? '#fff0b0' : '#e0aa3e'; ctx.fillRect(tx, cy + 20.5, rw * clamp(who.charge / 100, 0, 1), 2.5);
   ctx.font = 'bold 3.5px Consolas, monospace'; ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
   ctx.fillText(`${Math.max(0, Math.ceil(who.hp))} / ${who.maxHp}`, tx + rw - 1, cy + 18.5);
-  ctx.fillStyle = '#1c130c'; ctx.fillText(who.charge >= 100 ? 'CHARGED' : `CHARGE ${Math.round(who.charge)}%`, tx + rw - 1, cy + 22.7);
+  edgedText(ctx, who.charge >= 100 ? 'CHARGED' : `CHARGE ${Math.round(who.charge)}%`, tx + rw - 1, cy + 22.7, '#fff6dc', 0.35);      // over a bar part gold and part dark: pale, with a dark edge
   let y = cy + 27;
   const rule = () => { ctx.fillStyle = 'rgba(224,170,62,.3)'; ctx.fillRect(cx + 4, y, w - 8, 0.4); };
   // what he can do, in figures: three and three
@@ -1729,7 +1739,7 @@ function drawCutIn(ctx, B, T) {
   // light: as the band lands, as the blow goes, and as the band leaves
   const fl = Math.max(slam * 0.3, hit >= 0 && hit < 0.18 ? 0.5 * (1 - hit / 0.18) : 0, o2 > 0.1 ? 0.45 * (1 - o2) * (o2 < 0.5 ? o2 * 2 : 1) : 0);
   if (fl > 0.01) { ctx.fillStyle = `rgba(255,248,228,${fl.toFixed(3)})`; ctx.fillRect(0, 0, 320, 180); }
-  if (t > 1.2 && !o2) { ctx.globalAlpha = 0.5; ctx.font = '4px Consolas, monospace'; ctx.textAlign = dir > 0 ? 'right' : 'left'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('CLICK TO SKIP', dir > 0 ? 316 : 4, top - 5); ctx.globalAlpha = 1; }
+  if (t > 1.2 && !o2) { ctx.font = '4px Consolas, monospace'; ctx.textAlign = dir > 0 ? 'right' : 'left'; edgedText(ctx, 'CLICK TO SKIP', dir > 0 ? 316 : 4, top - 5, '#e8dcc0', 0.4); }
   ctx.restore();
 }
 
@@ -1788,7 +1798,7 @@ function drawHud(ctx, B) {
     if (B.pick === f) { ctx.fillStyle = '#ffd24a'; ctx.fillRect(x, y, 96, 0.6); ctx.fillRect(x, y + rh - 1.6, 96, 0.6); }
     const nx = many ? x + 4 : x + 10;
     if (!many) { if (f.style) drawIcon(ctx, f.style, x + 3.5, y + 2.5, 0.5); else { ctx.fillStyle = '#6b5f50'; ctx.fillRect(x + 4.5, y + 5, 4, 1); } }
-    ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#8a7a66' : '#f2e6cc'; ctx.fillText(String(f.g.name || '').slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
+    ctx.textAlign = 'left'; ctx.fillStyle = gone ? '#b5a892' : '#f2e6cc'; ctx.fillText(String(f.g.name || '').slice(0, many ? 10 : 9), nx, y + (many ? 4.5 : 5.5));
     const bx = x + 44, bw = many ? 48 : 37;
     if (gone) {
       const slain = f.fate === 'dead' && (f.revealed || !f.revealAt);
@@ -2269,8 +2279,7 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = f.charge >= 100 ? (Math.sin(T * 12) > 0 ? '#ffffff' : '#fff0b0') : '#e0aa3e'; ctx.fillRect(x, y + 2, Math.ceil(14 * f.charge / 100), 1);
     hudMarks(f).slice(0, 5).forEach((k, i) => drawMark(ctx, k, x + 16.5 + i * 4, y - 0.5, 0.5));
     if (B.fighters.length > 2) continue;   // in team fights the corner panels carry the names
-    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(f.g.name, fx + 0.4, ny + 0.4);
-    ctx.fillStyle = f.team ? '#bcd6ff' : '#ffd9d2'; ctx.fillText(f.g.name, fx, ny);
+    edgedText(ctx, f.g.name, fx, ny, f.team ? '#bcd6ff' : '#ffd9d2', 0.5);
   }
   for (const v of B.vfx) {
     if (v.k !== 'banner' || !v.f) continue;
@@ -2287,8 +2296,7 @@ function drawBattle(ctx, B) {
   for (const t of B.texts) {
     ctx.font = t.big ? 'bold 8px Cinzel, Georgia, serif' : 'bold 6px Consolas, monospace';
     ctx.globalAlpha = Math.min(1, t.life * 2.5);
-    ctx.fillStyle = '#000'; ctx.fillText(t.str, t.x * Z + 0.5, t.y * Z + 0.5);
-    ctx.fillStyle = t.col; ctx.fillText(t.str, t.x * Z, t.y * Z);
+    edgedText(ctx, t.str, t.x * Z, t.y * Z, t.col, t.big ? 0.7 : 0.5, '#000');
   }
   ctx.globalAlpha = 1;
   {
@@ -2352,7 +2360,7 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(110, 173, Math.round(100 * e), 1);
     for (const v of [0.3, 0.55]) { ctx.fillStyle = '#f2e6cc'; ctx.fillRect(110 + 100 * v, 172, 0.5, 5); }      // where it stirs, and where it roars
     ctx.textAlign = 'left'; ctx.fillStyle = '#c9b9a0'; ctx.fillText('CROWD', 110, 170.5);
-    ctx.fillStyle = e > 0.55 ? '#ffd24a' : e > 0.3 ? '#f2e6cc' : '#8a7a66'; ctx.fillText(word, 131, 170.5);
+    ctx.fillStyle = e > 0.55 ? '#ffd24a' : e > 0.3 ? '#f2e6cc' : '#b5a892'; ctx.fillText(word, 131, 170.5);
   }
   if (live) {                    // the clock: how long it has run, and when the judges will end it
     const left = 150 - B.time, s2 = Math.floor(left < 30 ? Math.max(0, left) : B.time), str = `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`;

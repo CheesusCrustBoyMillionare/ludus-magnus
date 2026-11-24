@@ -738,7 +738,7 @@ function drawVillage(cv, T) {
   // names over the doors, the open one in gold, and how many things wait inside
   const marks = typeof villageMarks === 'function' ? villageMarks() : {};
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 106, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#a8947a'; ctx.fillText('GATE', 590 - w / 2 - 1, 112); }
+  { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 106, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#bcab90'; ctx.fillText('GATE', 590 - w / 2 - 1, 112); }
   for (const p of PLACES) {
     const label = p.key === 'arena' && typeof daysToGames === 'function' ? (games ? 'ARENA: GAMES TODAY' : `ARENA: GAMES IN ${daysToGames()} DAY${daysToGames() === 1 ? '' : 'S'}`) : p.name.toUpperCase();
     const on = p.key === ui.tab, w = Math.ceil(ctx.measureText(label).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);

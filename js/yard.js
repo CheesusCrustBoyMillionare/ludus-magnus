@@ -384,7 +384,8 @@ function drawYard(cv, T) {
   const late = [];
   const label = (x, y, text) => late.push(() => {
     ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillText(text, x + 0.5, y + 0.5);
+    // a name over a man's head stands on bare sand or a wall: a dark edge all round it, so it reads on either
+    ctx.fillStyle = '#0c0704'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(text, x + ox * 0.5, y + oy * 0.5);
     ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
   });
   // building names sit on a dark plaque so they read against any wall

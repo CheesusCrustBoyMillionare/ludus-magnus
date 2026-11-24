@@ -3985,8 +3985,9 @@ function drawProvince(cv, T) {
     if (near || mark) tag(s.x, s.y + 16, s.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc', null, siteDanger(s));
   }
   // the regions' names, written across the country in old ink
-  ctx.font = 'bold 11px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(70,48,24,.42)';
-  for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) ctx.fillText(r.name.toUpperCase(), r.x, r.y);
+  ctx.font = 'bold 11px Cinzel, Georgia, serif';
+  // ink with a pale edge, so a name reads over forest and fell as it does over open ground
+  for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 0.6, r.y + oy * 0.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); }
 
   // on the glass: where you are, and how to move
   ctx.setTransform(S, 0, 0, S, 0, 0);
@@ -4070,8 +4071,8 @@ function drawOverview(cv, T) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   for (let fy = 0; fy < WILD.FH; fy++) for (let fx = 0; fx < WILD.FW; fx++) if (!fogAt(fx, fy)) R(fx * Fg, fy * Fg, Fg + 1, Fg + 1, wildHash(fx, fy, 7) > 0.5 ? '#d9c8a0' : '#d5c299');
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.font = 'bold 34px Cinzel, Georgia, serif'; ctx.fillStyle = 'rgba(70,48,24,.5)';
-  for (const r of WILD_REGIONS) ctx.fillText(r.name.toUpperCase(), r.x, r.y);
+  ctx.font = 'bold 34px Cinzel, Georgia, serif';
+  for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 1.6, r.y + oy * 1.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); }
   if (prov.path) for (let i = 1; i < prov.path.length; i += 2) R(prov.path[i].x - 3, prov.path[i].y - 3, 6, 6, '#f5d584');
   const dot = (x, y, r, c) => { R(x - r - 3, y - r - 3, r * 2 + 6, r * 2 + 6, '#1a110c'); R(x - r, y - r, r * 2, r * 2, c); };
   // how far from home the country turns worse: a dotted ring for each skull
@@ -4195,7 +4196,11 @@ function provFrame(ts) {
     try {
       if (busy || prov.big) villageStill(); else provStep(dt);
       if (G.field && !(arena && !arena.hidden)) {
-        drawProvince(cv, T);
+        // held still (a setting, or the system's wish for less motion), the map is painted while the column is on the move, the
+        // mouse is over it or night is falling, and for a few frames after, and otherwise left as it is
+        const kk = vil.keys, moving = prov.dirty || cv._drawnW !== cv.width || prov.path || kk.u || kk.d || kk.l || kk.r || prov.mouse || prov.hint > performance.now() || performance.now() - (prov.night || -1e9) < 2200;
+        prov.settle = moving ? 4 : Math.max(0, (prov.settle || 0) - 1);
+        if (!ui.still || prov.settle > 0) { prov.dirty = false; cv._drawnW = cv.width; drawProvince(cv, T); }
         if (ts - prov.mini > 400) {
           prov.mini = ts; const m = document.getElementById('wildMini'); if (m) drawMini(m);
           SFX.mood({ danger: wildTier(G.field.x, G.field.y) });
@@ -4304,6 +4309,7 @@ function renderWilds() {
       <div class="panel list ${men.length > 5 ? 'twoup dense' : ''}">${men.map(campRow).join('') || '<div class="listnote">Nobody is with you.</div>'}</div>
       <div class="listnote"${tip('fieldrules')}>${Math.round(wildExplored() * 100)}% walked &middot; ${M.cleared} places dealt with &middot; <span class="${safeRegions().length ? 'gold' : ''}"${tip(`A region is safe when every lair and outlaw camp in it has been dealt with. Each safe region pays ${SAFE_TOLL} denarii a day, at home or away, and the family keeps it.\n${Object.entries(regionTally()).map(([r, t]) => `${r}: ${t.done} of ${t.n}${t.done >= t.n ? ' - safe' : ''}`).join('\n')}`)}>${safeRegions().length} of ${Object.keys(regionTally()).length} regions safe${safeRegions().length ? ` (+${SAFE_TOLL * safeRegions().length} a day)` : ''}</span>${M.bounties ? ` &middot; ${M.bounties} bount${M.bounties === 1 ? 'y' : 'ies'} taken` : ''}</div></div>`;
   $('#camp').innerHTML = head + body;
+  prov.dirty = true;
   if (!prov.raf) { prov.last = 0; prov.prev = 0; prov.raf = requestAnimationFrame(provFrame); }
   const m = document.getElementById('wildMini'); if (m) drawMini(m);
   paintPortraits();

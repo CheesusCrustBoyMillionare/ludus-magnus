@@ -9,7 +9,8 @@
 //   - names what has only a picture, and says whether a switch is on;
 //   - shows an explanation for whatever the keyboard rests on, as the mouse would;
 //   - lists the places of the town as buttons, for whoever cannot click a picture of them;
-//   - says aloud what changes without being asked: a new screen, the steward, each line of a fight.
+//   - says aloud what changes without being asked: a new screen, the steward, a fight as it goes, the country
+//     the column is marching through.
 // Nothing here changes a rule of the game. It is all in one function so that it adds one name to the page.
 
 (function () {
@@ -33,7 +34,7 @@
     if (!text) return;
     sayQ.push(text);
     if (sayT) return;
-    sayT = setTimeout(() => { sayT = 0; live.textContent = sayQ.splice(0).join(' '); }, 120);     // one breath for everything that changed together
+    sayT = setTimeout(() => { sayT = 0; live.textContent = sayQ.splice(0).map(t => (/[.!?]$/.test(t) ? t : t + '.')).join(' '); }, 120);     // one breath for everything that changed together
   }
 
   // ---------- one thing the keyboard can be put back on ----------
@@ -204,14 +205,62 @@
   function queue() { if (st.queued) return; st.queued = true; Promise.resolve().then(pass); }
   new MutationObserver(queue).observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
 
-  // ---------- a fight, line by line ----------
-  // The sand is a picture. Its log is words, so each new line of it is said as it is written (the same lines the Log button shows).
+  // ---------- a fight, read out ----------
+  // The sand is a picture. Three things are said of it. Each new line of its log (the same lines the Log button shows).
+  // How every man stands, whenever that has changed, which is what the bars at the top of the picture show. And, for
+  // whoever asks for it in Settings, every word that rises over a man: each blow, block, dodge and miss.
+  const nameOf = f => (f.g.beast ? 'The ' + f.c.name : f.g.name);
+  function standing(B) {
+    const up = t => B.fighters.filter(f => f.team === t && !f.down && !f.yielded);
+    if (B.fighters.length <= 4) return B.fighters.map(f => nameOf(f) + (f.down ? ' is down' : f.yielded ? ' has yielded' : ' ' + Math.max(0, Math.ceil(f.hp)) + ' of ' + Math.round(f.maxHp))).join(', ');
+    const side = t => { const all = B.fighters.filter(f => f.team === t), on = up(t); return on.length + ' of ' + all.length + ' standing at ' + Math.round(100 * on.reduce((s, f) => s + Math.max(0, f.hp), 0) / Math.max(1, all.reduce((s, f) => s + f.maxHp, 0))) + ' in the hundred'; };
+    return 'Yours: ' + side(0) + '. Theirs: ' + side(1);
+  }
+  const blowWords = (who, w) => (/^!?\d+$/.test(w) ? who + ' takes ' + w.replace('!', '') + (w[0] === '!' ? ', a telling blow' : '') : /^\+\d+$/.test(w) ? who + ' gains ' + w.slice(1) + ' health' : /^block \d+$/.test(w) ? who + ' blocks, and takes ' + w.slice(6) : w === 'miss' ? 'A blow at ' + who + ' misses' : w === 'dodge' ? who + ' dodges' : w === 'net misses' ? 'The net misses ' + who : who + ': ' + w.toLowerCase());
   setInterval(() => {
     if (typeof fight === 'undefined' || !fight || !fight.B || !fight.B.log) { st.logB = null; return; }
-    const B = fight.B;
-    if (st.logB !== B) { st.logB = B; st.logN = B.log.length; return; }
+    const B = fight.B, now = Date.now();
+    if (st.logB !== B) { st.logB = B; st.logN = B.log.length; st.spokeN = 0; st.stoodAt = now; st.stood = ''; if (ui.sayBlows && !B.spoken) B.spoken = []; return; }
+    if (ui.sayBlows && !B.spoken) { B.spoken = []; st.spokeN = 0; } else if (!ui.sayBlows && B.spoken) B.spoken = null;
+    if (fight.paused && !B.pick) return;
+    if (B.spoken && B.spoken.length > st.spokeN) { const fresh = B.spoken.slice(st.spokeN).slice(-6); st.spokeN = B.spoken.length; say(fresh.map(([who, w]) => blowWords(who, w)).join('. ')); }
     if (B.log.length > st.logN) { const fresh = B.log.slice(st.logN).slice(-4); st.logN = B.log.length; say(fresh.map(l => l.str).join('. ')); }
+    const s = standing(B);
+    if (s !== st.stood && (now - st.stoodAt > 6000 || (B.pick && st.pickSaid !== B.pick))) { st.stood = s; st.stoodAt = now; st.pickSaid = B.pick || null; say(s); }
   }, 900);
+
+  // ---------- the province, in words ----------
+  // The map is a picture too. What it shows of where the column stands is put into words: the country and the ground
+  // underfoot, how dangerous it is, how much of the day is left, the way home and the nearest places known. It is said
+  // when asked for (a button the keyboard reaches before the map), and the changes are said as they happen.
+  const GROUND = ['open grass', 'forest', 'hill country', 'marsh', 'sand', 'a road', 'a bridge', 'meadow', 'water', 'bare rock'];
+  const way = (x, y) => wayTo(x, y).replace(/^today /, 'within the day, to the ').replace(/^(about d+ days?) /, '$1 to the ');
+  const ground = F => { try { return GROUND[wildTile(F.x, F.y)] || 'open country'; } catch (e) { return 'open country'; } };
+  function whereabouts() {
+    const F = G.field; if (!F) return '';
+    const t = wildTier(F.x, F.y), left = Math.round(100 * Math.max(0, Math.min(1, 1 - (F.march || 0) / marchDay())));
+    let rows = []; try { rows = placeRows().slice(0, 4); } catch (e) { /* none known */ }
+    const here = (() => { try { return landmarkHere(); } catch (e) { return ''; } })();
+    return 'The column is in ' + wildRegion(F.x, F.y) + ', on ' + ground(F) + (here ? ', at ' + here : '') + '. ' + (TIER_WORD[t - 1] ? TIER_WORD[t - 1].charAt(0).toUpperCase() + TIER_WORD[t - 1].slice(1) + ' danger' : 'No danger') + '. '
+      + left + ' in the hundred of the day\'s march is left. The town gate is ' + way(WILD.TOWN.x, WILD.TOWN.y) + '. '
+      + (rows.length ? 'Places known: ' + rows.map(r => r.name + ', ' + way(r.st.x, r.st.y)).join('; ') + '.' : 'No place is known yet.');
+  }
+  doc.addEventListener('lookabout', () => { live.textContent = ''; say(whereabouts()); });
+  setInterval(() => {
+    if (typeof G === 'undefined' || !G || !G.field || (typeof fight !== 'undefined' && fight && !fight.finished)) { st.prov = null; return; }
+    const F = G.field, m = q('#modal'); if (m && !m.hidden) return;
+    let known = []; try { known = placeRows().map(r => r.st.id); } catch (e) { /* none */ }
+    const now = { region: wildRegion(F.x, F.y), ground: ground(F), here: (() => { try { return landmarkHere() || ''; } catch (e) { return ''; } })(), known, day: G.day, blocked: prov.hint > performance.now() };
+    const was = st.prov; st.prov = now;
+    if (!was) { say(whereabouts()); return; }
+    if (now.day !== was.day) say('Day ' + now.day + '.');
+    if (now.region !== was.region) say('Into ' + now.region + ': ' + (TIER_WORD[wildTier(F.x, F.y) - 1] || 'no') + ' danger.');
+    if (now.ground !== was.ground) say('Onto ' + now.ground + '.');
+    if (now.here && now.here !== was.here) { const el = q('#campHere'); say('At ' + now.here + '. ' + (el ? el.textContent : '')); }
+    if (now.blocked && !was.blocked) say('You cannot walk there.');
+    const fresh = now.known.filter(id => !was.known.includes(id));
+    if (fresh.length) { try { say('In view: ' + placeRows().filter(r => fresh.includes(r.st.id)).slice(0, 3).map(r => r.name + ', ' + way(r.st.x, r.st.y)).join('; ') + '.'); } catch (e) { /* gone again */ } }
+  }, 1200);
 
   // ---------- the pictures themselves ----------
   const label = (id, text, extra) => { const el = doc.getElementById(id); if (!el) return; el.setAttribute('role', 'img'); el.setAttribute('aria-label', text); if (extra) for (const k in extra) el.setAttribute(k, extra[k]); };

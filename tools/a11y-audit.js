@@ -73,3 +73,55 @@ window.__audit = function (rootSel) {
   return Object.entries(res).sort((a, b) => a[1].ratio - b[1].ratio).map(([k, v]) => `${v.ratio} ${v.px}px x${v.n} ${k}  "${v.eg}"`);
 };
 'ok';
+
+// Words drawn on the canvases. For `seconds`, every fillText is watched: the pixels where the words are about to be
+// written are read, and their colour set against the colour of the words. Whatever falls short is listed, worst first:
+//   await __canvasAudit(4)
+// Words drawn several times over in one place are one piece of writing with something under it. If there are four or
+// more layers under the last (an edge all the way round) the words are measured against that edge, as the eye reads
+// them; fewer (a shadow to one side) and they are measured against what is behind. Words fading in or out are left out.
+window.__canvasAudit = function (seconds) {
+  const P = CanvasRenderingContext2D.prototype, real = P.fillText, found = {};
+  const lum = (r, g, b) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+  const probe = document.createElement('canvas').getContext('2d');
+  const rgb = style => { if (typeof style !== 'string') return null; probe.clearRect(0, 0, 1, 1); probe.fillStyle = style; probe.fillRect(0, 0, 1, 1); const d = probe.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+  const hex = c => '#' + c.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const over = (f, al, b) => [f[0] * al + b[0] * (1 - al), f[1] * al + b[1] * (1 - al), f[2] * al + b[2] * (1 - al)];
+  let held = null;                    // the last thing written, kept back until it is known whether more is written on top of it
+  const commit = h => {
+    if (!h || h.alpha < 0.85) return;
+    const bg = h.under.length >= 4 ? over(h.under[0].fg, h.under[0].fg[3] * h.under[0].alpha, h.bg) : h.bg, fg = over(h.fg, h.fg[3] * h.alpha, bg);
+    const l1 = lum(...fg), l2 = lum(...bg), ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    const key = h.where + ' | ' + h.style + ' | ' + h.str.replace(/d+/g, '#').slice(0, 26) + (h.under.length >= 4 ? ' (edged)' : '');
+    const e = found[key] || (found[key] = { min: 99, sum: 0, n: 0, css: h.css, need: h.need, bg: '' });
+    e.n++; e.sum += ratio; if (ratio < e.min) { e.min = ratio; e.bg = hex(bg); }
+  };
+  P.fillText = function (str, x, y) {
+    try {
+      const cv = this.canvas, s = String(str);
+      if (cv && cv.isConnected && cv.getClientRects().length && s.trim()) {
+        const m = this.getTransform(), px = parseFloat((/(d+(?:.d+)?)px/.exec(this.font) || [0, 10])[1]), w = this.measureText(s).width;
+        let x0 = x, y0 = y - px * 0.8;
+        if (this.textAlign === 'center') x0 = x - w / 2; else if (this.textAlign === 'right' || this.textAlign === 'end') x0 = x - w;
+        if (this.textBaseline === 'top' || this.textBaseline === 'hanging') y0 = y; else if (this.textBaseline === 'middle') y0 = y - px / 2;
+        const a = m.transformPoint({ x: x0, y: y0 }), b = m.transformPoint({ x: x0 + w, y: y0 + px }), sc = Math.hypot(m.a, m.b);
+        const X = Math.max(0, Math.floor(Math.min(a.x, b.x))), Y = Math.max(0, Math.floor(Math.min(a.y, b.y))), W = Math.min(cv.width - X, Math.ceil(Math.abs(b.x - a.x))), H = Math.min(cv.height - Y, Math.ceil(Math.abs(b.y - a.y)));
+        const fg = rgb(this.fillStyle);
+        if (fg && W > 0 && H > 0) {
+          const near = held && held.ctx === this && held.str === s && Math.abs(held.X - a.x) <= px * sc * 0.3 + 2 && Math.abs(held.Y - a.y) <= px * sc * 0.3 + 2;
+          let bg, under;
+          if (near) { under = held.under.concat([held]); bg = held.bg; }           // what is behind is what was there before the first layer
+          else { commit(held); under = []; const d = this.getImageData(X, Y, W, H).data; let r = 0, g = 0, bl = 0, n = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; bl += d[i + 2]; n++; } bg = [r / n, g / n, bl / n]; }
+          const css = px * sc * (cv.getBoundingClientRect().width / cv.width), bold = /bold|[6-9]00/.test(this.font);
+          held = { ctx: this, str: s, X: a.x, Y: a.y, fg, alpha: this.globalAlpha, bg, under, css, need: css >= 24 || (bold && css >= 18.66) ? 3 : 4.5, style: String(this.fillStyle), where: cv.id || cv.className || 'canvas' };
+        }
+      }
+    } catch (err) { /* a canvas that cannot be read is skipped */ }
+    return real.apply(this, arguments);
+  };
+  return new Promise(done => setTimeout(() => {
+    P.fillText = real; commit(held);
+    done(Object.entries(found).filter(([, e]) => e.sum / e.n < e.need).sort((p, q) => p[1].sum / p[1].n - q[1].sum / q[1].n)
+      .map(([k, e]) => `${(e.sum / e.n).toFixed(2)} avg, ${e.min.toFixed(2)} worst on ${e.bg}, ${e.css.toFixed(1)}px x${e.n}  ${k}`));
+  }, (seconds || 3) * 1000));
+};

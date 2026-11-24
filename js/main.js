@@ -6,7 +6,7 @@ try { ui.noyard = localStorage.getItem('ludus-magnus-yard') === 'off'; ui.autoCa
 // Three settings for those who play without a mouse, or cannot have things moving: single keys off (so that a slip of the hand,
 // or speech typed for another program, does nothing), the pictures held still, and a stop for Tab at every explanation.
 // Still pictures follow the system's own wish for less motion until the player says otherwise.
-try { ui.noKeys = localStorage.getItem('ludus-magnus-keys') === '0'; ui.tipStops = localStorage.getItem('ludus-magnus-tipstops') === '1'; const st = localStorage.getItem('ludus-magnus-still'); ui.still = st === null ? !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) : st === '1'; } catch (e) { /* storage unavailable */ }
+try { ui.noKeys = localStorage.getItem('ludus-magnus-keys') === '0'; ui.tipStops = localStorage.getItem('ludus-magnus-tipstops') === '1'; ui.sayBlows = localStorage.getItem('ludus-magnus-sayblows') === '1'; const st = localStorage.getItem('ludus-magnus-still'); ui.still = st === null ? !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) : st === '1'; } catch (e) { /* storage unavailable */ }
 document.documentElement.classList.toggle('still', !!ui.still);
 const $ = s => document.querySelector(s);
 const pct = (v, m) => Math.round(clamp(v / m, 0, 1) * 100);
@@ -110,12 +110,19 @@ function fillTip(box, el) {
   else box.textContent = el.dataset.tip || '';
   box.hidden = !card && !el.dataset.tip;
 }
-function placeTip(e) {
+// An explanation is set down once, beside where the mouse came onto the thing it explains, and stays there: so the
+// mouse can be moved onto it, to read it under a magnifier or to keep it up. Over something big (the picture of the
+// yard) it is set under the thing, not in the middle of it.
+function placeTip(e, of) {
   // the tooltip is scaled with the rest of the interface, so its position is set in scaled units
   const el = $('#tip'), pad = 14, r = el.getBoundingClientRect(), z = ui.z || 1;
   let x = e.clientX + pad, y = e.clientY + pad;
+  const big = of && of.getBoundingClientRect ? of.getBoundingClientRect() : null;
+  if (big && big.width > 260 && big.height > 110) { y = big.bottom + 4; if (y + r.height > innerHeight - 6) y = big.top - r.height - 4; x = e.clientX - r.width / 2; if (x + r.width > innerWidth - 6) x = innerWidth - 6 - r.width; }
+  else {
   if (x + r.width > innerWidth - 6) x = e.clientX - r.width - pad;
   if (y + r.height > innerHeight - 6) y = e.clientY - r.height - pad;
+  }
   el.style.left = Math.max(6, x) / z + 'px'; el.style.top = Math.max(6, y) / z + 'px';
 }
 
@@ -178,16 +185,24 @@ function fitScenes() {
   }
 }
 fitScenes();
-function hideTip() { tipTarget = null; clsTip = null; const el = $('#tip'); if (el) el.hidden = true; }
+let tipGo = 0;                    // the moment's grace between leaving a thing and its explanation going: time to reach the explanation
+function hideTip() { clearTimeout(tipGo); tipGo = 0; tipTarget = null; clsTip = null; const el = $('#tip'); if (el) { el.hidden = true; delete el.dataset.by; } }
+const tipSoon = () => { clearTimeout(tipGo); tipGo = setTimeout(hideTip, 220); };
+const onTip = t => !!(t && t.closest && t.closest('#tip'));
 document.addEventListener('mouseover', e => {
+  if (onTip(e.target)) { clearTimeout(tipGo); tipGo = 0; return; }      // the mouse is on the explanation itself: it stays
   const el = e.target.closest ? e.target.closest('[data-tip], [data-cmp]') : null;
-  if (el === tipTarget) return;
+  const box = $('#tip');
+  if (el === tipTarget) { if (el) { clearTimeout(tipGo); tipGo = 0; } else if (!tipGo && !clsTip && !box.hidden && box.dataset.by !== 'key') tipSoon(); return; }      // come off the explanation onto nothing: it goes
+  if (!el) { tipTarget = null; if (!clsTip && !box.hidden && box.dataset.by !== 'key') tipSoon(); return; }
+  clearTimeout(tipGo); tipGo = 0;
   tipTarget = el;
   if (clsTip) return;                                     // a type's name is under the mouse: that is being explained
-  const box = $('#tip');
-  if (!el) { box.hidden = true; return; }
-  fillTip(box, el); placeTip(e);
+  delete box.dataset.by;
+  fillTip(box, el); placeTip(e, el);
 });
+// A click on an explanation puts it away, so it is never in the way of what is under it.
+document.addEventListener('click', e => { if (onTip(e.target)) hideTip(); });
 // The name of a gladiator's type explains itself wherever it is written: in a list, on a card, in the middle of a sentence.
 // The word under the mouse is read from the page, so nothing that prints a type's name has to say so.
 const CLASS_WORDS = (() => { const o = {}; for (const k in CLASSES) { const n = CLASSES[k].name.toLowerCase(); o[n] = k; o[n + 's'] = k; } return Object.assign(o, { murmillones: 'murmillo', thraeces: 'thraex', retiarii: 'retiarius', hoplomachi: 'hoplomachus', dimachaeri: 'dimachaerus' }); })();
@@ -221,13 +236,13 @@ document.addEventListener('mousemove', e => {
   requestAnimationFrame(() => {
     const ev = tipMove, box = $('#tip'), hit = classAt(ev);
     tipMove = null;
+    if (onTip(ev.target)) return;                         // reading the explanation: nothing changes
     if (hit && hit.el !== tipTarget) {                    // unless the word is itself a thing with a tooltip of its own
-      if (clsTip !== hit.k) { clsTip = hit.k; box.classList.remove('rich'); box.textContent = classTip(hit.k); box.hidden = false; }
-      placeTip(ev);
+      if (clsTip !== hit.k) { clsTip = hit.k; clearTimeout(tipGo); tipGo = 0; delete box.dataset.by; box.classList.remove('rich'); box.textContent = classTip(hit.k); box.hidden = false; placeTip(ev); }
     } else if (clsTip) {
       clsTip = null;
-      if (tipTarget && tipTarget.isConnected) { fillTip(box, tipTarget); placeTip(ev); } else box.hidden = true;
-    } else if (tipTarget) placeTip(ev);
+      if (tipTarget && tipTarget.isConnected) { fillTip(box, tipTarget); placeTip(ev, tipTarget); } else tipSoon();
+    }
   });
 });
 
@@ -3280,9 +3295,10 @@ function menuModal() {
       ${sw('abauto', 'Abilities in a fight', !ui.autoCast, 'ask me each time', 'they choose for themselves')}
       ${sw('cutins', 'Cut-ins when an ability is used', !ui.noCut)}
       ${sw('fcam', 'The view of a fight', !ui.fixedCam, 'follows the fighting', 'the whole arena, fixed')}
-      ${sw('stilltoggle', 'The pictures of yard and town', !ui.still, 'moving', 'held still')}
+      ${sw('stilltoggle', 'The pictures of yard, town and province', !ui.still, 'moving', 'held still')}
       ${sw('keystoggle', 'Single keys (letters and numbers)', !ui.noKeys, 'on', 'off: Tab, Enter, Esc and the arrows only')}
       ${sw('tipstops', 'Tab stops at every explanation', !!ui.tipStops, 'on', 'off')}
+      ${sw('sayblows', 'A fight read to a screen reader', !!ui.sayBlows, 'every blow', 'what the log records, and how each man stands')}
       ${back}</div><p class="dim mnote">These are kept on this ${DESKTOP ? 'computer' : 'browser'}, for every campaign.</p></div>`;
   }
   if (page === 'stats') return `<div class="menu"><h2>The house in figures</h2>${menuStats()}<div class="mlist">${back}</div></div>`;
@@ -3310,6 +3326,9 @@ Object.assign(ACTIONS, {
   menuset(v) { if (ACTIONS[v]) ACTIONS[v](); repaintMenu(); },
   stilltoggle() { ui.still = !ui.still; try { localStorage.setItem('ludus-magnus-still', ui.still ? '1' : '0'); } catch (e) { /* storage unavailable */ } document.documentElement.classList.toggle('still', ui.still); render(); },
   keystoggle() { ui.noKeys = !ui.noKeys; try { localStorage.setItem('ludus-magnus-keys', ui.noKeys ? '0' : '1'); } catch (e) { /* storage unavailable */ } villageStill(); },
+  // out in the province: the surroundings, in words (a11y.js listens for this and says them)
+  lookabout() { document.dispatchEvent(new CustomEvent('lookabout')); },
+  sayblows() { ui.sayBlows = !ui.sayBlows; try { localStorage.setItem('ludus-magnus-sayblows', ui.sayBlows ? '1' : '0'); } catch (e) { /* storage unavailable */ } },
   tipstops() { ui.tipStops = !ui.tipStops; try { localStorage.setItem('ludus-magnus-tipstops', ui.tipStops ? '1' : '0'); } catch (e) { /* storage unavailable */ } render(); },
   // the list of places, for a keyboard: he walks there as he would for a click on the building
   goto(v) { if (v === 'gate' && !gateOpen()) return; villageWalkTo(v); },
