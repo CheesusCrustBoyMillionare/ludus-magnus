@@ -75,7 +75,7 @@ test('scripts parse', () => {
 test('no two scripts declare the same global name', () => {
   const seen = {};
   for (const f of fs.readdirSync(path.join(root, 'js'))) {
-    for (const m of read('js/' + f).matchAll(/^(?:const|let|class|function) +([A-Za-z_$][\w$]*)/gm)) {
+    for (const m of read('js/' + f).matchAll(/^(?:const|let|class|function\*?) +([A-Za-z_$][\w$]*)/gm)) {
       assert(!seen[m[1]] || seen[m[1]] === f, `"${m[1]}" is declared in both ${seen[m[1]]} and ${f}; the page would fail to load`);
       seen[m[1]] = f;
     }
@@ -85,7 +85,7 @@ test('no two scripts declare the same global name', () => {
 test('every drawing and screen function that is called exists somewhere', () => {
   // these are only reached in the browser, so a missing one would not show in the rule tests: check by name
   const src = {}, declared = new Set();
-  for (const f of fs.readdirSync(path.join(root, 'js'))) { src[f] = read('js/' + f); for (const m of src[f].matchAll(/(?:function|const|let) +([A-Za-z_$][\w$]*)/g)) declared.add(m[1]); }
+  for (const f of fs.readdirSync(path.join(root, 'js'))) { src[f] = read('js/' + f); for (const m of src[f].matchAll(/(?:function\*?|const|let) +([A-Za-z_$][\w$]*)/g)) declared.add(m[1]); }
   let n = 0;
   for (const f in src) for (const m of src[f].matchAll(/(?<![.\w$])((?:vil|village|prov|draw|render|view|wild|yard|show|paint|camp|ability)[A-Z]\w*)\(/g)) { n++; assert(declared.has(m[1]), `${f} calls ${m[1]}(), which is not defined in any script`); }
   assert(n > 150, 'expected to find the calls, found ' + n);

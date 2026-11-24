@@ -11,8 +11,15 @@ const prov = { land: null, raf: 0, last: 0, prev: 0, path: null, trail: [], face
 
 // ---------- the country, painted once ----------
 const TILE_COL = ['#7e9a4b', '#5d7f3f', '#93985c', '#5f7a4c', '#d8c48a', '#cdae78', '#8a6a3a', '#86a250', '#4f8fb8', '#8a8478'];      // in the order of the T_ kinds in wilds.js
-function provLand() {
-  if (prov.land) return prov.land;
+// Painting it is a second's work. Done all at once, at the gate or the first time anybody at home asked where a
+// landmark stands, that was a second in which nothing moved. So it is a job that can be put down and taken up again:
+// it stops at each "yield" below, which is at the head of every row of the long loops and before each shorter piece.
+// provLandAhead does it a little at a time while the browser has nothing else to do, from the moment the page is up;
+// provLand, for whoever needs the map now, does whatever is left of it on the spot.
+// Nothing of it can be seen half made. Everything it makes for the map (the picture, the landmarks, the herds, the
+// birds, what stands tall) is kept in "fresh" and handed to prov only when the whole is done. And it does not stop
+// between taking the mill road off the land and putting it back, so the rules never see the land without it.
+function* provLandSteps(fresh) {
   const L = wildLand(), TW = WILD.TW, TH = WILD.TH, cv = document.createElement('canvas');
   cv.width = WILD.W; cv.height = WILD.H;
   let ctx = cv.getContext('2d'), solid = false;
@@ -21,8 +28,8 @@ function provLand() {
   // with the line it stands on, so that the map can paint it again over a man who is north of that line
   // (drawProvince). Painted again it leaves out its shadow and anything else that is only a stain on the ground.
   const overs = [];
-  prov.overs = overs;
-  prov.paintOver = (c2, d) => { const keep = ctx; ctx = c2; solid = true; try { d(); } finally { ctx = keep; solid = false; } };
+  fresh.overs = overs;
+  fresh.paintOver = (c2, d) => { const keep = ctx; ctx = c2; solid = true; try { d(); } finally { ctx = keep; solid = false; } };
   const TALL = ['The great oak', 'The old arch', 'The beacon', 'The unfinished columns', 'The watchtower', 'The needle', 'The gallows', 'The broken aqueduct', 'The wolf stone', "The giant's table", 'The mill', 'The white temple'];
   const h = (x, y, k) => wildHash(x, y, 91 + k), at = (x, y) => (x < 0 || y < 0 || x >= TW || y >= TH ? T_PEAK : L.t[y * TW + x]);
   const wet = k => k === T_WATER;
@@ -55,7 +62,7 @@ function provLand() {
   // Each region's grass, meadow and woodland floor has a colour of its own; where two regions meet the line between
   // them is ragged, so that one country runs into the next instead of stopping at a fence.
   const REG_NAMES = WILD_REGIONS.map(q => q.name), regT = new Uint8Array(TW * TH);
-  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) regT[ty * TW + tx] = REG_NAMES.indexOf(wildRegion(tx * 10 + 5 + (wildNoise(tx / 6, ty / 6, 801) - 0.5) * 220 + (wildNoise(tx / 2, ty / 2, 803) - 0.5) * 70 + (h(tx, ty, 805) - 0.5) * 50, ty * 10 + 5 + (wildNoise(tx / 6, ty / 6, 802) - 0.5) * 220 + (wildNoise(tx / 2, ty / 2, 804) - 0.5) * 70 + (h(ty, tx, 806) - 0.5) * 50));
+  for (let ty = 0; ty < TH; ty++) { if (!(ty & 15)) yield; for (let tx = 0; tx < TW; tx++) regT[ty * TW + tx] = REG_NAMES.indexOf(wildRegion(tx * 10 + 5 + (wildNoise(tx / 6, ty / 6, 801) - 0.5) * 220 + (wildNoise(tx / 2, ty / 2, 803) - 0.5) * 70 + (h(tx, ty, 805) - 0.5) * 50, ty * 10 + 5 + (wildNoise(tx / 6, ty / 6, 802) - 0.5) * 220 + (wildNoise(tx / 2, ty / 2, 804) - 0.5) * 70 + (h(ty, tx, 806) - 0.5) * 50)); }
   const GROUND = {
     'The Home Fields': ['#84a04e', '#8caa54', '#5d7f3f', '#8c9854'], 'The Long Meadows': ['#7aa64e', '#84b056', '#588040', '#869a52'], 'The Salt Shore': ['#909a52', '#9aa45a', '#647a40', '#9a965c'],
     'Greywood': ['#74905a', '#7e9a62', '#52705a', '#88925f'], 'The Quarry Hills': ['#8c9a50', '#96a458', '#627a3e', '#9b9865'], 'The High Fells': ['#7c9462', '#869e6a', '#4f7448', '#868e61'],
@@ -95,7 +102,7 @@ function provLand() {
   const ground = (k, tx, ty) => { tx = Math.max(0, Math.min(TW - 1, tx)); ty = Math.max(0, Math.min(TH - 1, ty)); const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : k === T_PEAK ? (pr => mixHex(pr[0], pr[1], bare(tx, ty)))(peakPairS(tx, ty)) : TILE_COL[k]; };
   const col = (k, tx, ty) => k === T_WATER ? (deep(tx, ty) ? '#3f7dab' : '#5a9cc6') : k === T_BRIDGE ? '#5a9cc6' : tint(ground(k === T_ROAD ? T_GRASS : k, tx, ty), tone(tx, ty));
 
-  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+  for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, base = col(k, tx, ty);
     R(x, y, 10, 10, base);
     if (k === T_PEAK || (k === T_HILL && amongPeaks(tx, ty))) {      // turf going over to rock a little at a time across the tile, not a tile at a time: no squares of it. Hill country that lies in a range, or up against one, is painted the same way, so that a pocket of it does not show as a square of plainer ground
@@ -124,7 +131,7 @@ function provLand() {
       // the neighbour's ground comes a little way in, further in some places than others, so that no border is a ruled line
       for (let i = 0; i < 11; i++) { const q = Math.floor(h(tx, ty, 20 + n * 5 + i) * 9), inn = Math.floor(h(tx + i, ty + n, 810) * h(tx, ty + i, 811) * 8); R(dx ? x + (dx > 0 ? 8 - inn : inn) : x + q, dy ? y + (dy > 0 ? 8 - inn : inn) : y + q, 2, 2, oc); }
     });
-  }
+  } }
   // The small things lying about are made, not stamped: a stone is one of eight builds in the rock of its country, a
   // log one of eight, a bush one of seven, and each takes its size and place from the spot it lies in.
   const rockPal = reg => reg === 'The Quarry Hills' ? ['#d2cbb6', '#b3ac98', '#8f8876'] : reg === 'The High Fells' ? ['#a2aab4', '#7d8692', '#646c78'] : reg === 'The Barrow Downs' ? ['#b8b4a0', '#8c8676', '#5f5a4c'] : reg === 'Blackmere' ? ['#8a8a7a', '#6a6a5c', '#4a4a40'] : reg === 'The Salt Shore' ? ['#c8c0a8', '#a39a8a', '#7d7668'] : ['#bdb8ac', '#9a958a', '#6b665c'];
@@ -196,9 +203,11 @@ function provLand() {
   const hillDepth = (tx, ty) => { for (let r = 1; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) { const o = at(tx + dx, ty + dy); if (o !== T_HILL && o !== T_PEAK) return r; } return 4; };      // how far into the high ground
   const lone = [], posts = [];                                // posts: the fingerposts at the meeting of roads, stood up with everything else that stands
   const shoreD = new Uint8Array(TW * TH).fill(255);
+  yield;
   { let cur = []; for (let i = 0; i < TW * TH; i++) if (L.t[i] !== T_WATER && L.t[i] !== T_BRIDGE) { shoreD[i] = 0; cur.push(i); }
-    for (let d = 1; d < 10 && cur.length; d++) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (shoreD[j] === 255) { shoreD[j] = d; nx.push(j); } } } cur = nx; } }
+    for (let d = 1; d < 10 && cur.length; d++) { yield; const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (shoreD[j] === 255) { shoreD[j] = d; nx.push(j); } } } cur = nx; } }
   // which water is the sea: whatever open water can be reached from the western edge of the map without going up a river
+  yield;
   const seaM = new Uint8Array(TW * TH);
   { let cur = []; for (let ty = 0; ty < TH; ty++) if (L.t[ty * TW] === T_WATER) { seaM[ty * TW] = 1; cur.push(ty * TW); }
     while (cur.length) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (!seaM[j] && L.t[j] === T_WATER && shoreD[j] >= 2) { seaM[j] = 1; nx.push(j); } } } cur = nx; } }
@@ -226,13 +235,14 @@ function provLand() {
     const c = [Math.round(sx / n), Math.round(sy / n)]; mid2Cache.set(key, c); return c;
   };
   const isLane = (tx, ty) => !!(L.lane && L.lane[ty * TW + tx]);
+  yield;
   { const PW = TW * 10, PH = TH * 10, band = new Uint8Array(PW * PH);      // every pixel the roads cover: 1 a road, 2 a lane
     let thin = false;
     const px1 = (x, y, w, hh, c) => { R(x, y, w, hh, c); const v = thin ? 2 : 1; for (let yy = Math.max(0, y); yy < Math.min(PH, y + hh); yy++) for (let xx = Math.max(0, x); xx < Math.min(PW, x + w); xx++) band[yy * PW + xx] = v; };
     const stamp = (px, py, c) => { if (thin) { px1(px - 1, py - 2, 3, 4, c); px1(px - 2, py - 1, 4, 3, c); } else { px1(px - 2, py - 3, 4, 6, c); px1(px - 3, py - 2, 6, 4, c); } };
     const run = (ax, ay, bx, by, c1, c2) => { const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), 1); for (let i = 0; i <= n; i++) stamp(Math.round(ax + (bx - ax) * i / n), Math.round(ay + (by - ay) * i / n), i * 2 < n ? c1 : c2); };
     const shade = (tx, ty) => isLane(tx, ty) ? tint(roadCol(tx, ty), 0.92) : roadCol(tx, ty);
-    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
       if (at(tx, ty) !== T_ROAD) continue;
       const A = roadMid2(tx, ty), laneA = isLane(tx, ty), cA = shade(tx, ty); let any = false;
       for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1], [-1, 0], [0, -1], [-1, -1], [1, -1]]) {
@@ -243,13 +253,13 @@ function provLand() {
         run(A[0], A[1], B[0], B[1], cA, shade(tx + dx, ty + dy)); thin = false;
       }
       if (!any) { thin = laneA; stamp(A[0], A[1], cA); thin = false; }
-    }
+    } }
     // The edge. No line is ruled between a road and the country it crosses: here the grass has crept a little way onto
     // it, there the dust has spread a little way off it, and now and then a tuft stands right at the wheel-mark. Paved
     // streets by the town keep a clean edge.
     const tileOf = (x, y) => [Math.floor(x / 10), Math.floor(y / 10)];
     const groundAt = (x, y) => { const [tx, ty] = tileOf(x, y), k = at(tx, ty); return col(k === T_ROAD || k === T_BRIDGE ? T_GRASS : k, tx, ty); };
-    for (let y = 1; y < PH - 1; y++) for (let x = 1; x < PW - 1; x++) {
+    for (let y = 1; y < PH - 1; y++) { if (!(y & 15)) yield; for (let x = 1; x < PW - 1; x++) {
       const i = y * PW + x, v = band[i];
       if (v) {
         if (band[i - 1] && band[i + 1] && band[i - PW] && band[i + PW]) continue;      // not on the edge
@@ -263,10 +273,10 @@ function provLand() {
         const r = h(x, y, 1703), lane2 = (band[i - 1] | band[i + 1] | band[i - PW] | band[i + PW]) === 2;
         if (r < (lane2 ? 0.16 : 0.3)) { let rx = tx, ry = ty; if (!isRd(k)) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (isRd(at(tx + dx, ty + dy))) { rx = tx + dx; ry = ty + dy; break; } R(x, y, 1, 1, tint(roadCol(rx, ry), r < 0.1 ? 0.9 : 0.97)); }      // dust beyond the edge of it
       }
-    }
+    } }
   }
   const zq = (v, n) => Math.min(n - 1, Math.max(0, Math.floor(((v - 0.5) * 2.4 + 0.5) * n)));      // which of n kinds a stretch of country is
-  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+  for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), a = h(tx, ty, 40), b = h(tx, ty, 41); let x = tx * 10, y = ty * 10;
     if (k === T_ROAD || k === T_BRIDGE) {
       const dTown = Math.hypot(tx - tx0, ty - ty0), paved = k === T_ROAD && dTown < 9;
@@ -538,7 +548,7 @@ function provLand() {
         }
       }
     }
-  }
+  } }
   // ---- the fields lie in the land: each plot takes some of the colour of the ground it was cut from, and where
   // it ends against open ground the edge is ragged, the turf coming in and the crop straggling out ----
   const fray = (tx, ty, same) => {
@@ -559,6 +569,7 @@ function provLand() {
   };
   // what is planted on a tile out beyond the fields: 0 nothing, 1 olives, 2 vines, 3 an orchard
   const grove = (tx, ty) => { if (at(tx, ty) !== T_GRASS || wildRegion(tx * 10, ty * 10) !== 'The Home Fields' || farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3 || inTown(tx, ty, 4)) return 0; const d = Math.hypot(tx - tx0, ty - ty0), plot = h(Math.floor(tx / 3), Math.floor(ty / 3), 93); return d > 10.5 && d < 17 && plot > 0.7 ? (plot > 0.9 ? 1 : plot > 0.78 ? 2 : 3) : 0; };
+  yield;
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     if (at(tx, ty) !== T_GRASS || !farm(tx, ty)) continue;
     const x = tx * 10, y = ty * 10, gn = parseInt(col(T_GRASS, tx, ty).slice(1), 16), tn = tone(tx, ty);
@@ -567,7 +578,7 @@ function provLand() {
     fray(tx, ty, farm);
   }
   // ---- depth: high ground throws its shade to the south and east, and the shore has a strand ----
-  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+  for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10;
     if (k === T_PEAK) continue;
     const n = at(tx, ty - 1), w = at(tx - 1, ty), nw = at(tx - 1, ty - 1);
@@ -585,21 +596,21 @@ function provLand() {
         for (let i = 0; i < 10; i += 2) { if (h(tx * 3 + i, ty * 3 + q, 80) < 0.22) continue; const d = 1 + Math.floor(h(tx + i, ty + q, 81) * 2); R(dx ? x + (dx > 0 ? 10 - d - 1 : 1) : x + i, dy ? y + (dy > 0 ? 10 - d - 1 : 1) : y + i, dx ? d : 2, dy ? d : 2, i % 4 ? '#d2c08a' : '#bfae78'); }
       });
     }
-  }
+  } }
   // ---- each part of the country has its own look ----
   const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3 || inTown(tx, ty, 4);
-  prov.boats = [];
-  prov.smokes = [];
-  prov.lights = [];
+  fresh.boats = [];
+  fresh.smokes = [];
+  fresh.lights = [];
   // flocks and herds: each has a home with room to wander, and is drawn live, moving (see drawHerds)
-  prov.herds = [];
+  fresh.herds = [];
   const roomFor = (tx, ty, kinds, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (!kinds.includes(at(tx + dx, ty + dy))) return false; return true; };
   const herd = (kind, tx, ty, n, kinds, far, room) => {
     const x = tx * 10 + 5, y = ty * 10 + 5;
-    if (!roomFor(tx, ty, kinds, room || 3) || Math.hypot(tx - tx0, ty - ty0) < 12 || prov.herds.some(q => Math.hypot(q.x - x, q.y - y) < far)) return;
-    prov.herds.push({ kind, x, y, n, seed: tx * 977 + ty * 131 });
+    if (!roomFor(tx, ty, kinds, room || 3) || Math.hypot(tx - tx0, ty - ty0) < 12 || fresh.herds.some(q => Math.hypot(q.x - x, q.y - y) < far)) return;
+    fresh.herds.push({ kind, x, y, n, seed: tx * 977 + ty * 131 });
   };
-  for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) {
+  for (let ty = 1; ty < TH - 1; ty++) { yield; for (let tx = 1; tx < TW - 1; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 90), b = h(tx, ty, 91), reg = wildRegion(x + 5, y + 5);
     const sh = (sx, sy, sw) => R(sx, sy, sw, 1, 'rgba(0,0,0,.2)');
     const v1 = h(tx, ty, 440), v2 = h(tx, ty, 441), v3 = h(tx, ty, 442), v4 = h(tx, ty, 443);
@@ -704,14 +715,14 @@ function provLand() {
       if (v3 > 0.7) poplar(x + 8, 5 + Math.floor(v4 * 4), '#356026', '#4c7a34');
     }
     // fishing boats lie off the Salt Shore (they are drawn live, bobbing): open water, a little way out
-    if (reg === 'The Salt Shore' && wet(k) && a > 0.992 && wet(at(tx + 1, ty)) && wet(at(tx - 1, ty)) && prov.boats.filter(q => !q[2]).length < 9) prov.boats.push([x + 5, y + 5]);
+    if (reg === 'The Salt Shore' && wet(k) && a > 0.992 && wet(at(tx + 1, ty)) && wet(at(tx - 1, ty)) && fresh.boats.filter(q => !q[2]).length < 9) fresh.boats.push([x + 5, y + 5]);
     if (wet(k)) {                              // galleys and a warship out at sea, punts and rafts on the lakes, coracles on the mere
-      const sdv = shoreD[ty * TW + tx], seaT = tx < 16 || reg === 'The Salt Shore' || !!seaM[ty * TW + tx], c2 = h(tx, ty, 1270), c3 = h(tx, ty, 1271), clear = r => !prov.boats.some(q => Math.hypot(q[0] - x, q[1] - y) < r), count = kd => prov.boats.filter(q => q[2] === kd).length;
-      if (seaT && sdv >= 6 && c2 > 0.985 && count('galley') < 3 && clear(140)) prov.boats.push([x + 5, y + 5, 'galley']);
-      else if (seaT && sdv >= 7 && c2 < 0.01 && count('warship') < 1 && clear(140)) prov.boats.push([x + 5, y + 5, 'warship']);
-      else if (!seaT && sdv >= 2 && sdv < 250 && c2 > 0.9 && clear(70)) { const kd = reg === 'Blackmere' ? 'coracle' : c3 > 0.5 ? 'raft' : 'punt'; if (count(kd) < 4) prov.boats.push([x + 5, y + 5, kd]); }
+      const sdv = shoreD[ty * TW + tx], seaT = tx < 16 || reg === 'The Salt Shore' || !!seaM[ty * TW + tx], c2 = h(tx, ty, 1270), c3 = h(tx, ty, 1271), clear = r => !fresh.boats.some(q => Math.hypot(q[0] - x, q[1] - y) < r), count = kd => fresh.boats.filter(q => q[2] === kd).length;
+      if (seaT && sdv >= 6 && c2 > 0.985 && count('galley') < 3 && clear(140)) fresh.boats.push([x + 5, y + 5, 'galley']);
+      else if (seaT && sdv >= 7 && c2 < 0.01 && count('warship') < 1 && clear(140)) fresh.boats.push([x + 5, y + 5, 'warship']);
+      else if (!seaT && sdv >= 2 && sdv < 250 && c2 > 0.9 && clear(70)) { const kd = reg === 'Blackmere' ? 'coracle' : c3 > 0.5 ? 'raft' : 'punt'; if (count(kd) < 4) fresh.boats.push([x + 5, y + 5, kd]); }
     }
-  }
+  } }
   // farmsteads among the fields: five families, five ways of building
   const STEADS = [
     (x, y) => { R(x - 1, y + 8, 13, 2, 'rgba(0,0,0,.22)'); R(x, y + 2, 11, 7, '#e2d2a8'); R(x - 1, y - 2, 13, 4, '#a8482a'); R(x, y - 3, 11, 1, '#c2603a'); R(x + 4, y + 5, 3, 4, '#3a2416'); R(x + 13, y + 4, 4, 5, '#8a6a3a'); R(x + 13, y + 3, 4, 1, '#c9b25a'); },      // a tiled house and its rick
@@ -728,7 +739,7 @@ function provLand() {
     const tx = tx0 + dx, ty = ty0 + dy, k = at(tx, ty);
     if (k !== T_GRASS && k !== T_MEADOW) return;
     STEADS[n](tx * 10, ty * 10);
-    if (n !== 3) prov.smokes.push({ x: tx * 10 + 3, y: ty * 10 - 5 });
+    if (n !== 3) fresh.smokes.push({ x: tx * 10 + 3, y: ty * 10 - 5 });
   });
   // what stands up from the ground is gathered first and drawn from the back of the picture to the front, so that
   // each thing overlaps what is behind it. Nothing is stamped: every tree and every mountain is made for its own spot.
@@ -773,7 +784,7 @@ function provLand() {
     }
   }
   const WOOD = { blight: 0.14, thin: 0.72, old: 0.64, young: 0.28, turn: 0.885 };
-  prov.wood = WOOD;
+  fresh.wood = WOOD;
   const peakDepth = (tx, ty) => { for (let r = 1; r <= 4; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && at(tx + dx, ty + dy) !== T_PEAK) return r; return 5; };
   // a tree: its kind, its size, and a shade of its own
   const LEAF = { oak: ['#35602b', '#4c7f38', '#69a04a'], beech: ['#3f7032', '#5f9a46', '#7fb85a'], chestnut: ['#4a6a2a', '#7a9a3a', '#69a04a'], blossom: ['#4c7f38', '#69a04a', '#69a04a'],
@@ -1422,6 +1433,7 @@ function provLand() {
   // The landmarks and dwellings are set out on the land as it was before the mill road was laid across it: otherwise
   // everything that likes to stand by a road would move to the new one, and push its neighbours about. The road is
   // put back as soon as they are all placed (their painting comes later, and sees it).
+  yield;
   const laterRoad = L.under ? [...L.under].map(([k, was]) => [k, L.t[k], was]) : [];
   for (const [k, , was] of laterRoad) L.t[k] = was;
   // -- the Home Fields --
@@ -1804,8 +1816,8 @@ function provLand() {
     if (v(25) > 0.6 && hh >= 5) { const vx = x + (v(26) > 0.5 ? 0 : w - 1); for (let i = 0; i < hh; i++) if (v(27 + i) > 0.25) P(vx + (i % 2 && vx === x ? 1 : 0), y + i, 1, 1, i % 3 ? '#5f8f3a' : '#7aa84a'); }      // a vine up one corner
     if (v(28) > 0.45) { const tx2 = dx > x + w / 2 ? dx - 3 : dx + 3; P(tx2, y + hh - 5, 1, 6, '#6b4f2c'); P(tx2 - 1, y + hh - 6, 3, 1, v(29) > 0.5 ? '#c1c7cc' : '#6b4f2c'); }      // a rake or a scythe leaned by the door
     if (w >= 10 && hh >= 7) { for (let q = 2; q < w - 2; q += 3) { P(x + q, y + 1, 1, 2, '#3a2a1c'); P(x + q, y + 3, 1, 1, tint(wall, 0.8)); } P(x, y + 4, w, 1, tint(wall, 0.9)); }      // a great house has an upper floor, and a row of windows to it
-    if (P.at && o.smoke !== false) prov.lights.push({ x: P.at(dx + 1), y: y + hh - 2 });
-    if (o.smoke !== false && v(18) > 0.4) { const ch = x + 1 + Math.floor(v(19) * (w - 3)); P(ch, y - rh - 2, 2, 3, '#8a8478'); if (P.at) prov.smokes.push({ x: P.at(ch + 1), y: y - rh - 3 }); }
+    if (P.at && o.smoke !== false) fresh.lights.push({ x: P.at(dx + 1), y: y + hh - 2 });
+    if (o.smoke !== false && v(18) > 0.4) { const ch = x + 1 + Math.floor(v(19) * (w - 3)); P(ch, y - rh - 2, 2, 3, '#8a8478'); if (P.at) fresh.smokes.push({ x: P.at(ch + 1), y: y - rh - 3 }); }
     return { w, hh, rh };
   };
   const inReg = (kinds, regs) => (tx, ty) => on(kinds)(tx, ty) && regs.includes(wildRegion(tx * 10 + 5, ty * 10 + 5));
@@ -1813,13 +1825,13 @@ function provLand() {
   const DWELL = [
     [5, "A shepherd's hut", (tx, ty) => on([T_HILL, T_GRASS])(tx, ty) && at(tx, ty) === T_HILL, (x, y, P, v) => { cot(P, v, x + 1, y + 3, { w: 5 + Math.floor(v(1) * 2), h: 4, roof: 'turf', wall: '#a89c88' }); const pw = 8 + Math.floor(v(2) * 4); P(x + 10, y + 2, pw, 1, '#a8a090'); P(x + 10, y + 9, pw, 1, '#a8a090'); P(x + 10, y + 2, 1, 8, '#c8c2b2'); P(x + 9 + pw, y + 2, 1, 4 + Math.floor(v(3) * 2), '#a8a090'); for (let q = 0; q < 1 + Math.floor(v(4) * 3); q++) { P(x + 12 + q * 2, y + 5 + (q % 2) * 2, 2, 1, '#f1ead8'); P(x + 12 + q * 2, y + 5 + (q % 2) * 2, 1, 1, '#3a2a1c'); } }],
     [5, "A woodcutter's cabin", edgeOfWood, (x, y, P, v) => { const c = cot(P, v, x + 2, y + 3, { wall: '#7a5a34', roof: v(1) > 0.5 ? 'shingle' : 'turf' }); for (let q = 1; q < c.hh; q += 2) P(x + 3, y + 3 + q, c.w - 2, 1, '#5a4326'); const px = x + 5 + c.w; P(px, y + 6, 5 + Math.floor(v(2) * 3), 3, '#8a6a3a'); for (let q = 0; q < 3; q++) P(px + 1 + q * 2, y + 7, 1, 1, '#c9a763'); P(px + 2, y + 10, 2, 2, '#6b4f2c'); P(px + 2, y + 10, 2, 1, '#c9a763'); if (v(3) > 0.5) { P(px + 4, y + 8, 1, 3, '#8a6a3a'); P(px + 4, y + 8, 2, 1, '#b8c0c8'); } }],
-    [3, "A charcoal burner's clamp", (tx, ty) => on(FO)(tx, ty) || edgeOfWood(tx, ty), (x, y, P, v) => { const rw = 5 + Math.floor(v(1) * 2); P(x + 3 - 1, y + 9, rw * 2 + 3, 2, 'rgba(0,0,0,.25)'); for (let i = 0; i < 6; i++) { const w = Math.round(rw * Math.sqrt(1 - (i * i) / 40)); P(x + 3 + rw - w, y + 8 - i, w * 2, 1, i % 3 === 2 ? '#4a4038' : '#3a322c'); } P(x + 3 + rw - 1, y + 8, 2, 1, '#d8742a'); prov.smokes.push({ x: P.at(x + 3 + rw), y: y + 2 }); P(x + 6 + rw * 2, y + 6, 6, 3, '#6b4f2c'); P(x + 6 + rw * 2, y + 6, 6, 1, '#8a6a3a'); if (v(2) > 0.4) cot(P, v, x + 14 + rw, y + 1, { w: 5, h: 3, roof: 'turf', wall: '#7a5a34', smoke: false }); }],
+    [3, "A charcoal burner's clamp", (tx, ty) => on(FO)(tx, ty) || edgeOfWood(tx, ty), (x, y, P, v) => { const rw = 5 + Math.floor(v(1) * 2); P(x + 3 - 1, y + 9, rw * 2 + 3, 2, 'rgba(0,0,0,.25)'); for (let i = 0; i < 6; i++) { const w = Math.round(rw * Math.sqrt(1 - (i * i) / 40)); P(x + 3 + rw - w, y + 8 - i, w * 2, 1, i % 3 === 2 ? '#4a4038' : '#3a322c'); } P(x + 3 + rw - 1, y + 8, 2, 1, '#d8742a'); fresh.smokes.push({ x: P.at(x + 3 + rw), y: y + 2 }); P(x + 6 + rw * 2, y + 6, 6, 3, '#6b4f2c'); P(x + 6 + rw * 2, y + 6, 6, 1, '#8a6a3a'); if (v(2) > 0.4) cot(P, v, x + 14 + rw, y + 1, { w: 5, h: 3, roof: 'turf', wall: '#7a5a34', smoke: false }); }],
     [4, "A fisherman's hut", (tx, ty) => on([T_SAND, T_GRASS])(tx, ty) && at(tx, ty) === T_SAND, (x, y, P, v) => { const c = cot(P, v, x + 2, y, { w: 6 + Math.floor(v(1) * 2), h: 4, roof: 'reed', wall: '#b89a6a', smoke: false }); P(x + 2, y + 4, 1, 4, '#5a4326'); P(x + 1 + c.w, y + 4, 1, 4, '#5a4326'); P(x + 4, y + 4, 1, 3, '#5a4326'); const nx = x + 5 + c.w; P(nx, y + 2, 1, 7, '#6b4f2c'); P(nx + 7, y + 2, 1, 7, '#6b4f2c'); for (let q = 0; q < 3; q++) P(nx + 1, y + 3 + q * 2, 6, 1, 'rgba(232,226,208,.7)'); for (let q = 0; q < 3; q++) P(nx + 2 + q * 2, y + 3, 1, 5, 'rgba(232,226,208,.5)'); if (v(2) > 0.4) { P(x + 3, y + 10, 8, 2, '#6b4f2c'); P(x + 4, y + 9, 6, 1, '#8a6a3a'); } }],
     [3, 'A mill on the water', (tx, ty) => on(GR)(tx, ty) && wet(at(tx + 3, ty)) && !wet(at(tx + 3, ty - 3)), (x, y, P, v) => { const c = cot(P, v, x + 2, y, { w: 10 + Math.floor(v(1) * 3), h: 7 }); const wx = x + 3 + c.w; P(wx, y, 8, 8, '#5a4326'); P(wx + 1, y + 1, 6, 6, '#6fa8c8'); P(wx + 3, y, 2, 8, '#7a5a34'); P(wx, y + 3, 8, 2, '#7a5a34'); P(wx + 3, y + 3, 2, 2, '#3a2a1c'); P(wx, y + 8, 8, 1, '#e6f3fa'); if (v(2) > 0.5) { P(x - 2, y + 6, 4, 3, '#e8dcc0'); P(x - 2, y + 6, 4, 1, '#f4ecd8'); } }],
     [3, 'A windmill', (tx, ty) => on([T_HILL, T_GRASS])(tx, ty) && [[0, 1], [1, 1], [-1, 0], [3, 0]].some(([dx, dy]) => at(tx + dx, ty + dy) === T_HILL), (x, y, P, v) => { const tw = v(1) > 0.5 ? '#d8cdb6' : '#b8ab94'; P(x + 3, y + 9, 12, 2, 'rgba(0,0,0,.22)'); for (let i = 0; i < 15; i++) { const w = 5 + Math.floor(i / 5); P(x + 9 - w + (w >> 1), y - 6 + i, w, 1, tw); P(x + 9 - w + (w >> 1), y - 6 + i, 1, 1, tint(tw, 1.1)); } P(x + 6, y - 9, 6, 3, v(2) > 0.5 ? '#a8482a' : '#6b4f2c'); P(x + 8, y + 6, 2, 3, '#3a2416'); const hx = x + 8, hy = y - 5; P(hx - 1, hy - 1, 3, 3, '#5a4326'); P(hx, hy, 1, 1, '#3a2a1c'); }],
     [4, 'A field barn', inReg(GR, ['The Long Meadows', 'The Home Fields', 'The Barrow Downs']), (x, y, P, v) => { const c = cot(P, v, x + 1, y + 1, { w: 12 + Math.floor(v(1) * 4), h: 6, roof: v(2) > 0.5 ? 'thatch' : 'shingle', wall: v(3) > 0.5 ? '#8a6a3a' : '#b8ab94', smoke: false }); P(x + 4, y + 3, 4, 4, '#3a2416'); P(x + 5, y + 3, 1, 4, '#5a4326'); const rx = x + 4 + c.w; if (v(4) > 0.5) { P(rx, y + 3, 6, 5, '#d9c070'); P(rx + 1, y + 2, 4, 1, '#e6d088'); P(rx, y + 8, 7, 1, 'rgba(0,0,0,.18)'); } else { P(rx, y + 5, 7, 2, '#8a6a3a'); P(rx + 7, y + 6, 3, 1, '#6b4f2c'); P(rx + 1, y + 7, 2, 2, '#3a2a1c'); P(rx + 4, y + 7, 2, 2, '#3a2a1c'); P(rx + 1, y + 3, 5, 2, '#d9c070'); } }],
     [3, "A peat cutter's hut", inReg(MS, ['Blackmere']), (x, y, P, v) => { cot(P, v, x + 1, y + 2, { w: 6, h: 4, roof: 'turf', wall: '#6a5a44' }); const px = x + 10; P(px, y + 6, 9 + Math.floor(v(1) * 4), 3, '#241c16'); P(px + 1, y + 7, 6, 1, '#3d5a52'); for (let q = 0; q < 2 + Math.floor(v(2) * 3); q++) { P(px + q * 4, y + 1, 3, 4, '#3a2e24'); P(px + q * 4, y + 1, 3, 1, '#5a4a3a'); P(px + q * 4, y + 3, 3, 1, '#2a2018'); } }],
-    [3, 'A lime kiln', inReg(HL, ['The Quarry Hills']), (x, y, P, v) => { P(x + 1, y + 9, 12, 2, 'rgba(0,0,0,.22)'); P(x + 2, y - 1, 9, 10, '#b8b0a0'); P(x + 2, y - 1, 2, 10, '#d0c8b8'); P(x + 3, y - 2, 7, 1, '#8f8876'); P(x + 5, y + 5, 3, 4, '#2a1c14'); P(x + 5, y + 7, 3, 2, '#e2702a'); P(x + 6, y + 6, 1, 1, '#f0c040'); prov.smokes.push({ x: P.at(x + 6), y: y - 3 }); for (let q = 0; q < 2 + Math.floor(v(1) * 3); q++) { P(x + 13 + q * 3, y + 6 - (q % 2) * 2, 3, 3, '#f0ece0'); P(x + 13 + q * 3, y + 8 - (q % 2) * 2, 3, 1, '#c8c2b2'); } if (v(2) > 0.5) cot(P, v, x + 14, y - 4, { w: 6, h: 4, roof: 'slate', wall: '#b8ab94', smoke: false }); }],
+    [3, 'A lime kiln', inReg(HL, ['The Quarry Hills']), (x, y, P, v) => { P(x + 1, y + 9, 12, 2, 'rgba(0,0,0,.22)'); P(x + 2, y - 1, 9, 10, '#b8b0a0'); P(x + 2, y - 1, 2, 10, '#d0c8b8'); P(x + 3, y - 2, 7, 1, '#8f8876'); P(x + 5, y + 5, 3, 4, '#2a1c14'); P(x + 5, y + 7, 3, 2, '#e2702a'); P(x + 6, y + 6, 1, 1, '#f0c040'); fresh.smokes.push({ x: P.at(x + 6), y: y - 3 }); for (let q = 0; q < 2 + Math.floor(v(1) * 3); q++) { P(x + 13 + q * 3, y + 6 - (q % 2) * 2, 3, 3, '#f0ece0'); P(x + 13 + q * 3, y + 8 - (q % 2) * 2, 3, 1, '#c8c2b2'); } if (v(2) > 0.5) cot(P, v, x + 14, y - 4, { w: 6, h: 4, roof: 'slate', wall: '#b8ab94', smoke: false }); }],
     [4, 'A wayside inn', (tx, ty) => on(GR)(tx, ty) && byRoad(tx, ty), (x, y, P, v) => { const c = cot(P, v, x + 1, y - 2, { w: 10 + Math.floor(v(1) * 4), h: 9, roof: v(2) > 0.5 ? 'tile' : 'slate' }); P(x + 3, y, 2, 2, '#3a2a1c'); P(x + 7, y, 2, 2, '#e8c060'); const sx = x + 3 + c.w; P(sx, y - 3, 1, 10, '#5a4326'); P(sx, y - 3, 5, 1, '#5a4326'); P(sx + 2, y - 2, 3, 3, ['#c23b2e', '#3a6ea8', '#c9a21e', '#35602b'][Math.floor(v(3) * 4)]); P(sx + 3, y - 1, 1, 1, '#f1ead8'); P(sx + 2, y + 6, 6, 2, '#6b4f2c'); P(sx + 3, y + 6, 4, 1, '#6fa8c8'); if (v(4) > 0.5) { P(sx + 9, y + 3, 5, 3, '#7a5234'); P(sx + 13, y + 1, 2, 3, '#7a5234'); P(sx + 9, y + 6, 1, 2, '#5a3a24'); P(sx + 13, y + 6, 1, 2, '#5a3a24'); } }],
     [2, "A hermit's cell", (tx, ty) => on([T_HILL, T_GRASS])(tx, ty) && [[0, -2], [1, -2], [2, -2], [1, -3]].some(([dx, dy]) => at(tx + dx, ty + dy) === T_PEAK) && ![1, 2, 3, 4].some(dy => [-2, -1, 0, 1, 2, 3, 4].some(dx => at(tx + dx, ty + dy) === T_PEAK)), (x, y, P, v) => { const c = cot(P, v, x + 3, y + 3, { w: 5, h: 4, roof: 'slate', wall: '#a8a090', smoke: false }); P(x + 5, y - 3 - c.rh + 3, 1, 3, '#d8d2c0'); P(x + 4, y - 2 - c.rh + 3, 3, 1, '#d8d2c0'); P(x + 10, y + 5, 6, 4, '#6a5a3a'); for (let q = 0; q < 3; q++) P(x + 11 + q * 2, y + 6 + (q % 2), 1, 2, '#55803a'); P(x + 17, y + 7, 2, 2, '#8a8478'); }],
     [3, "A beekeeper's cottage", (tx, ty) => on([T_MEADOW, T_GRASS])(tx, ty) && at(tx, ty) === T_MEADOW, (x, y, P, v) => { const c = cot(P, v, x + 1, y + 1, { roof: 'thatch' }); const bx = x + 4 + c.w; for (let q = 0; q < 3 + Math.floor(v(1) * 3); q++) { P(bx + q * 4, y + 5, 3, 4, '#c9a763'); P(bx + q * 4 + 1, y + 4, 1, 1, '#c9a763'); P(bx + q * 4, y + 6, 3, 1, '#a8853f'); P(bx + q * 4 + 1, y + 8, 1, 1, '#2a1c14'); } P(bx, y + 9, 16, 1, '#8a6a3a'); for (let q = 0; q < 4; q++) P(bx + Math.floor(v(5 + q) * 14), y + Math.floor(v(9 + q) * 4), 1, 1, '#2a1c14'); }],
@@ -1865,7 +1877,7 @@ function provLand() {
       }
     }
     if (src) feats.push({ y: src[1] + 8, d: () => { const [sx, sy] = src; R(sx - 7, sy + 5, 16, 2, 'rgba(0,0,0,.22)'); R(sx - 6, sy - 8, 13, 13, '#d8d2c0'); R(sx - 6, sy - 8, 13, 1, '#f0e8d6'); R(sx - 6, sy - 8, 1, 13, '#e4dfcd'); R(sx + 6, sy - 8, 1, 13, '#a39a84'); R(sx - 4, sy - 6, 9, 6, '#4f86ae'); R(sx - 3, sy - 6, 6, 1, '#b4d6ea'); R(sx - 2, sy + 1, 5, 4, '#3a2a1c'); R(sx - 7, sy - 10, 15, 2, '#b5522e'); R(sx - 7, sy - 10, 15, 1, '#d06a3e'); } });      // the water-house at the source: a tank under a tiled roof, and the sluice
-    prov.aqueduct = src; prov.aqLine = pts;
+    fresh.aqueduct = src; fresh.aqLine = pts;
   }
   const OUT = [
     (x, y, P, v) => cot(P, v, x + 1, y + 4, { w: 5 + Math.floor(v(1) * 3), h: 4 }),
@@ -1890,7 +1902,7 @@ function provLand() {
     feats.push({ y: y + 9, d: () => OUT[kind](x, y, P, v) });
   }
   for (const [k, now] of laterRoad) L.t[k] = now;      // the mill road, back where it runs
-  prov.marks = marks;
+  fresh.marks = marks;
   // each road, as the run of its own tiles from one end to the other, so that travellers keep to it
   const wayOf = poly => {
     const pts = [];
@@ -1907,41 +1919,41 @@ function provLand() {
     }
     return pts;
   };
-  prov.ways = WILD_ROADS.filter(q => q.length >= 3).map(wayOf).filter(w => w.length > 12);
+  fresh.ways = WILD_ROADS.filter(q => q.length >= 3).map(wayOf).filter(w => w.length > 12);
   // the mill road, from the first mill on it to the barns at its end: the miller's cart goes up and down it
   { const way = wayOf(WILD_BYROAD); let from = 1e9;
     for (const m of marks) if (m.name === 'The mill') { let bi = -1, bd = 90; way.forEach((p, i) => { const d = Math.hypot(p[0] - m.x - m.r, p[1] - m.y); if (d < bd) { bd = d; bi = i; } }); if (bi >= 0) from = Math.min(from, bi); }
     if (from > way.length) from = 0;
-    prov.millWay = way.length - from > 12 ? way.slice(from) : way.length > 12 ? way : null; }
-  prov.birds = [];
+    fresh.millWay = way.length - from > 12 ? way.slice(from) : way.length > 12 ? way : null; }
+  fresh.birds = [];
   for (const m of marks) {
-    if (m.name === 'An old battlefield' || m.name === 'The gallows') prov.birds.push({ x: m.x + m.r, y: m.y - 14, kind: 'crow', n: 3, r: 16 });
-    else if (m.name === 'The eagle rock') prov.birds.push({ x: m.x + 8, y: m.y - 30, kind: 'eagle', n: 1, r: 34 });
-    else if (m.name === 'The beacon' || m.name === 'A wreck on the strand' || m.name === 'The fishers\' huts') prov.birds.push({ x: m.x + m.r, y: m.y - 18, kind: 'gull', n: 3, r: 20 });
-    else if (m.name === 'The drowned temple' || m.name === 'The bog oak') prov.birds.push({ x: m.x + m.r, y: m.y - 16, kind: 'crow', n: 2, r: 12 });
+    if (m.name === 'An old battlefield' || m.name === 'The gallows') fresh.birds.push({ x: m.x + m.r, y: m.y - 14, kind: 'crow', n: 3, r: 16 });
+    else if (m.name === 'The eagle rock') fresh.birds.push({ x: m.x + 8, y: m.y - 30, kind: 'eagle', n: 1, r: 34 });
+    else if (m.name === 'The beacon' || m.name === 'A wreck on the strand' || m.name === 'The fishers\' huts') fresh.birds.push({ x: m.x + m.r, y: m.y - 18, kind: 'gull', n: 3, r: 20 });
+    else if (m.name === 'The drowned temple' || m.name === 'The bog oak') fresh.birds.push({ x: m.x + m.r, y: m.y - 16, kind: 'crow', n: 2, r: 12 });
   }
-  prov.boats.filter(q => !q[2]).slice(0, 5).forEach(([bx, by]) => prov.birds.push({ x: bx, y: by - 16, kind: 'gull', n: 2, r: 14 }));
+  fresh.boats.filter(q => !q[2]).slice(0, 5).forEach(([bx, by]) => fresh.birds.push({ x: bx, y: by - 16, kind: 'gull', n: 2, r: 14 }));
   for (let ty = 3; ty < TH - 3; ty++) for (let tx = 3; tx < TW - 3; tx++) {      // a hawk hanging over the hills, swallows over the water, starlings over the fields, duck on the lakes, a heron in the marsh
     const c1 = h(tx, ty, 1280); if (c1 < 0.9965) continue;
     const k = at(tx, ty), x = tx * 10 + 5, y = ty * 10 + 5, c2 = h(tx, ty, 1281), sdv = shoreD[ty * TW + tx];
-    if (prov.birds.length > 60 || prov.birds.some(q => Math.hypot(q.x - x, q.y - y) < 130)) continue;
-    if (k === T_HILL) { if (c2 > 0.55) prov.birds.push({ x, y: y - 22, kind: 'kestrel', n: 1, r: 30 }); }
-    else if (k === T_WATER && sdv <= 2) prov.birds.push({ x, y: y - 6, kind: 'swallow', n: 2 + Math.floor(c2 * 3), r: 18 });
-    else if (k === T_WATER && sdv >= 3 && tx > 16 && !seaM[ty * TW + tx]) prov.birds.push({ x, y: y - 14, kind: 'duck', n: 3 + Math.floor(c2 * 4), r: 40 });
-    else if (k === T_MEADOW || k === T_GRASS) { if (c2 > 0.72) prov.birds.push({ x, y: y - 26, kind: 'starling', n: 10 + Math.floor(c2 * 10), r: 34 }); }
-    else if (k === T_MARSH) prov.birds.push({ x, y: y - 16, kind: 'heron', n: 1, r: 36 });
+    if (fresh.birds.length > 60 || fresh.birds.some(q => Math.hypot(q.x - x, q.y - y) < 130)) continue;
+    if (k === T_HILL) { if (c2 > 0.55) fresh.birds.push({ x, y: y - 22, kind: 'kestrel', n: 1, r: 30 }); }
+    else if (k === T_WATER && sdv <= 2) fresh.birds.push({ x, y: y - 6, kind: 'swallow', n: 2 + Math.floor(c2 * 3), r: 18 });
+    else if (k === T_WATER && sdv >= 3 && tx > 16 && !seaM[ty * TW + tx]) fresh.birds.push({ x, y: y - 14, kind: 'duck', n: 3 + Math.floor(c2 * 4), r: 40 });
+    else if (k === T_MEADOW || k === T_GRASS) { if (c2 > 0.72) fresh.birds.push({ x, y: y - 26, kind: 'starling', n: 10 + Math.floor(c2 * 10), r: 34 }); }
+    else if (k === T_MARSH) fresh.birds.push({ x, y: y - 16, kind: 'heron', n: 1, r: 36 });
   }
   { const LB = { 'The beacon': ['gull', 4, 26], 'A wreck on the strand': ['gull', 3, 22], 'The bones of a whale': ['gull', 2, 20], "The fishers' huts": ['gull', 4, 26], 'The salt pans': ['gull', 3, 30], 'The ferry': ['swallow', 3, 20],
       'The gallows': ['crow', 3, 18], 'An old battlefield': ['crow', 4, 24], 'A burnt village': ['crow', 3, 24], 'The bog oak': ['crow', 2, 16], 'The barrow of kings': ['crow', 2, 26], 'The wolf stone': ['crow', 1, 16],
       'The eagle rock': ['eagle', 2, 30], 'The great waterfall': ['eagle', 1, 40], 'The watchtower': ['kestrel', 1, 26], 'The fallen colossus': ['kestrel', 1, 28], "The giant's table": ['kestrel', 1, 26],
       'The white temple': ['swallow', 4, 24], 'The sacred grove': ['swallow', 3, 22], 'The mill': ['swallow', 4, 22], 'The old arena': ['swallow', 4, 26], 'The old arch': ['swallow', 2, 18], 'A villa in its garden': ['swallow', 3, 24], 'The broken aqueduct': ['swallow', 3, 24],
       'The drowned temple': ['heron', 1, 26], 'The causeway': ['heron', 1, 30], 'The huts on stilts': ['duck', 4, 30], 'The great oak': ['starling', 14, 26], 'The bee garden': ['swallow', 2, 20], 'The great quarry': ['kestrel', 1, 34] };
-    for (const m of marks) { const b = LB[m.name]; if (b) prov.birds.push({ x: m.x + m.r, y: m.y - (b[0] === 'duck' ? 4 : 26), kind: b[0], n: b[1], r: b[2] }); } }      // gulls over the beacon, crows over the gallows, an eagle over its rock
+    for (const m of marks) { const b = LB[m.name]; if (b) fresh.birds.push({ x: m.x + m.r, y: m.y - (b[0] === 'duck' ? 4 : 26), kind: b[0], n: b[1], r: b[2] }); } }      // gulls over the beacon, crows over the gallows, an eagle over its rock
   // nothing grows wild in a ploughed field or between the vines: the farm's own trees are set down with its plots
   const inFields = (cx, cy) => marks.some(m => { const k = SET_OF[m.name]; if (k !== 'corn' && k !== 'vines') return false; const rx = m.r + (k === 'corn' ? 66 : 40), ry = k === 'corn' ? 48 : 31, dx = (cx - m.x - m.r) / rx, dy = (cy - m.y) / ry; return dx * dx + dy * dy < 0.92; });
   const nearMark = (cx, cy) => marks.some(m => cx > m.x - 6 && cx < m.x + m.r * 2 + 4 && cy > m.y - m.r * 1.6 && cy < m.y + 16) || inFields(cx, cy);
 
-  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+  for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, a = h(tx, ty, 60), b = h(tx, ty, 61);
     if (k === T_FOREST) {
       const reg = wildRegion(x + 5, y + 5), edge = at(tx - 1, ty) !== T_FOREST || at(tx + 1, ty) !== T_FOREST || at(tx, ty - 1) !== T_FOREST || at(tx, ty + 1) !== T_FOREST;
@@ -2100,10 +2112,10 @@ function provLand() {
         if (w > 20 && h(tx, ty, 100) > 0.6) { const px = cx - Math.round(w * 0.3); for (let q = 0; q < 3; q++) R(px + q * 2, by - 2 - q * 2, 2, 2, '#35543a'); }                                                              // pines at its foot
       } });
     }
-  }
+  } }
   // ---- the trees of the woods, out over the whole country: the same kinds that make each region's forest, standing
   // singly and in twos and threes on open ground, thicker in some stretches than others and nowhere thick ----
-  for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {
+  for (let ty = 2; ty < TH - 2; ty++) { yield; for (let tx = 2; tx < TW - 2; tx++) {
     const k = at(tx, ty);
     if (k !== T_GRASS && k !== T_MEADOW && k !== T_HILL) continue;
     const x = tx * 10, y = ty * 10, r0 = h(tx, ty, 1601), drift = wildNoise(tx / 8, ty / 8, 1600), want = k === T_HILL ? 0.02 + Math.max(0, drift - 0.45) * 0.14 : 0.03 + Math.max(0, drift - 0.45) * 0.22;
@@ -2117,7 +2129,7 @@ function provLand() {
       const sz = (k === T_HILL ? 2 : 3) + Math.floor(h(tx, ty, 1609 + q) * 3), f = 0.88 + h(tx, ty, 1612 + q) * 0.24, cx = x + 2 + Math.floor(h(tx, ty, 1615 + q) * 6) + q * 5, cy = y + 6 + Math.floor(h(tx, ty, 1618 + q) * 3) - q * 2;
       feats.push({ y: cy, d: () => tree(cx, cy, kind, sz, f) });
     }
-  }
+  } }
   for (const [tx, ty] of lone) {
     const x = tx * 10, y = ty * 10, reg = wildRegion(x + 5, y + 5), kind = species(tx, ty, reg, h(tx, ty, 101)), sz = 2 + Math.floor(h(tx, ty, 102) * 3), f = 0.88 + h(tx, ty, 103) * 0.24, cx = x + 2 + Math.floor(h(tx, ty, 104) * 6), cy = y + 7;
     feats.push({ y: cy, d: () => tree(cx, cy, kind === 'dead' && h(tx, ty, 105) > 0.3 ? 'oak' : kind, sz, f) });
@@ -2126,7 +2138,7 @@ function provLand() {
   // down from high ground, reeds and standing water creep out of a marsh, boulders lie below a range, and sand
   // blows inland. Only what is drawn: the ground underfoot is what it was.
   const nearKind = (tx, ty, kind) => { for (let r = 1; r <= 2; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && at(tx + dx, ty + dy) === kind) return r; return 0; };
-  for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {
+  for (let ty = 2; ty < TH - 2; ty++) { yield; for (let tx = 2; tx < TW - 2; tx++) {
     const k = at(tx, ty);
     if (k !== T_GRASS && k !== T_MEADOW && k !== T_HILL) continue;
     if (k !== T_HILL && farmland(tx, ty)) continue;
@@ -2188,11 +2200,38 @@ function provLand() {
     } else if (dSand === 1 && e1 < 0.5) {                        // sand blown in over the grass
       feats.push({ y: y, d: () => { for (let q = 0, n = 2 + Math.floor(e2 * 3); q < n; q++) { const sw = 2 + Math.floor(h(tx, ty, 831 + q) * 4); R(x + Math.floor(h(tx, ty, 834 + q) * (10 - sw)), y + 1 + Math.floor(h(tx, ty, 837 + q) * 8), sw, 1 + (q % 2), q % 2 ? '#d8c48a' : '#cdb97e'); } if (e3 > 0.6) { R(x + 4, y + 3, 1, 3, '#9aa860'); R(x + 5, y + 2, 1, 1, '#aab870'); } } });
     }
-  }
+  } }
+  yield;
   feats.sort((p1, p2) => p1.y - p2.y);
-  for (const ft of feats) ft.d();
+  { let n = 0; for (const ft of feats) { ft.d(); if (!(++n & 31)) yield; } }
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) if (at(tx, ty) === T_FOREST && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood') R(tx * 10, ty * 10 - 4, 10, 12, 'rgba(128,132,136,.16)');      // an old wood, gone grey
-  return (prov.land = cv);
+  fresh.land = cv;
+  return fresh;
+}
+// One more piece of the painting. When the last is done, what was made is handed over.
+function provLandStep() {
+  const it = prov.making || (prov.making = provLandSteps({}));
+  let r;
+  try { r = it.next(); } catch (e) { prov.making = null; throw e; }      // begun again from nothing, if it is asked for again
+  if (r.done) { prov.making = null; Object.assign(prov, r.value); }
+}
+function provLand() {
+  while (!prov.land) provLandStep();
+  return prov.land;
+}
+// Six to ten thousandths of a second of it whenever the browser is idle, which is once a frame, and every so often even
+// when it never is: so the map is ready a few seconds after the page is up, before anyone can walk to the gate.
+function provLandAhead() {
+  if (prov.land || prov.ahead || typeof document === 'undefined') return;
+  const idle = typeof requestIdleCallback === 'function';
+  const wait = () => { prov.ahead = idle ? requestIdleCallback(more, { timeout: 400 }) : setTimeout(more, 40); };
+  const more = dl => {
+    const until = performance.now() + clamp(dl && dl.timeRemaining ? dl.timeRemaining() : 0, 6, 10);      // six at least: some browsers own to almost no idle time, and the job must still get done
+    try { while (!prov.land) { provLandStep(); if (performance.now() >= until) break; } }      // (it may have been finished at the gate meanwhile)
+    catch (e) { console.error(e); prov.ahead = -1; return; }      // not tried again here: provLand will, and will say why, when the map is wanted
+    if (prov.land) prov.ahead = 0; else wait();
+  };
+  wait();
 }
 
 // ---------- flocks, herds and birds: alive on the map ----------
@@ -4492,6 +4531,7 @@ function renderWilds() {
   if (!el) return;
   const out = !!(G && G.field && !G.ruin);
   el.hidden = !out;
+  provLandAhead();
   if (!out) return;
   const F = G.field, M = wildMap(), dg = daysToGames(), men = G.roster.filter(g => !g.away), sel = men.find(g => g.id === ui.campSel);
   const unseen = men.filter(g => g.quest && QUESTS[g.quest.id] && !wildSites().some(st => (st.journey || QUEST_SITE[st.kind]) && questAt(st) === g && siteKnown(st)));      // a journey whose place is not yet on the list below
