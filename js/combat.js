@@ -364,11 +364,11 @@ function resolveAttack(B, a, d, o) {
     fxBlood(B, d, crit ? 9 : 4, a.facing);
     snd(B, 'hit', crit ? 1.5 : clamp(0.75 + dmg / d.maxHp * 2.2, 0.75, 1.15), d, a.g.beast ? 'beast' : a.g.cls + (d.armor >= 3 ? ' armor' : ''));      // by what struck, what it struck, and how hard
     // a heavy blow to the head can tear a helmet off; it lies where it lands
-    if (crit && !d.noHelm && (d.g.cls === 'murmillo' || d.g.cls === 'thraex' || d.g.cls === 'hoplomachus') && chance(0.4)) {
+    const hd = crit && !d.noHelm ? gearLook(d.g).head : 0;
+    if (hd && chance(0.4)) {
       d.noHelm = true;
-      const hd = gearLook(d.g).head;
       B.props.push({ x0: d.x, y0: d.y, x: clamp(d.x + a.facing * rand(10, 22), B.field.x0, B.field.x1), y: clamp(d.y + rand(-5, 6), B.field.y0, B.field.y1), t: B.clock,
-        col: hd >= 3 ? '#b4bec8' : hd === 2 ? '#dcae48' : '#b98a34', crest: d.g.cls === 'hoplomachus' ? '#f0ead8' : B.col[d.team] });
+        col: hd >= 3 ? '#b4bec8' : hd === 2 ? '#dcae48' : '#b98a34', crest: d.g.cls === 'hoplomachus' ? '#f0ead8' : d.g.cls === 'murmillo' || d.g.cls === 'thraex' ? B.col[d.team] : null });
       fxText(B, d, 'helmet torn off', '#ffd24a');
       feed(B, `${a.g.name} knocks the helmet from ${d.g.name}'s head`, a.team);
       B.exc += 0.04 * a.show;
@@ -765,7 +765,7 @@ function drawSpriteBody(ctx, o) {
   const hilt = weaponT >= 3 ? '#e8b545' : weaponT >= 1 ? '#8a6230' : '#5e4222';
   const gold = '#e8b545', wood = '#7a5a2a', cloth = '#ddd3ba', clothD = '#b0a488', leather = '#6b4526', ink = '#1c1310';
   const torso = [skin, '#d6c8a2', skin, '#aeb8c2'][armorT], torsoD = [skinD, '#b0a078', skinD, '#7c8792'][armorT];
-  const helmed = (cls === 'murmillo' || cls === 'thraex' || cls === 'hoplomachus') && !o.noHelm;
+  const helmed = look.head > 0 && !o.noHelm;      // a helmet only where he wears one; its crest is his school's
   const manica = cls === 'murmillo' || cls === 'thraex' || cls === 'retiarius' || look.arms;
   const plated = look.armsT >= 2;                 // a good arm guard is scaled metal, not wrapped linen
   const arm = plated ? shade(metalOf(look.armsT), 0.92) : manica ? '#cfc4a6' : skin, armD = plated ? shade(metalOf(look.armsT), 0.62) : manica ? '#a2977a' : skinD;
@@ -787,7 +787,7 @@ function drawSpriteBody(ctx, o) {
     if (armorT === 2) { P(0, -8, 6, 4, metal); P(0, -8, 6, 1, metalL); }
     if (armorT === 3) { for (let x = -1; x < 8; x += 2) P(x, -8, 1, 6, '#7c8792'); }
     L(6, -3, 13, -1, 2, arm);
-    if (helmed) { P(8, -9, 7, 7, metal); P(8, -9, 7, 1, metalL); P(13, -6, 2, 3, ink); P(6, -10, 3, 3, cls === 'hoplomachus' ? '#f0ead8' : team); }
+    if (helmed) { P(8, -9, 7, 7, metal); P(8, -9, 7, 1, metalL); P(13, -6, 2, 3, ink); if (cls === 'murmillo' || cls === 'thraex' || cls === 'hoplomachus') P(6, -10, 3, 3, cls === 'hoplomachus' ? '#f0ead8' : team); }
     else { P(8, -8, 6, 6, skin); P(8, -8, 6, 2, hair); P(8, -6, 2, 3, hair); P(12, -5, 1, 1, ink); }
     L(14, -1, 22, -1, 1, blade); P(13, -2, 1, 2, hilt);
     return;
@@ -874,7 +874,7 @@ function drawSpriteBody(ctx, o) {
     } else if (cls === 'thraex') {       // griffin hook with a plume behind it
       P(-5, -40 + by, 4, 2, team); P(-5 + sway, -42 + by, 4, 2, team); P(-6, -41 + by, 1, 5, teamD); P(-4 + sway, -43 + by, 2, 1, teamL);
       P(0, -41 + by, 2, 3, metal); P(1, -43 + by, 3, 2, metal); P(4, -42 + by, 1, 2, metalL); P(2, -42 + by, 1, 1, ink);
-    } else {                             // feathers
+    } else if (cls === 'hoplomachus') {  // feathers; any other school wears the helm plain
       P(-1, -42 + by, 2, 4, '#f0ead8'); P(-3, -41 + by, 2, 3, '#f0ead8'); P(1, -40 + by, 2, 2, '#d8d0b8');
       P(-1 + sway, -44 + by, 2, 2, '#f0ead8'); P(-3 + sway, -43 + by, 2, 2, '#f0ead8'); P(1 + sway, -42 + by, 2, 2, '#d8d0b8');
       P(-1 + sway, -45 + by, 2, 1, team); P(-3 + sway, -44 + by, 2, 1, team); P(1 + sway, -43 + by, 2, 1, team); P(-5, -41 + by, 2, 3, '#d8d0b8');

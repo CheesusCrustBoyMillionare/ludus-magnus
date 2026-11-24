@@ -377,7 +377,7 @@ function showBack(ctx, B, T) {
   for (const p of B.props) {              // helmets torn off: they spin away, land, and lie there
     const q = Math.min(1, (T - p.t) / 0.5), x = Math.round((p.x0 + (p.x - p.x0) * q) * 2), y = Math.round((p.y0 * 2 - 70) + (p.y * 2 - (p.y0 * 2 - 70)) * q - Math.sin(q * Math.PI) * 14);
     if (q >= 1) R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,.2)');
-    R(x - 3, y - 6, 7, 6, p.col); R(x - 3, y - 6, 7, 1, shade(p.col, 1.4)); R(x - 3, y - 6, 1, 6, shade(p.col, 0.68)); R(x + 1, y - 3, 2, 2, '#1c1310'); R(x - 2, y - 8, 4, 2, p.crest);
+    R(x - 3, y - 6, 7, 6, p.col); R(x - 3, y - 6, 7, 1, shade(p.col, 1.4)); R(x - 3, y - 6, 1, 6, shade(p.col, 0.68)); R(x + 1, y - 3, 2, 2, '#1c1310'); if (p.crest) R(x - 2, y - 8, 4, 2, p.crest);
   }
   // heat: by day the foot of the wall and the far sand swim a little
   if (!B.wild && B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
