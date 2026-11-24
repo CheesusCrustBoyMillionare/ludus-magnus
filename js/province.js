@@ -2769,6 +2769,7 @@ function gateLeave(ctx, k) { if (k > 0) ctx.restore(); }
 // What joins two of them (the shafts of a cart, the pole of a litter, a drag rope) is given as a link: an end on each,
 // where it would be on a road running across the map. It is drawn from the one to the other wherever the way has
 // put them, and under them both.
+const ROW_REACH = 16;
 function rowOf(ctx, d, face, along) {
   const parts = [], links = [];
   return {
@@ -2776,7 +2777,9 @@ function rowOf(ctx, d, face, along) {
     link(offA, xa, ya, offB, xb, yb, c) { links.push({ offA, xa, ya, offB, xb, yb, c }); return this; },
     draw() {
       if (!parts.length) return;
-      const lead = along && along(0), on = along && along(6), hx = on ? on.x - lead.x : 0, hy = on ? on.y - lead.y : 0;
+      // which way the way runs here is taken over a long stretch of it, before the leader and behind: a road that goes
+      // down the map in steps is then one slant, and they do not close up and open out again at every step of it
+      const lead = along && along(0), on = along && along(ROW_REACH), back = along && along(-ROW_REACH), hx = on ? on.x - back.x : 0, hy = on ? on.y - back.y : 0;
       const vert = along ? (Math.abs(hx) + Math.abs(hy) > 0.01 ? Math.abs(hy) / (Math.abs(hx) + Math.abs(hy)) : 0) : (face === 'up' || face === 'down' ? 1 : 0);
       if (!vert && !along) parts.forEach(q => { q.tx = 0; q.ty = 0; });
       else {
@@ -2812,6 +2815,17 @@ function wayOn(W, d) {
   const n = W.pts.length, a = d < 0 ? W.pts[0] : W.pts[n - 1], b = d < 0 ? W.pts[1] : W.pts[n - 2], seg = Math.hypot(a.x - b.x, a.y - b.y) || 1, over = d < 0 ? -d : d - W.total;
   return { x: a.x + (a.x - b.x) / seg * over, y: a.y + (a.y - b.y) / seg * over };
 }
+// A beast of burden going up the map or down it, seen end on: from behind (up), its rump and tail and its ears beyond;
+// from in front, its face. Narrow, as the horses of the column are when they go that way.
+function beastEnd(R, bx, by, c, up, big, step) {
+  const w = big ? 7 : 5, h = big ? 6 : 5, x0 = bx - (w >> 1), top = by - h - 2, dk = shade(c, 0.6), lt = shade(c, 1.15);
+  R(x0, by + 1, w + 1, 1, 'rgba(0,0,0,.22)');
+  R(x0, by - 2, 1, 3 - (step ? 1 : 0), dk); R(x0 + w - 1, by - 2, 1, 3, dk);                    // two legs showing
+  R(x0, top, w, h, c); R(x0, top, 1, h, lt); R(x0 + w - 1, top, 1, h, dk);                      // the barrel of it
+  R(x0, top - 2, 1, 2, c); R(x0 + w - 1, top - 2, 1, 2, c);                                     // ears
+  if (up) { R(x0 + 1, top - 1, w - 2, 1, c); R(bx, top + 2, 1, h - 1, dk); }                    // the poll between them; the tail toward you
+  else { R(x0 + 1, top, w - 2, h - 1, lt); R(x0 + 1, top + 1, 1, 1, '#1c1310'); R(x0 + w - 2, top + 1, 1, 1, '#1c1310'); R(x0 + 1, top + h - 2, w - 2, 1, dk); }      // its face: eyes, and a dark muzzle
+}
 function drawTraffic(ctx, T, R, inView) {
   (prov.ways || []).forEach((way, wi) => {
     const len = way.length - 1, n = len > 60 ? 3 : 2;
@@ -2824,7 +2838,7 @@ function drawTraffic(ctx, T, R, inView) {
       const face = C.face, d = C.dir, walk = T * 9 + j * 3, step = C.moving && Math.sin(walk) > 0 ? 1 : 0;
       const row = rowOf(ctx, d, face, C.along);
       const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c' }, extra));
-      const beast = (bx, by, c, big) => { const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
+      const beast = (bx, by, c, big) => { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, step); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
       if (kind === 'cart') {
         const cx = x - d * 12; row.link(-12, cx + d * 5, y - 4, 0, x - d * 3, y - 4, '#6b4f2c'); row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 14);
         row.part(0, () => beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48'), 10); row.part(8, () => man(d * 8, 1, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a'), 20);
@@ -2882,6 +2896,7 @@ function drawMillCart(ctx, T, R, inView) {
   row.link(-12, cx + d * 6, cy - 5, 0, x - d * 3, y - 5, '#6b4f2c');                                                 // the shafts
   const mc = '#9a8a72', bx = x;                                                                                      // the mule
   row.part(0, () => {
+  if (C.face === 'up' || C.face === 'down') { beastEnd(R, bx, y, mc, C.face === 'up', false, step); return; }
   R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
   R(d > 0 ? bx + 3 : bx - 4, y - 9, 1, 2, '#6a5c4a'); R(bx - 3 + step, y - 2, 1, 3, '#5c5244'); R(bx + 3 - step, y - 2, 1, 3, '#5c5244'); R(d > 0 ? bx - 4 : bx + 4, y - 4, 1, 3, '#5c5244');
   }, 10);
@@ -3002,12 +3017,17 @@ function wayAt(W, d) {
 }
 // Something that goes up a way and down it for ever, standing a while at each end.
 // leg: 0 standing at the near end, 1 going, 2 standing at the far end, 3 coming back.
+const FACE_REACH = 9;
 function shuttleAt(W, T, speed, wait, phase) {
   const go = W.total / speed, cyc = (go + wait) * 2, t = (T + (phase || 0) * cyc) % cyc;
   const leg = t < wait ? 0 : t < wait + go ? 1 : t < wait * 2 + go ? 2 : 3;
   const d = leg === 0 ? 0 : leg === 1 ? (t - wait) * speed : leg === 2 ? W.total : W.total - (t - wait * 2 - go) * speed, back = leg === 3 || leg === 0;
-  const at = wayAt(W, d), on = wayAt(W, d + (back ? -5 : 5)), dx = on.x - at.x, dy = on.y - at.y;
-  return { x: Math.round(at.x), y: Math.round(at.y), d, leg, moving: leg === 1 || leg === 3, face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), dir: dx >= 0 ? 1 : -1,
+  // Which way it faces is taken over a stretch of the way, behind it and before, and it is taken to be going across the
+  // map unless it is plainly going up or down it: so on a slant, or a road that runs in steps, it does not turn about
+  // from one moment to the next. Going up or down, what it carries stays on the one side of it.
+  const at = wayAt(W, d), sg = back ? -1 : 1, on = wayOn(W, d + sg * FACE_REACH), was = wayOn(W, d - sg * FACE_REACH), dx = on.x - was.x, dy = on.y - was.y;
+  const face = Math.abs(dy) > Math.abs(dx) * 1.25 ? (dy >= 0 ? 'down' : 'up') : (dx >= 0 ? 'right' : 'left');
+  return { x: Math.round(at.x), y: Math.round(at.y), d, leg, moving: leg === 1 || leg === 3, face, dir: Math.abs(dx) > Math.abs(dy) * 0.2 ? (dx >= 0 ? 1 : -1) : 1,
     along: off => wayOn(W, d + (back ? -off : off)) };
 }
 // The year, such as it is out here: a hundred and twenty days, and the vintage in the third quarter of them.
@@ -3021,9 +3041,10 @@ const FLOCK_PACE = 24;      // a flock goes at the pace of an outlaw band walkin
 const dayOut = () => { const u = dayPart(); return u < 0.1 ? 0 : u < 0.36 ? (u - 0.1) / 0.26 : u < 0.66 ? 1 : u < 0.92 ? 1 - (u - 0.66) / 0.26 : 0; };
 function drawTrade(ctx, T, R, inView) {
   const W = tradeWays();
-  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => rowOf(ctx, C.dir, C.face, C.along);
+  const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => { tface = C.face; return rowOf(ctx, C.dir, C.face, C.along); };
+  let tface = 'right';      // which way whoever is being drawn is going: a beast going up or down the map is drawn end on
   const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c' });
-  const beast = (bx, by, c, d, big, step) => { const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
+  const beast = (bx, by, c, d, big, step) => { if (tface === 'up' || tface === 'down') return beastEnd(R, bx, by, c, tface === 'up', big, step); const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
     R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
     if (big) { R(d > 0 ? bx + (w >> 1) + 2 : bx - (w >> 1) - 4, by - h - 6, 2, 1, '#f1ead8'); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - h - 6, 2, 1, '#f1ead8'); } };
   // ---- the stone wagon, quarry to kiln
@@ -3209,7 +3230,7 @@ function drawTrade(ctx, T, R, inView) {
       const x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
       if (!shown(x, y)) continue;
       const gk = gateEnter(ctx, x, y); if (gk < 0) continue;
-      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0, ML = lineOf(way), far = ML.len[i0] + (ML.len[i0 + 1] - ML.len[i0]) * fr, row = rowOf(ctx, d, face, off => wayOn(ML, far + sg * off));
+      const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0, ML = lineOf(way), far = ML.len[i0] + (ML.len[i0 + 1] - ML.len[i0]) * fr, row = (tface = face, rowOf(ctx, d, face, off => wayOn(ML, far + sg * off)));
       if (kind === 0) {                             // a cart of stuff to sell, under a cloth
         const cx = x - d * 12, cloth = ['#b93a2e', '#2f6db8', '#c9b25a', '#5a8a4a'][Math.floor(hv(3) * 4)];
         row.link(-12, cx + d * 5, y - 4, 0, x - d * 3, y - 4, '#6b4f2c');
@@ -3407,7 +3428,7 @@ function provStep(dt) {
   if (town < 15 && F.armed) { provHome(); return; }
   const pack = F.packs.find(p => Math.hypot(p.x - F.x, p.y - F.y) < 12);
   if (pack && fieldParty().length) {
-    wildFight(pack.kind === 'wolves' ? 'A wolf pack' : 'An outlaw patrol', pack.kind === 'wolves' ? wildBeasts(Math.min(pack.tier, 2), pack.tier > 2 ? ['wolf', 'wolf'] : []) : wildMen(pack.tier, Math.max(2, wildCount(pack.tier) - 2)), 'forest', 'pack', { tier: pack.tier, pack: pack.id });
+    wildFight(pack.kind === 'wolves' ? 'A wolf pack' : 'An outlaw patrol', packFoes(pack), 'forest', 'pack', { tier: pack.tier, pack: pack.id });
     villageStill(); startWildFight();      // the way it was going is kept: it goes on when the fight is done
     return;
   }
@@ -3959,14 +3980,22 @@ function drawProvince(cv, T) {
     if (!inView(p.x, p.y, 20) || !wildSeen(p.x, p.y)) continue;
     // each of them where the leader was a little while ago, as the men of the column follow the lanista, and a step to one side of it
     const pv = n => wildHash(p.id, n, 640), pm = packMind(p), pface = pm.dir < 0 ? 'left' : 'right';
-    const spots = [0, 1, 2, 3, 4].map(q => { if (!q) return [0, 0]; const t = pm.trail[Math.min(pm.trail.length - 1, q * 2 + (p.kind === 'wolves' ? 0 : 1))]; return [Math.round(t.x - p.x) + (q % 2 ? 2 : -2), Math.round(t.y - p.y) + (q % 2 ? 2 : -1)]; });
-    if (p.kind === 'wolves') {                 // two to five of them, grey, black or brown, one bigger than the rest
-      const n = 2 + Math.floor(pv(1) * 4), coats = [['#77777a', '#8a8a8e', '#55555a'], ['#3a3a40', '#4a4a52', '#26262a'], ['#7a6a52', '#8f7e62', '#57493a'], ['#9a9a9e', '#b0b0b4', '#6a6a70']];
+    const n = packSize(p), spots = [...Array(n).keys()].map(q => { if (!q) return [0, 0]; const t = pm.trail[Math.min(pm.trail.length - 1, q * 2 + (p.kind === 'wolves' ? 0 : 1))]; return [Math.round(t.x - p.x) + (q % 2 ? 2 : -2), Math.round(t.y - p.y) + (q % 2 ? 2 : -1)]; });
+    if (p.kind === 'wolves') {                 // as many as will be fought, grey, black or brown, one bigger than the rest
+      const coats = [['#77777a', '#8a8a8e', '#55555a'], ['#3a3a40', '#4a4a52', '#26262a'], ['#7a6a52', '#8f7e62', '#57493a'], ['#9a9a9e', '#b0b0b4', '#6a6a70']];
+      const kinds = packBeasts(p).slice().sort((a, b) => (a === 'wolf' ? 0 : 1) - (b === 'wolf' ? 0 : 1));      // what will be fought: the wolves in front, and any boars that run with them behind
       for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q], c = coats[Math.floor(pv(10 + q) * (q ? 4 : 3))], big = q === 0 ? 1 : 0, b = pm.moving && Math.sin((p.walk || 0) + q * 1.9) > 0 ? 1 : 0;
+        if (kinds[q] === 'boar') {             // a boar: low and thick, dark, a ridge of bristles down its back and a tusk showing
+          const X = p.x + ox, Y = p.y + oy, lf = pface === 'left', hide = pv(40 + q) > 0.5 ? '#4a3a2c' : '#3e3430', dk = '#2a211a';
+          R(X - 4, Y - 1, 9, 2, 'rgba(0,0,0,.25)'); R(X - 4, Y - 6, 8, 4, hide); R(X - 3, Y - 7, 5, 1, dk); R(X - 4, Y - 3, 8, 1, shade(hide, 0.8));
+          R(X + (lf ? -7 : 4), Y - 5, 3, 3, shade(hide, 0.85)); R(X + (lf ? -8 : 7), Y - 4, 1, 2, '#6a5444'); R(X + (lf ? -7 : 6), Y - 3, 1, 1, '#f1ead8'); R(X + (lf ? -5 : 4), Y - 6, 1, 1, dk);
+          R(X + (lf ? 4 : -5), Y - 6, 1, 2, dk); R(X - 3, Y - 2, 1, 2 - b, dk); R(X + 2, Y - 2, 1, 1 + b, dk);
+          continue;
+        }
         R(p.x + ox - 4, p.y + oy - 1, 8 + big, 2, 'rgba(0,0,0,.25)'); R(p.x + ox - 4, p.y + oy - 5 - big, 7 + big, 3 + big, c[0]); R(p.x + ox + (pface === 'left' ? -6 : 3 + big), p.y + oy - 6 - big, 3, 3, c[1]); R(p.x + ox + (pface === 'left' ? 3 + big : -5), p.y + oy - 5 - big, 2, 1, c[2]);
         R(p.x + ox - 3, p.y + oy - 2, 1, 2 - b, c[2]); R(p.x + ox + 2, p.y + oy - 2, 1, 1 + b, c[2]); }
-    } else {                                   // two to four men, each in what he stole, and one carrying their rag of a banner
-      const n = 2 + Math.floor(pv(2) * 3), tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
+    } else {                                   // as many men as will be fought, each in what he stole, and one carrying their rag of a banner
+      const tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
       for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; vilPerson(ctx, p.x + ox, p.y + oy, { face: p.face || 'down', walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
       if (pv(3) > 0.4) { const [ox, oy] = spots[n - 1]; R(p.x + ox + 4, p.y + oy - 20, 1, 14, '#3a2a1c'); R(p.x + ox + 5, p.y + oy - 20, 5, 3, ['#5a5a4a', '#7a2a20', '#2a3a5a'][Math.floor(pv(4) * 3)]); R(p.x + ox + 5, p.y + oy - 17, 2, 1, '#3a2a1c'); }
     }

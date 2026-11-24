@@ -643,9 +643,9 @@ function wildDayFor(g) {
 
 // ---------- who is waiting out there ----------
 const WILD_BUDGET = [16, 22, 30, 39, 48];
+const beastKinds = (tier, extra) => [['wolf', 'wolf'], ['boar', 'boar', 'wolf'], ['bear', 'bear', 'wolf'], ['lion', 'lion', 'lion'], ['lion', 'lion', 'lion', 'bear', 'bear']][tier - 1].concat(extra || []);
 function wildBeasts(tier, extra) {
-  const kinds = [['wolf', 'wolf'], ['boar', 'boar', 'wolf'], ['bear', 'bear', 'wolf'], ['lion', 'lion', 'lion'], ['lion', 'lion', 'lion', 'bear', 'bear']][tier - 1].concat(extra || []);
-  return kinds.map(k => makeBeast(k, WILD_BUDGET[tier - 1]));
+  return beastKinds(tier, extra).map(k => makeBeast(k, WILD_BUDGET[tier - 1]));
 }
 function wildMen(tier, n, boost) {
   const out = [];
@@ -657,6 +657,11 @@ function wildMen(tier, n, boost) {
   return out;
 }
 const wildCount = tier => [2, 3, 5, 6, 8][tier - 1];
+// A band that roams the map (see wildPacks): what its beasts are, or how many men it has; how many that makes, which is
+// how many of them are drawn on the map; and the band itself, made ready to fight.
+const packBeasts = p => beastKinds(Math.min(p.tier, 2), p.tier > 2 ? ['wolf', 'wolf'] : []);
+const packSize = p => p.kind === 'wolves' ? packBeasts(p).length : Math.max(2, wildCount(p.tier) - 2);
+const packFoes = p => p.kind === 'wolves' ? packBeasts(p).map(k => makeBeast(k, WILD_BUDGET[Math.min(p.tier, 2) - 1])) : wildMen(p.tier, packSize(p));
 // Sets a fight waiting; the map screen starts it. `win` names what victory brings (see WILD_WINS).
 // How likely the school is to learn what it faces before it commits: a scout counts heads, and an eagle sees over walls.
 const seeOdds = () => clamp(0.5 + 0.1 * staffLvl('scout') + 0.15 * facLvl('eagle'), 0, 0.95);
