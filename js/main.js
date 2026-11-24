@@ -1842,11 +1842,11 @@ function gearBlock(g) {
   const gs = gearStats(g), bare = SLOTS.filter(k => !g.gear[k]).length;
   return `<div class="today"><span class="lbl">Kit</span><div><b class="num">+${gs.dmg.toFixed(1)}</b> damage on every blow &middot; <b class="num">${gs.armor.toFixed(1)}</b> taken off every blow against him${gs.dodge < 0 ? ` &middot; <span class="bad">${(gs.dodge * 100).toFixed(1)}%</span> dodge for the weight` : ''}.${bare ? ` ${bare} of 6 slots ${bare === 1 ? 'is' : 'are'} bare.` : ''}${gs.full ? ` <span class="gold"${tip('All five pieces of armour worn: 8% more protection, or 14% if they are all of one grade.')}>${gs.full === 2 ? 'A matched harness: +14%.' : 'A full harness: +8%.'}</span>` : ''}
       ${better.length ? `<button class="mini primary" data-act="wearbest" data-v="${g.id}" style="margin-left:6px"${tip('Puts on the best spare piece from your racks for every slot where one would be a gain.')}>Wear the best from the racks (${better.length})</button>` : ''}</div></div>
-    <div class="doll">
+    <div class="dollbox"><div class="doll">
       <div class="dollcol">${['head', 'shoulders', 'chest'].map(s => slotBox(s, 'l')).join('')}</div>
       <canvas class="dollfig" width="192" height="224" data-figure="${g.id}"${tip('As he stands on the sand, in the kit he wears now.')}></canvas>
       <div class="dollcol">${['weapon', 'arms', 'legs'].map(s => slotBox(s, 'r')).join('')}</div>
-    </div>
+    </div></div>
     ${pick}`;
 }
 

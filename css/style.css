@@ -1552,6 +1552,18 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .dtxt b .rar { min-width: 13px; padding: 0 2px; font-size: 10px; vertical-align: 1px; }
 .dtxt i { font-style: normal; font-size: 11px; color: var(--dim); }
 .dollfig { width: 144px; height: 168px; image-rendering: pixelated; border: 1px solid var(--edge); box-shadow: 0 0 0 1px var(--bronze-d), 0 3px 0 #0006; }
+/* in a narrow pane there is no room for a name beside each picture with the man between them: he steps aside (he
+   stands at the head of the dossier already) and the six slots sit in two plain columns, picture first */
+.dollbox { container: doll / inline-size; }
+@container doll (max-width: 500px) {
+  .doll { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: start; }
+  .dollfig { display: none; }
+  .dslot.l { flex-direction: row; text-align: left; }
+  .dslot.l.sel { background: linear-gradient(90deg, rgba(227, 176, 74, .16), rgba(227, 176, 74, .04)); }
+}
+@container doll (max-width: 330px) {
+  .doll { grid-template-columns: minmax(0, 1fr); }
+}
 .dpick { padding: 6px 8px; background: rgba(18, 11, 8, .35); border: 1px solid rgba(92, 64, 32, .5); }
 .dpick.hint { font-size: 12px; text-align: center; }
 .dpickhead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; font-size: 13px; }
