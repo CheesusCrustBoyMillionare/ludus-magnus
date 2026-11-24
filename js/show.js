@@ -366,11 +366,31 @@ function showBack(ctx, B, T) {
   }
   }
   // blood: bright where it has just fallen, then darkening and spreading as the sand drinks it
+  for (const c of B.scuffs || []) {              // the sand as it has been used: heels dragged through it, a man fallen on it
+    const age = T - c.t, k = Math.min(1, age / 0.25), len = Math.round(c.len * 2 * k), x = Math.round(c.x * 2), y = Math.round(c.y * 2), x0 = c.dir > 0 ? x - len : x;
+    ctx.fillStyle = 'rgba(96,66,30,.2)'; ctx.fillRect(x0, y - 1, len, 1); ctx.fillRect(x0 + 2, y + 1, Math.max(0, len - 4), 1);
+    ctx.fillStyle = 'rgba(255,238,196,.16)'; ctx.fillRect(x0 + 1, y, Math.max(0, len - 2), 1);
+    if (c.wide) { ctx.fillStyle = 'rgba(96,66,30,.14)'; ctx.fillRect(x - len / 2, y - 3, len, 1); ctx.fillRect(x - len / 2 + 3, y + 3, len - 6, 1); ctx.fillStyle = 'rgba(255,238,196,.1)'; ctx.fillRect(x - len / 2 + 2, y - 2, len - 4, 1); }
+  }
   for (const s of B.stains) {
     const age = T - (s.t || 0), x = Math.round(s.x * 2), y = Math.round(s.y * 2), w = s.w * 2;
+    if (s.pool) {                                 // a pool: it spreads as the sand takes it, bright in the middle while it is new, with a darker rim
+      const grow = 1 - Math.pow(1 - Math.min(1, age / 3.5), 2), rx = Math.max(1.5, s.pool * 2 * (0.3 + 0.7 * grow)), ry = Math.max(1, rx * 0.36);
+      const body = age < 1.5 ? '#b3261c' : age < 6 ? '#8e1b14' : age < 16 ? '#76241a' : '#633024', rim = age < 6 ? '#6e1510' : '#55281e';
+      for (let yy = -Math.ceil(ry); yy <= Math.ceil(ry); yy++) {
+        const q = 1 - (yy * yy) / (ry * ry + 0.5); if (q <= 0) continue;
+        const hw = Math.round(rx * Math.sqrt(q) + Math.sin(s.seed + yy * 1.7) * Math.min(1.5, rx * 0.2));
+        if (hw < 1) continue;
+        if (age > 2.5) { ctx.fillStyle = `rgba(120,52,28,${Math.min(0.22, (age - 2.5) * 0.03).toFixed(3)})`; ctx.fillRect(x - hw - 2, y + yy, hw * 2 + 4, 1); }
+        ctx.fillStyle = rim; ctx.fillRect(x - hw, y + yy, hw * 2, 1);
+        if (hw > 1) { ctx.fillStyle = body; ctx.fillRect(x - hw + 1, y + yy, hw * 2 - 2, 1); }
+      }
+      if (age < 5 && rx > 3) { ctx.fillStyle = age < 1.5 ? '#e8584a' : '#b3261c'; ctx.fillRect(x - Math.round(rx * 0.45), y - 1, Math.max(1, Math.round(rx * 0.4)), 1); }      // the wet of it catching the light
+      continue;
+    }
     if (age > 2.5) { ctx.fillStyle = `rgba(120,52,28,${Math.min(0.2, (age - 2.5) * 0.03).toFixed(3)})`; ctx.fillRect(x - 1, y, w + 2, 2); ctx.fillRect(x, y + 2, w, 1); }
     ctx.fillStyle = age < 1.2 ? '#c22a1e' : age < 5 ? '#8e1b14' : age < 14 ? '#76241a' : '#633024';
-    ctx.fillRect(x, y, w, 2);
+    ctx.fillRect(x, y, w, s.tall ? 3 : 2);
     if (age < 1.2) { ctx.fillStyle = '#e8584a'; ctx.fillRect(x, y, 1, 1); }
   }
   for (const l of S.litter) { R(l.x, l.y, 2, 1, l.col); R(l.x, l.y + 1, 2, 1, 'rgba(0,0,0,.18)'); }

@@ -101,7 +101,7 @@ function createBattle(teamA, teamB, opts) {
     intro: opts.noIntro ? 0 : 4.6, introDur: 4.6,
     theme: THEMES[clamp(opts.tier || 0, 0, 4)], names: opts.names || null, snd: [],
     col: [TEAM_COL[0], opts.foeCol || TEAM_COL[1]], colD: [TEAM_DARK[0], opts.foeColD || TEAM_DARK[1]],
-    parts: [], stains: [], texts: [], projs: [], feed: [], log: [], crowd: [], specks: [], props: [], vfx: [],
+    parts: [], stains: [], scuffs: [], texts: [], projs: [], feed: [], log: [], crowd: [], specks: [], props: [], vfx: [],
     towel: false, lastDown: null, finish: null,
     ask: !!opts.ask, pick: null,                  // ask: stop the fight when one of the player's men is charged, and let him choose (pick is who is waiting)
     wild: opts.wild || null,                                     // a fight outside the walls: what stands behind it
@@ -142,11 +142,44 @@ function edgedText(ctx, str, x, y, col, d, edge) {
 }
 // Every word that rises over a man on the sand comes through here. When someone is having the fight read to him
 // (B.spoken is then a list: see a11y.js) the same word is kept, with the name of the man it rose over.
-function fxText(B, f, str, col, big) { if (B.spoken) B.spoken.push([f.g.beast ? 'The ' + f.c.name : f.g.name, String(str)]); B.texts.push({ x: f.x + rand(-3, 3), y: f.y - 28, str, col, life: big ? 1.6 : 0.9, big: !!big }); }
+// Words and figures that rise over the sand. They are of four kinds, and each kind has its own place so that they do not
+// lie on top of one another: what a blow took is thrown out beside the man it landed on, away from whoever struck him;
+// what has befallen him (a wound, a net) and the great words (a yielding, a verdict) go up over his head, each new one
+// above the last; and the small change of a fight (a miss, a feint) is said quietly beside the figures.
+const FX_QUIET = { miss: 1, dodge: 1, feint: 1, 'reads it': 1, riposte: 1, 'net misses': 1, 'armour holds': 1, 'holds it': 1 };
+function fxText(B, f, str, col, big) {
+  str = String(str);
+  if (B.spoken) B.spoken.push([f.g.beast ? 'The ' + f.c.name : f.g.name, str]);
+  const fig = /^!?\d+$/.test(str), blk = /^block \d+$/.test(str), crit = fig && str[0] === '!';
+  const kind = big ? 'big' : fig || blk ? 'fig' : FX_QUIET[str] ? 'quiet' : 'word';
+  const t = { str: crit ? str.slice(1) : str, col, big: !!big, kind, crit, blk, h: big ? 6.5 : kind === 'word' ? 4 : kind === 'quiet' ? 3.4 : crit ? 6 : 4.6 };
+  t.life = t.life0 = big ? 1.6 : kind === 'word' ? 1.15 : kind === 'quiet' ? 0.7 : crit ? 1.1 : 0.85;
+  if (kind === 'fig' || kind === 'quiet') {
+    const dir = -(f.facing || 1);                 // out behind him, the way the blow was going
+    t.x = f.x + dir * (kind === 'quiet' ? 9 : 7); t.y = f.y - (kind === 'quiet' ? 22 : 17) + rand(-1.5, 1.5);
+    t.vx = dir * rand(9, 15) * (crit ? 1.25 : 1); t.vy = kind === 'quiet' ? -9 : -rand(20, 27);
+    for (let i = 0; i < 6; i++) if (B.texts.some(o => (o.kind === 'fig' || o.kind === 'quiet') && Math.abs(o.x - t.x) < 9 && Math.abs(o.y - t.y) < (o.h + t.h) / 2)) t.y -= t.h; else break;
+  } else {
+    t.x = f.x; t.y = f.y - 31; t.vx = 0; t.vy = -5.5;
+    for (let i = 0; i < 8; i++) { const hit = B.texts.find(o => (o.kind === 'word' || o.kind === 'big') && Math.abs(o.x - t.x) < 22 && Math.abs(o.y - t.y) < (o.h + t.h) / 2); if (!hit) break; t.y = hit.y - (hit.h + t.h) / 2; }
+  }
+  B.texts.push(t);
+}
+// Blood is not all of a size: most of it is fine, some is heavy and falls short, and what a great blow throws goes far.
+const BLOOD_COL = ['#8e1b14', '#b3261c', '#c22a1e', '#a01f17'];
 function fxBlood(B, f, n, dir) {
   for (let i = 0; i < n; i++) {
-    B.parts.push({ x: f.x, y: f.y + rand(-2, 2), h: rand(8, 14), vx: dir * rand(5, 40) + rand(-12, 12), vh: rand(10, 45), col: chance(0.5) ? '#8e1b14' : '#b3261c' });
+    const s = chance(0.5) ? 1 : chance(0.72) ? 2 : 3, far = 1.25 - s * 0.2;
+    B.parts.push({ x: f.x, y: f.y + rand(-2, 2), h: rand(8, 15), vx: (dir * rand(5, 44) + rand(-12, 12)) * far, vh: rand(10, 48) * far, col: pick(BLOOD_COL), s });
   }
+}
+// A pool of it, where a man lies or stands bleeding: it starts small and spreads to its size as the sand takes it.
+function fxPool(B, x, y, r) { if (B.stains.length < 600) B.stains.push({ x, y, w: 1, t: B.clock, pool: r, seed: rand(0, 6.28) }); }
+// The sand keeps what was done on it: the drag of heels where a man was driven back, the place where one fell.
+function fxScuff(B, x, y, dir, len, wide) {
+  const S = B.scuffs || (B.scuffs = []);
+  if (S.length >= 140) S.shift();
+  S.push({ x, y: y + rand(-0.6, 0.6), dir, len, wide: wide || 0, t: B.clock });
 }
 function fxDust(B, x, y, n) {
   for (let i = 0; i < n; i++) B.parts.push({ x: x + rand(-4, 4), y: y + rand(-1, 1), h: 1, vx: rand(-18, 18), vh: rand(8, 28), col: chance(0.5) ? '#c9a763' : '#ead2a0', spark: true });
@@ -222,7 +255,8 @@ function slay(B, f) {
   feed(B, B.wild ? `${f.g.name} does not get up` : B.hunt ? `The handlers are too late for ${f.g.name}` : `Thumbs are turned: ${f.g.name} dies`, f.team);
   f.down = true; f.yielded = false; f.flash = 0.12; B.shake = 3;
   fxBlood(B, f, 14, -f.facing);
-  for (let k = 0; k < 8; k++) B.stains.push({ x: f.x + rand(-7, 7), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
+  for (let k = 0; k < 5; k++) B.stains.push({ x: f.x + rand(-8, 8), y: f.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
+  fxPool(B, f.x - f.facing * 3, f.y + 1, rand(6, 8));
   fatal(B, f, f.downedBy);
 }
 // The killing of a man is not left for the end of the fight, nor sprung on the eye: everything stops, the picture closes
@@ -246,7 +280,10 @@ function knockDown(B, d, a, how) {
   B.hitstop = 0.12; B.shake = 3; B.flashT = 0.12;
   fxBlood(B, d, 16, a ? a.facing : 1);
   fxDust(B, d.x, d.y, 8);
-  for (let i = 0; i < 10; i++) B.stains.push({ x: d.x + rand(-7, 7), y: d.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
+  vfx(B, { k: 'puff', under: true, x: d.x, y: d.y, r: 10, n: 7, seed: rand(0, 6), dur: 0.7 });
+  fxScuff(B, d.x, d.y, a ? a.facing : 1, 9, 1);
+  for (let i = 0; i < 6; i++) B.stains.push({ x: d.x + rand(-8, 8), y: d.y + rand(-2, 3), w: rint(1, 3), t: B.clock });
+  fxPool(B, d.x, d.y + 1, rand(4, 5.5));
   feed(B, how || `${d.g.name} is struck down${a ? ' by ' + a.g.name : ''}`, d.team);
   if (B.death) kill(B, d, true);          // in a bout to the death, down is dead
   else verdictNow(B, d);
@@ -347,7 +384,11 @@ function resolveAttack(B, a, d, o) {
   if (d.state === 'windup' && (o.stun || crit)) { d.state = 'ready'; d.move = null; d.cd = 0.3; }
   B.exc += (dmg / 220 + (crit ? 0.06 : 0) + (o.ability ? 0.02 : 0)) * a.show;
   B.shake = Math.max(B.shake, crit ? 2 : 0.8);
-  if (crit) { B.hitstop = 0.06; B.flashT = 0.07; }
+  const heavy = clamp(dmg / d.maxHp / 0.2, 0, 1);            // how much of him it took, a fifth of his health counting as all of it
+  if (crit) { B.hitstop = Math.max(B.hitstop, 0.06 + 0.04 * heavy); B.flashT = 0.07; }
+  else if (!blocked && heavy > 0.45 && B.fighters.length <= 6) B.hitstop = Math.max(B.hitstop, 0.045 * heavy);      // a hard blow holds the eye a moment; in a crowd of men it would only stutter
+  vfx(B, { k: 'hit', x: d.x - a.facing * 2.5, y: d.y, dir: a.facing, size: blocked ? 0.7 : 0.75 + heavy * 0.6 + (crit ? 0.35 : 0), col: blocked ? '#ffe9a0' : '#ffffff', col2: blocked ? '#c9d1d9' : '#e8584a', dur: blocked ? 0.14 : 0.18 });
+  if (!blocked && Math.abs(d.kx) > 30) { fxScuff(B, d.x, d.y, a.facing, 5 + heavy * 6); fxDust(B, d.x - a.facing * 2, d.y, crit ? 4 : 2); }      // driven back: his heels mark the sand
   if (blocked) {
     fxText(B, d, 'block ' + dmg, '#e8e2d0');
     d.guard = 0.25; snd(B, 'block', 1, d, d.c.shield);
@@ -419,6 +460,10 @@ function performMove(B, f, t, dx, dy, dist) {
   f.cd = f.atkTime * 0.7 * (f.buff && f.buff.haste ? f.buff.haste : 1);
   if (f.tactic === 'defensive') f.backT = 0.3;
   f.atkAnim = 1; f.slash = 0.12;
+  if (!f.g.beast) {
+    if (/trident|spear|hasta|lance|pilum/.test(String(f.c.weapon))) vfx(B, { k: 'jab', x: f.x, y: f.y, dir: f.facing, len: f.reach, dur: 0.14 });
+    else vfx(B, { k: 'arc', x: f.x, y: f.y, dir: f.facing, size: 0.55, col: '#efe8d2', dur: 0.16 });
+  }
 }
 
 function updateFighter(B, f, dt) {
@@ -442,7 +487,7 @@ function fighterAct(B, f, dt) {
     const d = f.bleed * dt;
     f.hp -= d; f.bleedT -= dt; f.drip -= dt;
     if (f.bleedBy) f.bleedBy.dmgDealt += d;
-    if (f.drip <= 0) { f.drip = 0.3; B.parts.push({ x: f.x + rand(-2, 2), y: f.y + rand(-1, 1), h: 9, vx: rand(-4, 4), vh: 0, col: '#b3261c' }); }
+    if (f.drip <= 0) { f.drip = 0.3; B.parts.push({ x: f.x + rand(-2, 2), y: f.y + rand(-1, 1), h: 9, vx: rand(-4, 4), vh: 0, col: '#b3261c', s: 2, drip: true }); }
     if (f.bleedT <= 0) f.bleed = 0;
     if (f.hp <= 0) { knockDown(B, f, f.bleedBy, `${f.g.name} collapses from loss of blood`); return; }
   }
@@ -529,10 +574,22 @@ function fighterAct(B, f, dt) {
 function stepFx(B, dt) {
   for (const p of B.parts) {
     p.x += p.vx * dt; p.h += p.vh * dt; p.vh -= 160 * dt;
-    if (p.h <= 0) { p.dead = true; if (!p.spark && B.stains.length < 600) B.stains.push({ x: p.x, y: p.y, w: 1, t: B.clock }); }
+    if (p.h <= 0) {
+      p.dead = true;
+      if (!p.spark) {                           // it lands: into a pool if one is there, which grows by it; or as a mark of its own
+        const pool = p.drip && B.stains.find(q => q.pool && Math.abs(q.x - p.x) < 5 && Math.abs(q.y - p.y) < 2.5);
+        if (pool) pool.pool = Math.min(5, pool.pool + 0.22);
+        else if (p.drip && B.stains.length < 600) fxPool(B, p.x, p.y, 1.2);
+        else if (B.stains.length < 600) B.stains.push({ x: p.x, y: p.y, w: p.s === 3 ? 2 : 1, tall: p.s === 3 ? 1 : 0, t: B.clock });
+      }
+    }
   }
   B.parts = B.parts.filter(p => !p.dead);
-  for (const t of B.texts) { t.y -= (t.big ? 7 : 14) * dt; t.life -= dt; }
+  for (const t of B.texts) {
+    if (t.kind === 'fig' || t.kind === 'quiet') { t.x += t.vx * dt; t.y += t.vy * dt; t.vx *= Math.pow(0.08, dt); t.vy += (t.kind === 'fig' ? 46 : 8) * dt; if (t.kind === 'fig' && t.vy > 5) t.vy = 5; }      // thrown out, and settling
+    else t.y -= (t.vy === undefined ? 7 : -t.vy) * dt;
+    t.life -= dt;
+  }
   B.texts = B.texts.filter(t => t.life > 0);
   for (const v of B.vfx) v.t += dt;
   B.vfx = B.vfx.filter(v => v.t < v.dur);
@@ -618,7 +675,7 @@ function stepBattle(B, dt) {
     const c = B.cut; B.cut = null;
     if (!out(c.f)) castNow(B, c.f, c.ab);
   }
-  if (B.hitstop > 0) { B.hitstop -= dt; return; }
+  if (B.hitstop > 0) { B.hitstop -= dt; for (const f of B.fighters) f.flash = Math.max(0, f.flash - dt); return; }      // the fight holds, but the white of the blow does not: he is seen through the hold
   B.time += dt;
   B.heartT = (B.heartT || 0) + dt;
   if (B.heartT > 0.9 && B.fighters.some(f => f.team === 0 && !out(f) && !f.g.beast && f.hp < f.maxHp * 0.25)) { B.heartT = 0; snd(B, 'heart'); }
@@ -662,6 +719,16 @@ function stepBattle(B, dt) {
 // Sprites are drawn on a grid twice as fine as the world (FINE px per sprite pixel),
 // about 24 wide and 40 tall, with the origin at the feet. x runs toward the enemy, y up is negative.
 
+// A man who has just been hit is white for an instant (while more than HIT_WHITE of his flash is left) and then flushed
+// red, less and less, until it is spent: the blow is seen, and so is he.
+const HIT_WHITE = 0.075, _flush = {};
+function flush(hex, k) {
+  if (typeof hex !== 'string' || hex[0] !== '#' || hex.length !== 7) return hex;
+  const q = k > 0.66 ? 3 : k > 0.33 ? 2 : 1, key = hex + q;
+  if (_flush[key]) return _flush[key];
+  const m = q * 0.17, n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  return _flush[key] = 'rgb(' + Math.round(r + (255 - r) * m) + ',' + Math.round(g + (70 - g) * m) + ',' + Math.round(b + (50 - b) * m) + ')';
+}
 const _shades = {};
 function shade(hex, f) {
   const k = hex + '|' + f;
@@ -746,9 +813,9 @@ function drawSpriteBody(ctx, o) {
   const g = o.g, c = CLASSES[g.cls], cls = g.cls, d = o.facing;
   const look = gearLook(g), armorT = look.armor, weaponT = look.weapon;
   const X = Math.round(o.x), Y = Math.round(o.y) - (o.cheer && Math.sin(o.cheer * 9) > 0.3 ? 2 : 0);
-  const white = o.flash > 0;
+  const white = o.flash > HIT_WHITE, hurtK = o.flash > 0 && !white ? o.flash / HIT_WHITE : 0;
   let lean = 0;       // sideways shift of everything above the hips: into a blow, back from a hit
-  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : col); ctx.fillRect(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h); };
+  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : hurtK ? flush(col, hurtK) : col); ctx.fillRect(d > 0 ? X + x + lean : X - x - w - lean, Y + y, w, h); };
   const L = (x0, y0, x1, y1, w, col) => {
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)), o2 = w >> 1;
     for (let i = 0; i <= n; i++) { const t = n ? i / n : 0; P(Math.round(x0 + (x1 - x0) * t) - o2, Math.round(y0 + (y1 - y0) * t) - o2, w, w, col); }
@@ -1026,8 +1093,8 @@ function drawBeast(ctx, o) {
     for (const [dx, dy] of SPRITE_EDGE) { edge.x = o.x + dx; edge.y = o.y + dy; drawBeast(ctx, edge); }
   }
   const kind = o.g.cls, a = BEAST_ART[kind], d = o.facing, X = Math.round(o.x), Y = Math.round(o.y), T = o.clock || 0;
-  const white = o.flash > 0;
-  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : col); ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
+  const white = o.flash > HIT_WHITE, hurtK = o.flash > 0 && !white ? o.flash / HIT_WHITE : 0;
+  const P = (x, y, w, h, col) => { ctx.fillStyle = o.solid || (white ? '#fff' : hurtK ? flush(col, hurtK) : col); ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
   const col = a.col, colD = shade(col, 0.7), colDD = shade(col, 0.52), colL = shade(col, 1.22), ink = '#1c1310', hb = Math.floor(a.bw / 2);
   const belly = { boar: shade(col, 0.85), wolf: '#c9ccd2', lion: '#e3c486', bear: shade(col, 0.82) }[kind];
   const eye = { boar: '#c23b2e', wolf: '#e8c84a', lion: '#e8a83a', bear: '#1c1310' }[kind];
@@ -2133,6 +2200,16 @@ function drawVfx(ctx, B, under) {
       const rad = 12 + v.size * 9, th = v.size > 1.4 ? 4 : 3, from = -1.25, span = 2.5 * Math.min(1, k * 2.2 + 0.25);
       ctx.globalAlpha = a;
       for (let i = 0; i <= 12; i++) { const an = from + span * (i / 12), px = v.x * 2 + v.dir * (Math.cos(an) * rad - rad * 0.55), py = v.y * 2 - 24 + Math.sin(an) * rad * 1.15; R(px, py, th, th, i > 8 ? '#ffffff' : v.col); if (v.size > 1.2) R(px - v.dir * 2, py, th, th, v.col2 || v.col); }
+    } else if (v.k === 'hit') {                // where a blow landed: a star of light, thrown on the way the blow was going
+      const sz = v.size || 1, cx = v.x * 2, cy = v.y * 2 - 23, len = sz * (5 + 13 * (1 - (1 - k) * (1 - k)));
+      ctx.globalAlpha = Math.min(1, a * 1.8);
+      if (k < 0.45) { const c = Math.round(sz * (k < 0.2 ? 3 : 2)); R(cx - c, cy - c, c * 2, c * 2, '#ffffff'); R(cx - c - 2, cy - 1, c * 2 + 4, 2, '#ffffff'); R(cx - 1, cy - c - 2, 2, c * 2 + 4, '#ffffff'); }
+      for (let i = 0; i < 6; i++) { const an = (i - 2.5) * 0.52 + (i % 2 ? 0.12 : -0.1); for (let q = 0.5; q <= 1; q += 0.25) R(cx + v.dir * Math.cos(an) * len * q, cy + Math.sin(an) * len * q * 0.85, q > 0.8 ? 2 : 3, 2, q > 0.8 ? v.col2 || v.col : v.col); }
+    } else if (v.k === 'jab') {                // a thrust: a line of light along the shaft, and a point at the end of it
+      const len = Math.min(34, (v.len || 16) * 1.5) * Math.min(1, k * 4 + 0.3), x0 = v.x * 2 + v.dir * 9; ctx.globalAlpha = a * 0.9;
+      R(v.dir > 0 ? x0 : x0 - len, v.y * 2 - 25, len, 1, '#efe8d2'); R(v.dir > 0 ? x0 + len * 0.4 : x0 - len, v.y * 2 - 24, len * 0.6, 1, '#ffffff'); R(v.dir > 0 ? x0 + len - 2 : x0 - len, v.y * 2 - 26, 3, 3, '#ffffff');
+    } else if (v.k === 'puff') {               // dust thrown up and hanging: a man has gone down in it, or been driven through it
+      const n = v.n || 5; for (let i = 0; i < n; i++) { const an = i / n * 6.283 + (v.seed || 0), d = (v.r || 9) * (0.35 + 0.65 * (1 - (1 - k) * (1 - k))), sz = Math.max(2, Math.round((5 - (i % 3)) * (1 - k * 0.5))); ctx.globalAlpha = a * 0.5; R(v.x * 2 + Math.cos(an) * d * 2 - sz / 2, v.y * 2 - 1 + Math.sin(an) * d * 0.55 - k * (5 + (i % 3) * 3) - sz / 2, sz, sz, i % 2 ? '#ead2a0' : '#d6bb84'); }
     } else if (v.k === 'motes' && v.f && !out(v.f)) {      // sparks rising round him
       for (let i = 0; i < 9; i++) { const up = (k * 46 + i * 11) % 44; ctx.globalAlpha = a * (1 - up / 50); R(v.f.x * 2 + Math.sin(i * 2.4 + k * 3) * 11, v.f.y * 2 - 4 - up, 2, 2, v.col); }
     } else if (v.k === 'flash') {              // the sand lights for an instant under a great blow
@@ -2289,7 +2366,7 @@ function drawBattle(ctx, B) {
     ctx.beginPath(); ctx.ellipse(picking.x * 2, picking.y * 2 + 1, 15, 5, 0, 0, 7); ctx.stroke();
     drawSprite(ctx, { ...spr(picking), flash: 0 });
   }
-  for (const p of B.parts) { ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 2, 2); }
+  for (const p of B.parts) { const z = p.s || 2; ctx.fillStyle = p.col; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), z, z); if (z === 3) { ctx.fillStyle = '#e8584a'; ctx.fillRect(Math.round(p.x * 2), Math.round((p.y - p.h) * 2), 1, 1); } }
   showFront(ctx, B, T);       // dust, things thrown from the stands
 
   // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
@@ -2346,8 +2423,7 @@ function drawBattle(ctx, B) {
     ctx.fillStyle = '#2a2418'; ctx.fillRect(x, y + 2.25, 14, 0.75);
     ctx.fillStyle = f.charge >= 100 ? (Math.sin(T * 12) > 0 ? '#ffffff' : '#fff0b0') : '#e0aa3e'; ctx.fillRect(x, y + 2.25, Math.ceil(14 * f.charge / 100), 0.75);
     hudMarks(f).slice(0, 5).forEach((k, i) => drawMark(ctx, k, x + 16.5 + i * 4, y - 0.5, 0.5));
-    if (B.fighters.length > 2) continue;   // in team fights the corner panels carry the names
-    edgedText(ctx, f.g.name, fx, ny, f.team ? '#bcd6ff' : '#ffd9d2', 0.5);
+    // no name over his head: the corner panels carry the names, with a face to each, and over the sand they only lay across one another
   }
   for (const v of B.vfx) {
     if (v.k !== 'banner' || !v.f) continue;
@@ -2362,9 +2438,14 @@ function drawBattle(ctx, B) {
   }
   ctx.globalAlpha = 1;
   for (const t of B.texts) {
-    ctx.font = t.big ? 'bold 8px Cinzel, Georgia, serif' : 'bold 6px Consolas, monospace';
-    ctx.globalAlpha = Math.min(1, t.life * 2.5);
-    edgedText(ctx, t.str, t.x * Z, t.y * Z, t.col, t.big ? 0.7 : 0.5, '#000');
+    const age = (t.life0 || 1.3) - t.life, kind = t.kind || (t.big ? 'big' : 'word');
+    const pop = kind === 'quiet' ? 1 : 1 + 0.55 * Math.max(0, 1 - age / 0.11);          // it lands large and settles to its size
+    const size = (kind === 'big' ? 8 : kind === 'word' ? 5 : kind === 'quiet' ? 4.25 : t.crit ? 9.5 : t.blk ? 5 : 7) * pop;
+    ctx.font = (kind === 'quiet' ? 'italic ' : '') + 'bold ' + size.toFixed(2) + 'px ' + (kind === 'fig' && !t.crit && !t.blk ? 'Consolas, monospace' : 'Cinzel, Georgia, serif');
+    ctx.globalAlpha = Math.min(1, t.life * (kind === 'quiet' ? 3 : 4)) * (kind === 'quiet' ? 0.8 : 1);
+    const str = kind === 'word' || t.blk ? t.str.toUpperCase() : t.str, x = t.x * Z, y = t.y * Z + size * 0.35;
+    if (t.crit) { const w = ctx.measureText(str).width; ctx.fillStyle = 'rgba(255,210,74,' + (0.35 * Math.max(0, 1 - age / 0.3)).toFixed(3) + ')'; ctx.fillRect(x - w / 2 - 3, y - size * 0.82, w + 6, size); }      // a telling blow: a flare behind the figure
+    edgedText(ctx, str, x, y, t.col, kind === 'big' ? 0.7 : kind === 'quiet' ? 0.35 : 0.5, '#000');
   }
   ctx.globalAlpha = 1;
   {
