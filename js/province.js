@@ -61,12 +61,44 @@ function provLand() {
     'Greywood': ['#74905a', '#7e9a62', '#52705a', '#88925f'], 'The Quarry Hills': ['#8c9a50', '#96a458', '#627a3e', '#9b9865'], 'The High Fells': ['#7c9462', '#869e6a', '#4f7448', '#868e61'],
     'The Barrow Downs': ['#6c9246', '#769c4e', '#4c7238', '#819253'], 'Blackmere': ['#6a8a52', '#74945a', '#4a6a48', '#848e59'],
   };
-  const ground = (k, tx, ty) => { const g = GROUND[REG_NAMES[regT[Math.max(0, Math.min(TH - 1, ty)) * TW + Math.max(0, Math.min(TW - 1, tx))]]]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : TILE_COL[k]; };
+  // The ground under the mountains is not one grey from end to end. Along the edge of a range it is the turf of the hill
+  // country it rises out of, and it goes over to bare rock, in the rock of its own country, only as the range deepens:
+  // so the land round a range runs up into it, and there is no line where the green stops. How far in a tile is (in
+  // tiles, from the nearest ground that is not mountain) is worked out once for the whole map, and taken over the tile
+  // and its neighbours with a little noise, so that the change comes in drifts and not in rings.
+  const PEAK_ROCK = { 'The High Fells': '#868b8f', 'The Quarry Hills': '#a8a18c', 'The Barrow Downs': '#77725f' };
+  const pkIn = new Uint8Array(TW * TH);
+  { const far = 9, d = (x, y) => (x < 0 || y < 0 || x >= TW || y >= TH ? far : pkIn[y * TW + x]);
+    for (let i = 0; i < TW * TH; i++) pkIn[i] = L.t[i] === T_PEAK ? far : 0;
+    for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) { const i = ty * TW + tx; if (pkIn[i]) pkIn[i] = Math.min(pkIn[i], 1 + Math.min(d(tx - 1, ty), d(tx, ty - 1), d(tx - 1, ty - 1), d(tx + 1, ty - 1))); }
+    for (let ty = TH - 1; ty >= 0; ty--) for (let tx = TW - 1; tx >= 0; tx--) { const i = ty * TW + tx; if (pkIn[i]) pkIn[i] = Math.min(pkIn[i], 1 + Math.min(d(tx + 1, ty), d(tx, ty + 1), d(tx + 1, ty + 1), d(tx - 1, ty + 1))); } }
+  const bareOf = new Float32Array(TW * TH).fill(-1);
+  const bareC = (tx, ty) => {                    // how much of it is rock: 0 all turf, 1 all rock
+    tx = Math.max(0, Math.min(TW - 1, tx)); ty = Math.max(0, Math.min(TH - 1, ty));
+    const i = ty * TW + tx; if (bareOf[i] >= 0) return bareOf[i];
+    let s = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = tx + dx, y = ty + dy; s += x < 0 || y < 0 || x >= TW || y >= TH ? pkIn[i] : pkIn[y * TW + x]; }
+    return (bareOf[i] = Math.max(0, Math.min(1, (s / 9 - 0.9) / 3 + (wildNoise(tx / 5, ty / 5, 1361) - 0.5) * 0.4)));
+  };
+  const bare = (tx, ty) => Math.round(bareC(tx, ty) * 5) / 5;      // and the same in six steps, for the one colour a tile is spoken of by
+  const peakMix = {};
+  const peakPair = (tx, ty) => { const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return g ? [g[3], PEAK_ROCK[reg] || TILE_COL[T_PEAK]] : [TILE_COL[T_PEAK], TILE_COL[T_PEAK]]; };
+  const ground = (k, tx, ty) => { tx = Math.max(0, Math.min(TW - 1, tx)); ty = Math.max(0, Math.min(TH - 1, ty)); const reg = REG_NAMES[regT[ty * TW + tx]], g = GROUND[reg]; return !g ? TILE_COL[k] : k === T_GRASS ? g[0] : k === T_MEADOW ? g[1] : k === T_FOREST ? g[2] : k === T_HILL ? g[3] : k === T_PEAK ? mixHex(g[3], PEAK_ROCK[reg] || TILE_COL[T_PEAK], bare(tx, ty)) : TILE_COL[k]; };
   const col = (k, tx, ty) => k === T_WATER ? (deep(tx, ty) ? '#3f7dab' : '#5a9cc6') : k === T_BRIDGE ? '#5a9cc6' : tint(ground(k === T_ROAD ? T_GRASS : k, tx, ty), tone(tx, ty));
 
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k = at(tx, ty), x = tx * 10, y = ty * 10, base = col(k, tx, ty);
     R(x, y, 10, 10, base);
+    if (k === T_PEAK) {                          // turf going over to rock a little at a time across the tile, not a tile at a time: no squares of it
+      // (and where two countries meet under the mountains, each bit of ground takes its turf and its rock from one side or the other, so that their colours run together too)
+      const tn = tone(tx, ty), cl = (v, n) => Math.max(0, Math.min(n - 1, v));
+      for (let sy = 0; sy < 5; sy++) for (let sx = 0; sx < 5; sx++) {
+        const jx = cl(Math.round(tx + (sx * 2 + 1) / 10 - 0.5 + (h(tx * 5 + sx, ty * 5 + sy, 1368) - 0.5) * 1.6), TW), jy = cl(Math.round(ty + (sy * 2 + 1) / 10 - 0.5 + (h(ty * 5 + sy, tx * 5 + sx, 1369) - 0.5) * 1.6), TH), pk = regT[jy * TW + jx] + '|' + tn;
+        const mixes = peakMix[pk] || (peakMix[pk] = (([turf, rk]) => [0, 1, 2, 3, 4].map(q => tint(mixHex(turf, rk, q / 4), tn)))(peakPair(jx, jy)));
+        const u = tx + (sx * 2 + 1) / 10 - 0.5, v = ty + (sy * 2 + 1) / 10 - 0.5, x0 = Math.floor(u), y0 = Math.floor(v), fu = u - x0, fv = v - y0;
+        const f = (bareC(x0, y0) * (1 - fu) + bareC(x0 + 1, y0) * fu) * (1 - fv) + (bareC(x0, y0 + 1) * (1 - fu) + bareC(x0 + 1, y0 + 1) * fu) * fv;
+        R(x + sx * 2, y + sy * 2, 2, 2, mixes[Math.round(Math.max(0, Math.min(1, f + (h(tx * 5 + sx, ty * 5 + sy, 1367) - 0.5) * 0.45)) * 4)]);
+      }
+    }
     for (let i = 0; i < 3; i++) R(x + Math.floor(h(tx, ty, i) * 9), y + Math.floor(h(tx, ty, i + 5) * 10), 2, 1, tint(base, i % 2 ? 0.9 : 1.1));
     // a ragged edge where one kind of ground meets another
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], n) => {
@@ -528,7 +560,12 @@ function provLand() {
     const k = at(tx, ty), x = tx * 10, y = ty * 10;
     if (k === T_PEAK) continue;
     const n = at(tx, ty - 1), w = at(tx - 1, ty), nw = at(tx - 1, ty - 1);
-    if (!wet(k) && (n === T_PEAK || w === T_PEAK || nw === T_PEAK)) R(x, y, 10, 10, 'rgba(18,20,40,.17)');
+    if (!wet(k) && (n === T_PEAK || w === T_PEAK || nw === T_PEAK)) {      // under the mountains: deepest against them, and running out ragged, not a square of it laid on the tile
+      const sh = 'rgba(18,20,40,.055)';
+      if (n === T_PEAK) for (let q = 0; q < 5; q++) { const len = 3 + Math.floor(h(tx * 5 + q, ty, 1362) * 6); R(x + q * 2, y, 2, len, sh); R(x + q * 2, y, 2, len >> 1, sh); }
+      if (w === T_PEAK) for (let q = 0; q < 5; q++) { const len = 2 + Math.floor(h(tx, ty * 5 + q, 1363) * 5); R(x, y + q * 2, len, 2, sh); R(x, y + q * 2, len >> 1, 2, sh); }
+      if (n !== T_PEAK && w !== T_PEAK) for (let q = 0; q < 3; q++) R(x, y + q, 3 - q + (h(tx, ty, 1364 + q) > 0.5 ? 1 : 0), 1, sh);
+    }
     else if ((k === T_GRASS || k === T_MEADOW || k === T_SAND || k === T_ROAD) && (n === T_HILL || w === T_HILL)) { R(x, y, 10, 5, 'rgba(18,20,40,.07)'); R(x, y, 5, 10, 'rgba(18,20,40,.05)'); }
     else if ((k === T_GRASS || k === T_MEADOW || k === T_ROAD) && (n === T_FOREST || w === T_FOREST)) { if (n === T_FOREST) R(x, y, 10, 4, 'rgba(10,30,10,.12)'); if (w === T_FOREST) R(x, y, 3, 10, 'rgba(10,30,10,.09)'); }
     if (k === T_GRASS || k === T_MEADOW || k === T_HILL) {          // a strand of sand or shingle wherever the land meets water
@@ -1999,6 +2036,9 @@ function provLand() {
       // A mountain is built a column at a time from the line of its crest: flanks that hollow as they rise, a shoulder
       // or two standing off the summit, and the whole line broken, so that no two are alike and none is a pyramid. Its
       // light side and its dark side meet along a ridge that wanders down from the top, and spurs run off that.
+      // Its foot is not cut off square on the ground: the ground it stands on comes a little way up it, thick at the very
+      // bottom and thinning, as turf and scree do, and more on a small crag at the edge of a range than on a great peak.
+      const gc = col(T_PEAK, tx, ty), gcD = tint(gc, 0.86), creep = d <= 1 ? 0.5 : d === 2 ? 0.4 : 0.3;
       const mountain = (mx, mby, mw, mh, ml, sr, seed, shp) => {
         const hw = Math.max(2, Math.round(mw / 2) + 1), hv = (q, k2) => h(seed + q, seed * 3 + k2, 91), tops = [];
         const s1 = (hv(1, 1) > 0.5 ? 1 : -1) * (0.32 + hv(2, 1) * 0.3), s1h = 0.45 + hv(3, 1) * 0.3, s2 = -Math.sign(s1) * (0.45 + hv(4, 1) * 0.3), s2h = 0.25 + hv(5, 1) * 0.3, peakAt = clamp(ml * 0.9, -0.45, 0.45);
@@ -2010,7 +2050,7 @@ function provLand() {
           e *= 0.9 + wildNoise((c + seed % 97) / 3.2, seed % 53, 1700) * 0.2;                                                    // the crest is not a ruled line
           const top = Math.max(Math.abs(t) > 0.97 ? 0 : 1, Math.round(mh * Math.min(1, e))); tops.push(top); if (top > best) { best = top; cs = c; }
         }
-        R(mx - hw, mby, hw * 2 + 3, 2, 'rgba(0,0,0,.22)');
+        for (let c = -hw; c <= hw + 2; c += 2) R(mx + c, mby, 2, h(mx + c, mby, 1365) > 0.4 ? 2 : 1, 'rgba(0,0,0,.14)');      // the shade at its foot, broken
         const lit = rock[0], dark = rock[1], mid = rock[2], lit2 = tint(rock[0], 1.1), dark2 = tint(rock[1], 0.84), spurL = cs - Math.round(hw * (0.25 + hv(6, 1) * 0.2)), spurR = cs + Math.round(hw * (0.22 + hv(7, 1) * 0.2));
         let ridge = cs;
         for (let i = 0; i < best; i++) {                       // row by row from the summit down, in runs of one colour
@@ -2026,6 +2066,7 @@ function provLand() {
               else if (isLit) colr = fr > 0.25 && c > lx && c <= lx + sw ? mid : depth < 1 ? lit2 : hv(i, 9) > 0.55 && hv(c >> 2, 10 + i) > 0.35 ? mid : lit;      // a spur throwing its own small shade, the crest catching the light, and the beds of the rock
               else colr = fr > 0.2 && c >= rx - sw && c < rx ? mid : hv(i, 11) > 0.6 && hv(c >> 2, 12 + i) > 0.4 ? dark2 : dark;
               if (!snowy && lvl <= 2 && hv(c, 13) > 0.5) colr = isLit ? mid : dark2;                                                // scree along the foot
+              if (!snowy && fr > 1 - creep && h(mx + c, yy, 1366) < (fr - (1 - creep)) / creep * 0.7) colr = isLit ? gc : gcD;      // and the ground come up it
             }
             if (colr !== rc) { if (rc) R(mx + run, yy, c - run, 1, rc); run = c; rc = colr; }
           }
