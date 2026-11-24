@@ -1593,7 +1593,25 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 .lrow.stile small { font-size: 10.5px; max-width: 100%; }
 .lrow.stile b { font-size: 14px; }
 /* every man's kit, a picture a slot */
-.kitrow, .panel.kit.two .kitrow { grid-template-columns: minmax(60px, 1fr) repeat(6, 36px) auto; gap: 3px; }
+.kitrow { grid-template-columns: minmax(60px, 1fr) repeat(6, 36px) auto; gap: 3px; }
+/* a full school shows two men abreast, and six pictures leave no room beside them for a name: so the name and the
+   sum of his kit go on a line above his pictures, and the columns fall to one where even that will not fit. The
+   pictures say which slot is which, so the row of slot marks is left out here. */
+.panel.kit.two { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); row-gap: 5px; }
+.panel.kit.two .kitrow { grid-template-columns: repeat(6, 36px) minmax(0, 1fr); row-gap: 1px; }
+.panel.kit.two .kitrow .nm { grid-column: 1 / span 4; grid-row: 1; }
+.panel.kit.two .kitrow small { grid-column: 5 / -1; grid-row: 1; white-space: nowrap; }
+.panel.kit.two .kitrow .kc { grid-row: 2; }
+.panel.kit.two .kitrow.head { display: none; }
+/* and a short list in a narrow window is laid out the same way, for the same want of room */
+.panel.kit { container: kit / inline-size; }
+@container kit (max-width: 430px) {
+  .kitrow { grid-template-columns: repeat(6, 36px) minmax(0, 1fr); row-gap: 1px; margin-bottom: 4px; }
+  .kitrow .nm { grid-column: 1 / span 4; grid-row: 1; }
+  .kitrow small { grid-column: 5 / -1; grid-row: 1; white-space: nowrap; }
+  .kitrow .kc { grid-row: 2; }
+  .kitrow.head { display: none; }
+}
 .kitrow .kc { line-height: 0; cursor: pointer; } .kitrow .kc.sel canvas { box-shadow: 0 0 0 2px var(--gold); }
 .kitrow.head .ic { width: 16px; height: 16px; }
 /* the card under the mouse */
