@@ -16,7 +16,7 @@ const bar = (cls, v, m) => `<div class="bar ${cls}" role="img" aria-label="${BAR
 // ---------- tooltips ----------
 
 const TIPS = {
-  day: 'Each day every fighter trains or rests, and you pay for food and wages.',
+  day: 'Each day every fighter trains or rests, and you pay for food and wages.\nThe season is only how the town looks: three months to each, and the year begins in spring.',
   denarii: 'Your money, and what an ordinary day costs or earns you after food, wages and the Guild stipend.\nStay in debt past the days of grace and the creditors take the ludus; an heir then begins again.',
   fame: 'Fame comes from winning bouts, and more from exciting ones. It opens greater arenas with richer purses and stronger opponents.',
   games: 'While the arena is open, games are held every fifth day, and bouts can only be fought on a games day. It is open for a month and then shut for a month, by turns: thirty days of games, thirty with none.\nEvery fifth day is market day in either: the dealer, the smith, the hiring hall and the board of work all change.',
@@ -620,7 +620,7 @@ function renderTop() {
   const dg = daysToGames(), net = stipend() - upkeep(), shut = arenaShut(), far = dg > GAMES_EVERY;      // far: the next games are past the next market day, so the days are run to that
   $('#topbar').innerHTML = `
     <h1 class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</h1>
-    <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day</span></div>
+    <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day<span class="season"> &middot; ${SEASONS[seasonNo(G.day)]}</span></span></div>
     <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}<span class="sr"> denarii</span></b><span>${net >= 0 ? '+' : ''}${net} a day</span></div>
     <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small>/${next}</small><span class="sr"> fame</span></b><span>${TIERS[t].name}</span></div>
     <div class="stat games${shut ? ' shut' : ''}"${tip('games')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>${shut ? 'Arena shut &middot; next games' : 'Next games'}</span></div>
@@ -652,7 +652,20 @@ function renderTabs() { $('#app').classList.toggle('noyard', ui.noyard); }
 // Called by the village when the lanista steps onto a doorstep.
 function villageEnter(key) { if (ui.tab === key) return; ui.tab = key; SFX.ui('door'); render(); }
 // What waits inside a building, shown as a number by its name on the map.
-function villageMarks() { return { arena: G.bouts ? G.bouts.filter(b => !b.done).length : 0, contracts: G.contracts.filter(c => c.asked).length }; }
+// A number is something that wants you: bouts to fight, a contract that asks for you by name, a perk to choose, a man
+// asking for the doctore's post. A '!' is only news: stock, offers or faces that have changed since you were last in.
+function villageMarks() {
+  const seen = G.seenAt || (G.seenAt = {}), last = G.day - G.day % GAMES_EVERY, here = typeof vil !== 'undefined' ? vil.inside : ui.tab;
+  if (here) seen[here] = G.day;                                         // where you are, you have seen
+  const fresh = k => last > 0 && (seen[k] || 0) < last, asking = k => !G.staff[k] && G.hires.some(h => h.role === k);
+  const m = { arena: G.bouts ? G.bouts.filter(b => !b.done).length : 0, contracts: G.contracts.filter(c => c.asked).length };
+  m.ludus = G.roster.filter(g => g.perkPending > 0).length + (asking('doctore') ? 1 : 0);
+  if (!m.contracts && fresh('contracts') && G.contracts.length) m.contracts = '!';
+  if (fresh('market') && G.market.length) m.market = '!';
+  if (asking('faber')) m.smith = 1; else if (fresh('smith') && G.smith.stock.length) m.smith = '!';
+  if (fresh('facilities') && G.hires.some(h => !AWAY_POSTS.includes(h.role) && !G.staff[h.role])) m.facilities = '!';
+  return m;
+}
 
 // The view is rebuilt after every action, so each scrolling pane is put back where the player left it.
 function renderView() {
@@ -2620,7 +2633,7 @@ const ACTIONS = {
       return;
     }
     ui.confirmSkip = false;
-    endDay(); render();
+    endDay(); ui.turnAt = performance.now(); render();      // (the night goes over the pictures: see dayTurn in yard.js)
     SFX.ui(G.ruin ? 'thud' : isGamesDay() ? 'herald' : 'day');
     showReports();
     if (G.pendingEvent) showEvent();
@@ -2862,6 +2875,7 @@ const ACTIONS = {
     if (G.over) { checkEnd(); return; }
     let n = 0;
     do { endDay(); n++; } while (n < GAMES_EVERY && !isMarketDay() && !G.over && !G.pendingEvent && !G.reports.length);
+    ui.turnAt = performance.now();
     render();
     SFX.ui(G.ruin ? 'thud' : isGamesDay() ? 'herald' : 'day');
     showReports();

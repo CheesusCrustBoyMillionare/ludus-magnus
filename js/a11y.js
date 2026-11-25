@@ -118,7 +118,7 @@
     if (sig === st.places) return;
     st.places = sig;
     const info = k => { const t = (typeof PLACE_INFO !== 'undefined' && PLACE_INFO[k]) || ''; return t ? t.slice(t.indexOf(':') + 2).toLowerCase() : ''; };
-    const note = p => [info(p.key), p.key === 'arena' && typeof daysToGames === 'function' ? (daysToGames() === 0 ? 'games today' : `games in ${daysToGames()} day${daysToGames() === 1 ? '' : 's'}`) : '', marks[p.key] ? `${marks[p.key]} waiting` : ''].filter(Boolean).join(', ');
+    const note = p => [info(p.key), p.key === 'arena' && typeof daysToGames === 'function' ? (daysToGames() === 0 ? 'games today' : `games in ${daysToGames()} day${daysToGames() === 1 ? '' : 's'}`) : '', marks[p.key] === '!' ? 'something new since you were last in' : marks[p.key] ? `${marks[p.key]} waiting` : ''].filter(Boolean).join(', ');
     nav.innerHTML = '<b id="placesHead">Walk to</b>' + PLACES.map(p => `<button data-act="goto" data-v="${p.key}"${p.key === ui.tab ? ' aria-current="page"' : ''}>${p.name}<span class="sr">: ${note(p)}</span></button>`).join('')
       + folk.map((f, i) => `<button data-act="goto" data-v="giver${i}">${f.q && f.q.giver ? f.q.giver.name : 'A visitor'}<span class="sr">, waiting at the fountain ${f.owed ? 'to pay what is owed' : 'with work'}</span></button>`).join('')
       + `<button data-act="goto" data-v="gate"${open ? '' : ' aria-disabled="true"'}>East gate<span class="sr">: ${open ? 'out into the province' : 'barred until your first games'}</span></button>`;

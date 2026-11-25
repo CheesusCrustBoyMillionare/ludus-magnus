@@ -210,11 +210,59 @@ const guestTop = (tab, o) => Math.min(o.y, ((PLACE_SCENES[tab] && PLACE_SCENES[t
 // A click on the picture of the place he is in, where nothing in it was clicked: he walks to that spot (Gs.goal), and
 // stays there until he is sent somewhere else in it, something is chosen in the list for him to point at, or he leaves.
 // Called back while on his way to the door, he does not go. True if there was anybody there to send.
+// What stands on the ground of a place where he might otherwise walk: each as the box it fills in the picture, [x0, y0,
+// x1, y1], with its foot at y1. He is painted after the furniture, so he must never stand with his feet inside one of
+// these (he would be drawn over a thing he is behind): he keeps in front of it or clear of it, and goes round it.
+const PLACE_BLOCKS = {
+  market: () => [[404, 132, 434, 150], [4, 158, 44, 181]],                                                    // the clerk's table; the cart
+  contracts: () => [[440, 132, 484, 150], [134, 144, 182, 170], [12, 146, 62, 166], [570, 148, 582, 168]]     // the clerk's table, the fountain, the rail and its mule, the milestone
+    .concat((G.jobs || []).length ? [[520, 156, 515 + Math.min(4, G.jobs.length) * 14, 168]] : []),          // and the packs of men who are away
+  arena: () => [[158, 130, 182, 149], [118, 138, 152, 156], [498, 130, 576, 158]],                            // the champion's plinth, the bookmakers' table, the rail of crowns
+  facilities: () => { const gl = G.fac.stores || 0; return [[250, 150, 340, 168]].concat(gl >= 1 ? [[544, 124, 584, 152]] : [], gl >= 2 ? [[542, 158, 590, 178]] : [], gl >= 3 ? [[518, 169, 536, 179]] : []); },      // the pool; the granary, its garden, the pig
+  rivals: () => [[208, 146, 254, 162], [300, 146, 346, 162], [392, 146, 438, 162], [488, 146, 518, 162], [150, 169, 180, 186]],      // the tables, and the dicers' board
+  chronicle: () => typeof titleYours === 'function' && titleYours() ? [[538, 138, 554, 164]] : [],            // the champion's plinth
+};
+const guestRects = tab => PLACE_BLOCKS[tab] ? PLACE_BLOCKS[tab]() : [];
+const guestIn = (rects, x, y) => x < 12 || x > 578 || rects.some(r => x > r[0] - 6 && x < r[2] + 6 && y >= r[1] && y < r[3]);
+// The nearest spot to x, y that he can stand on.
+function guestFree(tab, o, x, y) {
+  const top = guestTop(tab, o), rects = guestRects(tab);
+  x = clamp(x, 12, 578); y = clamp(y, top, GUEST_FOOT);
+  if (!guestIn(rects, x, y)) return { x, y };
+  let best = null, bd = 1e9;
+  for (let yy = top; yy <= GUEST_FOOT; yy += 2) for (let xx = 12; xx <= 578; xx += 2) { if (guestIn(rects, xx, yy)) continue; const d = Math.hypot(xx - x, (yy - y) * 1.4); if (d < bd) { bd = d; best = { x: xx, y: yy }; } }
+  return best || { x, y };
+}
+// The way from where he is to where he is going, as the points to walk through: straight if nothing is between, and
+// otherwise round whatever is, by the shortest way over a grid laid on the floor.
+function guestRoute(tab, o, x0, y0, x1, y1) {
+  const rects = guestRects(tab), end = guestFree(tab, o, x1, y1);
+  const clear = (ax, ay, bx, by) => { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 2); for (let i = 1; i < n; i++) if (guestIn(rects, ax + (bx - ax) * i / n, ay + (by - ay) * i / n)) return false; return true; };
+  if (Math.hypot(end.x - x0, end.y - y0) <= 1) return [];
+  if (!rects.length || clear(x0, y0, end.x, end.y)) return [end];
+  const C = 4, top = guestTop(tab, o), w = Math.ceil(590 / C), h = Math.floor((GUEST_FOOT - top) / C) + 1, at = (cx, cy) => ({ x: cx * C + C / 2, y: top + cy * C });
+  const cell = (x, y) => clamp(Math.round((y - top) / C), 0, h - 1) * w + clamp(Math.floor(x / C), 0, w - 1), shut = c => { const p = at(c % w, Math.floor(c / w)); return guestIn(rects, p.x, p.y); };
+  const a = cell(x0, y0), b = cell(end.x, end.y), from = new Int32Array(w * h).fill(-1), q = [a];
+  from[a] = a;
+  for (let i = 0; i < q.length && from[b] < 0; i++) { const c = q[i], cx = c % w, cy = (c - cx) / w;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) { const nx = cx + dx, ny = cy + dy, n = ny * w + nx;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || from[n] >= 0 || (n !== b && shut(n))) continue;
+      if (dx && dy && (shut(cy * w + nx) || shut(ny * w + cx))) continue;
+      from[n] = c; q.push(n); } }
+  if (from[b] < 0) return [end];
+  const pts = [end]; for (let c = from[b]; c !== a; c = from[c]) pts.push(at(c % w, Math.floor(c / w)));
+  pts.reverse();
+  const out = []; let px = x0, py = y0;                                 // only the corners are kept: from each point, the furthest one that can be seen
+  for (let i = 0; i < pts.length;) { let j = i; for (let k = pts.length - 1; k > i; k--) if (clear(px, py, pts[k].x, pts[k].y)) { j = k; break; } out.push(pts[j]); px = pts[j].x; py = pts[j].y; i = j + 1; }
+  return out;
+}
+// How far a way is, from where he stands.
+const routeLength = (Gs, way) => way.reduce((s, p, i) => s + Math.hypot(p.x - (i ? way[i - 1].x : Gs.x), p.y - (i ? way[i - 1].y : Gs.y)), 0);
 // Where in the picture of a place a click at x, y would send him: the nearest spot to it that he can stand on.
 function sceneSpot(tab, x, y) {
   if (tab === 'ludus') return { x: clamp(x, 12, 578), y: clamp(y, YARD.GY + 6, YARD.H - 6) };
   const o = GUEST[tab] && GUEST[tab]();
-  return o ? { x: clamp(x, 12, 578), y: clamp(y, guestTop(tab, o), GUEST_FOOT) } : null;
+  return o ? guestFree(tab, o, x, y) : null;
 }
 function sceneWalk(tab, x, y) {
   if (typeof vil === 'undefined' || vil.inside !== tab || typeof ui === 'undefined') return false;
@@ -222,7 +270,7 @@ function sceneWalk(tab, x, y) {
   const Gs = tab === 'ludus' ? yardGuest : sceneGuests[tab] || (sceneGuests[tab] = { token: 0 });
   if (vil.leaving && vil.leaving.key === tab) { vil.path = null; vil.then = null; }
   Gs.goal = goal;
-  if (ui.still) { Gs.x = goal.x; Gs.y = goal.y; const cv = document.getElementById('yard'); if (cv) cv._drawnW = 0; }      // pictures held still: he is simply there
+  if (ui.still) { Gs.x = goal.x; Gs.y = goal.y; Gs.rk = null; const cv = document.getElementById('yard'); if (cv) cv._drawnW = 0; }      // pictures held still: he is simply there
   return true;
 }
 // His footfalls, while he is walking where he was sent in the picture.
@@ -230,15 +278,18 @@ function guestSteps(Gs, dt) { Gs.stepT = (Gs.stepT || 0) - dt; if (Gs.stepT <= 0
 function placeGuest(E, tab) {
   if (typeof vil === 'undefined' || vil.inside !== tab || !GUEST[tab] || typeof ui === 'undefined') return null;
   const { R, T } = E, o = GUEST[tab](), Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }), pt = o.point;
-  if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = o.door; Gs.y = o.y; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; Gs.goal = null; Gs.sel = null; }      // just in: he starts at the door
+  if (Gs.token !== vil.insideT) { const in0 = guestFree(tab, o, o.door, o.y); Gs.token = vil.insideT; Gs.x = in0.x; Gs.y = in0.y; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; Gs.goal = null; Gs.sel = null; Gs.rk = null; }      // just in: he starts at the door
   if (Gs.y === undefined) Gs.y = o.y;
   const sel = pt ? pt.x + ':' + pt.y : ''; if (Gs.sel !== sel) { if (Gs.sel !== null) Gs.goal = null; Gs.sel = sel; }      // something new chosen in the list: he leaves where he was sent and goes to it
   const dt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
   const lv = vil.leaving && vil.leaving.key === tab ? vil.leaving : null;      // sent elsewhere: he makes for the door
   const goal = lv ? null : Gs.goal || null;                                    // sent to a spot in the picture: he goes there
-  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = lv ? o.door : goal ? goal.x : pt ? pt.x + side * 13 : o.wait, ty = goal ? goal.y : o.y, gx = tx - Gs.x, gy = ty - Gs.y, gap = Math.hypot(gx, gy), moving = gap > 1;
-  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 62 * LEAVE_PACE; lv.need = gap / lv.pace; } if (!moving) lv.out = true; }      // half as fast again as he walks about the place, and the map waits for him
-  if (moving) { const step = Math.min(gap, (lv ? lv.pace : 62) * dt); Gs.x += gx / gap * step; Gs.y += gy / gap * step; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, dt); }
+  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = lv ? o.door : goal ? goal.x : pt ? pt.x + side * 13 : o.wait, ty = goal ? goal.y : o.y;
+  // the way there, round whatever stands between (worked out afresh only when where he is going changes)
+  const rk = Math.round(tx) + ':' + Math.round(ty); if (Gs.rk !== rk) { Gs.rk = rk; Gs.route = guestRoute(tab, o, Gs.x, Gs.y, tx, ty); }
+  const way = Gs.route || [], to = way[0] || { x: Gs.x, y: Gs.y }, gx = to.x - Gs.x, gy = to.y - Gs.y, gap = Math.hypot(gx, gy), moving = way.length > 0;
+  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 62 * LEAVE_PACE; lv.need = routeLength(Gs, way) / lv.pace; } if (!moving) lv.out = true; }      // half as fast again as he walks about the place, and the map waits for him
+  if (moving) { const step = (lv ? lv.pace : 62) * dt; if (gap <= step) { Gs.x = to.x; Gs.y = to.y; way.shift(); } else { Gs.x += gx / gap * step; Gs.y += gy / gap * step; } if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, dt); }
   else if (!goal) Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
   const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
   return { x: X, y: Y, draw() {

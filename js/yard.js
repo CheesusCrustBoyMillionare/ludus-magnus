@@ -1004,6 +1004,18 @@ function drawYard(cv, T) {
   sceneVignette(ctx, 590, 190, 0.3);
 }
 
+// The night that goes over the pictures when a day is ended: a second of dusk, dark with a few stars, and dawn. Painted
+// over the picture of the place and over the map of the town alike (ui.turnAt is when the day was ended).
+function dayTurn(ctx, w, h) {
+  if (typeof ui === 'undefined' || !ui.turnAt || ui.still) return;
+  const p = (performance.now() - ui.turnAt) / 1000;
+  if (p < 0 || p >= 1) return;
+  const a = Math.pow(Math.sin(p * Math.PI), 0.8);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(' + (p < 0.5 ? '44,26,52' : '20,26,56') + ',' + (0.8 * a).toFixed(3) + ')'; ctx.fillRect(0, 0, w, h);      // dusk is warm, the small hours cold
+  if (a > 0.6) { ctx.fillStyle = 'rgba(255,250,225,' + ((a - 0.6) * 2).toFixed(3) + ')'; for (let i = 0; i < 26; i++) ctx.fillRect((i * 97 + 31) % w, (i * 53 + 11) % Math.round(h * 0.55), 1, 1); }
+}
+
 // ---------- over either picture: what the mouse is on, the doors of a place just come into, the half light of one just left ----------
 const sceneFx = { hover: null, tab: null, wipe: -1, dim: 0, t: 0, key: '' };
 // Which thing in the picture a point is on: a fighter first (the nearest the front), then anything else that is not
@@ -1060,6 +1072,7 @@ function sceneOver(cv, T, tab) {
     }
   }
   if (cv.style.cursor !== cur) cv.style.cursor = cur;
+  dayTurn(ctx, YARD.W, YARD.H);
 }
 // Where the mouse is over the picture, kept for the line round what it is on (sceneOver). With the pictures held still
 // the picture is painted again only when the mouse comes onto something else.

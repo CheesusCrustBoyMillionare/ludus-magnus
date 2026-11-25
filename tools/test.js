@@ -1855,6 +1855,7 @@ test('the calendar: a month of games, a month with the arena shut, and market da
   G.day = 31; assert(!isGamesDay() && arenaShut() && daysToGames() === 34 && daysToMarket() === 4 && monthEnds() === 61, 'the arena is shut, and says for how long');
   G.day = 60; assert(isMarketDay() && !isGamesDay() && arenaShut() && daysToGames() === 5, 'market day in a shut month is no games day');
   G.day = 61; assert(!arenaShut() && daysToGames() === 4, 'and then it opens');
+  assert([1, 90, 91, 180, 181, 271, 360, 361].map(seasonNo).join() === '0,0,1,1,2,3,3,0' && SEASONS.length === 4, 'three months to a season, and the year begins again in spring');
   // the day itself: a shut month has its market days, with fresh stock and new work, and no bouts
   newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(26));
   while (G.day < 34) { G.denarii = 500; endDay(); G.pendingEvent = null; G.reports.length = 0; }
@@ -1871,6 +1872,30 @@ test('the calendar: a month of games, a month with the arena shut, and market da
   newGame(); G.day = 33; G.festival = { day: 45, type: 'melee' }; G.festQueue = [{ day: 60, type: 'tourney' }, { day: 75, type: 'hunt' }]; migrate();
   assert(G.festival.day === 75 && G.festQueue.length === 2 && G.festQueue.every(x => gamesOn(x.day)), 'an old calendar is drawn up afresh: ' + G.festival.day);
 }));
+test('a place: he goes round what stands on its floor, never through it, and ends where he was sent', () => {
+  const ctx = { console, Math, Date, assert, performance: { now: () => 0 }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} } };
+  vm.createContext(ctx);
+  vm.runInContext(['data', 'sim', 'jobs', 'wilds', 'combat', 'abilities', 'places'].map(f => read('js/' + f + '.js')).join('\n') + '\nvar ui = {}, YARD = { W: 590, H: 190, GY: 128 };', ctx);
+  return vm.runInContext('(' + function () {
+    newGame(); G.fac.stores = 3; G.jobs = [{}, {}];
+    let seed = 7, ways = 0, bent = 0; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (const tab of Object.keys(GUEST)) {
+      const o = GUEST[tab](), rects = guestRects(tab), top = guestTop(tab, o);
+      const inside = (x, y) => rects.some(r => x > r[0] - 4 && x < r[2] + 4 && y >= r[1] + 1 && y < r[3] - 1);      // (a hair inside the box, to allow for his stride)
+      assert(top <= o.y && !guestIn(rects, guestFree(tab, o, o.door, o.y).x, guestFree(tab, o, o.door, o.y).y), tab + ': he can stand where he comes in');
+      for (let n = 0; n < 60; n++) {
+        const a = guestFree(tab, o, 12 + rnd() * 566, top + rnd() * (186 - top)), aim = { x: rnd() * 590, y: 100 + rnd() * 90 }, end = guestFree(tab, o, aim.x, aim.y);
+        assert(!guestIn(rects, end.x, end.y) && end.y >= top && end.y <= 186, tab + ': a click is brought to a spot he can stand on');
+        const way = guestRoute(tab, o, a.x, a.y, aim.x, aim.y); let x = a.x, y = a.y; ways++; if (way.length > 1) bent++;
+        for (const p of way) { const d = Math.hypot(p.x - x, p.y - y), k = Math.max(1, Math.ceil(d)); for (let i = 1; i <= k; i++) assert(!inside(x + (p.x - x) * i / k, y + (p.y - y) * i / k), tab + ': he walked through something on his way from ' + Math.round(a.x) + ',' + Math.round(a.y) + ' to ' + Math.round(end.x) + ',' + Math.round(end.y)); x = p.x; y = p.y; }
+        assert(Math.hypot(x - end.x, y - end.y) <= 1.01, tab + ': and came to where he was sent');
+        assert(Math.abs(routeLength({ x: a.x, y: a.y }, way) - way.reduce((s, p, i) => s + Math.hypot(p.x - (i ? way[i - 1].x : a.x), p.y - (i ? way[i - 1].y : a.y)), 0)) < 1e-6, 'the length of a way is the sum of its legs');
+      }
+    }
+    assert(bent >= 10, 'some ways go round something: ' + bent + ' of ' + ways);
+    return bent + ' of ' + ways + ' ways went round something';
+  }.toString() + ')()', ctx);
+});
 test('the town: what people are saying is true of the country, the town and the school', () => game()(function () {
   newGame(); G.day = 3;
   const all = townRumours(), far = s => Math.hypot(s.x - WILD.TOWN.x, s.y - WILD.TOWN.y);
@@ -1908,7 +1933,15 @@ test('the town: an arena as great as the games, the doctore and the stables at t
   assert(y.includes('function sceneOver(cv, T, tab)') && y.includes('sceneOver(cv, T, tab);') && y.includes("cur = 'pointer';") && y.includes('function sceneWord(h)') && y.includes('watchScene(cv);'), 'what can be clicked in a picture is ringed and named, and the pointer says so');
   assert(y.includes('const gone = hasVil && !first && !inside;') && y.includes('if (!first && F.tab !== tab && !still) F.wipe = 0;') && pl.includes('function sceneSpot(tab, x, y)'), 'the doors open on a place come into, and one he has left is dimmed');
   // the arena in a month without games: barred, furled and empty, on the map and from the street
-  assert(v.includes('const SHUT = typeof arenaShut') && v.includes('SHUT ? 1 : 0].map') && v.includes('shutNow ? [] : ARENA_FLAGS[L]') && pl.includes('shut = arenaShut()') && pl.includes("'NO BOOK THIS MONTH'"), 'a shut arena looks shut');
+  assert(v.includes('const SHUT = typeof arenaShut') && v.includes('SHUT ? 1 : 0, SE, TS].map') && v.includes('shutNow ? [] : ARENA_FLAGS[L]') && pl.includes('shut = arenaShut()') && pl.includes("'NO BOOK THIS MONTH'"), 'a shut arena looks shut');
+  // the rest of the look of the town: seasons, a town that grows, the stables on the map, what waits behind each door, words that can be read
+  const css = read('css/style.css');
+  assert(v.includes('SE = typeof seasonNo') && v.includes('VIL_HUTS.forEach') && v.includes('const TOWN_FOLK = [5, 7, 9, 12];') && v.includes('if (TS >= 2) { paved(4, 74, 582, 18);') && v.includes('VIL_STABLE'), 'the map follows the season, the size of the town, and the school\'s stables');
+  assert(v.includes('if (vil.layerKey !== key) vil.grid = null;'), 'and the way round things is worked out again when what stands there changes');
+  assert(m.includes('G.seenAt || (G.seenAt = {})') && m.includes("m.market = '!'") && m.includes('m.ludus = G.roster.filter(g => g.perkPending > 0).length'), 'a door says what is waiting behind it, and what is new since you were last in');
+  assert(v.includes('function villageLabels(ov, cv, sc, L)') && css.includes('#vlabels .vl') && v.includes('Math.max(10, Math.round(6 * sc * 10) / 10)'), 'the words on the map are text of the page, and never smaller than can be read');
+  assert(y.includes('function dayTurn(ctx, w, h)') && m.includes('ui.turnAt = performance.now();') && v.includes('dayTurn(ctx, 590, 190)'), 'the night goes over both pictures when a day is ended');
+  assert(!/max-width: 1000px\) \{ #yard \{ display: none; \} \}/.test(css) && css.includes('#app:not(.noyard) #yard { position: absolute; left: 3px; top: 3px; width: calc(50% - 8px); height: auto; }'), 'a narrow window keeps the picture of the place');
   // the side bar: no switch for the picture of the yard; a slider each for the sound and the music
   const s = read('js/sfx.js'), foot = m.slice(m.indexOf("$('#sidefoot').innerHTML"), m.indexOf('function volSlider'));
   assert(foot.length > 100 && !foot.includes('yardtoggle') && foot.includes("volSlider('sound')") && foot.includes("volSlider('music')"), 'the Yard button is gone from the side bar, and the sliders are there');

@@ -574,6 +574,9 @@ const gamesNo = d => Math.floor(d / (MONTH * 2)) * GAMES_A_MONTH + Math.min(GAME
 const gamesDayNo = n => Math.floor((n - 1) / GAMES_A_MONTH) * MONTH * 2 + ((n - 1) % GAMES_A_MONTH + 1) * GAMES_EVERY;
 // When the arena next opens, or shuts: the first day of the month after this one.
 const monthEnds = () => Math.ceil(G.day / MONTH) * MONTH + 1;
+// The seasons, three months to each, for the look of the town and nothing else: the year begins in spring.
+const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const seasonNo = d => Math.floor(((Math.max(1, d) - 1) % (MONTH * 12)) / (MONTH * 3));
 function foodCost() { return G.grainUntil && G.grainUntil > G.day ? 0 : Math.round(G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)) * (1 - 0.1 * facLvl('stores'))); }
 // What the dispensator saves on the day's outgoings.
 function thrift() { return Math.round((foodCost() + wages()) * 0.06 * staffLvl('dispensator')); }
