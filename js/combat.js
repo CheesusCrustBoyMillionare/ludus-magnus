@@ -373,7 +373,7 @@ function resolveAttack(B, a, d, o) {
     e.str = `${e.base}: ${e.dmg} to ${who.length > 1 ? who.length + ' foes' : who[0]}${blocked ? ' (blocked)' : ''}`; e.life = Math.max(e.life, 4.5);
   } else if (!o.ability) {
     if (!B.firstBlood && !blocked) { B.firstBlood = true; feed(B, `First blood to ${a.g.name}`, a.team, 'hit'); snd(B, 'firstblood'); }
-    else if (crit && !blocked && dmg >= d.maxHp * 0.12 && d.hp > 0) feed(B, `${a.g.name} lands a telling blow on ${d.g.name}: ${dmg}`, a.team, 'hit');
+    else if (crit && !blocked && dmg >= d.maxHp * 0.12 && d.hp > 0) feed(B, `${a.g.name} lands a critical hit on ${d.g.name}: ${dmg}`, a.team, 'hit');
   }
   d.flash = 0.12;
   // blows fill the charge: more for landing one than for taking one, and nothing from an ability's own strokes

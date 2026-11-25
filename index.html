@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="build" content="b41f2763">
+<meta name="build" content="ba677b4c">
 <title>Ludus Magnus</title>
 <link rel="stylesheet" href="css/style.css?v=609ef878">
 </head>
@@ -35,7 +35,7 @@
   <div id="arenaTip" hidden></div>
   <div id="arenaBar">
     <div id="arenaOrders" class="grp"><span class="gl">Orders</span>
-      <button data-act="order" data-v="yield" id="ordYield" data-key="C" data-tip="Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once per bout, and it cannot be taken back, so it asks you twice.">Throw in the cloth</button>
+      <button data-act="order" data-v="yield" id="ordYield" data-key="C" data-tip="Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. You can do it once per bout. It cannot be undone, so you must press twice to confirm.">Throw in the cloth</button>
     </div>
     <div id="arenaCtl">
       <div class="grp"><span class="gl">Speed</span>
@@ -43,20 +43,20 @@
         <button data-act="speed" data-v="1">1x</button>
         <button data-act="speed" data-v="2">2x</button>
         <button data-act="speed" data-v="4">4x</button>
-        <button data-act="pause" id="pauseBtn" data-key="Space" data-tip="Stops the fight where it stands so you can look. Rest the mouse on any fighter to see what he is and what he carries.">Pause</button>
-        <button data-act="fstep" id="stepBtn" data-key="." data-tip="Stops the fight if it is running, then moves it on a tenth of a second at each press.">Step</button>
+        <button data-act="pause" id="pauseBtn" data-key="Space" data-tip="Pauses the fight so you can look. Hover over any fighter to see who he is and what he carries.">Pause</button>
+        <button data-act="fstep" id="stepBtn" data-key="." data-tip="Pauses the fight if it is running, then advances it a tenth of a second with each press.">Step</button>
       </div>
       <div class="grp"><span class="gl">Fight</span>
-        <button data-act="abauto" id="autoCast" data-tip="Ask me: the fight stops each time one of your men is charged, and you choose his ability (keys 1 to 4). Auto: they choose for themselves and the fight never stops.">Abilities: ask me</button>
-        <button data-act="cutins" id="cutBtn" data-tip="On: when an ability is used the fight holds for a moment and a band crosses the screen with the fighter and the ability's name. A man's death is shown the same way. Off: abilities land, and men die, without ceremony. In fights of more than six, only your own men are announced.">Cut-ins: on</button>
-        <button data-act="fcam" id="camBtn" data-tip="Follows: the view keeps to the men still fighting, coming closer when they are bunched and drawing back when they spread. Fixed: the whole arena, always. Either way it closes in on the blow that ends the fight.">Camera: follows</button>
+        <button data-act="abauto" id="autoCast" data-tip="Ask me: the fight pauses each time one of your men has a full charge, and you choose his ability (keys 1 to 4). Auto: your men choose for themselves and the fight never pauses.">Abilities: ask me</button>
+        <button data-act="cutins" id="cutBtn" data-tip="On: when an ability is used the fight pauses for a moment and a banner shows the fighter and the ability's name. A man's death is shown the same way. Off: no banners. In fights of more than six, only your own men get banners.">Cut-ins: on</button>
+        <button data-act="fcam" id="camBtn" data-tip="Follows: the view tracks the men still fighting, zooming in when they are close together and out when they spread. Fixed: always shows the whole arena. Either way it zooms in on the final blow.">Camera: follows</button>
         <button data-act="flog" id="logBtn" data-key="L" data-tip="Everything that has happened in this fight, line by line, with the time of each.">Log</button>
       </div>
       <div class="grp"><span class="gl none"></span>
         <button data-act="mute" id="muteBtn">Sound on</button>
-        <button data-act="menu" data-key="Esc" data-tip="Stops the fight and opens the menu: settings, the figures of your house, help, and the way out.">Menu</button>
-        <button id="keysBtn" data-act="help" data-v="keys" data-key="H" data-tip="Stops the fight and opens the book at the page of keys. The page before it is about fights.">Keys</button>
-        <button data-act="skip" id="skipBtn" data-tip="Plays the rest of the fight out unseen and goes straight to the result. It asks you twice.">Skip to result</button>
+        <button data-act="menu" data-key="Esc" data-tip="Pauses the fight and opens the menu: settings, statistics of your house, help, and quitting.">Menu</button>
+        <button id="keysBtn" data-act="help" data-v="keys" data-key="H" data-tip="Pauses the fight and opens the help at its Keys page. The page before it is about fights.">Keys</button>
+        <button data-act="skip" id="skipBtn" data-tip="Works out the rest of the fight without showing it, and goes straight to the result. Press twice to confirm.">Skip to result</button>
       </div>
     </div>
   </div>
@@ -67,20 +67,20 @@
 
 <div id="modal" hidden><div id="modalBox"></div></div>
 
-<script src="js/data.js?v=faf1b7ca"></script>
-<script src="js/sim.js?v=a8c85dec"></script>
-<script src="js/jobs.js?v=26c38676"></script>
-<script src="js/wilds.js?v=64ae8487"></script>
-<script src="js/combat.js?v=36d324b0"></script>
-<script src="js/abilities.js?v=e2df6fe0"></script>
+<script src="js/data.js?v=c9dc9a06"></script>
+<script src="js/sim.js?v=343363e9"></script>
+<script src="js/jobs.js?v=9734584e"></script>
+<script src="js/wilds.js?v=721fc5a3"></script>
+<script src="js/combat.js?v=458ae95f"></script>
+<script src="js/abilities.js?v=ff72bae4"></script>
 <script src="js/show.js?v=05fd055c"></script>
 <script src="js/sfx.js?v=431d37ad"></script>
-<script src="js/yard.js?v=7d7581c0"></script>
-<script src="js/places.js?v=55f2b955"></script>
-<script src="js/village.js?v=7a009ab8"></script>
-<script src="js/province.js?v=022b4b49"></script>
+<script src="js/yard.js?v=68a404fb"></script>
+<script src="js/places.js?v=2f5a17c6"></script>
+<script src="js/village.js?v=c0868186"></script>
+<script src="js/province.js?v=8d5aabf9"></script>
 <script src="js/art.js?v=45711003"></script>
-<script src="js/main.js?v=7aef7fb0"></script>
-<script src="js/a11y.js?v=9810f373"></script>
+<script src="js/main.js?v=eec60113"></script>
+<script src="js/a11y.js?v=932fb7b8"></script>
 </body>
 </html>

@@ -16,85 +16,85 @@ const bar = (cls, v, m) => `<div class="bar ${cls}" role="img" aria-label="${BAR
 // ---------- tooltips ----------
 
 const TIPS = {
-  day: 'Each day every fighter trains or rests, and you pay for food and wages.\nThe season is only how the town looks: three months to each, and the year begins in spring.',
-  denarii: 'Your money, and what an ordinary day costs or earns you after food, wages and the Guild stipend.\nStay in debt past the days of grace and the creditors take the ludus; an heir then begins again.',
-  fame: 'Fame comes from winning bouts, and more from exciting ones. It opens greater arenas with richer purses and stronger opponents.',
-  games: 'While the arena is open, games are held every fifth day, and bouts can only be fought on a games day. It is open for a month and then shut for a month, by turns: thirty days of games, thirty with none.\nEvery fifth day is market day in either: the dealer, the smith, the hiring hall and the board of work all change.',
-  skip: 'Advance day by day until the games, stopping early if an event needs your decision or men come home from the road. In a month when the arena is shut it runs to the next market day instead. Key: G',
-  steward: 'Starts the walk through the first week again from the beginning, and has the steward explain each new thing the first time it happens.',
-  endday: 'Every fighter trains or rests, you pay for food and wages, and tomorrow comes. Key: E',
+  day: 'Each day every fighter trains or rests, and you pay for food and wages.\nThe season only changes how the town looks. Each season lasts three months, and the year starts in spring.',
+  denarii: 'Your money. The smaller figure is what a normal day earns or costs you after food, wages and the Guild stipend.\nIf you stay in debt too long the creditors take the ludus, and an heir starts again.',
+  fame: 'Fame comes from winning bouts, and exciting bouts earn more. Fame unlocks bigger arenas, with richer purses and stronger opponents.',
+  games: 'You can only fight bouts on a games day. The arena is open for 30 days, with games every fifth day, then shut for 30 days, then open again, and so on.\nEvery fifth day is also market day, whether the arena is open or shut: the slave dealer, the smith, the hiring hall and the contract board all get new stock.',
+  skip: 'Runs the days forward to the next games. It stops early if an event needs a decision or men come home. While the arena is shut it runs to the next market day instead. Key: G',
+  steward: 'Restarts the first-week tutorial from the beginning. The steward will also explain each new thing the first time it happens.',
+  endday: 'Ends the day: every fighter trains or rests, you pay for food and wages, and the next day begins. Key: E',
   saves: 'Save slots, backups, export and import.',
-  health: 'Carried into the arena as it stands. Resting restores far more than training does.',
-  fatigue: 'Rises with training and with every bout. A tired man\'s charge fills more slowly, so his abilities come round less often; above three quarters he is exhausted and risks injury if he trains.',
-  morale: 'Men in good spirits train faster and hit harder; broken men yield sooner. Raised by better rations, a cook, the Temple and victories. Lowered by defeats and by comrades dying.',
-  autorest: 'When ticked, a fighter who is exhausted rests for the day instead of training into an injury. His assignment is kept.',
-  str: 'Strength: the weight of his blows. A man whose Strength is his highest skill beats one who lives by Agility, and loses to one who lives by Skill. Teaches an ability at 5, 10 and 16.',
-  agi: 'Agility: faster attacks, faster feet and more dodges. A man whose Agility is highest beats one who lives by Skill, and loses to one who lives by Strength. Teaches an ability at 5, 10 and 16.',
-  rating: 'Power is the sum of his three skills: what he is today. Potential is how fast he learns, the sum of his three talents: a man of low power and high potential is worth the wait.',
-  style: 'His style is his highest skill. Strength beats Agility, Agility beats Skill, Skill beats Strength: against the style his own beats, he deals a tenth more and takes a tenth less. A man with two skills level has no style, and no weakness.',
-  charge: 'The gold bar under his health in a fight. It fills slowly by itself and faster with every blow given or taken. When it is full he uses an ability; if he is yours, the fight stops for you to choose which.',
-  abilities: 'Each skill teaches an ability at 5, at 10 and at 16; which ones depends on how he fights. He carries four into the arena. Once he knows more than four, click one to carry it or put it down.',
-  autocast: 'Ask me: the fight stops each time one of your men is charged, and you choose his ability (keys 1 to 4). Auto: they choose for themselves and the fight never stops.',
-  skl: 'Skill: more blows land, more are blocked if he carries a shield, and more are telling. A man whose Skill is highest beats one who lives by Strength, and loses to one who lives by Agility. Teaches an ability at 5, 10 and 16.',
-  talent: 'Talent: how quickly this stat improves with training. One star is slow, five is exceptional.',
-  hidden: 'You cannot judge a recruit\'s talent by looking at him. Employ a scout to see it before you buy.',
+  health: 'He enters the arena with the health he has now. A day of rest restores far more health than a day of training.',
+  fatigue: 'Rises with training and with every bout. A tired man\'s charge fills more slowly, so he uses abilities less often. Above 75 he is exhausted, and may be injured if he trains.',
+  morale: 'Men with high morale train faster and hit harder; men with low morale yield sooner. Better rations, a cook, the Temple and victories raise it. Defeats and the deaths of comrades lower it.',
+  autorest: 'When ticked, an exhausted fighter rests for the day instead of risking an injury by training. He goes back to his assignment afterwards.',
+  str: 'Strength: how hard he hits. A fighter whose highest skill is Strength has the edge over an Agility fighter, and is at a disadvantage against a Skill fighter. Teaches an ability at 5, 10 and 16.',
+  agi: 'Agility: faster attacks, faster movement and more dodges. A fighter whose highest skill is Agility has the edge over a Skill fighter, and is at a disadvantage against a Strength fighter. Teaches an ability at 5, 10 and 16.',
+  rating: 'Power is his three skills added together: how good he is today. Potential is his three talents added together: how fast he learns. A man with low power and high potential is worth the wait.',
+  style: 'His style is his highest skill. Strength beats Agility, Agility beats Skill, Skill beats Strength. Against the style his own beats, he deals 10% more damage and takes 10% less. If his two highest skills are equal he has no style: no advantage and no weakness.',
+  charge: 'The gold bar under his health in a fight. It fills slowly over time, and faster with every blow he lands or takes. When it is full he uses an ability. If he is your man, the fight pauses so you can choose which.',
+  abilities: 'Each skill teaches an ability at 5, 10 and 16. Which abilities he learns depends on his type of fighter. He takes four into the arena. Once he knows more than four, click an ability to add it to his four or take it out.',
+  autocast: 'Ask me: the fight pauses each time one of your men has a full charge, and you choose his ability (keys 1 to 4). Auto: your men choose for themselves and the fight never pauses.',
+  skl: 'Skill: more of his blows land, more are critical hits, and he blocks more if he carries a shield. A fighter whose highest skill is Skill has the edge over a Strength fighter, and is at a disadvantage against an Agility fighter. Teaches an ability at 5, 10 and 16.',
+  talent: 'Talent: how quickly this skill improves with training. One star is slow, five is exceptional.',
+  hidden: 'A recruit\'s talent is hidden. Hire a scout to see it before you buy.',
   rank: 'Fighters earn rank from bouts, wins and kills. Each new rank lets you choose a perk for him.',
-  weapon: 'Weapon: adds damage to every blow. A weapon fits only the fighting style it was made for.',
-  head: 'Helm: some protection, shorter stuns, and fewer telling blows land on him.',
+  weapon: 'Weapon: adds damage to every blow. Each weapon can only be used by the type of fighter it was made for.',
+  head: 'Helm: some protection, shorter stuns, and fewer critical hits against him.',
   chest: 'Cuirass: by far the most protection of any piece.',
-  legs: 'Greaves: some protection, quicker feet, and a chance to shrug off a hamstring.',
+  legs: 'Greaves: some protection, faster movement, and a chance to shrug off a hamstring.',
   arms: 'Arm guard: some protection, better blocking with a shield, and a chance to shrug off an arm wound.',
   shoulders: 'Pauldrons: some protection, and a chance to shrug off a bleeding wound.',
-  rarity: 'Rarity runs F, E, D, C, B, A, S. Each step up is stronger and dearer.',
-  armoury: 'Pieces you own that nobody is wearing. Gear returns here when a fighter dies, is sold or is freed.',
-  smithlevel: 'A better smith offers more pieces each market day, and rarer ones. From a journeyman up he does fittings; a master armourer reforges two pieces between games instead of one; and the better the forge, the oftener a commission or a reforging comes out master-wrought.',
+  rarity: 'Grades run F, E, D, C, B, A, S, from worst to best. Each step up is stronger and costs more.',
+  armoury: 'Gear you own that nobody is wearing. A fighter\'s gear comes back here when he dies, is sold or is freed.',
+  smithlevel: 'A better smith offers more pieces each market day, and higher grades. A journeyman or better can add fittings. A master armourer can reforge two pieces between games instead of one. The better the forge, the more often a commission or a reforging comes out master-wrought.',
   orders: 'Standing orders he follows in every bout.',
-  sell: 'Sells him to the dealer for half his market value, or six parts in ten once the dealer counts you an old friend. Proven fighters are worth far more than raw recruits.',
-  free: 'A veteran given his freedom leaves for good. The city talks of it, and every man in the yard trains harder for it.',
-  injured: 'He can neither train nor fight until healed. A medicus and a better infirmary shorten it.',
+  sell: 'Sells him to the dealer for half his market value, or 60% once the dealer counts you as an old friend. Proven fighters are worth far more than raw recruits.',
+  free: 'A veteran given his freedom leaves for good. The school gains fame, and every man left in the yard gains morale.',
+  injured: 'He cannot train or fight until he has healed. A medicus and a better infirmary shorten the wait.',
   exhausted: 'Fatigue above three quarters. Rest him.',
   perk: 'He has earned a new rank. Open his dossier to choose a perk.',
-  veteran: 'Eight victories or more. You may grant him the wooden sword.',
-  bout: 'Favoured, even and underdog describe the opposition the arena has matched to this tier; the might numbers tell you how it compares with your own fighters.',
-  power: 'Might: how dangerous he is right now: skills, gear, traits, spirits and current health. The bookmakers use the same number, and they also know which style beats which.',
-  purse: 'Paid only if you win; a loser\'s share is small, and nothing in a bout to the death. Fame grows with the crowd\'s excitement.',
-  wager: 'A bet on your own side, at the bookmakers\' odds. You lose the stake if you lose the bout.',
-  favour: 'Rises with gifts and with the deeds each patron cares about. Fades a little every market day, which is every fifth day.',
-  feud: 'Deepens when you kill their fighters or they kill yours. At 40 their champion calls you out; refusing costs you.',
+  veteran: 'Eight victories or more. You may free him by granting him the wooden sword.',
+  bout: 'Favoured, Even and Underdog say how strong the opposition is for this arena. Favoured means weaker opponents and a smaller purse; Underdog means stronger opponents and a bigger one. Compare the might numbers with your own fighters.',
+  power: 'Might: how dangerous he is right now, counting skills, gear, traits, morale and current health. The bookmakers set their odds from the same number, and from which style beats which.',
+  purse: 'The full purse is paid only if you win. A loser gets a small share, or nothing in a bout to the death. The more excited the crowd, the more fame the bout earns.',
+  wager: 'A bet on your own side, at the bookmakers\' odds. If you lose the bout you lose the stake.',
+  favour: 'Rises with gifts and with the things each patron cares about. Falls a little every market day (every fifth day).',
+  feud: 'Grows when you kill their fighters or they kill yours. At 40 their champion challenges you, and refusing costs you.',
   rations: 'Paid per fighter per day. Better food means higher morale.',
-  dynasty: 'If debt takes the ludus, an heir begins again with what the family has kept. See the Chronicle for the house so far.',
+  dynasty: 'If debt takes the ludus, an heir starts again with what the family has kept. The Chronicle shows the history of the house.',
   friend: 'Friends hit harder when they fight on the same side. If one dies, the other grieves, and may swear to kill the man who did it.',
   rivalbond: 'Rivals inside your own ludus train harder to outdo each other, but fight worse on the same side.',
-  vow: 'He has sworn to face this rival. When that man appears on a card he fights him with extra fury; winning lifts him greatly.',
-  contract: 'Paid work for a patron. The men you send are gone for the days stated: they do not train, and cannot fight in any games held while they are away. Success pays silver and favour; failure costs favour.',
-  asked: 'This patron has asked for your house by name. It is worth more favour if you do it, and costs you favour if the offer is still on the board at the next market day.',
-  odds: 'The chance the men you have chosen bring the work off. It depends on the stats the work calls for, their fighting style, traits, homeland, spirits, tiredness, and whether they are friends or rivals.',
-  danger: 'How likely a man is to come home wounded. On deadly work that goes badly, he may not come home at all.',
-  away: 'Away from the ludus. He does not train or eat at your table, and cannot fight until he is back.',
-  flight: 'A man in very low spirits, or one you broke a promise to, may not come back from the road. If he runs, his gear goes with him.',
-  quest: 'Something that matters to him, which you gave your word on. It ends at a place out in the province: take the whole school there. See it through and he comes back changed, and will never desert you.',
-  awaygames: 'In a month when the arena is open, games are held in town every fifth day whether you are there or not. Out here you miss them: no purse, no fame, and a challenge left unanswered still costs you.',
-  bigmap: 'Lays the whole province out at once: everything you have walked and everything marked. Click anywhere on it to set out for that spot. Key: M',
-  minimap: 'Click for the whole map. The whole province. Coloured where you have walked, parchment where you have not. White is the town, purple is you, gold is a place a clue has marked, red is a place you have seen and not dealt with.',
-  makecamp: 'Ends the day where you stand. The men rest: fatigue falls and wounds mend, though slower than at home. Scout spends the day the same way, for a wider map, with less rest. Key: E',
-  fieldrules: 'Marching takes time: a day passes for each day\'s march, further by road and less through forest, hill and marsh. Going into a place takes a day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. Every fit man fights when it comes to it. Walk back into the town to go home.',
+  vow: 'He has sworn to face this rival. When that man is on the day\'s list of bouts he fights him with extra fury, and winning lifts him greatly.',
+  contract: 'Paid work for a patron. The men you send are away for the days shown: they do not train, and they miss any games held while they are gone. Success pays money and favour; failure costs favour.',
+  asked: 'This patron has asked for your house by name. Doing it earns extra favour. If the offer is still on the board at the next market day, you lose favour.',
+  odds: 'The chance that the men you have chosen succeed. It depends on the skills the work calls for, and on their fighting style, traits, homeland, morale, fatigue, and whether they are friends or rivals.',
+  danger: 'How likely a man is to come home wounded. If deadly work goes badly, he may not come home at all.',
+  away: 'Away from the ludus. He does not train, costs you no food, and cannot fight until he is back.',
+  flight: 'A man with very low morale, or one you broke a promise to, may desert while he is away. If he runs, his gear goes with him.',
+  quest: 'A personal matter you promised to help him with. It ends at a place out in the province: take the whole school there. See it through and he comes back changed, and will never desert you.',
+  awaygames: 'While the arena is open, games are held in town every fifth day whether you are there or not. If you are out here you miss them: no purse, no fame, and an unanswered challenge still costs you.',
+  bigmap: 'Shows the whole province at once: everywhere you have walked and every marked place. Click anywhere on it to set out for that spot. Key: M',
+  minimap: 'The whole province. Click for the full map. Coloured where you have walked, plain parchment where you have not. White is the town, purple is you, gold is a place a clue points to, and red is a place you have found but not yet dealt with.',
+  makecamp: 'Ends the day where you are. The men rest: fatigue falls and wounds heal, though more slowly than at home. Scout also ends the day, but reveals more of the map and gives less rest. Key: E',
+  fieldrules: 'Marching takes time. A day\'s march covers more ground by road, and less through forest, hill and marsh. Going into a place takes a day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. In a fight, every fit man takes part. To go home, walk back into the town.',
   eagle: 'The hunt for the lost eagle of the Seventeenth Legion. Each clue marks the next place on the map.',
-  sound: 'How loud the whole game is, music included. All the way down is off.',
-  music: 'How loud the music is against everything else. All the way down is no music, and the other sounds are left alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
-  promise: 'You promised him his freedom. When the victories are won he will come to collect, and the whole yard will see whether you keep your word.',
+  sound: 'Volume of the whole game, music included. All the way down is silent.',
+  music: 'Volume of the music compared with the other sounds. All the way down turns the music off and leaves the other sounds alone. The yard has a slow tune for lyre and pipe; the arena has a faster one that grows with the crowd.',
+  promise: 'You promised him his freedom. Once he has won the victories you agreed on he will come to claim it, and the whole yard will see whether you keep your word.',
 };
 // The daily assignments, as buttons on each fighter's card: [activity, label, tooltip].
 const ACT_BUTTONS = [
-  ['rest', 'Rest', 'Rest: recovers health and sheds fatigue. Raises no stats.'],
+  ['rest', 'Rest', 'Rest: restores health and lowers fatigue. Trains nothing.'],
   ['str', 'Strength', 'Train strength: harder blows. Beats Agility.'],
-  ['agi', 'Agility', 'Train agility: faster attacks, faster feet and more dodges. Beats Skill.'],
-  ['skl', 'Skill', 'Train skill: more blows land, more are blocked, more are telling. Beats Strength.'],
-  ['spar', 'All (spar)', 'Spar: raises all three skills a little at once, and tires him less than drilling one. Worth 15% more with a stronger man sparring too, and 15% less alone.'],
-  ['teach', 'Teach', 'T for Teach: he drills nothing himself and barely tires. Every man training a skill at which he is clearly the better (2 points or more) learns it faster: 30% for a Veteranus, 35% for a Primus Palus, 40% for a Champion. Only the best teacher counts.'],
+  ['agi', 'Agility', 'Train agility: faster attacks, faster movement and more dodges. Beats Skill.'],
+  ['skl', 'Skill', 'Train skill: more blows land, more are blocked, more are critical hits. Beats Strength.'],
+  ['spar', 'All (spar)', 'Spar: raises all three skills a little, and tires him less than training one. Worth 15% more if a stronger man is sparring too, and 15% less if he spars alone.'],
+  ['teach', 'Teach', 'T for Teach: he trains nothing himself and barely tires. Every man training a skill in which the teacher is at least 2 points better learns it faster: 30% for a Veteranus, 35% for a Primus Palus, 40% for a Champion. Only the best teacher counts.'],
 ];
 // What the small button says for each assignment.
 const actLabel = k => STAT_NAMES[k] ? ic(k) : k === 'rest' ? 'Rest' : k === 'teach' ? 'T' : 'All';
-const actBlock = (g, k) => g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one at the Ludus, under The school.'
+const actBlock = (g, k) => g.injury > 0 ? 'He is injured and can only rest until he heals.' : k === 'spar' && !staffLvl('doctore') ? 'Sparring needs a doctore. Hire one at the Ludus (press The school there).'
   : k === 'teach' && !canTeach(g) ? `Only a ${RANKS[TEACH_RANK].name} or better has anything to teach.` : '';
 const esc = t => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = k => ` data-tip="${esc(TIPS[k] || k)}"`;
@@ -263,120 +263,120 @@ const TAB_NAMES = { ludus: 'Ludus', arena: 'Arena', contracts: 'Contracts', mark
 
 const TUTORIAL = [
   { ch: 'Welcome', target: '#side',
-    text: 'Welcome, dominus. This bar holds the day\'s figures and <b>End day</b>. The picture on the left is your school; the one on the right is the town, and you will do your business in it on foot. Hover over anything, anywhere, and I will explain it.' },
+    text: 'Welcome, dominus. This side bar shows the day, your money and your fame, and holds the <b>End day</b> button. The picture on the left is your school. The one on the right is the town: you walk around it to visit each building. Hover the mouse over anything and I will explain it.' },
   { ch: 'The school', tab: 'ludus', target: '.lrow .acts', until: () => G.roster.some(g => g.activity !== 'rest'),
-    text: 'These are your fighters. Each drills one skill a day, or rests. <b>Set one of them to train</b> with the small buttons on his line: strength, agility or skill. Keys <b>1 to 5</b> do the same for whoever is chosen, and <b>Everyone</b>, above the list, gives one order to the whole school.' },
+    text: 'These are your fighters. Each one trains one skill a day, or rests. <b>Set one of them to train</b> with the small buttons on his row: strength, agility or skill. Keys <b>1 to 5</b> do the same for the selected fighter, and the <b>Everyone</b> buttons above the list give one order to the whole school.' },
   { tab: 'ludus', target: '.schoolbar',
-    text: 'This strip is the school at a glance: who is fit to fight, who is hurt, exhausted, away or idle, and what a day costs you. The button beside it puts the list in another order.' },
+    text: 'This strip sums up the school: who is fit to fight, who is hurt, exhausted, away or idle, and what each day costs you. The button beside it changes the order of the list.' },
   { ch: 'A fighter', tab: 'ludus', target: '.statrow',
-    text: 'Click a fighter and his dossier opens here. Three skills decide how he fights, and each beats one of the others: <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>. His highest is his style. The stars are his talent for each: more stars, faster gains. The <b>Today</b> line above says what his work will do, and when it will pay.' },
+    text: 'Click a fighter and his dossier opens here. Three skills decide how he fights, and each beats one of the others: <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>. His highest skill is his style. The stars show his talent for each skill: more stars, faster gains. The <b>Today</b> line above shows what today\'s work will do for him.' },
   { tab: 'ludus', target: '[data-act=dtab][data-v=abil]', until: () => ui.tab === 'ludus' && ui.dtab === 'abil',
-    text: 'A dossier has five pages. <b>Open Abilities</b>, or step through the pages with the left and right arrow keys.' },
+    text: 'A dossier has five pages. <b>Open Abilities</b>. You can also move between pages with the left and right arrow keys.' },
   { tab: 'ludus', target: '.abcols',
-    text: 'Every kind of fighter learns his own abilities: one when a skill reaches 5, another at 10, a third at 16. He carries four into the arena. In a fight his gold bar fills as he gives and takes blows, and when it is full he uses one. You will be asked which.' },
+    text: 'Each type of fighter learns his own abilities: one when a skill reaches 5, another at 10, a third at 16. He takes four into the arena. In a fight his gold bar fills as he lands and takes blows. When it is full he uses an ability, and you are asked which one.' },
   { tab: 'ludus', target: '[data-act=dtab][data-v=gear]', until: () => ui.tab === 'ludus' && ui.dtab === 'gear',
     text: 'Now <b>open Gear</b>.' },
   { tab: 'ludus', target: '.gearlist',
-    text: 'What he wears, slot by slot. Yours fight with practice weapons and bare skin for now; the <b>Blacksmith</b> sells better, graded F to S, and will fit a piece straight onto a man. Spare pieces wait on your racks: each slot here offers the best of them, <b>+ more</b> shows the rest, and <b>Wear the best</b> puts on every gain at once. <b>Story</b> holds his friends, grudges and history, and <b>Orders</b> how he fights and what he would fetch if sold.' },
+    text: 'This is what he wears, slot by slot. For now your men fight with practice weapons and no armour. The <b>Blacksmith</b> sells better gear, graded F to S, and can put a piece straight onto a man. Spare gear waits on your racks: each slot here offers the best spare piece for it, <b>+ more</b> shows the rest, and <b>Wear the best</b> puts on every piece that would be an improvement. The <b>Story</b> page holds his friends, grudges and history. The <b>Orders</b> page sets how he fights, and shows what he would sell for.' },
   { ch: 'The day', target: '[data-act=endday]', until: () => G.day >= 2,
     text: 'Nothing happens until the day ends. Press <b>End day</b>, or the E key.' },
   { tab: 'ludus', target: '.lrow .gauges',
-    text: 'Three gauges on each line: health, fatigue, spirits. Training builds fatigue, and a tired man fights badly and can tear a muscle, so rest him before the games. With the box above the list ticked, the exhausted rest on their own.' },
+    text: 'Each row has three gauges: health, fatigue and morale. Training builds fatigue. A tired man fights badly and can be injured in training, so rest him before the games. While the box above the list is ticked, exhausted men rest without being told.' },
   { ch: 'The town', target: '#village', go: 'contracts', until: () => ui.tab === 'contracts',
-    text: 'There is paid work in town. That is you with the gold mark over your head, at the door of the Ludus. <b>Walk to Contracts</b>: steer with <b>W A S D</b>, or click the building and you will walk there yourself. Step onto its doorstep and it opens.' },
+    text: 'There is paid work in town. You are the figure with the gold mark over his head, at the door of the Ludus. <b>Walk to Contracts</b>: move with <b>W A S D</b>, or click the building to walk there. Step onto its doorstep and it opens.' },
   { tab: 'contracts', target: '#view .panel.list',
-    text: 'Patrons hire fighters by the day. The bar on each offer is the best chance your free men could manage; the offer itself says what it pays, what it risks, and <b>Pick the best</b> chooses who should go. But a man sent is <b>gone</b> for those days: no training, and no games if they fall while he is away. With two fighters, I would keep them home this week.' },
+    text: 'Patrons hire fighters by the day. Each offer shows what it pays and what it risks. Its bar shows the best chance of success your available men could give, and <b>Pick the best</b> chooses who should go. But a man you send is <b>away</b> for those days: he does not train, and he misses any games held while he is gone. With only two fighters, I would keep them home this week.' },
   { target: '#village', go: 'market', until: () => ui.tab === 'market',
     text: 'Now walk to the <b>Market</b>.' },
   { tab: 'market', target: '#view .panel.list',
-    text: 'Fresh stock every fifth day, on market day. Each man shows his power and three skills, and his card says where he would stand among your own. You cannot see how fast he will learn without a scout. Your barracks hold three for now, and every man eats every day. Buy when you can feed him; the dealer will also buy your men, at half their worth.' },
+    text: 'New men arrive every fifth day, on market day. Each man shows his power and three skills, and his card shows how he compares with your own men. Without a scout you cannot see how fast he will learn. Your barracks hold three men for now, and every man must be fed every day, so buy only when you can afford to feed him. The dealer will also buy your men, at half their value.' },
   { target: '#village', go: 'facilities', until: () => ui.tab === 'facilities',
     text: 'Walk to your own house, <b>Household</b>, at the top left.' },
   { tab: 'facilities', target: '#view .schoolbar',
-    text: 'Staff, the house and rations, and each says exactly what it gives. The school\'s own buildings (barracks, training ground, infirmary, baths) are improved at the <b>Ludus</b>, under <b>The school</b>, where the doctore is hired and the stables stand too. Everything here costs money, up front or every day: this strip shows what a day costs and how long the purse will last. A doctore lets men spar; an infirmary keeps the fallen alive. Do not spend the purse to nothing: stay in debt too long and the creditors take the house.' },
+    text: 'Here you hire staff, improve the house and set the rations. Each item says exactly what it gives. The school\'s own buildings (barracks, training ground, infirmary, baths) are improved at the <b>Ludus</b>: press <b>The school</b> there. The doctore is hired there too, and the stables are there. Everything costs money, either once or every day: this strip shows what a day costs and how long your money will last. A doctore lets men spar; an infirmary keeps more of the fallen alive. Do not spend everything you have: stay in debt too long and the creditors take the house.' },
   { ch: 'The games', target: '[data-act=skipdays]', until: () => isGamesDay(),
-    text: 'Games are held every fifth day for a month; then the arena is shut for a month, and opens again. <b>To the games</b> (the G key) runs the days until then, stopping if anything needs you. Set your men to train first.' },
+    text: 'Games are held every fifth day for a month. Then the arena shuts for a month, and then it opens again. <b>To the games</b> (the G key) runs the days forward to the next games, stopping if anything needs you. Set your men to train first.' },
   { target: '#village', go: 'arena', until: () => ui.tab === 'arena' || !isGamesDay(),
-    text: 'It is a games day: the number by the Arena\'s name is the bouts waiting. Walk to the <b>Arena</b>.' },
+    text: 'It is a games day. The number beside the Arena\'s name is how many bouts are waiting. Walk to the <b>Arena</b>.' },
   { tab: 'arena', target: '.bout:not(.done)', until: () => !G.bouts || G.bouts.some(b => b.done),
-    text: 'Each line on the left is a bout; the one you choose opens here. Compare <b>might</b>, the number by each name that says how dangerous a man is today, and look for the small arrows: <b>&#9650;</b> means your man\'s style beats his opponent\'s, <b>&#9660;</b> the reverse. Start with a bout marked <b>Favoured</b>. Click a fighter\'s name to enter him, or <b>Pick the best</b> (B) and I will choose; the bar shows your chance. Wager only if you trust him. <b>Send a man to the sand</b> (Enter). I will be at your shoulder once it starts.' },
-  { ch: 'Afterwards', text: 'A win pays a purse and fame, and fame opens greater arenas. A beaten man may be spared or killed, and wounds keep him out for days. The result shows what the bout paid, how each of your men came out of it, and the whole fight line by line if you want it. Fighters earn rank from their bouts; each new rank lets you choose a perk in his dossier.' },
-  { text: 'That is the trade. <b>Patrons</b> reward favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps the record. The <b>Blacksmith</b> has his forge by the square. Your campaigns are under <b>Saves</b>, at the foot of the bar. Press <b>H</b> at any time, even in the middle of a fight, for the book of the trade: seven short pages, the keys among them, opened at the one for wherever you are. I will hold my tongue now, and speak up when something new happens.' },
+    text: 'Each row on the left is a bout. Click one and it opens here. Compare <b>might</b>, the number beside each name: it says how dangerous that man is today. Look for the small arrows too: <b>&#9650;</b> means your man\'s style beats his opponent\'s, and <b>&#9660;</b> means the reverse. Start with a bout marked <b>Favoured</b>. Click a fighter\'s name to enter him, or press <b>Pick the best</b> (B) and I will choose. The bar shows your chance of winning. Bet only if you trust him. Then press <b>Send a man to the sand</b> (Enter) to start the fight. I will advise you once it begins.' },
+  { ch: 'Afterwards', text: 'A win pays a purse and fame, and fame opens bigger arenas. A beaten man may be spared or killed, and wounds keep him out for days. The result screen shows what the bout paid, how each of your men came out of it, and the full log of the fight if you want it. Fighters earn rank from their bouts, and each new rank lets you choose a perk in his dossier.' },
+  { text: 'That is the trade. <b>Patrons</b> reward you for their favour, <b>Rivals</b> shows the other houses and your feuds, and the <b>Chronicle</b> keeps your history. The <b>Blacksmith</b> has his forge by the square. Your saved games are under <b>Saves</b>, at the bottom of the side bar. Press <b>H</b> at any time, even in the middle of a fight, for help: seven short pages, including the keys, opened at the page for wherever you are. I will be quiet now, and speak only when something new happens.' },
 ];
 
 // Things he explains the first time they happen. `when` returns whatever the text needs, or nothing.
 const HINTS = [
   { id: 'debt', when: () => G.denarii < 0,
-    text: () => `We are in debt, dominus. Stay there for ${graceDays()} days running and the creditors take the house. Sell a man, cut the rations, dismiss staff, or win a purse; and morale falls every day we owe.` },
+    text: () => `We are in debt, dominus. If we stay in debt for ${graceDays()} days in a row, the creditors take the house, and morale falls every day we owe money. Sell a man, cut the rations, dismiss staff, or win a purse.` },
   { id: 'thin', when: () => { const net = stipend() - upkeep(); return net < 0 && G.denarii >= 0 && Math.floor(G.denarii / -net) < daysToGames(); },
-    text: () => 'At this rate the purse runs dry before the next games, dominus. <b>Household</b> shows where it goes: cheaper rations or one wage less would see us through, or a contract that pays before then.' },
+    text: () => 'At this rate we run out of money before the next games, dominus. <b>Household</b> shows where it goes. Cheaper rations, one wage less, or a contract that pays before then would see us through.' },
   { id: 'field1', when: () => G.field,
-    text: () => 'This is the province, dominus, and the whole school is with you. <b>W A S D</b> or a click walks the column; the parchment lifts as you go. <b>Marching takes time</b>: the bar at the top left is what is left of today\'s march, and when it is spent night falls and a day passes. Point at anywhere and I will say how many days it is; set out, and the count runs at the foot of the map. Going into a place takes a day, and so does making camp (<b>E</b>). <b>M</b> lays out the whole map, and you go home by walking back in at the gate.' },
+    text: () => 'This is the province, dominus, and the whole school is with you. Move the column with <b>W A S D</b> or by clicking. The map is uncovered as you walk. <b>Marching takes time</b>: the bar at the top left shows how much of today\'s march is left, and when it runs out night falls and a day passes. Point at any spot to see how many days away it is. Once you set out, the days left are counted at the bottom of the map. Going into a place takes a day, and so does making camp (<b>E</b>). <b>M</b> shows the whole map. To go home, walk back in at the town gate.' },
   { id: 'field2', when: () => G.field && tutorState().seen.field1 && wildSites().find(st => siteKnown(st) && !siteDone(st)),
-    text: st => `Something has come into view: <b>${st.name}</b>. Rest the mouse on a place and it says what it is; the red skulls are how hard it will be. <b>Places known</b>, on the right, walks you to any of them with a click. If it comes to a fight, every man who is fit fights, up to nine.` },
+    text: st => `A place has come into view: <b>${st.name}</b>. Hover over a place to see what it is. The red skulls show how hard it will be. Click a name under <b>Places known</b>, on the right, to walk there. If there is a fight, every fit man takes part, up to nine.` },
   { id: 'fieldgames', when: () => G.field && daysToGames() <= 1,
-    text: () => `The games are ${daysToGames() === 0 ? 'today' : 'tomorrow'}, and they are held without us if we are out here: no purses, and the Magistrate notices. <b>Home</b> is at the foot of the places list.` },
+    text: () => `The games are ${daysToGames() === 0 ? 'today' : 'tomorrow'}. If we are still out here they are held without us: no purses, and the Magistrate notices. <b>Home</b> is at the bottom of the places list.` },
   { id: 'fieldworn', when: () => G.field && G.roster.some(g => !g.away) && fieldParty().length * 2 <= G.roster.filter(g => !g.away).length,
-    text: () => 'Half the school or more is in no state to fight. <b>Make camp</b> rests them, though slower than their own beds would; or turn for home before something finds us like this.' },
+    text: () => 'Half the school or more is unfit to fight. <b>Make camp</b> rests them, though more slowly than at home. Or turn for home before something finds us in this state.' },
   { id: 'fieldfar', when: () => G.field && wildTier(G.field.x, G.field.y) >= 3,
-    text: () => 'We are a long way from the walls now. The skulls by the name of the country, top left, are how hard it is: what lives out here is stronger than anything near the town, and what it guards is worth more.' },
+    text: () => 'We are a long way from town now. The skulls beside the region\'s name, at the top left, show how dangerous it is. Enemies out here are stronger than anything near the town, and the rewards are bigger.' },
   { id: 'hurt', when: () => G.roster.find(g => g.injury > 0 && !g.away),
-    text: g => `<b>${g.name}</b> is wounded. He can neither train nor fight until he heals; the days left are on his line. A medicus and a better infirmary shorten it.` },
+    text: g => `<b>${g.name}</b> is wounded. He cannot train or fight until he heals; his row shows the days left. A medicus and a better infirmary shorten the wait.` },
   { id: 'perk', when: () => G.roster.find(g => g.perkPending > 0),
-    text: g => `<b>${g.name}</b> has earned a new rank. Open his dossier and press <b>Choose a perk</b>: three are offered, and the choice is for good.` },
+    text: g => `<b>${g.name}</b> has earned a new rank. Open his dossier and press <b>Choose a perk</b>. You pick one of three, and the choice is permanent.` },
   { id: 'spent', when: () => G.roster.find(g => g.fatigue > 75 && g.injury <= 0 && !g.away),
-    text: g => `<b>${g.name}</b> is exhausted. His charge fills slowly in a fight, and if he trains like this he may tear a muscle. A day or two of rest mends it${G.autoRest ? '; he will take it himself while the box above the roster is ticked' : ''}.` },
+    text: g => `<b>${g.name}</b> is exhausted. His charge fills slowly in a fight, and if he trains like this he may be injured. A day or two of rest fixes it${G.autoRest ? '. He will rest without being told while the box above the roster is ticked' : ''}.` },
   { id: 'choose', when: () => G.roster.find(g => abilitiesKnown(g).length > 4),
-    text: g => `<b>${g.name}</b> now knows more abilities than he can carry. On the <b>Abilities</b> page of his dossier, click one to put it down and another to take it up: four go with him into the arena.` },
+    text: g => `<b>${g.name}</b> now knows more than four abilities, and only four go with him into the arena. On the <b>Abilities</b> page of his dossier, click an ability to take it out, and another to put it in.` },
   { id: 'idle', when: () => G.day >= 3 && !isGamesDay() && G.roster.find(g => !g.away && g.injury <= 0 && g.activity === 'rest' && g.hp >= maxHp(g) && g.fatigue <= 0),
-    text: g => `<b>${g.name}</b> is resting though he is whole and fresh: a day of training lost. Set him to a skill on his line, or with keys 1 to 5.` },
+    text: g => `<b>${g.name}</b> is resting although he is healthy and not tired: a day of training wasted. Set him to train a skill with the buttons on his row, or with keys 1 to 5.` },
   { id: 'full', when: () => G.roster.length >= capacity() && G.day >= 2,
-    text: () => 'Every cell is taken. To buy another man, improve the <b>Barracks</b> at the <b>Ludus</b> (the button <b>The school</b>), or sell one: the dealer at the <b>Market</b> will tell you what he would pay.' },
+    text: () => 'Every cell is full. To buy another man, improve the <b>Barracks</b> at the <b>Ludus</b> (press <b>The school</b> there), or sell a man: the dealer at the <b>Market</b> shows what he would pay.' },
   { id: 'request', when: () => G.request && !G.request.done && !G.field && (G.request.type === 'tithe' || G.request.day === G.day) && G.request,
-    text: r => `${PATRONS[r.patron].name} ask${r.patron === 'guild' ? '' : 's'} something of us, dominus: ${requestText(r)}. Done, it is worth ${r.favor} favour${r.pay ? ` and ${r.pay} denarii` : ''}; left undone, it costs four. It is written up under <b>Patrons</b>, where you may also <b>ask</b> things of them in your turn, once they know us.` },
+    text: r => `${PATRONS[r.patron].name} ask${r.patron === 'guild' ? '' : 's'} something of us, dominus: ${requestText(r)}. If we do it we gain ${r.favor} favour${r.pay ? ` and ${r.pay} denarii` : ''}; if we do not, we lose four. It is listed under <b>Patrons</b>. Once they know us better, you can also <b>ask</b> them for things there.` },
   { id: 'called', when: () => (G.bouts || []).find(b => b.called && !b.done),
-    text: b => `Your challenge to <b>${b.house}</b> is on today's card at the <b>Arena</b>: their champion, for a double purse. You called it, dominus. If no man of ours appears, the town will not let us forget it.` },
+    text: b => `Your challenge to <b>${b.house}</b> is on today's list of bouts at the <b>Arena</b>: their champion, for a double purse. You made the challenge, dominus. If we send nobody, the town will not let us forget it.` },
   { id: 'grudge', when: () => (G.bouts || []).find(b => b.grudge && !b.done),
-    text: b => `<b>${b.house}</b> has called you out: there is a grudge match on today\'s card at the <b>Arena</b>. Answer it, win or lose, and the feud cools. Leave it and the Magistrate and your own men will think less of you.` },
+    text: b => `<b>${b.house}</b> has challenged you: there is a grudge match on today\'s list of bouts at the <b>Arena</b>. Fight it, win or lose, and the feud cools. Ignore it and the Magistrate and your own men will think less of you.` },
   { id: 'gear', when: () => G.armoury.length > 0,
-    text: () => 'There is a spare piece in the armoury. Choose it at the <b>Blacksmith</b> and press <b>Give him</b> beside a man\'s name, or open a fighter\'s dossier and then <b>Gear</b>. A weapon only fits the kind of fighter it was made for.' },
+    text: () => 'There is a spare piece of gear in the armoury. To give it to a man, select it at the <b>Blacksmith</b> and press <b>Give him</b> beside his name, or open his dossier and go to <b>Gear</b>. A weapon can only be used by the type of fighter it was made for.' },
   { id: 'away', when: () => G.jobs.length > 0,
-    text: () => 'Men are away from the house. The <b>Contracts</b> screen shows who, and when they are back. Word may come from the road asking what they should do; I will bring it to you.' },
+    text: () => 'Some of our men are away. The <b>Contracts</b> screen shows who, and when they will be back. Sometimes a message will come asking what they should do; I will bring it to you.' },
   { id: 'quest', when: () => G.roster.find(g => g.quest && QUESTS[g.quest.id] && !g.away),
-    text: g => `You gave <b>${g.name}</b> your word. The place is ${questWhere(g)}, out through the east gate, and it is marked on the map of the province. Take the whole school there; do not leave him waiting for weeks.` },
+    text: g => `You gave <b>${g.name}</b> your word. The place is ${questWhere(g)}, out through the east gate, and it is marked on the province map. Take the whole school there, and do not keep him waiting for weeks.` },
   { id: 'gate', when: () => gateOpen() && !G.field,
-    text: () => 'The <b>east gate</b> will open for you now, at the end of the upper street. Beyond it is the province: lairs, outlaws, old tombs, and stranger things. The whole school marches out together, a day passes for each day\'s march, and each place you go into costs a day. Mind the games: they are held without you if you are away.' },
+    text: () => 'The <b>east gate</b> will open for you now. It is at the end of the upper street. Beyond it is the province: lairs, outlaws, old tombs, and stranger things. The whole school marches out together. Days pass as you march, and each place you go into takes a day. Watch the date of the games: they are held without you if you are away.' },
   { id: 'asked', when: () => G.contracts.find(c => c.asked),
-    text: c => `${PATRONS[c.patron].name} has asked for your house by name: see <b>Contracts</b>. It is worth more favour than ordinary work, and leaving it on the board until the next market day will cost you.` },
+    text: c => `${PATRONS[c.patron].name} has asked for your house by name: see <b>Contracts</b>. It earns more favour than ordinary work, and you lose favour if it is still on the board at the next market day.` },
   { id: 'festival', when: () => G.festival && G.festival.day - G.day <= 5 && G.festival.day > G.day,
-    text: () => `A festival is coming: <b>${FESTIVALS[G.festival.type].name}</b>. ${FESTIVALS[G.festival.type].blurb} It is held with the ordinary games; have your best men rested for it.` },
+    text: () => `A festival is coming: <b>${FESTIVALS[G.festival.type].name}</b>. ${FESTIVALS[G.festival.type].blurb} It is held on a games day, alongside the ordinary bouts. Have your best men rested for it.` },
   { id: 'tourney', when: () => G.tourney && G.tourney.state === 'open',
-    text: () => 'The lists are open at the <b>Arena</b>. One champion, three bouts in a day with little rest between, and the laurel for the last man standing. He sits out the ordinary games.' },
+    text: () => 'The tournament is open for entries at the <b>Arena</b>. You enter one champion. He fights up to three bouts in one day with little rest between them, and the last man standing wins the laurel. He takes no part in the ordinary games that day.' },
   { id: 'feud', when: () => G.houses.find(H => H.grudge >= 40),
-    text: H => `The feud with <b>${houseDef(H.id).name}</b> has gone far enough that their champion will call you out at the next games. Refuse him and the town, and your own men, will think less of you. See <b>Rivals</b>.` },
+    text: H => `The feud with <b>${houseDef(H.id).name}</b> is now so bad that their champion will challenge you at the next games. Refuse him and the town, and your own men, will think less of you. See <b>Rivals</b>.` },
   { id: 'bond', when: () => G.bonds.length > 0,
-    text: () => 'Two of your men have taken to each other, for good or ill. Friends hit harder side by side, and grieve if one falls; rivals train harder and fight worse together. It is on the <b>Story</b> page of each.' },
+    text: () => 'Two of your men have formed a bond. Friends hit harder when they fight side by side, and grieve if one dies. Rivals train harder, but fight worse on the same side. It is on the <b>Story</b> page of each man.' },
   { id: 'morale', when: () => G.roster.find(g => g.morale < 30 && !g.away),
-    text: g => `<b>${g.name}</b> is in low spirits. Such men train slowly and yield early, and one sent on the road may not come back. Better rations, a cook, the baths and victories all help.` },
+    text: g => `<b>${g.name}</b> has low morale. Men like this train slowly and yield early, and may desert if sent away on a contract. Better rations, a cook, the baths and victories all help.` },
   { id: 'tier', when: () => tier() >= 1,
-    text: () => `The house has a name now: we fight at the <b>${TIERS[tier()].name}</b>. Richer purses, harder men, and some bouts are now <b>to the death</b>, marked in red. Look twice before you enter one.` },
+    text: () => `The house has made its name: we now fight at the <b>${TIERS[tier()].name}</b>. The purses are richer and the opponents harder. Some bouts are now <b>to the death</b>, marked in red. Think twice before you enter one.` },
   { id: 'veteran', when: () => G.roster.find(g => g.wins >= 8),
-    text: g => `<b>${g.name}</b> has eight victories. You may grant him the wooden sword, on the <b>Orders</b> page of his dossier: he leaves for good, the city talks of it, and every man in the yard trains harder.` },
+    text: g => `<b>${g.name}</b> has eight victories. You may free him by granting him the wooden sword, on the <b>Orders</b> page of his dossier. He leaves for good, the school gains fame, and every man left in the yard gains morale.` },
 ];
 
 // What he says the first time each thing happens in a fight: shown over the arena, one at a time. `when` says it is the
 // moment for it, `gone` that the moment has passed and it should be taken down unanswered (to be said another time).
 const FIGHT_HINTS = [
   { id: 'f_card', when: B => B.intro > 0.6 && B.introDur - B.intro > 0.9, gone: B => B.intro <= 0.3,
-    text: () => 'The card is the two sides: who they are, their power and their style. Beneath it, how they weigh against each other and whose style has the edge. A click on the sand sends it away.' },
+    text: () => 'This card shows the two sides: who they are, their power and their style. Below that is how they compare, and whose style has the edge. Click the sand to put it away.' },
   { id: 'f_hud', when: B => B.intro <= 0 && !B.over && !B.pick && B.time > 1.2, gone: B => B.over || B.time > 16,
-    text: () => 'Red is yours, blue is theirs. The corners carry each man\'s health in figures and, in gold, his <b>charge</b>. Rest the mouse on any fighter for all there is to know of him. <b>Space</b> pauses; the bar below has half speed, a step at a time, and the <b>Log</b> of everything that has happened.' },
+    text: () => 'Your men are red; theirs are blue. Each corner shows a man\'s health as a number and, in gold, his <b>charge</b>. Hover over any fighter to see everything about him. <b>Space</b> pauses. The bar below has half speed, single steps, and the <b>Log</b> of everything that has happened.' },
   { id: 'f_pick', when: B => B.pick && !out(B.pick), gone: B => !B.pick,
-    text: B => `<b>${B.pick.g.name}</b> is charged, and the fight has stopped for you. Each card says what the ability does, what speaks for and against it at this moment, and about what it would do to the man in front of him. The one ringed in gold is what I would choose. Press its number, or <b>A</b> to let him decide.` },
+    text: B => `<b>${B.pick.g.name}</b> has a full charge, and the fight has paused for you. Each card says what the ability does, the reasons for and against using it right now, and roughly what it would do to the man in front of him. The one ringed in gold is my suggestion. Press its number, or <b>A</b> to let him decide.` },
   { id: 'f_low', when: B => !B.over && B.intro <= 0 && canOrder(B, 'yield') && B.fighters.some(f => f.team === 0 && !out(f) && f.hp < f.maxHp * 0.3), gone: B => B.over || B.towel,
-    text: () => 'One of yours is failing: his line is flashing red. <b>Throw in the cloth</b> (C, twice) makes your worst-hurt man yield at once, and a man who yields is spared far more often than one who is struck down. Once a bout.' },
+    text: () => 'One of your men is close to going down: his row is flashing red. <b>Throw in the cloth</b> (press C twice) makes your worst-hurt man yield at once. A man who yields is spared far more often than one who is struck down. You can do it once per bout.' },
   { id: 'f_end', when: B => B.over && B.outro > 0.9 && !B.wild && !B.hunt, gone: () => false,
-    text: () => 'It is settled. Now the crowd judges each fallen man: watch the stands, and the editor\'s thumb over his box. A good show spares more of them. Then the reckoning comes up, and a click goes on to the result.' },
+    text: () => 'The fight is over. Now the crowd judges each fallen man: watch the stands, and the editor\'s thumb above his box. A good show means more of them are spared. Then the summary appears, and a click takes you to the result.' },
 ];
 function paintFightTip() {
   const el = $('#arenaTip'); if (!el) return;
@@ -468,22 +468,22 @@ function perkEffect(g, t) {
     try { b = makeFighter(g, 0, 0, 1); b3 = makeFighter(g, 0, 0, 3); r1 = trainRate(g); t1 = trainTire(g, false); h1 = restGain(g)[0]; } finally { g.traits.pop(); }
     const add = (lab, x, y, fmt, lowGood) => { if (Math.abs(y - x) > 1e-6) rows.push(`<div><span>${lab}</span><b>${fmt(x)}</b><i>&rarr;</i><b class="${(y > x) !== !!lowGood ? 'good' : 'bad'}">${fmt(y)}</b></div>`); };
     const pc = v => Math.round(v * 100) + '%', f1 = v => v.toFixed(1);
-    add('Damage a blow', a.dmg, b.dmg, f1);
+    add('Damage per blow', a.dmg, b.dmg, f1);
     add('Seconds between blows', a.atkTime, b.atkTime, v => v.toFixed(2), true);
     add('Health', a.maxHp, b.maxHp, v => Math.round(v));
     add('Armour', a.armor, b.armor, f1);
     add('Dodge', a.dodge, b.dodge, pc); add('Block', a.block, b.block, pc);
-    add('Accuracy', a.acc, b.acc, pc); add('Telling blows', a.crit, b.crit, pc);
-    add('A telling blow hits', a.critMult, b.critMult, v => '&times;' + v.toFixed(1));
-    add('The crowd\'s liking', a.show, b.show, pc);
+    add('Accuracy', a.acc, b.acc, pc); add('Critical hit chance', a.crit, b.crit, pc);
+    add('Critical hit damage', a.critMult, b.critMult, v => '&times;' + v.toFixed(1));
+    add('Crowd appeal', a.show, b.show, pc);
     add('Charge fills at', a.chargeRate, b.chargeRate, pc);
     add('Training speed', r0, r1, pc);
-    add('Fatigue from a day of drill', t0, t1, f1, true);
+    add('Fatigue from a day of training', t0, t1, f1, true);
     add('Health from a day of rest', h0, h1, v => Math.round(v));
     add('Speed on the sand', a.speed, b.speed, f1); add('Reach', a.reach, b.reach, v => Math.round(v));
     add('Stuns shortened by', a.stunRes, b.stunRes, pc); add('Charge at the start', a.charge, b.charge, v => Math.round(v) + '%');
-    if (Math.abs(b.dmg - a.dmg) < 1e-6) add('Damage beside others', a3.dmg, b3.dmg, f1);
-    add('Damage taken beside others', 1 - a3.resist, 1 - b3.resist, pc, true);
+    if (Math.abs(b.dmg - a.dmg) < 1e-6) add('Damage when fighting beside others', a3.dmg, b3.dmg, f1);
+    add('Damage taken when fighting beside others', 1 - a3.resist, 1 - b3.resist, pc, true);
   } catch (e) { /* the description alone will have to do */ }
   return rows.join('');
 }
@@ -495,18 +495,18 @@ function perkModal(g) {
       <span class="k">${i + 1}</span><span class="kind">${PERK_KIND[t] || 'Perk'}</span>
       <b>${T.name}</b>
       <span class="desc">${T.desc}</span>
-      ${fx ? `<span class="fx"><em>For ${g.name}</em>${fx}</span>` : '<span class="fx none">Its worth shows only in the moment it is for.</span>'}
+      ${fx ? `<span class="fx"><em>For ${g.name}</em>${fx}</span>` : '<span class="fx none">Its effect depends on the situation, so there are no figures to show.</span>'}
       ${suits ? `<span class="suits">${ic(st)} Suits his ${STAT_NAMES[st].toLowerCase()} style</span>` : ''}
-      <span class="take">${armed ? 'Sure? It is for good. Press again.' : 'Choose'}</span></button>`;
+      <span class="take">${armed ? 'Sure? This is permanent. Press again.' : 'Choose'}</span></button>`;
   }).join('');
   return `<div class="perkbox"><div class="perkhead"><canvas class="portrait" width="192" height="224" data-portrait="${g.id}"></canvas>
       <div><div class="rise">Rises to ${RANKS[g.rank].name}</div><h2>${g.name}</h2>
         <div class="dline">${c.name} of ${g.origin} &middot; ${ratingLine(g)} &middot; ${styleMark(g)} &middot; ${g.wins}W ${g.losses}L</div>
         <div class="has">${g.traits.length ? g.traits.map(t => TRAITS[t] ? `<span class="chip ${TRAITS[t].good ? '' : 'red'}"${tip(TRAITS[t].desc)}>${TRAITS[t].name}</span>` : '').join('') : '<span class="dim">No traits yet.</span>'}</div></div></div>
-    <p class="perklead">Choose what the sand has taught him. One of three, and it is his for life.${g.perkPending > 1 ? ` <b>He has ${g.perkPending} to choose</b>: another three follow this.` : ''}</p>
+    <p class="perklead">Choose what the arena has taught him: one perk of these three, and the choice is permanent.${g.perkPending > 1 ? ` <b>He has ${g.perkPending} to choose</b>: another three follow this.` : ''}</p>
     <div class="perkcards">${cards}</div>
     <div class="row"><button data-act="close">Decide later</button>
-      ${(why => `<button data-act="perkreroll" data-v="${g.id}" ${why ? 'disabled' : ''}${tip(`Pay the doctore's old comrades to show him something else: three different perks are offered in place of these. Once for each choice.${why ? '\n' + why : ''}`)}>Another three &mdash; ${perkRerollCost(g)}</button>`)(perkRerollBlock(g))}
+      ${(why => `<button data-act="perkreroll" data-v="${g.id}" ${why ? 'disabled' : ''}${tip(`Pay to be offered three different perks in place of these. You can do this once for each choice.${why ? '\n' + why : ''}`)}>Another three &mdash; ${perkRerollCost(g)}</button>`)(perkRerollBlock(g))}
       <span class="dim" style="font-size:12px;margin-left:auto">Keys 1&ndash;${offer.length}, twice to confirm</span></div></div>`;
 }
 
@@ -517,58 +517,58 @@ function helpModal() {
   const sec = (h, body) => `<div class="hsec"><h3>${h}</h3><p>${body}</p></div>`;
   const keys = (title, rows) => `<div class="hsec"><h3>${title}</h3><table class="keys">${rows.map(([k, t]) => `<tr><td><b>${k}</b></td><td>${t}</td></tr>`).join('')}</table></div>`;
   const pages = {
-    basics: () => sec('Time', 'Nothing happens until you <b>end the day</b>. Each man trains one skill, spars or rests; you pay food and wages. Every fifth day is <b>market day</b>: the market, the smith, the hiring hall and the contract board all change.')
-      + sec('The arena\'s year', 'For a month every market day is a <b>games</b> day as well. Then the arena is <b>shut for a month</b>: no bouts, no purses and no festivals, though the town goes on as before. That month is for training, for contracts, and for the road out of the east gate. Then it opens again, and so on by turns. The bar at the side always says how long until the next games.')
-      + sec('The aim', `Win bouts for purses and <b>fame</b>. Fame opens greater arenas, and at ${FINAL_FAME} the Emperor sends for you. Lose every man, or stay in debt past the days of grace, and the house falls.`)
-      + sec('Money', 'Purses, wagers, contracts and the Guild\'s stipend bring it in; food, wages, men and steel take it out. The ledger under <b>Household</b> shows each day\'s balance.')
-      + sec('Debt and heirs', 'Below zero the creditors give you a few days of grace, then take the ludus. That is not the end: an heir begins again with whatever the family managed to keep, and legacy buys a better start.')
-      + sec('Where to look', 'Hover over anything, anywhere, for what it means, or reach it with Tab. <b>Settings</b>, in the menu, can hold the pictures still, switch off the single keys, and make Tab stop at every explanation. The steward can walk you through the first week again from the foot of this page.')
-      + sec('Saving', 'The game saves itself after everything you do, and keeps a copy from the morning of the last market day. <b>Saves</b>, at the foot of the side bar, holds five campaigns.'),
-    fighters: () => sec('Three skills', '<b>Strength</b> hits harder and carries more health; <b>Agility</b> strikes faster and dodges; <b>Skill</b> lands blows, finds telling ones and blocks. <b>Power</b> is the three added up.')
-      + sec('Style', 'A man\'s highest skill is his style. <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>: the style with the edge hits a tenth harder. Two skills level means no style, no edge and no weakness.')
-      + sec('Training', 'Train a skill and its bar fills; full, the skill goes up. <b>Potential</b> (the stars) is how fast he learns it. Training tires him; a tired man trains worse and fights worse, and an exhausted one must rest.')
-      + sec('Abilities', 'A skill at 5, 10 and 16 teaches an ability, different for each kind of fighter. He carries four; choose which on his Abilities page once he knows more.')
-      + sec('Rank and perks', 'Fights give experience; experience gives rank; each rank gives a perk to choose. Traits he came with, good and bad, are his for life.')
-      + sec('Morale, wounds, bonds', 'Low morale saps everything. Wounds keep a man out for days: an infirmary and a medicus shorten that. Men make friends and rivals; a friend\'s death is grieved, and may be avenged.')
-      + sec('Freedom', 'After eight victories a man may be given the wooden sword: he leaves, the city talks of it, and every man in the yard takes heart. A promise of freedom must be kept.'),
-    fights: () => sec('Before the bout', 'Pick your men, set a wager if you like, and go to the sand. <b>Might</b> is how dangerous a man is today, with gear, wounds and weariness counted; the odds are worked from it.')
-      + sec('The charge', 'Each fighter\'s gold bar fills with time and with blows given and taken. Full, the fight stops and you choose his ability, or set <b>Abilities: auto</b> and he chooses for himself.')
-      + sec('How it ends', 'A man goes down, or yields. The crowd then judges the fallen: a good show and a man who yielded are spared far more often. In a bout <b>to the death</b> there is no yielding and no mercy.')
-      + sec('The cloth', '<b>Throw in the cloth</b> to make your worst-hurt man yield at once. Once a bout, and it asks twice.')
-      + sec('The crowd', 'Telling blows, abilities and a close fight raise the crowd; a roused crowd pays more fame and spares more men. A dull fight gets cabbage stalks.')
-      + sec('Aiming', 'When the fight stops for one of yours, the ability goes to whoever he is aimed at: click a foe on the sand or in the panel, or press <b>T</b> for the next one. <b>All on him</b> (F) sets every man of yours on that foe until he is down. <b>Hold it</b> (W) keeps the charge and asks again in four seconds.')
-      + sec('Watching', 'Pause, step, or run at half speed to look closely; rest the mouse on any fighter for what he is and how he stands. <b>Log</b> keeps every line of the fight. Cut-ins and the following camera can be switched off.')
-      + sec('Festivals', 'Some games days are special: a beast hunt, a great melee of four or five a side, funeral games fought to the death for richer purses, a triumph with armed captives and a cheap market, Saturnalia with no deaths and generous bookmakers, the Games of Mars with a duel for each fighting style, or the eight-man Laurel Tournament, where you may back any man for the laurel before the first round, tend your own between rounds, or enter nobody and watch. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days for more fame from its bouts; win enough of them and the house keeps its <b>crown</b>, which adds fame to every bout after.'),
-    town: () => sec('The slave market', 'Buy men; sell your own for half their worth. A scout shows a recruit\'s potential before you pay. Fresh stock every market day.')
-      + sec('The blacksmith', 'Six pieces to a man: a weapon and five of armour. Grades run F to S, rusted to imperial. A weapon adds damage; armour takes damage off every blow, and its weight costs a little dodge. Improve the forge for better stock.')
-      + sec('Training', 'Each man is set to rest, to drill one skill, or to spar at all three. Sparring is worth more with a stronger partner. A Veteranus or better can <b>Teach</b>: men drilling a skill he is clearly better at learn it faster. <b>Auto</b> leaves a man to the doctore, who rests him when he needs it and drills him at what he learns fastest. In good spirits a man sometimes has a great day and learns far more.')
-      + sec('The school', 'At the <b>Ludus</b>, the button <b>The school</b> shows its own buildings: barracks hold more men; the training ground speeds training; the infirmary and baths mend and rest them; the stables carry the column further in a day out in the province, and keep the eagle that sees ahead of it. The <b>doctore</b> has his post there, and the regimen is set there too.')
-      + sec('Household', 'Staff are hired by the day. Rations trade coin for morale, and the granary makes them cheaper. Other buildings stand where they are used: the shrine with the <b>Patrons</b>, the stables and the doctore at the <b>Ludus</b>, and the armourer is hired at the <b>Blacksmith</b>.')
-      + sec('Patrons', 'The <b>Magistrate</b> fattens purses and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts and the right choices win favour.')
-      + sec('Rival houses', 'Killing their men, or losing yours to them, deepens a feud. At open feud a house calls you out: answer the grudge match and it cools; refuse and it costs you.')
-      + sec('Contracts', 'Work away from the ludus for pay and favour: guard duty, caravans, hunts. A man sent out is gone until he comes home, and some come home changed.')
-      + sec('Things that happen', 'Now and then something wants an answer. Each choice has its price; the dialog shows what actually changed once you have chosen.'),
-    province: () => sec('Getting out', 'Out through the east gate once you have fought your first games. Every fit man marches with you.')
-      + sec('Time on the road', 'A day passes for each day\'s march, for going into a place, and for making camp. The map says how many days anywhere is before you set out. At night the column halts.')
-      + sec('Places', 'Lairs, camps, shrines, ruins and villages. The skulls by a place say how hard it is; farther from town is harder and richer. Nothing out here can be done twice.')
-      + sec('Fights in the wild', 'No crowd and no mercy: a man who goes down lives or dies by luck and your medicus. Beasts give no quarter.')
-      + sec('Home', 'While the arena is open, games are still held in town every fifth day; away, you miss them. <b>Go home</b> sets the column on the shortest road to the gate.')
+    basics: () => sec('Time', 'Nothing happens until you <b>end the day</b>. Each day every man trains one skill, spars or rests, and you pay for food and wages. Every fifth day is <b>market day</b>: the market, the smith, the hiring hall and the contract board all get new stock.')
+      + sec('The arena\'s year', 'For a month, every market day is also a <b>games</b> day. Then the arena is <b>shut for a month</b>: no bouts, no purses and no festivals, though the town carries on as usual. Use that month for training, contracts, and trips out of the east gate. Then the arena opens again, and the cycle repeats. The side bar always shows how long it is until the next games.')
+      + sec('The aim', `Win bouts for purses and <b>fame</b>. Fame opens bigger arenas, and at ${FINAL_FAME} the Emperor sends for you. If you lose every man, or stay in debt beyond the days of grace, the house falls.`)
+      + sec('Money', 'Purses, wagers, contracts and the Guild\'s stipend bring money in. Food, wages, men and gear take it out. The ledger under <b>Household</b> shows each day\'s balance.')
+      + sec('Debt and heirs', 'When your money falls below zero the creditors allow a few days of grace, and then take the ludus. That is not the end: an heir starts again with whatever the family managed to keep, and legacy points buy a better start.')
+      + sec('Where to look', 'Hover over anything to see what it means, or move to it with Tab. <b>Settings</b>, in the menu, can stop the pictures moving, turn off the single-key shortcuts, and make Tab stop at every explanation. The steward can take you through the first week again: use the button at the bottom of this page.')
+      + sec('Saving', 'The game saves itself after everything you do, and keeps a backup from the morning of the last market day. <b>Saves</b>, at the bottom of the side bar, holds five campaigns.'),
+    fighters: () => sec('Three skills', '<b>Strength</b> hits harder and gives more health. <b>Agility</b> attacks faster and dodges. <b>Skill</b> lands more blows, scores more critical hits and blocks. <b>Power</b> is the three added together.')
+      + sec('Style', 'A man\'s highest skill is his style. <b>Strength beats Agility, Agility beats Skill, Skill beats Strength</b>: the style with the edge hits 10% harder. If his two highest skills are equal he has no style: no edge and no weakness.')
+      + sec('Training', 'Train a skill and its bar fills. When the bar is full, the skill goes up by one. <b>Potential</b> (the stars) is how fast he learns it. Training tires him. A tired man trains worse and fights worse, and an exhausted one must rest.')
+      + sec('Abilities', 'Each skill teaches an ability at 5, 10 and 16, different for each type of fighter. He takes four into a fight. Once he knows more than four, choose which on his Abilities page.')
+      + sec('Rank and perks', 'Fights give experience, experience raises his rank, and each new rank lets you choose a perk. The traits he arrived with, good and bad, are permanent.')
+      + sec('Morale, wounds, bonds', 'Low morale makes a man worse at everything. Wounds keep him out for days: an infirmary and a medicus shorten that. Men make friends and rivals. A man grieves when a friend dies, and may swear revenge.')
+      + sec('Freedom', 'After eight victories you may free a man by granting him the wooden sword. He leaves, the school gains fame, and every man left in the yard gains morale. If you promise a man his freedom, keep the promise.'),
+    fights: () => sec('Before the bout', 'Pick your men, place a bet if you like, and start the fight. <b>Might</b> is how dangerous a man is today, counting gear, wounds and fatigue. The odds are worked out from it.')
+      + sec('The charge', 'Each fighter\'s gold bar fills over time, and with every blow he lands or takes. When it is full, the fight pauses and you choose his ability. Or set <b>Abilities: auto</b> and he chooses for himself.')
+      + sec('How it ends', 'A man is beaten when he goes down or yields. The crowd then judges him: a good show, or yielding, makes mercy far more likely. In a bout <b>to the death</b> nobody can yield or be spared.')
+      + sec('The cloth', '<b>Throw in the cloth</b> makes your worst-hurt man yield at once. Once per bout, and you press it twice to confirm.')
+      + sec('The crowd', 'Critical hits, abilities and a close fight excite the crowd. An excited crowd means more fame and more men spared. A dull fight gets cabbage stalks thrown at it.')
+      + sec('Aiming', 'When the fight pauses for one of your men, his ability is used on his target. To change it, click an enemy on the sand or in the panel, or press <b>T</b>. <b>All on him</b> (F) sends all your men at that enemy until he is down. <b>Hold it</b> (W) keeps the charge and asks again in four seconds.')
+      + sec('Watching', 'Pause, step, or run at half speed to look closely. Hover over any fighter to see who he is and what condition he is in. <b>Log</b> lists everything that has happened in the fight. Cut-ins and the moving camera can be turned off.')
+      + sec('Festivals', 'Some games days are festivals: a beast hunt; a melee of four or five a side; funeral games, to the death for richer purses; a triumph, with armed captives and a cheap market; Saturnalia, with no deaths and generous bookmakers; the Games of Mars, a duel for each fighting style; or the eight-man Laurel Tournament, where you may bet on any man before the first round, tend your own man between rounds, or enter nobody and watch. The arena screen shows the next three. <b>Sponsor</b> a festival in its last five days and its bouts earn more fame. Win enough of its bouts and the house keeps its <b>crown</b>, which adds fame to every later bout.'),
+    town: () => sec('The slave market', 'Buy men here, or sell your own for half their value. A scout shows a recruit\'s potential before you pay. New men arrive every market day.')
+      + sec('The blacksmith', 'Each man wears a weapon and five pieces of armour, graded F (rusted) to S (imperial). A weapon adds damage. Armour takes damage off every blow, but its weight costs a little dodge. Improve the forge for better stock.')
+      + sec('Training', 'Each man rests, trains one skill, or spars (all three at once). Sparring is worth more with a stronger partner. A Veteranus or better can <b>Teach</b>: men training a skill he is clearly better at learn it faster. <b>Auto</b> lets the doctore choose: rest when a man needs it, otherwise the skill he learns fastest. With high morale a man sometimes has a great day and learns far more.')
+      + sec('The school', 'At the <b>Ludus</b>, press <b>The school</b> to see its buildings. Barracks hold more men. The training ground speeds up training. The infirmary heals men and the baths rest them. The stables let the column march further each day in the province, and house the eagle that scouts ahead. The <b>doctore</b> is hired there, and the regimen is set there.')
+      + sec('Household', 'Staff are paid by the day. Better rations cost more and raise morale, and the granary makes them cheaper. Some things are found elsewhere: the shrine is with the <b>Patrons</b>, the stables and the doctore are at the <b>Ludus</b>, and the armourer is hired at the <b>Blacksmith</b>.')
+      + sec('Patrons', 'The <b>Magistrate</b> makes purses bigger, and at 60 favour adds a bout to every games. The <b>Grain Guild</b> pays a daily stipend. The <b>Temple</b> makes the crowd more merciful. Gifts, and the right choices in events, win favour.')
+      + sec('Rival houses', 'A feud grows when you kill a house\'s men or they kill yours. When it is bad enough the house challenges you to a grudge match. Fight it and the feud cools; refuse and it costs you.')
+      + sec('Contracts', 'Paid work away from the ludus, for money and favour: guard duty, caravans, hunts. A man you send is away until the work is over, and some come home changed.')
+      + sec('Things that happen', 'Now and then an event asks you to make a choice. Every choice has a cost. After you choose, the window shows exactly what changed.'),
+    province: () => sec('Getting out', 'The east gate opens once you have fought your first games. Every fit man marches with you.')
+      + sec('Time on the road', 'Days pass as you march. Going into a place takes a day, and so does making camp. Before you set out, the map shows how many days away any spot is. The column stops at night.')
+      + sec('Places', 'Lairs, camps, shrines, ruins and villages. The skulls beside a place show how hard it is. The farther from town, the harder and the richer. Each place can only be done once.')
+      + sec('Fights in the wild', 'There is no crowd and no mercy. Whether a man who goes down lives or dies depends on luck and your medicus. Beasts never spare anyone.')
+      + sec('Home', 'While the arena is open, games are still held in town every fifth day, and you miss them if you are away. <b>Go home</b> sends the column back to the gate by the shortest road.')
       + sec('The eagle', 'There is an old story in the province about a lost legion\'s eagle. Men who have a journey to make will tell you where they need to go.'),
     legend: () => `<div class="hsec wide"><h3>Styles</h3><div class="tri">${ic('str')} <b>Strength</b> <i>beats</i> ${ic('agi')} <b>Agility</b> <i>beats</i> ${ic('skl')} <b>Skill</b> <i>beats</i> ${ic('str')} <b>Strength</b></div></div>
       <div class="hsec wide"><h3>Grades of steel</h3><div class="grades">${RARITY.map((r, i) => `<span><span class="rar r${i}">${r}</span> ${MATERIAL[i]}</span>`).join('')}</div></div>
       <div class="hsec"><h3>Bars</h3><div class="legbars"><span>${bar('hp', 7, 10)} health</span><span>${bar('fat', 6, 10)} fatigue: lower is better</span><span>${bar('mor', 7, 10)} morale</span><span>${bar('prog', 5, 10)} progress, and in a fight the charge</span></div></div>
       <div class="hsec"><h3>In a fight</h3><div class="marks">${[['bleed', 'Bleeding: loses health as he fights'], ['ham', 'Hamstrung: slowed, dodges half as well'], ['arm', 'Arm wounded: hits softer'], ['net', 'Netted: cannot dodge or block'], ['stun', 'Stunned: cannot act'], ['weak', 'Weakened: hits softer for a time'], ['open', 'Exposed: every blow on him lands harder'], ['buff', 'Roused: guarding, hasty or in a fury']].map(([k, t]) => `<span><canvas width="14" height="14" data-hmark="${k}"></canvas>${t}</span>`).join('')}</div></div>
       <div class="hsec"><h3>On a fighter\'s card</h3><p><span class="chip red">Injured 2d</span> out until healed &nbsp; <span class="chip red">Exhausted</span> must rest &nbsp; <span class="chip gold">Perk to choose</span> a rank gained &nbsp; <span class="chip gold">Away</span> on a contract</p></div>
-      <div class="hsec"><h3>On the province map</h3><p>Skulls beside a place: how dangerous it is, one to five. A gold name: a place you have marked, or that someone has asked to be taken to.</p></div>`,
-    keys: () => keys('Everywhere', [['Tab', 'to each button in turn; Enter or Space presses it'], ['H', 'this book'], [typeof escFree === 'function' && !escFree() ? 'Esc' : 'Esc', typeof escFree === 'function' && !escFree() ? 'leave full screen (the browser keeps this key)' : 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
-      + keys('At the ludus and in town', [['W A S D', 'walk the lanista about the town'], ['Click the picture', 'inside a building, walk to that spot in it'], ['E', 'end the day'], ['G', 'run the days to the next games (to market day, while the arena is shut)'], ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand']])
-      + keys('In a fight', [['1 to 4', 'choose the ability'], ['A', 'let him choose this once'], ['Space', 'pause'], ['.', 'step a tenth of a second'], ['[ and ]', 'slower and faster'], ['L', 'the log of the fight'], ['C, twice', 'throw in the cloth'], ['click the sand', 'cut short an entrance, an announcement, a death or the ending']])
+      <div class="hsec"><h3>On the province map</h3><p>Skulls beside a place: how dangerous it is, one to five. A gold name: a place you have marked, or one that somebody has asked you to go to.</p></div>`,
+    keys: () => keys('Everywhere', [['Tab', 'moves to the next button; Enter or Space presses it'], ['H', 'this help'], [typeof escFree === 'function' && !escFree() ? 'Esc' : 'Esc', typeof escFree === 'function' && !escFree() ? 'leave full screen (the browser keeps this key)' : 'close a window'], ['Enter', 'close a notice'], ['1 to 3', 'choose an answer in an event']])
+      + keys('At the ludus and in town', [['W A S D', 'walk around the town'], ['Click the picture', 'inside a building, walk to that spot in it'], ['E', 'end the day'], ['G', 'skip ahead to the next games (or to market day, while the arena is shut)'], ['Up, Down', 'move through the list on screen'], ['Left, Right', 'turn the pages of a dossier'], ['1 to 5', 'set the selected fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'start the fight']])
+      + keys('In a fight', [['1 to 4', 'choose the ability'], ['A', 'let him choose this once'], ['Space', 'pause'], ['.', 'step a tenth of a second'], ['[ and ]', 'slower and faster'], ['L', 'the log of the fight'], ['C, twice', 'throw in the cloth'], ['click the sand', 'skip an entrance, an announcement, a death scene or the ending']])
       + keys('In the province', [['W A S D', 'march the column'], ['click', 'march to that place'], ['E', 'make camp'], ['M', 'the whole map'], ['R', 'set out for home']]),
   };
-  return `<div class="help"><h2>How the trade is plied</h2>
+  return `<div class="help"><h2>How to run a ludus</h2>
     <div class="subtabs helptabs">${HELP_TABS.map(([k, n]) => `<button class="${ui.helpTab === k ? 'on' : ''}" data-act="helptab" data-v="${k}">${n}</button>`).join('')}</div>
     <div class="hpage ${ui.helpTab}">${pages[ui.helpTab]()}</div>
-    <div class="row"><button class="primary" data-act="close">Close</button><button data-act="helptut"${tip('steward')}>Walk me through it again</button><span class="dim" style="font-size:12px;margin-left:auto">Left and Right turn the pages</span></div></div>`;
+    <div class="row"><button class="primary" data-act="close">Close</button><button data-act="helptut"${tip('steward')}>Restart the tutorial</button><span class="dim" style="font-size:12px;margin-left:auto">Left and Right turn the pages</span></div></div>`;
 }
 function paintHelpMarks() {
   document.querySelectorAll('[data-hmark]').forEach(cv => { const c = cv.getContext('2d'); c.clearRect(0, 0, 14, 14); try { drawMark(c, cv.dataset.hmark, 2, 2, 2); } catch (e) { /* the fight's code is not loaded */ } });
@@ -652,7 +652,7 @@ function renderTop() {
     <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
     <button data-act="skipdays"${tip('skip')} ${Math.min(dg, far ? daysToMarket() || GAMES_EVERY : dg) > 1 ? '' : 'disabled'}>${far ? 'To market day' : 'To the games'}<span class="key">G</span></button>`;
 
-  $('#sidefoot').innerHTML = `<button class="wide" data-act="menu"${tip('Settings, saving, the figures of your house, and the way out.')}>Menu${typeof escFree === 'function' && !escFree() ? '' : ' <span class="key">Esc</span>'}</button>${canFull() ? `<button class="wide" data-act="fullscreen"${tip('Fills the whole screen with the game, or gives the screen back. Esc also leaves it.')}>${isFull() ? 'Leave full screen' : 'Full screen'}</button>` : ''}<button class="wide" data-act="help"${tip('The keys, and the rules of the trade in a page. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>${volSlider('sound')}${volSlider('music')}`;
+  $('#sidefoot').innerHTML = `<button class="wide" data-act="menu"${tip('Settings, saves, statistics of your house, and quitting.')}>Menu${typeof escFree === 'function' && !escFree() ? '' : ' <span class="key">Esc</span>'}</button>${canFull() ? `<button class="wide" data-act="fullscreen"${tip('Turns full screen on or off. Esc also leaves full screen.')}>${isFull() ? 'Leave full screen' : 'Full screen'}</button>` : ''}<button class="wide" data-act="help"${tip('Help: how the game works, and the keys. Key: H')}>Help</button><button class="wide" data-act="saves"${tip('saves')}>Saves</button>${volSlider('sound')}${volSlider('music')}`;
 }
 // A slider for how loud: the sound of the whole game, or the music within it. (See the 'input' listener, and SFX in sfx.js.)
 const volWord = v => v > 0 ? String(v) : 'off';
@@ -719,7 +719,7 @@ const STYLE_LOSES = { str: 'skl', agi: 'str', skl: 'agi' };
 function styleMark(g) {
   const st = styleOf(g);
   return st ? `<span class="stylemark"${tip(`${STAT_NAMES[st]} style: beats ${STAT_NAMES[STYLE_BEATS[st]]}, loses to ${STAT_NAMES[STYLE_LOSES[st]]}.`)}>${ic(st)}</span>`
-    : `<span class="stylemark none"${tip('No style: two of his skills are level, so he has no edge and no weakness.')}>&ndash;</span>`;
+    : `<span class="stylemark none"${tip('No style: his two highest skills are equal, so he has no edge and no weakness.')}>&ndash;</span>`;
 }
 // How his style stands against one opponent's: up, down, or nothing.
 function edgeMark(g, foe) {
@@ -749,7 +749,7 @@ function gladCard(g) {
     return `<button class="${g.activity === k && g.injury <= 0 ? 'on' : ''} ${why ? 'off' : ''} ${g.auto && g.activity === k ? 'byauto' : ''}" data-act="activity" data-v="${g.id}" data-w="${k}"${tip(why || `${what}\nKey: ${i + 1}, for whoever is chosen.`)}>${actLabel(k)}</button>`;
   };
   const noDoc = !staffLvl('doctore');
-  const autoBtn = `<button class="${g.auto ? 'on' : ''} ${noDoc ? 'off' : ''}" data-act="actauto" data-v="${g.id}"${tip(noDoc ? 'Leaving a man to the doctore needs a doctore. Hire one at the Ludus, under The school.' : `A for Auto: leave him to the doctore. Each morning he is set to rest when he needs it and before the games, and otherwise to the skill he learns fastest.${g.auto ? `\nToday the doctore has him ${g.activity === 'rest' ? 'resting' : g.activity === 'spar' ? 'sparring' : g.activity === 'teach' ? 'teaching' : 'at ' + STAT_NAMES[g.activity].toLowerCase()}. Choose anything else to take him back.` : ''}`)}>A</button>`;
+  const autoBtn = `<button class="${g.auto ? 'on' : ''} ${noDoc ? 'off' : ''}" data-act="actauto" data-v="${g.id}"${tip(noDoc ? 'Auto needs a doctore. Hire one at the Ludus (press The school there).' : `A for Auto: the doctore sets his work each morning. He rests when he needs it and before the games, and otherwise trains the skill he learns fastest.${g.auto ? `\nToday the doctore has him ${g.activity === 'rest' ? 'resting' : g.activity === 'spar' ? 'sparring' : g.activity === 'teach' ? 'teaching' : 'at ' + STAT_NAMES[g.activity].toLowerCase()}. Choose any other work to take him off Auto.` : ''}`)}>A</button>`;
   const J = jobOf(g);
   const work = J ? `<div class="awaynote">Away: <b>${jobTitle(J)}</b><br>back ${backWhen(J)}</div>` : `<div class="acts mini">${ACT_BUTTONS.map(actBtn).join('')}${autoBtn}</div>`;
   const skills = STATS.map(s => `<span class="sk ${trains(g, s) ? 'up' : ''}"${tip(`${STAT_NAMES[s]} ${g.stats[s]}${trains(g, s) ? ', in training' : ''}`)}>${ic(s)}<b class="num">${g.stats[s]}</b></span>`).join('');
@@ -776,16 +776,16 @@ function todayNote(g) {
   const byDoc = g.auto ? ' <span class="dim">(the doctore\'s choice)</span>' : '';
   if (g.activity === 'teach') {
     const pupils = G.roster.filter(o => o !== g && !o.away && o.injury <= 0 && STATS.includes(o.activity) && g.stats[o.activity] >= o.stats[o.activity] + 2);
-    return `<b>Teaching.</b>${byDoc} ${pupils.length ? `${namesOf(pupils)} ${pupils.length === 1 ? 'learns' : 'learn'} ${Math.round((0.2 + 0.05 * g.rank) * 100)}% faster for it.` : '<span class="bad">Nobody is drilling a skill he is clearly better at: his day is wasted.</span>'} He barely tires.`;
+    return `<b>Teaching.</b>${byDoc} ${pupils.length ? `${namesOf(pupils)} ${pupils.length === 1 ? 'learns' : 'learn'} ${Math.round((0.2 + 0.05 * g.rank) * 100)}% faster for it.` : '<span class="bad">Nobody is training a skill he is clearly better at, so his day is wasted.</span>'} He barely tires.`;
   }
   const spar = g.activity === 'spar', sb = spar ? sparBonus(g) : 1, rate = trainRate(g) * sb, tire = trainTire(g, spar);
   const days = s => g.stats[s] >= 20 ? 0 : Math.max(1, Math.ceil((needProg(g.stats[s]) - g.prog[s]) / (rate * g.pot[s] * (spar ? 0.32 : 1) * (1 + teachBonus(g, s)))));
   const gains = (spar ? STATS : [g.activity]).map(s => { const d = days(s); return d ? `${STAT_NAMES[s]} ${g.stats[s] + 1} in ${d} day${d === 1 ? '' : 's'}` : `${STAT_NAMES[s]} can go no higher`; }).join(', ');
   const left = Math.max(0, Math.ceil((75 - g.fatigue) / tire));
-  const warn = g.fatigue > 75 ? '<span class="bad">He is exhausted and may tear something.</span>' : left <= 1 ? '<span class="bad">Exhausted after today.</span>' : `Exhausted in ${left} days at this pace.`;
+  const warn = g.fatigue > 75 ? '<span class="bad">He is exhausted and may be injured.</span>' : left <= 1 ? '<span class="bad">Exhausted after today.</span>' : `Exhausted in ${left} days at this pace.`;
   const tb = spar ? 0 : teachBonus(g, g.activity), bc = Math.round(breakChance(g) * 100);
   const extra = (tb ? ` <span class="good">Taught: +${Math.round(tb * 100)}%.</span>` : '') + (spar ? (sb > 1 ? ' <span class="good">A stronger partner: +15%.</span>' : sb < 1 ? ' <span class="bad">Nobody to spar with: 15% less.</span>' : '') : '')
-    + (bc ? ` <span class="dim"${tip('In good spirits a man now and then has a day when everything comes right, and learns two and a half times as much. The better his morale, the likelier.')}>${bc}% chance of a great day.</span>` : '');
+    + (bc ? ` <span class="dim"${tip('A man with good morale sometimes has a great day, and learns two and a half times as much. The higher his morale, the more likely it is.')}>${bc}% chance of a great day.</span>` : '');
   return `<b>${spar ? 'Sparring.' : 'Drilling ' + STAT_NAMES[g.activity].toLowerCase() + '.'}</b>${byDoc} ${gains}. ${warn}${extra}`;
 }
 
@@ -803,10 +803,10 @@ function schoolBar() {
   const bit = (n, word, cls, t) => n ? `<span class="${cls}"${tip(t)}><b class="num">${n}</b> ${word}</span>` : '';
   const all = ACT_BUTTONS.filter(([k]) => k !== 'teach').map(([k, label]) => {
     const off = k === 'spar' && !staffLvl('doctore');
-    return `<button class="${off ? 'off' : ''}" data-act="actall" data-w="${k}"${tip(off ? 'Sparring needs a doctore. Hire one at the Ludus, under The school.' : `Set every man who is here and whole to: ${label.toLowerCase()}.`)}>${actLabel(k)}</button>`;
-  }).join('') + `<button class="${staffLvl('doctore') ? '' : 'off'}" data-act="actall" data-w="auto"${tip(staffLvl('doctore') ? 'A for Auto: leave every man who is here to the doctore. He rests them when they need it and before the games, and drills each at what he learns fastest.' : 'Leaving the men to the doctore needs a doctore. Hire one at the Ludus, under The school.')}>A</button>`;
+    return `<button class="${off ? 'off' : ''}" data-act="actall" data-w="${k}"${tip(off ? 'Sparring needs a doctore. Hire one at the Ludus (press The school there).' : `Set every man who is here and uninjured to: ${label.toLowerCase()}.`)}>${actLabel(k)}</button>`;
+  }).join('') + `<button class="${staffLvl('doctore') ? '' : 'off'}" data-act="actall" data-w="auto"${tip(staffLvl('doctore') ? 'A for Auto: the doctore sets the work of every man who is here. He rests them when they need it and before the games, and otherwise trains each man in the skill he learns fastest.' : 'Auto needs a doctore. Hire one at the Ludus (press The school there).')}>A</button>`;
   return `<div class="panel schoolbar">
-    <div class="tally">${bit(fit, 'fit to fight', 'good', 'Whole, here, and not yet fought today.') || '<span class="bad">No one fit to fight</span>'}${bit(hurt, 'injured', 'bad', 'Resting until they heal. An infirmary and a medicus shorten it.')}${bit(spent, 'exhausted', 'bad', TIPS.exhausted)}${bit(away, 'away', 'gold', TIPS.away)}${bit(idle, 'idle', 'bad', 'Resting though whole and fresh: a day of training lost.')}
+    <div class="tally">${bit(fit, 'fit to fight', 'good', 'Uninjured, here, and not yet fought today.') || '<span class="bad">No one fit to fight</span>'}${bit(hurt, 'injured', 'bad', 'Resting until they heal. An infirmary and a medicus shorten it.')}${bit(spent, 'exhausted', 'bad', TIPS.exhausted)}${bit(away, 'away', 'gold', TIPS.away)}${bit(idle, 'idle', 'bad', 'Resting although healthy and not tired: a day of training wasted.')}
       <span${tip('Food for every man here, and the wages of your household, each day.')}>upkeep <b class="num">${upkeep()}</b> a day</span></div>
     <button class="mini" data-act="rsort"${tip('Change the order of the list: by cell, strongest first, or readiest to fight first.')}>${RSORTS.find(s => s[0] === (ui.rsort || 'cells'))[1]}</button>
     <div class="acts mini"><span class="lbl">Everyone</span>${all}</div>
@@ -828,7 +828,7 @@ function traitList(g) {
   return g.traits.length
     ? g.traits.map(t => {
       const can = mine && perkLearnable(t), why = can ? forgetBlock(g, t) : '', armed = ui.forgetArm === g.id + ':' + t;
-      return `<div class="trait"><b class="${TRAITS[t].good ? 'good' : 'bad'}">${TRAITS[t].name}</b> <span class="dim">${TRAITS[t].desc}</span>${can ? `<button class="mini unlearn ${armed ? 'primary' : ''}" data-act="forget" data-v="${g.id}" data-w="${t}" ${why ? 'disabled' : ''}${tip(`Drill it out of him for ${forgetCost(g)} denarii: the perk is gone and he chooses again from three. One man between one games and the next.${why ? '\n' + why : ''}`)}>${armed ? `Sure? ${forgetCost(g)}` : 'Unlearn'}</button>` : ''}</div>`; }).join('')
+      return `<div class="trait"><b class="${TRAITS[t].good ? 'good' : 'bad'}">${TRAITS[t].name}</b> <span class="dim">${TRAITS[t].desc}</span>${can ? `<button class="mini unlearn ${armed ? 'primary' : ''}" data-act="forget" data-v="${g.id}" data-w="${t}" ${why ? 'disabled' : ''}${tip(`Pay ${forgetCost(g)} denarii to remove this perk. He then chooses again from three. Only one man can do this between one games and the next.${why ? '\n' + why : ''}`)}>${armed ? `Sure? ${forgetCost(g)}` : 'Unlearn'}</button>` : ''}</div>`; }).join('')
     : '<div class="dim">No notable traits.</div>';
 }
 
@@ -847,11 +847,11 @@ function abilityBlock(g) {
   const rows = STATS.map(k => `<div class="abgroup"><div class="abhead">${ic(k)} ${STAT_NAMES[k]} <b class="num">${g.stats[k]}</b>${(a => a ? `<small>${a.at - g.stats[k]} to go</small>` : '<small>all learned</small>')(abilityNext(g, k))}</div>${ABILITIES[g.cls][k].map(a => {
     const has = known.includes(a), on = carried.includes(a), mr = masteryRank(g, a.id), uses = masteryUses(g, a.id), sig = sigA === a;
     const mast = has ? `<span class="mast r${mr}"${tip(`${mr ? MAST_NAMES[mr] + '. ' : ''}Used ${uses} time${uses === 1 ? '' : 's'}, in fights and at sparring.${mr < 3 ? ` ${MAST_NAMES[mr + 1]} at ${MAST_AT[mr]}.` : ''}\nPractised at ${MAST_AT[0]}, Honed at ${MAST_AT[1]}, Mastered at ${MAST_AT[2]}: each makes it ${Math.round(MAST_STEP * 100)}% stronger, in damage or in how long it lasts.${mr ? `\nNow: ${abilityTags(a, g).join(', ')}.` : ''}`)}>${'●'.repeat(mr)}${'○'.repeat(3 - mr)}</span>` : '';
-    const star = has && on ? `<span class="sig ${sig ? 'on' : ''}" data-act="absig" data-v="${g.id}" data-w="${a.id}"${tip(sig ? 'His signature. After he uses it, his charge starts again at 30% instead of nothing. Click to take the mark off.' : 'Make this his signature: after he uses it, his charge starts again at 30% instead of nothing. One to a man.')}>&#9733;</span>` : '';
+    const star = has && on ? `<span class="sig ${sig ? 'on' : ''}" data-act="absig" data-v="${g.id}" data-w="${a.id}"${tip(sig ? 'His signature. After he uses it, his charge starts again at 30% instead of empty. Click to remove the mark.' : 'Make this his signature: after he uses it, his charge starts again at 30% instead of empty. One signature per man.')}>&#9733;</span>` : '';
     return `<div class="ab ${has ? (on ? 'on' : 'known') : 'locked'} ${sig ? 'sigd' : ''}" ${has && choose ? `data-act="abil" data-v="${g.id}" data-w="${a.id}"` : ''}>
       <b>${a.name}</b> ${mast}<small>${has ? (on ? 'carried' : 'known') : `at ${STAT_NAMES[k]} ${a.at}`}</small>${star}<div class="dim"${tip(a.desc)}>${a.desc}</div></div>`;
   }).join('')}</div>`).join('');
-  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click one to carry it or put it down.' : ''} ${sigA ? `His signature is <b class="gold">${sigA.name}</b>.` : 'Star one he carries to make it his signature.'} Abilities grow stronger with use.` : 'He has learned nothing yet: a skill at 5 teaches the first. Until then a full charge is a single heavy blow.'} <span${tip('How fast his gold bar fills in a fight. Fatigue slows it; rest restores it.')} class="${pace < 85 ? 'bad' : 'dim'}">His charge fills at ${pace}% of full pace${pace < 85 ? ': he is tired' : ''}.</span></div><div class="abcols">${rows}</div>`;
+  return `<div${tip('abilities')} style="font-size:13px;margin-bottom:6px">${known.length ? `He knows <b>${known.length}</b> and carries <b>${carried.length}</b>.${choose ? ' Click an ability to add it to his four or take it out.' : ''} ${sigA ? `His signature is <b class="gold">${sigA.name}</b>.` : 'Star one he carries to make it his signature.'} Abilities grow stronger with use.` : 'He has no abilities yet: the first comes when a skill reaches 5. Until then a full charge is spent on one heavy blow.'} <span${tip('How fast his gold bar fills in a fight. Fatigue slows it; rest restores it.')} class="${pace < 85 ? 'bad' : 'dim'}">His charge fills at ${pace}% of full pace${pace < 85 ? ': he is tired' : ''}.</span></div><div class="abcols">${rows}</div>`;
 }
 
 function gladDetail(g) {
@@ -866,14 +866,14 @@ function gladDetail(g) {
     abil: () => abilityBlock(g),
     gear: () => gearBlock(g),
     story: () => storyBlock(g) + questBlock(g),
-    orders: () => `<div class="sendhead"${tip('orders')}><span>How he fights, in every bout until you say otherwise</span></div>
+    orders: () => `<div class="sendhead"${tip('orders')}><span>How he fights in every bout, until you change it</span></div>
       <div class="tactics">${Object.entries(TACTICS).map(([k, t]) => `<button class="${g.tactic === k ? 'primary' : ''}" data-act="tactic" data-v="${g.id}" data-w="${k}"><b>${t.name}</b><span>${t.desc}</span></button>`).join('')}</div>
       <hr class="sep">
       ${g.away ? `<small>He is away from the ludus: ${jobTitle(jobOf(g)).toLowerCase()}, back ${backWhen(jobOf(g))}. He cannot be sold or freed until he returns.</small>` : `
       <div class="partings">
         <div><b>Sell him</b><small>He is worth about ${value(g)} denarii; the dealer pays half. His kit comes back to your racks.</small>
           <button class="${ui.sellArm === g.id ? 'primary' : ''}" data-act="msell" data-v="${g.id}"${tip('sell')}>${ui.sellArm === g.id ? `Sure? Sell ${g.name}` : `Sell for ${sellPrice(g)}`}</button></div>
-        <div><b>Grant the wooden sword</b><small>${g.wins >= 8 ? `He walks free for good. The city talks of it: fame +${40 + g.wins * 5}, and every man in the yard takes heart.` : `Freedom may be granted after 8 victories. He has ${g.wins}.`}</small>
+        <div><b>Grant the wooden sword</b><small>${g.wins >= 8 ? `He leaves for good. Fame +${40 + g.wins * 5}, and every man left in the yard gains morale.` : `Freedom may be granted after 8 victories. He has ${g.wins}.`}</small>
           ${g.wins >= 8 ? `<button data-act="free" data-v="${g.id}"${tip('free')}>Free ${g.name}</button>` : bar('prog', g.wins, 8)}</div>
       </div>`}`,
   };
@@ -881,9 +881,9 @@ function gladDetail(g) {
   return `<div class="panel dossier">
     <div class="dhead">
       <canvas class="portrait" width="192" height="224" data-portrait="${g.id}"${tip(faceTip(g))}></canvas>
-      <canvas class="portrait figure" width="192" height="224" data-figure="${g.id}"${tip('As he stands on the sand, in the kit he wears now. Change his gear and this changes with it.')}></canvas>
+      <canvas class="portrait figure" width="192" height="224" data-figure="${g.id}"${tip('His figures in a fight, with the gear he wears now. Change his gear and they change too.')}></canvas>
       <div class="dinfo">
-        <div class="dname"><h2>${g.name}</h2>${epithetOf(g) ? `<i class="ep"${tip('What the yard calls him, from what he has done. It changes as he does.')}>${epithetOf(g)}</i>` : ''}<span class="num dim">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</span></div>
+        <div class="dname"><h2>${g.name}</h2>${epithetOf(g) ? `<i class="ep"${tip('A nickname the yard has given him for what he has done. It changes as his record does.')}>${epithetOf(g)}</i>` : ''}<span class="num dim">${g.wins} wins &middot; ${g.losses} losses &middot; ${g.kills} kills</span></div>
         <div class="dline">${RANKS[g.rank].name} &middot; ${c.name} of ${g.origin} &middot; ${ratingLine(g)} &middot; ${styleMark(g)}</div>
         <div class="dchips">${statusChips(g)}${g.perkPending > 0 ? `<button class="primary mini" data-act="perk" data-v="${g.id}">Choose a perk</button>` : ''}</div>
         <div class="vitals four">
@@ -915,7 +915,7 @@ function villageStatus(key) {
 }
 
 function viewLudus() {
-  const flip = `<button class="mini h2btn ${ui.school ? 'primary' : ''}" data-act="school"${tip(ui.school ? 'Back to the men.' : 'The school\'s own buildings: barracks, training ground, infirmary and baths, and how hard the men are worked.')}>${ui.school ? 'The men' : 'The school'}</button>`;
+  const flip = `<button class="mini h2btn ${ui.school ? 'primary' : ''}" data-act="school"${tip(ui.school ? 'Back to the men.' : 'The school\'s own buildings: barracks, training ground, infirmary and baths, and the training regimen.')}>${ui.school ? 'The men' : 'The school'}</button>`;
   if (!G.roster.length && !ui.school) return `<div class="fill"><div><h2>Gladiators ${flip}</h2><div class="pane"><div class="panel">Your cells are empty. Visit the market.</div></div></div><div></div></div>`;
   if (G.roster.length && !byId(ui.sel)) ui.sel = G.roster[0].id;
   const left = ui.school
@@ -992,9 +992,9 @@ function contractCard(c) {
       <div><b class="bad">If it goes badly</b> No pay, and favour -${lose}.${D.danger >= 0.5 ? ' On work this dangerous a man may not come home.' : ''}</div>
       <div class="dim">Either way they learn on the road as if they had trained, and come home tired.</div>
     </div>
-    <div class="termrow"><span class="lbl"${tip('The terms your men go on. Choose before you send them.')}>Terms</span>${termChips}<small>${termLine}</small></div>
+    <div class="termrow"><span class="lbl"${tip('The terms of the contract. Choose before you send the men.')}>Terms</span>${termChips}<small>${termLine}</small></div>
     <div class="sendhead"><span>Send ${c.size === 1 ? 'one man' : c.size + ' men'}, best suited first</span>
-      ${best ? `<button class="mini" data-act="cbest" data-v="${c.id}" ${isBest ? 'disabled' : ''}${tip('Choose whoever gives the best chance together, of the men free to go. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
+      ${best ? `<button class="mini" data-act="cbest" data-v="${c.id}" ${isBest ? 'disabled' : ''}${tip('Picks the available men who together give the best chance. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
     <div>${chips}</div>
     <div class="sendrow">
       <button class="primary" data-act="csend" data-v="${c.id}" ${ready && T.cost <= G.denarii ? '' : 'disabled'}>Send ${ready ? namesOf(men) : ''}</button>
@@ -1014,7 +1014,7 @@ function questsHtml() {
   const waiting = asksNow().map(q => prow(`<div class="grow"><span class="t">${q.giver.name}</span><small>${GIVERS[q.giver.kind].what}, waiting by the fountain in the square &middot; ${Math.max(1, q.leaves - G.day + 1)} more day${q.leaves - G.day + 1 === 1 ? '' : 's'}</small></div><span class="end"><span class="chip gold">walk to the fountain</span></span>`)).join('');
   const paying = owed().map(q => prow(`<div class="grow"><span class="t good">${q.giver.name} is waiting to pay you</span><small>${ERRANDS[q.tpl].title(q.mark)}: done &middot; at the fountain in the square${ERRANDS[q.tpl].next ? ' &middot; and has more to say' : ''}</small></div><span class="end"><b class="gold num">${q.owedPay}</b></span>`)).join('');
   if (!mine && !waiting && !paying) return '';
-  return `<h2${tip('People of the town come to the fountain in the square with work of their own. Click any one of them on the town map to hear what they want. What you take on is marked on the map of the province, out through the east gate; you may have three such matters in hand.')}>Quests <small>${errands().length} of 3 in hand${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small> <button class="mini" data-act="quests" style="vertical-align:middle;margin-left:6px">Open the quests window</button></h2><div class="panel list">${paying}${mine}${waiting}</div>`;
+  return `<h2${tip('Townspeople with work of their own wait at the fountain in the square. Click one of them on the town map to hear what they want. A quest you accept is marked on the province map, out through the east gate. You can have three quests at a time.')}>Quests <small>${errands().length} of 3 taken on${G.questsDone ? ` &middot; ${G.questsDone} done` : ''}</small> <button class="mini" data-act="quests" style="vertical-align:middle;margin-left:6px">Open the quests window</button></h2><div class="panel list">${paying}${mine}${waiting}</div>`;
 }
 function viewContracts() {
   const c = keepSel('csel', G.contracts), dg = daysToGames(), dm = daysToMarket(), free = G.roster.filter(canSend).length, gone = G.roster.filter(g => g.away).length, asked = G.contracts.find(x => x.asked);
@@ -1040,13 +1040,13 @@ function viewContracts() {
         <span${tip('The board is cleared and filled again every market day, which is every fifth day.')}>new offers ${dm === 0 ? '<b>today</b>' : `in <b class="num">${dm}</b> day${dm === 1 ? '' : 's'}`}</span>
         ${asked ? `<span class="gold"${tip('asked')}>${PATRONS[asked.patron].name} asks for you by name</span>` : ''}
         ${bountyLive() ? `<span class="gold"${tip(`The Magistrate pays ${G.bounty.pay} denarii for ${G.bounty.name}, last seen in ${G.bounty.region}, out through the east gate. It is marked on the map of the province, danger ${G.bounty.tier} of 5, and stands for ${G.bounty.until - G.day} more day${G.bounty.until - G.day === 1 ? '' : 's'}. Take the school there.`)}>bounty: <b class="num">${G.bounty.pay}</b> for ${G.bounty.name}</span>` : ''}
-        <span${tip(`What the town thinks of your house's work away from the sand: ${Math.round(workRep())} of 100. Good service raises it; failures and men called home lower it. It adds ${Math.round((workPay(workRep()) - 1) * 100)}% to what every contract pays. At Reliable (35) the board carries one more offer, and at First choice (85) another.`)}>name for work <b class="${workRep() >= 35 ? 'gold' : ''}">${workWord(workRep())}</b>${workRep() >= 1 ? ` <small class="num">+${Math.round((workPay(workRep()) - 1) * 100)}% pay</small>` : ''}</span></div>
-        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`A few coins in the right taverns turn up one more piece of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}</div>
+        <span${tip(`How the town rates your house's contract work: ${Math.round(workRep())} of 100. Good service raises it; failures and men called home lower it. It adds ${Math.round((workPay(workRep()) - 1) * 100)}% to what every contract pays. At Reliable (35) the board carries one more offer, and at First choice (85) another.`)}>name for work <b class="${workRep() >= 35 ? 'gold' : ''}">${workWord(workRep())}</b>${workRep() >= 1 ? ` <small class="num">+${Math.round((workPay(workRep()) - 1) * 100)}% pay</small>` : ''}</span></div>
+        ${(why => `<button class="mini" data-act="caround" ${why ? 'disabled' : ''}${tip(`Pay to find one more offer of work. Once between games.${why ? '\n' + why : ''}`)}>Ask around &mdash; ${askAroundCost()}</button>`)(askAroundBlock())}</div>
       <div class="pane" data-pane="offers"><div class="panel list">${rows}</div>
         <h2>Away from the ludus</h2><div class="panel list">${away}</div>
         ${waiting ? `<h2>Journeys promised</h2><div class="panel list">${waiting}</div>` : ''}
         ${questsHtml()}
-        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about a third of what the same men would win at the games, teach a man almost nothing, tire him, and are little talked of. Men who are away do not fight in games held while they are gone.</div>' : ''}</div></div>
+        ${G.contracts.length + G.jobs.length < 6 ? '<div class="listnote">Contracts pay about a third of what the same men would win at the games. They teach a man almost nothing, tire him, and earn almost no fame. Men who are away miss any games held while they are gone.</div>' : ''}</div></div>
     <div><h2>${c ? 'The offer' : 'Contracts'}</h2><div class="pane" data-pane="offer">${c ? contractCard(c) : ''}</div></div>
   </div>`;
 }
@@ -1057,13 +1057,13 @@ function viewContracts() {
 function journeyGo(g, label) {
   if (!G.field || !g.quest || !QUESTS[g.quest.id] || g.away || typeof questMarkId !== 'function') return '';
   const id = questMarkId(g), st = siteById(id); if (!st) return '';
-  return `<button class="mini primary jgo" data-act="questgo" data-v="${id}"${tip(`Sets the column on the road to ${questWhere(g)}: ${wayTo(st.x, st.y)}. You can still steer away, or click elsewhere, to change your mind.`)}>${label || 'Set out'}</button>`;
+  return `<button class="mini primary jgo" data-act="questgo" data-v="${id}"${tip(`Sends the column to ${questWhere(g)}: ${wayTo(st.x, st.y)}. You can still steer away, or click somewhere else, to change course.`)}>${label || 'Set out'}</button>`;
 }
 function questBlock(g) {
   if (!g.quest || !QUESTS[g.quest.id]) return '';
   const Q = QUESTS[g.quest.id], waited = G.day - g.quest.since;
   return `<hr class="sep"><div${tip('quest')}><b class="gold">${Q.name}</b></div>
-    <div style="font-size:13px">You gave him your word. The place is ${questWhere(g)}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${g.quest.heard ? ' He has told you what it is, by the fire: you know what it will take.' : ''}${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>${journeyGo(g, 'Set out for it') ? `<div class="row" style="margin-top:6px">${journeyGo(g, 'Set out for it')}</div>` : ''}`;
+    <div style="font-size:13px">You gave him your word. The place is ${questWhere(g)}, out through the east gate; it is marked on the map of the province. Take the whole school there, and him with it.${g.quest.heard ? ' He has told you what is waiting there, so you know what it will take.' : ''}${waited >= 10 ? ` <span class="bad">He has waited ${waited} days.</span>` : ''}</div>${journeyGo(g, 'Set out for it') ? `<div class="row" style="margin-top:6px">${journeyGo(g, 'Set out for it')}</div>` : ''}`;
 }
 
 // What came of the outings that ended this morning.
@@ -1101,7 +1101,7 @@ function boutCard(b) {
   const kind = ['Duel', 'Pairs', 'Melee', 'Melee', 'Melee'][b.size - 1];
   const them = boutEnemies(b).slice().sort((x, y) => power(y) - power(x)), one = them.length === 1 && !them[0].beast ? them[0] : null;
   const foes = them.map(e => e.beast
-    ? `<div class="lrow foe" style="cursor:default"><div class="grow"><span class="t">${e.name}</span><small>a beast: it cannot be reasoned with, and gives no quarter</small></div><span class="end num"${tip('power')}>${might(e)}</span></div>`
+    ? `<div class="lrow foe" style="cursor:default"><div class="grow"><span class="t">${e.name}</span><small>a beast: it never yields, and never spares a man</small></div><span class="end num"${tip('power')}>${might(e)}</span></div>`
     : `<div class="lrow lud foe" style="cursor:default"${tip(`${e.name} carries ${abilitiesOf(e).map(a => a.name).join(', ') || 'no abilities'}.${e.traits.length ? '\n' + e.traits.map(t => TRAITS[t].name + ': ' + TRAITS[t].desc).join('\n') : ''}`)}>
         ${b.houseId ? `<canvas width="48" height="56" style="width:30px;height:35px" data-rportrait="${b.houseId}:${e.id}"></canvas>` : ''}
         <div class="grow"><span class="t">${e.name} ${styleMark(e)} <small class="inl">${RANKS[e.rank] ? RANKS[e.rank].name + ' &middot; ' : ''}${CLASSES[e.cls].name}${e.wins !== undefined ? ` &middot; ${e.wins}W ${e.losses}L` : ''}</small></span>
@@ -1117,9 +1117,9 @@ function boutCard(b) {
     const chips = avail.length
       ? avail.map(g => {
         const worn = g.hp < maxHp(g) * 0.7 || g.fatigue > 60;
-        return `<span class="chip pick ${picks.includes(g.id) ? 'on' : ''} ${worn ? 'red' : ''}" data-act="pick" data-v="${b.id}" data-w="${g.id}"${tip(`${g.name}: might ${might(g)}. Health ${Math.round(g.hp)} of ${maxHp(g)}, fatigue ${Math.round(g.fatigue)}, spirits ${Math.round(g.morale)}.${worn ? '\nHe is not at his best today.' : ''}${elsewhere(g.id) ? '\nHe is down for another bout: choosing him here takes him out of it.' : ''}`)}>${g.name} <span class="num">${might(g)}</span>${one ? edgeMark(g, one) : ''}${elsewhere(g.id) ? ' <small>busy</small>' : ''}</span>`;
+        return `<span class="chip pick ${picks.includes(g.id) ? 'on' : ''} ${worn ? 'red' : ''}" data-act="pick" data-v="${b.id}" data-w="${g.id}"${tip(`${g.name}: might ${might(g)}. Health ${Math.round(g.hp)} of ${maxHp(g)}, fatigue ${Math.round(g.fatigue)}, morale ${Math.round(g.morale)}.${worn ? '\nHe is not at his best today.' : ''}${elsewhere(g.id) ? '\nHe is already entered in another bout: choosing him here takes him out of that one.' : ''}`)}>${g.name} <span class="num">${might(g)}</span>${one ? edgeMark(g, one) : ''}${elsewhere(g.id) ? ' <small>busy</small>' : ''}</span>`;
       }).join('')
-      : `<span class="dim">${b.defence ? `${G.title.name} cannot fight today. If he does not appear, the title is forfeit.` : b.novice ? 'You have no Tiro or Gregarius fit to fight.' : b.style ? `You have no one fit who fights in the ${STAT_NAMES[b.style].toLowerCase()} style.` : 'No one is fit to fight.'}</span>`;
+      : `<span class="dim">${b.defence ? `${G.title.name} cannot fight today. If he does not fight, he loses the title.` : b.novice ? 'You have no Tiro or Gregarius fit to fight.' : b.style ? `You have no one fit who fights in the ${STAT_NAMES[b.style].toLowerCase()} style.` : 'No one is fit to fight.'}</span>`;
     const mine = picks.map(byId);
     const odds = winOdds(mine, boutEnemies(b));
     const ready = picks.length === b.size, best = bestBoutTeam(b), isBest = ready && best && Math.abs(best.p - odds.p) < 0.001;
@@ -1131,9 +1131,9 @@ function boutCard(b) {
     const kinds = Object.keys(WAGER_KINDS).map(k => `<button class="mini ${k === wk ? 'on' : ''}" data-act="wkind" data-v="${b.id}" data-w="${k}"${tip(WAGER_KINDS[k].what)}>${WAGER_KINDS[k].name}</button>`).join('');
     const sb = stakesBlock(b), armed = ui.stakeArm === b.id;
     body = `<div class="sendhead"><span>${b.defence ? 'Only the champion may answer' : b.novice ? 'Send a Tiro or a Gregarius' : b.style ? `Send a man who fights in the ${STAT_NAMES[b.style].toLowerCase()} style` : `Send ${b.size === 1 ? 'one fighter' : b.size + ' fighters'}, strongest first`}</span>
-        ${best ? `<button class="mini" data-act="bbest" data-v="${b.id}" ${isBest ? 'disabled' : ''}${tip('Choose whoever gives the best chance here, of the men fit to fight. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
+        ${best ? `<button class="mini" data-act="bbest" data-v="${b.id}" ${isBest ? 'disabled' : ''}${tip('Picks the fit men who give the best chance in this bout. Key: B')}>${isBest ? 'Best chosen' : `Pick the best &middot; ${asPct(best.p)}`}</button>` : ''}</div>
       <div style="margin:5px 0">${chips}</div>
-      ${ready ? `<div class="oddsbox"${tip('The bookmakers\' reckoning: each side\'s might, and whose style beats whose. The fight itself is not decided by it.')}><div>Chance of victory <b class="num ${odds.p >= 0.5 ? 'good' : 'bad'}">${asPct(odds.p)}</b> <span class="dim">might ${sums}</span></div>${oddsBar(odds.p)}</div>`
+      ${ready ? `<div class="oddsbox"${tip('The bookmakers\' estimate, from each side\'s might and whose style beats whose. It does not decide the fight.')}><div>Chance of victory <b class="num ${odds.p >= 0.5 ? 'good' : 'bad'}">${asPct(odds.p)}</b> <span class="dim">might ${sums}</span></div>${oddsBar(odds.p)}</div>`
         : `<div class="dim" style="font-size:13px">${avail.length < b.size ? `It needs ${b.size}, and only ${avail.length} ${avail.length === 1 ? 'is' : 'are'} fit to fight.` : `Choose ${b.size - picks.length} more.`}</div>`}
       <div class="wagerrow"><span class="lbl"${tip('wager')}>Wager</span><div class="acts mini">${wopts}</div><div class="acts mini kinds"${tip('What you are betting will happen. The harder it is, the more it pays.')}>${kinds}</div></div>
       <div class="row" style="margin-top:6px"><button class="primary" data-act="fight" data-v="${b.id}" ${ready ? '' : 'disabled'}${tip('Key: Enter')}>To the sand</button>
@@ -1145,11 +1145,11 @@ function boutCard(b) {
     <h3${tip('bout')}>${boutTitle(b)} <small>vs ${swatch(b.houseId)}${b.house}</small></h3>
     ${b.death ? `<div class="death">${b.funeral ? 'Funeral games: ' : b.captive ? 'The triumph: ' : b.raised ? 'At your asking: ' : ''}Sine missione &mdash; to the death</div>` : ''}
     ${b.hunt ? '<div class="death">Beasts give no quarter</div>' : ''}
-    ${b.final ? `<div class="death"${tip(`Win, and the campaign is won. Lose, and ${FINAL_LOSS} fame is lost and no summons comes for ${FINAL_WAIT} days: it is not a thing to try before the school is ready.`)}>Lose before the Emperor: ${FINAL_LOSS} fame gone, and no summons for ${FINAL_WAIT} days</div>` : ''}
+    ${b.final ? `<div class="death"${tip(`Win, and you win the campaign. Lose, and you lose ${FINAL_LOSS} fame and cannot try again for ${FINAL_WAIT} days. Do not try it before the school is ready.`)}>Lose before the Emperor: ${FINAL_LOSS} fame gone, and no summons for ${FINAL_WAIT} days</div>` : ''}
     <div class="kvs three">
       <div${tip('purse')}><span>Purse</span><b class="num gold">${b.purse}</b><small>if you win</small></div>
       <div><span>Fame</span><b class="num">+${b.fame}</b><small>${above ? 'more for beating a greater house' : 'and more for a good show'}</small></div>
-      <div><span>Against</span><b class="num">${them.length}</b><small>${b.style ? `${STAT_NAMES[b.style].toLowerCase()} fighters only` : b.captive ? 'with nothing left to lose' : b.defence ? `${G.title ? G.title.name : 'your man'}'s title is staked` : b.title ? 'beat him and the title is yours' : b.novice ? 'a Tiro or a Gregarius only' : b.grudge ? 'win or lose, the feud cools' : b.called ? 'you called them out: do not fail to appear' : H && H.grudge >= 25 ? feudWord(H.grudge).toLowerCase() + ' between you' : them.length === 1 ? 'a single opponent' : 'on their side'}</small></div>
+      <div><span>Against</span><b class="num">${them.length}</b><small>${b.style ? `${STAT_NAMES[b.style].toLowerCase()} fighters only` : b.captive ? 'with nothing left to lose' : b.defence ? `${G.title ? G.title.name : 'your man'}'s title is staked` : b.title ? 'beat him and the title is yours' : b.novice ? 'a Tiro or a Gregarius only' : b.grudge ? 'win or lose, the feud cools' : b.called ? 'you challenged them: be sure to send a man' : H && H.grudge >= 25 ? feudWord(H.grudge).toLowerCase() + ' between you' : them.length === 1 ? 'a single opponent' : 'on their side'}</small></div>
     </div>
     <div class="list foelist ${them.length > 2 ? 'tight3' : ''} ${them.length > 2 ? 'grid2' : ''}">${foes}</div>
     ${body}
@@ -1197,10 +1197,10 @@ function viewArena() {
         <span class="${fit ? '' : 'bad'}"${tip('A man fights once a day. Whoever has fought, is hurt or is away cannot be sent.')}><b class="num">${fit}</b> fit to fight</span>
         ${left.length ? `<span${tip('purse')}><b class="num">${purse}</b> in purses still to win</span>` : '<span>the day is done: end it when you are ready</span>'}
         ${(G.streak || 0) >= 2 ? `<span class="gold"${tip(`A run of victories draws the crowd: each win in a row adds 2% to the fame of the next, up to 20%. A defeat ends it. Your longest run is ${G.bestStreak || 0}.`)}><b class="num">${G.streak}</b> won running &middot; +${Math.round(streakBonus() * 100)}% fame</span>` : ''}
-        ${titleYours() ? `<span class="gold"${tip('Your man holds the championship. While he does, every victory of the school earns a tenth more fame, and a challenger comes for the title each games day. If he does not appear, it is forfeit.')}>${G.title.name} is champion</span>` : ''}
+        ${titleYours() ? `<span class="gold"${tip('Your man holds the championship. While he does, every victory of the school earns 10% more fame, and a challenger comes for the title each games day. If he does not fight, he loses it.')}>${G.title.name} is champion</span>` : ''}
         ${G.fix ? '<span class="bad"><b>You have agreed to lose your next bout.</b></span>' : ''}
-        ${fought.length ? `<span class="sofar"${tip('What the day has brought so far: purses and wagers together, and the fame won.')}>so far ${cardLine(cardSum(fought))}</span>` : ''}</div>
-        ${left.length > 1 ? `<div class="acts mini"><button class="mini" data-act="bfill" ${planned.length && !same ? '' : 'disabled'}${tip(planned.length ? `Name men for ${planned.length === left.length ? 'every bout' : planned.length + ' of the ' + left.length + ' bouts'} at once: the hardest bouts get first call, and nobody is sent twice.${CP.skipped.length ? '\nA bout your best men would most likely lose is left for you to judge.' : ''} Key: F` : 'No bout here that your men could be sent to with a fair chance.')}>${same && planned.length ? 'Card filled' : 'Fill the card'}</button>${anyPick ? `<button class="mini" data-act="bclear"${tip('Take every man off the card and start again.')}>Clear</button>` : ''}</div>` : ''}</div>
+        ${fought.length ? `<span class="sofar"${tip('Today\'s total so far: money from purses and wagers, and fame won.')}>so far ${cardLine(cardSum(fought))}</span>` : ''}</div>
+        ${left.length > 1 ? `<div class="acts mini"><button class="mini" data-act="bfill" ${planned.length && !same ? '' : 'disabled'}${tip(planned.length ? `Enters men in ${planned.length === left.length ? 'every bout' : planned.length + ' of the ' + left.length + ' bouts'} at once. The hardest bouts get the best men, and nobody is entered twice.${CP.skipped.length ? '\nA bout your best men would probably lose is left empty for you to decide.' : ''} Key: F` : 'There is no bout here that your men have a fair chance of winning.')}>${same && planned.length ? 'Card filled' : 'Fill the card'}</button>${anyPick ? `<button class="mini" data-act="bclear"${tip('Take every man off the card and start again.')}>Clear</button>` : ''}</div>` : ''}</div>
       <div class="pane" data-pane="bouts">${road}<div class="panel list ${items.length > 8 ? 'longcard oneline' : items.length > 6 ? 'longcard' : ''}">${rows}</div></div></div>
     <div><h2>${cur && cur.id === 'lists' ? 'The tournament' : 'The bout'}</h2><div class="pane" data-pane="bout">${festivalNote(true)}${cur ? (cur.id === 'lists' ? tourneyPanel() : boutCard(cur)) : ''}</div></div>
   </div>`;
@@ -1213,7 +1213,7 @@ function arenaStandings() {
   return `<div class="panel standings"><div class="kvs three">
       <div><span>Record</span><b class="num">${W}&ndash;${L}</b><small${tip(`Festival crowns held by the house: ${Object.keys(G.trophies || {}).map(k => `${FESTIVALS[k].name} \u00d7${G.trophies[k]}`).join(', ') || 'none yet'}. Each adds 2% to the fame of every bout, up to 20%.`)}>${W + L ? Math.round(W / (W + L) * 100) + '%' + (trophies() ? '' : ' won') : 'no bout fought yet'}${trophies() ? ` &middot; <i class="gold" style="font-style:normal">${trophies()} crown${trophies() === 1 ? '' : 's'}</i>` : ''}</small></div>
       <div${tip('Each win in a row adds 2% to the fame of the next, up to 20%. A defeat ends the run.')}><span>Won running</span><b class="num ${(G.streak || 0) >= 2 ? 'gold' : ''}">${G.streak || 0}</b><small>longest ${G.bestStreak || 0}</small></div>
-      <div${tip('From the second arena up there is a champion. Beat him in the title bout and your man holds it: a tenth more fame for every victory, and a challenger to face each games day.')}><span>Champion</span><b class="${T && T.house === null ? 'gold' : ''}" style="font-size:15px">${holder ? holder.name : '&mdash;'}</b><small>${!holder ? (tier() < 1 ? 'the pits crown no one' : 'the title stands empty') : T.house === null ? `yours &middot; ${T.defences} defence${T.defences === 1 ? '' : 's'}` : houseDef(T.house).name}</small></div>
+      <div${tip('From the second arena up there is a champion. Beat him in the title bout and your man holds it: 10% more fame for every victory, and a challenger to face each games day.')}><span>Champion</span><b class="${T && T.house === null ? 'gold' : ''}" style="font-size:15px">${holder ? holder.name : '&mdash;'}</b><small>${!holder ? (tier() < 1 ? 'the pits crown no one' : 'the title stands empty') : T.house === null ? `yours &middot; ${T.defences} defence${T.defences === 1 ? '' : 's'}` : houseDef(T.house).name}</small></div>
     </div>
     <div class="sendhead"><span>The best in the province</span></div><div class="ranks">${ranks}</div></div>`;
 }
@@ -1262,7 +1262,7 @@ function viewMarket() {
   const orders = `<div class="orderrow"><span class="lbl"${tip(`Pay the dealer ${orderCost()} denarii and the first man at the next market will be of the kind you name, and a little better than most. The money is spent whether or not you buy him.`)}>Send for a</span>${G.marketOrder ? `<b class="gold">${CLASSES[G.marketOrder].name}</b> <small class="dim">at the next market</small>` : Object.keys(CLASSES).map(k => `<button class="mini" data-act="morder" data-v="${k}" ${G.denarii < orderCost() ? 'disabled' : ''}>${CLASSES[k].name}</button>`).join('') + `<small class="dim num">${orderCost()}</small>`}</div>`;
   const many = G.roster.length > 6;            // a full barracks is listed three abreast, by name, with the rest on the tip
   const mine = G.roster.map(r => {
-    const armed = ui.sellArm === r.id, what = `${CLASSES[r.cls].name}, power ${rating(r)}, ${r.wins}W ${r.losses}L. Worth about ${value(r)}; the dealer pays ${dealer() >= 15 ? 'six parts in ten' : 'half'}.`;
+    const armed = ui.sellArm === r.id, what = `${CLASSES[r.cls].name}, power ${rating(r)}, ${r.wins}W ${r.losses}L. Worth about ${value(r)}; the dealer pays ${dealer() >= 15 ? '60% of that' : 'half'}.`;
     return many
       ? `<div class="lrow" style="cursor:default"${tip(what)}><div class="grow"><span class="t">${r.name} ${styleMark(r)}</span></div>
           ${r.away ? '<span class="end dim">away</span>' : `<button class="mini ${armed ? 'primary' : ''}" data-act="msell" data-v="${r.id}">${armed ? 'Sure?' : 'Sell'} ${sellPrice(r)}</button>`}</div>`
@@ -1277,12 +1277,12 @@ function viewMarket() {
           <div>${CLASSES[g.cls].name} of ${g.origin}</div>
           <div>${ratingLine(g, !scout && !g.tried)} &middot; ${styleMark(g)}</div>
           <div class="num dim" style="font-size:13px">health ${maxHp(g)}${g.gear && g.gear.weapon ? ' &middot; comes with ' + itemTag(g.gear.weapon) : ''}</div>
-          ${g === lot ? `<div class="bidrow"><span class="lbl"${tip(`An auction, against ${houseDef(A.h).lanista} of ${houseDef(A.h).name}. You bid once. Bid higher than they are willing to go and he is yours at your price; bid lower and he goes to them, and you will meet him on the sand. Nobody knows how far they will go: somewhere near his worth, perhaps half as much again.`)}>One bid</span>${auctionBids(A).map((b, n) => { const no = auctionBlock(b), armed = ui.bidArm === b; return `<button class="${armed ? 'primary' : ''}" data-act="mbid" data-v="${b}" ${no ? 'disabled' : ''}${tip(no || ['About what he is worth: it will rarely be enough.', 'A quarter over his worth: enough more often than not.', 'Half as much again: nobody will go higher.'][n])}>${armed ? 'Sure? ' : ''}${b}</button>`; }).join('')}</div>
+          ${g === lot ? `<div class="bidrow"><span class="lbl"${tip(`An auction, against ${houseDef(A.h).lanista} of ${houseDef(A.h).name}. You make one bid. If it is higher than their limit, he is yours at your price. If it is lower, he goes to them, and you will meet him in the arena. Nobody knows their limit: somewhere between his value and one and a half times it.`)}>One bid</span>${auctionBids(A).map((b, n) => { const no = auctionBlock(b), armed = ui.bidArm === b; return `<button class="${armed ? 'primary' : ''}" data-act="mbid" data-v="${b}" ${no ? 'disabled' : ''}${tip(no || ['About his value: rarely enough.', 'A quarter over his value: enough more often than not.', 'One and a half times his value: nobody will bid higher.'][n])}>${armed ? 'Sure? ' : ''}${b}</button>`; }).join('')}</div>
             <small class="dim">Worth about ${A.worth}. ${houseDef(A.h).name} wants him too.${dealer() >= 15 ? ` <span class="gold">The dealer, behind his hand: they will not go much past ${Math.round(A.cap / 25) * 25}.</span>` : ''}</small>`
           : `<div class="buyrow"><button class="primary" data-act="buy" data-v="${g.id}" ${why ? 'disabled' : ''}${tip('Buy him and put him in a cell. Key: B')}>Buy &mdash; ${g.price} denarii</button>
-            <button class="mini" data-act="mhaggle" data-v="${g.id}" ${g.haggled ? 'disabled' : ''}${tip(g.haggled ? 'You have had your say on his price.' : `One try a man. About ${Math.round(haggleChance() * 100)} chances in 100 he comes down by 15%; otherwise the price goes up by 5%. A scout and the Guild's favour help.`)}>Haggle</button>
+            <button class="mini" data-act="mhaggle" data-v="${g.id}" ${g.haggled ? 'disabled' : ''}${tip(g.haggled ? 'You have already haggled over his price.' : `One try per man. There is about a ${Math.round(haggleChance() * 100)}% chance the price drops by 15%; otherwise it rises by 5%. A scout and the Guild's favour improve the chance.`)}>Haggle</button>
             <button class="mini" data-act="mhold" data-v="${g.id}" ${g.held || g.kept || G.denarii < holdCost(g) ? 'disabled' : ''}${tip(g.held ? 'He is being held for you.' : g.kept ? 'He has been kept back once already.' : `Pay ${holdCost(g)} now, taken off his price, and the dealer keeps him for you through the next market. The deposit is lost if you never buy him.`)}>${g.held ? 'Held' : `Hold &mdash; ${holdCost(g)}`}</button>
-            ${scout ? '' : `<button class="mini" data-act="mtry" data-v="${g.id}" ${g.tried || G.denarii < tryCost() ? 'disabled' : ''}${tip(g.tried ? 'He has been tried: his stars are shown below.' : `Pay ${tryCost()} to have him put through his paces against the dealer's man while your doctore watches. It shows how fast he will learn each skill, which you cannot otherwise see without a scout.`)}>${g.tried ? 'Tried' : `Try him &mdash; ${tryCost()}`}</button>`}
+            ${scout ? '' : `<button class="mini" data-act="mtry" data-v="${g.id}" ${g.tried || G.denarii < tryCost() ? 'disabled' : ''}${tip(g.tried ? 'He has been tried: his stars are shown below.' : `Pay ${tryCost()} for a trial bout against the dealer's man while your doctore watches. It shows how fast he will learn each skill, which you cannot otherwise see without a scout.`)}>${g.tried ? 'Tried' : `Try him &mdash; ${tryCost()}`}</button>`}
             <small class="${why ? 'bad' : 'dim'}">${why || `Leaves you ${G.denarii - g.price}.`}</small></div>`}
           ${ui.mktMsg && ui.mktMsg.id === g.id && ui.mktMsg.day === G.day ? `<div class="dealmsg ${ui.mktMsg.ok ? '' : 'bad'}">${ui.mktMsg.text}</div>` : ''}
         </div>
@@ -1299,10 +1299,10 @@ function viewMarket() {
   return `<div class="fill even">
     <div><h2>The slave market <small>${G.market.length} for sale</small></h2>
       <div class="panel schoolbar"><div class="tally">
-        <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. The barracks, improved at the Ludus under The school, add two at a time.')}><b class="num">${Math.max(0, free)}</b> cell${free === 1 ? '' : 's'} free</span>
+        <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. Each improvement to the barracks adds two: improve them at the Ludus (press The school there).')}><b class="num">${Math.max(0, free)}</b> cell${free === 1 ? '' : 's'} free</span>
         <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
         <span${tip('The dealer brings new men every market day (every fifth day), and takes away whoever was not sold.')}>fresh stock ${dg === 0 ? '<b>today</b>' : `in <b class="num">${dg}</b> day${dg === 1 ? '' : 's'}`}</span>
-        <span class="${dealer() >= 3 ? 'gold' : ''}"${tip(`What the dealer thinks of your custom: ${dealer()}. Every man you buy from him counts two, and every man you sell him one.\nKnown to him (3): haggling goes your way more often.\nA good customer (8): he brings one more man to every market.\nAn old friend (15): he pays six parts in ten for a man instead of half, and tells you how far the other house will bid for the prize lot.${dealerNext(dealer()) ? `\n${dealerNext(dealer())} more to the next.` : ''}`)}>the dealer: <b>${dealerWord(dealer()).toLowerCase()}</b></span>
+        <span class="${dealer() >= 3 ? 'gold' : ''}"${tip(`Your standing with the dealer: ${dealer()}. Each man you buy from him counts 2, and each man you sell him counts 1.\nKnown to him (3): haggling goes your way more often.\nA good customer (8): he brings one more man to every market.\nAn old friend (15): he pays 60% of a man\'s value instead of half, and tells you the other house\'s limit in an auction.${dealerNext(dealer()) ? `\n${dealerNext(dealer())} more to the next.` : ''}`)}>the dealer: <b>${dealerWord(dealer()).toLowerCase()}</b></span>
         <span class="${scout ? 'gold' : ''}"${tip(scout ? 'Your scout shows each man\'s potential and whether the price is fair.' : TIPS.hidden)}>${scout ? 'scout at your side' : 'no scout: talent hidden'}</span></div></div>
       <div class="pane" data-pane="market"><div class="panel list">${lotRow}${rows}</div>${lotNote}${orders}
       ${mine ? `<h2>Your men <small>what the dealer would pay</small></h2><div class="panel list tight ${many ? 'threeup' : 'twoup'}">${mine}</div>` : ''}</div></div>
@@ -1333,7 +1333,7 @@ function staffTile(k) {
         <div class="hbtns">${st.skill < 3 ? `<button class="mini ${raiseBlock(k) ? '' : 'primary'}" data-act="raise" data-v="${k}" ${raiseBlock(k) ? 'disabled' : ''}${tip(`Raise him to ${STAFF_GRADES[st.skill + 1].toLowerCase()}: ${r.desc(st.skill + 1)}\nIt costs less than hiring a new man of that grade${st.wage ? `, and his wage goes to ${1 + 2 * (st.skill + 1)} a day` : ''}. A man must have served ${raiseDays(st)} days first.${raiseBlock(k) ? '\n' + raiseBlock(k) : ''}`)}>Raise &mdash; ${raiseCost(st)}</button>` : ''}<button class="mini ${armed ? 'primary' : ''}" data-act="fire" data-v="${k}"${tip('Dismissing him saves his wage, but the fee you paid is gone and the post stands empty.')}>${armed ? 'Sure?' : 'Dismiss'}</button></div></div>`
     : `<div class="htile vacant"${tip(`A journeyman would give: ${r.desc(1)}`)}><div class="hh"><b>${r.name}</b><span class="end ${offers ? 'gold' : 'dim'}">${offers ? (LUDUS_POSTS.includes(k) ? 'one is asking, below' : 'one in the hall') : 'post vacant'}</span></div>
         <small>${r.desc(1)}</small>
-        ${offers ? '' : `<div class="hbtns"><button class="mini" data-act="seek" data-v="${k}" ${seekBlock(k) ? 'disabled' : ''}${tip(`Send word round the taverns: a ${r.name.toLowerCase()} will be ${LUDUS_POSTS.includes(k) ? 'at the gate of the school' : 'in the hall'} on the next market day, and as good a one as this town has. The money is spent whether or not you hire him. One such errand at a time.${seekBlock(k) ? '\n' + seekBlock(k) : ''}`)}>${G.hireOrder === k ? 'Sent for' : `Send for one &mdash; ${seekCost()}`}</button></div>`}</div>`;
+        ${offers ? '' : `<div class="hbtns"><button class="mini" data-act="seek" data-v="${k}" ${seekBlock(k) ? 'disabled' : ''}${tip(`Pay to send for one: a ${r.name.toLowerCase()} will be ${LUDUS_POSTS.includes(k) ? 'at the gate of the school' : 'in the hall'} on the next market day, and he will be as good as this town can offer. The money is spent whether or not you hire him. You can only send for one man at a time.${seekBlock(k) ? '\n' + seekBlock(k) : ''}`)}>${G.hireOrder === k ? 'Sent for' : `Send for one &mdash; ${seekCost()}`}</button></div>`}</div>`;
 }
 // A man looking for a place: what he would give, against whoever holds the post now.
 function hireTile(h) {
@@ -1358,7 +1358,7 @@ function armourerRow() {
   }).join('');
   return `<div class="workrow" style="margin-top:4px"><span class="lbl"${tip(`A man of your own at the forge. ${r.desc(1)} A better one does more.`)}>Armourer</span>
     ${st ? `<span${tip(r.desc(st.skill))}><b>${st.name}</b> ${grade(st.skill)} <small class="dim num">${st.wage ? st.wage + ' a day' : 'no wage'}</small></span><button class="mini ${armed ? 'primary' : ''}" data-act="fire" data-v="${k}"${tip('Dismissing him saves his wage, but the fee you paid is gone and the post stands empty.')}>${armed ? 'Sure?' : 'Dismiss'}</button>` : ''}
-    ${offers || (st ? '' : '<small class="dim">post vacant, and no one is asking for it: new faces come every market day</small>')}</div>`;
+    ${offers || (st ? '' : '<small class="dim">post vacant, and nobody is applying for it: new applicants come every market day</small>')}</div>`;
 }
 const regimenButtons = () => REGIMENS.map((r, i) => `<button class="ration ${(G.regimen === undefined ? 1 : G.regimen) === i ? 'primary' : ''}" data-act="regimen" data-v="${i}"${tip(`${r.what}\nTraining ${Math.round(r.rate * 100)}% as fast, ${Math.round(r.tire * 100)}% as tiring; morale settles ${r.morale > 0 ? r.morale + ' higher' : r.morale < 0 ? -r.morale + ' lower' : 'where the table puts it'}.`)}><b>${r.name}</b><span>${r.rate === 1 ? 'as usual' : `${r.rate > 1 ? '+' : '&minus;'}${Math.abs(Math.round((r.rate - 1) * 100))}% learning`}</span></button>`).join('');
 // The school's own buildings and how hard the men are worked: the other face of the Ludus screen.
@@ -1369,14 +1369,14 @@ function schoolPanel() {
   return `<div class="panel schoolbar"><div class="tally">
       <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
       <span class="${free > 0 ? '' : 'bad'}"${tip('Each man needs a cell. The barracks add two at a time.')}><b class="num">${G.roster.length}</b> of <b class="num">${capacity()}</b> cells taken</span>
-      <span${tip('The training ground, the doctore and the regimen together, before each man\'s own nature and state.')}>training at <b class="num">${rate}%</b></span>
+      <span${tip('The combined effect of the training ground, the doctore and the regimen, before each man\'s own talent and condition are counted.')}>training at <b class="num">${rate}%</b></span>
       <span class="${hurt ? 'bad' : ''}"><b class="num">${hurt}</b> injured</span>
       <span class="${teachers().length ? 'gold' : ''}"${tip(`A ${RANKS[TEACH_RANK].name} or better can be set to teach: men drilling a skill he is clearly better at learn it faster.${teachers().length ? '\nTeaching today: ' + namesOf(teachers()) + '.' : ''}`)}><b class="num">${teachers().length}</b> teaching</span>
-      <span${tip('Men left to the doctore are set their work each morning.')}><b class="num">${G.roster.filter(g => g.auto).length}</b> left to the doctore</span></div></div>
+      <span${tip('Men on Auto: the doctore sets their work each morning.')}><b class="num">${G.roster.filter(g => g.auto).length}</b> left to the doctore</span></div></div>
     <div class="pane" data-pane="school"><div class="htiles">${SCHOOL_FACS.map(facTile).join('')}</div>
-      <h2${tip('The doctore trains the men, and without one they cannot spar or be left to a trainer\'s judgement. His post is here, at the school, with the men he works.')}>The doctore <small>${G.staff.doctore ? 'at his post' : asking.length ? asking.length + ' asking at the gate' : 'post vacant'}</small></h2>
+      <h2${tip('The doctore trains the men. Without one they cannot spar or be set to Auto. He is hired here, at the school.')}>The doctore <small>${G.staff.doctore ? 'at his post' : asking.length ? asking.length + ' asking at the gate' : 'post vacant'}</small></h2>
       <div class="htiles">${LUDUS_POSTS.map(staffTile).join('')}${asking.map(hireTile).join('')}</div>
-      <h2${tip('How hard the men are worked: it sets how fast they learn, how tired a day\'s drill leaves them, and where their spirits settle.')}>Regimen <small>${here.length} in the yard</small></h2><div class="rations">${regimenButtons()}</div>
+      <h2${tip('How hard the men are worked. It sets how fast they learn, how tired a day of training leaves them, and the level their morale settles at.')}>Regimen <small>${here.length} in the yard</small></h2><div class="rations">${regimenButtons()}</div>
       <div class="panel dim" style="font-size:13px;margin-top:10px">These are the school's own walls: cells, the ground the men drill on, where they are mended and rested, and the stables the column marches out from. The house across the way keeps the rest of the staff, the table and the stores; the shrine is with the Patrons, and the armourer at the Blacksmith.</div></div>`;
 }
 
@@ -1398,12 +1398,12 @@ function viewFacilities() {
     <div><h2>Household <small>the fee once, the wage every day</small></h2>
       <div class="panel schoolbar"><div class="tally">
         <span${tip('denarii')}>purse <b class="num">${G.denarii}</b></span>
-        <span class="${net < 0 ? 'bad' : 'good'}"${tip('Food and wages against the Guild stipend, on a day with no games.')}><b class="num">${net > 0 ? '+' : ''}${net}</b> a day</span>
-        ${last >= 0 ? `<span class="${last < dg ? 'bad' : ''}"${tip('How long the purse lasts at this rate if nothing comes in. Purses, wagers and contracts are what fill it.')}>purse lasts <b class="num">${last}</b> day${last === 1 ? '' : 's'}</span>` : ''}
-        <span${tip('The hiring hall changes its faces every market day, which is every fifth day.')}>new faces ${dm === 0 ? '<b>today</b>' : `in <b class="num">${dm}</b> day${dm === 1 ? '' : 's'}`}</span></div></div>
-      <div class="pane" data-pane="staff">${lack ? `<div class="listnote" style="margin:0 0 6px"><b>Your steward:</b> We have no ${STAFF_ROLES[lack[0]].name.toLowerCase()}, dominus: ${lack[1]}.${LUDUS_POSTS.includes(lack[0]) ? ' His post is at the Ludus, under The school.' : SMITH_POSTS.includes(lack[0]) ? ' His post is at the Blacksmith.' : ''}${G.hireOrder ? ` Word is out for a ${STAFF_ROLES[G.hireOrder].name.toLowerCase()}.` : ''}</div>` : ''}<div class="htiles">${staff}</div>
-      <h2>Hiring hall <small>${hallMen.length} looking for a place${askLudus ? ' &middot; a doctore is asking at the Ludus' : ''}${askSmith ? ' &middot; an armourer is asking at the Blacksmith' : ''}</small></h2><div class="htiles">${hall}</div></div></div>
-    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, with the regimen. The stables and the doctore are there too. The shrine is with the Patrons, and the armourer at the Blacksmith.')}>the rest stands where it is used</small></h2><div class="pane" data-pane="fac"><div class="htiles solo">${fac}</div>
+        <span class="${net < 0 ? 'bad' : 'good'}"${tip('The Guild stipend minus food and wages, on a day with no games.')}><b class="num">${net > 0 ? '+' : ''}${net}</b> a day</span>
+        ${last >= 0 ? `<span class="${last < dg ? 'bad' : ''}"${tip('How long your money lasts at this rate if nothing else comes in. Purses, wagers and contracts are what bring more.')}>purse lasts <b class="num">${last}</b> day${last === 1 ? '' : 's'}</span>` : ''}
+        <span${tip('New applicants come to the hiring hall every market day (every fifth day).')}>new applicants ${dm === 0 ? '<b>today</b>' : `in <b class="num">${dm}</b> day${dm === 1 ? '' : 's'}`}</span></div></div>
+      <div class="pane" data-pane="staff">${lack ? `<div class="listnote" style="margin:0 0 6px"><b>Your steward:</b> We have no ${STAFF_ROLES[lack[0]].name.toLowerCase()}, dominus: ${lack[1]}.${LUDUS_POSTS.includes(lack[0]) ? ' He is hired at the Ludus (press The school there).' : SMITH_POSTS.includes(lack[0]) ? ' He is hired at the Blacksmith.' : ''}${G.hireOrder ? ` Word is out for a ${STAFF_ROLES[G.hireOrder].name.toLowerCase()}.` : ''}</div>` : ''}<div class="htiles">${staff}</div>
+      <h2>Hiring hall <small>${hallMen.length} looking for work${askLudus ? ' &middot; a doctore is asking at the Ludus' : ''}${askSmith ? ' &middot; an armourer is asking at the Blacksmith' : ''}</small></h2><div class="htiles">${hall}</div></div></div>
+    <div><h2>The house <small${tip('The barracks, training ground, infirmary and baths are improved at the Ludus, where the regimen is also set. The stables and the doctore are there too. The shrine is with the Patrons, and the armourer is at the Blacksmith.')}>other buildings are at the places that use them</small></h2><div class="pane" data-pane="fac"><div class="htiles solo">${fac}</div>
       <h2${tip('rations')}>Rations <small>${fed} at table &middot; morale ${avg}</small></h2><div class="rations">${rations}</div>
       ${ledger()}</div></div>
   </div>`;
@@ -1446,7 +1446,7 @@ const STANDING = [[80, 'Devoted'], [60, 'Trusted'], [35, 'Friendly'], [15, 'Know
 // What each patron gives at a given favour, as lines: [what, whether you have it].
 const PATRON_GIVES = {
   magistrate: f => [[`Purses <b class="num">+${Math.round(f * 0.3)}%</b>`, f > 0], ['He sometimes asks for you by name on the contract board', f >= 35], ['You may accuse a rival school before him', f >= 40], ['An extra bout at every games', f >= 60], ['Fame from every bout <b class="num">+10%</b>', f >= 80]],
-  guild: f => [[`A stipend of <b class="num">${Math.round(f / 10 * (1 + tier()))}</b> denarii a day`, f >= 5], ['They sometimes ask for you by name on the contract board', f >= 35], ['Wagers won pay <b class="num">a fifth more</b>', f >= 80]],
+  guild: f => [[`A stipend of <b class="num">${Math.round(f / 10 * (1 + tier()))}</b> denarii a day`, f >= 5], ['They sometimes ask for you by name on the contract board', f >= 35], ['Wagers won pay <b class="num">20% more</b>', f >= 80]],
   temple: f => [[`Morale settles <b class="num">${Math.round(f / 10)}</b> higher`, f >= 5], [`The fallen are spared <b class="num">${Math.round(f * 0.1)}%</b> more often`, f >= 5], ['The priests sometimes ask for you by name on the contract board', f >= 35], ['Wounds from the arena mend a day sooner', f >= 80]],
 };
 const PATRON_MARKS = { magistrate: [35, 40, 60, 80], guild: [20, 35, 60, 80], temple: [20, 35, 60, 80] };
@@ -1468,7 +1468,7 @@ function giftGain(k, f) {
 function patronRequest() {
   const r = G.request; if (!r) return '';
   const P = PATRONS[r.patron], reward = `Favour +${r.favor}${r.pay ? ` and ${r.pay} denarii` : ''}; left undone, favour &minus;4.`;
-  if (r.done) return `<div class="today preq done"><span class="lbl">Asked of you</span><div><b>${P.name}</b> had what was asked. It is remembered.</div></div>`;
+  if (r.done) return `<div class="today preq done"><span class="lbl">Asked of you</span><div><b>${P.name}</b> got what they asked for. They will remember it.</div></div>`;
   const stale = r.type !== 'tithe' && r.day !== G.day;
   const what = r.type === 'wins' ? `win <b>${r.need}</b> bouts at ${stale ? 'the games just gone' : 'today\'s games'} (<b class="num">${r.got}</b> so far)` : r.type === 'show' ? `win a bout ${stale ? 'at the games just gone' : 'today'} with the crowd on its feet (a crowd at 45 or better over the whole bout)` : r.type === 'stake' ? `put <b class="num">${r.need}</b> denarii or more on a man of your own ${stale ? 'at the games just gone' : 'today'}, and win the wager` : `an offering of <b class="num">${r.cost}</b> denarii before the next games`;
   return `<div class="today preq"><span class="lbl">Asked of you</span><div><b>${P.name}</b> ask${r.patron === 'guild' ? '' : 's'}: ${what}. <span class="dim">${stale ? 'The day has passed: it will be held against you at the next games. ' : ''}${reward}</span>
@@ -1480,7 +1480,7 @@ function patronBoons() {
   if (G.richCard && G.richCard >= G.day) b.push('a richer card at the next games');
   if (G.grainUntil && G.grainUntil > G.day) b.push(`grain at the Guild's cost for ${G.grainUntil - G.day} more day${G.grainUntil - G.day === 1 ? '' : 's'}`);
   if (G.blessed && G.blessed >= G.day) b.push('the temple\'s blessing on your fallen at the next games');
-  if (G.bookUntil && G.bookUntil >= G.day) b.push('the Guild\'s book behind you: wagers won at the next games pay half as much again');
+  if (G.bookUntil && G.bookUntil >= G.day) b.push('the Guild\'s book behind you: wagers won at the next games pay 50% more');
   if (G.rigged && G.rigged >= G.day) b.push('<span class="bad">a bought man at the editor\'s elbow, against you</span>');
   return b.length ? `<div class="today preq"><span class="lbl">In force</span><div>${b.join(' &middot; ')}</div></div>` : '';
 }
@@ -1500,8 +1500,8 @@ function viewPatrons() {
       <div class="dim" style="font-size:13px">${p.desc}</div>
       <div class="favour"${tip('favour')}><span>Favour</span><div class="bar prog"><i style="width:${pct(f, 100)}%"></i>${PATRON_MARKS[k].map(m => `<u class="${f >= m ? 'got' : ''}" style="left:${m}%"></u>`).join('')}</div><b class="num">${Math.round(f)}</b></div>
       <div class="dim" style="font-size:12px">${next ? `${Math.ceil(next - f)} more to the next mark, at ${next}.` : 'Every mark reached.'} One point fades ${dg === 0 ? 'today' : `in ${dg} day${dg === 1 ? '' : 's'}`}.</div>
-      <ul class="gives">${gives}<li class="${(G.honoured || {})[k] ? 'on' : 'off'}"${tip('The first time a patron comes to trust your house, at 60 favour, it is marked once with a gift.')}>${(G.honoured || {})[k] ? `Honoured your house on day ${G.honoured[k]}: ${HONOURS[k]}` : `At 60, once: ${HONOURS[k]}`}</li></ul>
-      <div class="asks"><span class="lbl"${tip('Spend favour for something now. One petition to each patron between one games and the next.')}>Ask of ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}</span>${asks}<span class="moves"${tip(ways)}>what moves ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}?</span></div>${said}
+      <ul class="gives">${gives}<li class="${(G.honoured || {})[k] ? 'on' : 'off'}"${tip('The first time a patron reaches 60 favour, they send a gift. It happens once for each patron.')}>${(G.honoured || {})[k] ? `Honoured your house on day ${G.honoured[k]}: ${HONOURS[k]}` : `At 60, once: ${HONOURS[k]}`}</li></ul>
+      <div class="asks"><span class="lbl"${tip('Spend favour to get something now. One request to each patron between one games and the next.')}>Ask of ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}</span>${asks}<span class="moves"${tip(ways)}>what moves ${k === 'guild' ? 'them' : k === 'temple' ? 'her' : 'him'}?</span></div>${said}
       <div class="work ${asked ? 'gold' : 'dim'}">${work.length ? `${work.length} offer${work.length === 1 ? '' : 's'} of work on the board${asked ? ', <b>one asking for you by name</b>: ignoring it costs favour' : ''}.` : 'No work on the board from here.'}${out ? ` ${out} of your outings ${out === 1 ? 'is' : 'are'} in ${k === 'guild' ? 'their' : k === 'temple' ? 'her' : 'his'} service now.` : ''}</div>
       <div class="buyrow"><button class="primary" data-act="gift" data-v="${k}" ${why ? 'disabled' : ''}>Send a gift &mdash; ${cost}</button>
         <small class="${why ? 'bad' : 'dim'}">${why || `Favour +10: ${giftGain(k, f)}. The next gift will cost more.`}</small></div>
@@ -1562,9 +1562,9 @@ function tavernHtml() {
   const t = G.tavern || {}, nwhy = nightBlock(), armed = ui.dealArm === 'night', n = nightMen().length;
   const said = ui.tavMsg && ui.tavMsg.day === G.day ? `<div class="dealmsg ${ui.tavMsg.ok ? 'good' : 'bad'}">${ui.tavMsg.text}</div>` : '';
   return `<div class="panel tavbar"><div class="deals"><span class="lbl">The Crossed Swords</span>
-      <button data-act="tbook"${tip(`A man by the hearth keeps a book on the bouts the houses fight among themselves at the next games. He pays fair odds, less his tenth. One stake at each games.${t.bet ? `\nYou have ${t.bet.stake} on ${houseDef(t.bet.on).name}.` : ''}`)}>The book${t.bet ? ` &middot; ${t.bet.stake} down` : ''}</button>
-      <button data-act="tdice"${tip(`Three dice each: the higher throw takes the stake, and a tied throw is the table's. ${diceLeft()} of ${DICE_THROWS} throws left today.`)}>Dice &middot; ${diceLeft()}</button>
-      <button class="${armed ? 'primary' : ''}" data-act="tnight" ${nwhy ? 'disabled' : ''}${tip(`Stand every fit man at home a night here, once between one games and the next: morale +10 and fatigue +8 for each. Now and then two of them come home friends, or the better for an old fighter's talk; now and then there is a brawl with another house's men, and one of yours is a day mending.${nwhy ? '\n' + nwhy : ''}`)}>${armed ? 'Sure?' : `A night for the men${nwhy ? '' : ` &mdash; ${nightCost()}`}`}</button></div>
+      <button data-act="tbook"${tip(`A bookmaker by the hearth takes bets on the bouts the rival houses fight against each other at the next games. He pays fair odds, less a 10% cut. One bet per games.${t.bet ? `\nYou have ${t.bet.stake} on ${houseDef(t.bet.on).name}.` : ''}`)}>The book${t.bet ? ` &middot; ${t.bet.stake} down` : ''}</button>
+      <button data-act="tdice"${tip(`Three dice each. The higher throw wins the stake, and you lose a tie. ${diceLeft()} of ${DICE_THROWS} throws left today.`)}>Dice &middot; ${diceLeft()}</button>
+      <button class="${armed ? 'primary' : ''}" data-act="tnight" ${nwhy ? 'disabled' : ''}${tip(`Buy every fit man at home a night here, once between one games and the next: morale +10 and fatigue +8 for each. Sometimes two of them come home friends, or learn something from an old fighter. Sometimes there is a brawl with another house's men, and one of yours is hurt for a day.${nwhy ? '\n' + nwhy : ''}`)}>${armed ? 'Sure?' : `A night for the men${nwhy ? '' : ` &mdash; ${nightCost()}`}`}</button></div>
     <div class="keeper">${tavernTalk()}</div>${said}</div>`;
 }
 function bookModal(msg) {
@@ -1572,23 +1572,23 @@ function bookModal(msg) {
   const side = (H, O, price, p) => { const c = houseChampion(H);
     return `<div class="bside" style="border-left:5px solid ${houseDef(H.id).col}"><div><b>${houseDef(H.id).name}</b> <small>renown ${H.prestige}</small></div>
       <div class="dim">${c ? `${c.name}, ${CLASSES[c.cls].name}, power ${rating(c)}` : 'no champion'}</div>
-      <div class="bprice"${tip(`The book thinks this about ${Math.round(p * 100)} chances in a hundred. A stake of 10 returns ${Math.round(10 * price)}.`)}>pays <b class="num">&times;${price.toFixed(2)}</b></div>
+      <div class="bprice"${tip(`The bookmaker puts this at about a ${Math.round(p * 100)}% chance. A stake of 10 returns ${Math.round(10 * price)}.`)}>pays <b class="num">&times;${price.toFixed(2)}</b></div>
       <div class="bstakes">${bet ? (bet.on === H.id ? `<span class="gold">Your ${bet.stake} is here: returns ${Math.round(bet.stake * bet.price)}</span>` : '') : BOOK_STAKES.map(s => { const st = tavernStake(s), why = bookBlock(st); return `<button class="mini" data-act="bkbet" data-v="${H.id}" data-w="${st}" ${why ? 'disabled' : ''}${tip(why || `${st} on ${houseDef(H.id).name}: ${Math.round(st * price)} back if they win, nothing if they lose.`)}>${st}</button>`; }).join('')}</div></div>`; };
   const pairs = houseCard().map(({ A, B }) => { const q = bookQuote(A, B); return `<div class="bpair">${side(A, B, q.a, q.p)}<span class="bvs">against</span>${side(B, A, q.b, 1 - q.p)}</div>`; }).join('');
   const last = t.last ? `<p class="dim">Last time: ${t.last.off ? `the bout was never fought, and your ${t.last.stake} came back.` : `${t.last.stake} on ${houseDef(t.last.on).name} against ${houseDef(t.last.vs).name}, and they ${t.last.win ? `won. The book paid ${t.last.pay}.` : 'lost.'}`}</p>` : '';
   if (modalQueue.length) closeModal();
   showModal(`<h2>The book <small>${days ? `the games are in ${days} day${days === 1 ? '' : 's'}` : 'for the games after these'}</small></h2>
-    <p>At every games the houses fight each other as well as you: their champions, one against one. A man by the hearth takes money on it. He pays fair odds less a tenth, and he has never been known to be wrong about the tenth.</p>
+    <p>At every games the rival houses also fight each other: champion against champion. A bookmaker by the hearth takes bets on those bouts. He pays fair odds less a 10% cut, and he has never been known to forget the cut.</p>
     ${pairs}${msg ? `<p class="${msg.ok ? 'good' : 'bad'}">${msg.text}</p>` : ''}${last}
     <div class="row"><button data-act="close">${bet ? 'Leave it to the sand' : 'Keep your money'}</button></div>`);
 }
 function diceModal(res) {
   const left = diceLeft(), sum = a => a[0] + a[1] + a[2], row = (who, a, won) => `<div class="${won ? 'won' : ''}"><span>${who}</span><span class="throw">${a.map(DIE).join('')}</span><b class="num">${sum(a)}</b></div>`;
   const out = res && res.ok ? `<div class="dice">${row('You', res.mine, res.win)}${row('The table', res.theirs, !res.win)}</div>
-    <p class="${res.win ? 'good' : 'bad'}">${res.venus ? `Three sixes: the Venus. The whole room groans, and you are paid double: ${res.gain} denarii.` : res.win ? `Yours. ${res.gain} denarii come across the table.` : res.tie ? `Level, and a level throw is the table's. Your ${res.stake} denarii go.` : sum(res.mine) === 3 ? `Three ones: the Dogs. Your ${res.stake} denarii go, and somebody barks.` : `Theirs. Your ${res.stake} denarii go.`}</p>` : res ? `<p class="bad">${res.text}</p>` : '';
+    <p class="${res.win ? 'good' : 'bad'}">${res.venus ? `Three sixes: the Venus. The whole room groans, and you are paid double: ${res.gain} denarii.` : res.win ? `Yours. ${res.gain} denarii come across the table.` : res.tie ? `A tie, and the table wins a tie. Your ${res.stake} denarii go.` : sum(res.mine) === 3 ? `Three ones: the Dogs. Your ${res.stake} denarii go, and somebody barks.` : `Theirs. Your ${res.stake} denarii go.`}</p>` : res ? `<p class="bad">${res.text}</p>` : '';
   if (modalQueue.length) closeModal();
   showModal(`<h2>Dice <small>${left ? `${left} throw${left === 1 ? '' : 's'} left today` : 'no more today'}</small></h2>
-    <p>A mule-driver, a cooper and a man who will not say what he does, round a board in the corner. Three dice each. The higher throw takes the stake, a tied throw is the table's, and three sixes, the Venus, is paid double.</p>
+    <p>A mule-driver, a cooper and a man who will not say what he does, round a board in the corner. Three dice each. The higher throw wins the stake, the table wins a tie, and three sixes, the Venus, pays double.</p>
     ${out}
     <div class="row">${DICE_STAKES.map(s => { const st = tavernStake(s), why = diceBlock(st); return `<button class="${s === DICE_STAKES[0] ? 'primary' : ''}" data-act="tdice" data-v="${st}" ${why ? 'disabled' : ''}${why ? tip(why) : ''}>Throw for ${st}</button>`; }).join('')}<button data-act="close">${res ? 'Get up from the table' : 'Not today'}</button></div>`);
 }
@@ -1627,11 +1627,11 @@ function viewRivals() {
     const form = (H.form || []).map(r => `<i class="${r === 'W' ? 'w' : 'l'}">${r}</i>`).join('') || '<span class="dim">no word yet</span>';
     const deal = (kind, label, what) => { const why = dealBlock(H, kind), cost = dealCost(kind), armed = ui.dealArm === H.id + ':' + kind; return `<button class="${armed ? 'primary' : ''}" data-act="hdeal" data-v="${H.id}" data-w="${kind}" ${why ? 'disabled' : ''}${tip(why ? `${what}\n${why}` : what)}>${armed ? 'Sure?' : label}${cost && !armed ? ` &mdash; ${cost}` : ''}</button>`; };
     const said = ui.dealMsg && ui.dealMsg.hid === H.id && ui.dealMsg.day === G.day ? `<div class="dealmsg ${ui.dealMsg.ok ? 'good' : 'bad'}">${ui.dealMsg.text}</div>` : '';
-    const deals = `<div class="deals"><span class="lbl"${tip('One dealing with each house between one games and the next.')}>Dealings</span>
+    const deals = `<div class="deals"><span class="lbl"${tip('You may deal with each house once between one games and the next.')}>Dealings</span>
         ${deal('spar', 'Train against them', `A day in their yard for every fit man you have at home: about a day and a half of training in ${STAT_NAMES[sparStat(H)].toLowerCase()}, which is what this house does best, and some fatigue. Only a house you have no real quarrel with (a feud under ${SPAR_FEUD}) will have you.`)}
         ${deal('gift', 'Send a gift', 'Wine and hounds for their lanista: the feud eases by 20.')}
         ${deal('challenge', H.called ? 'Called out' : 'Call them out', 'Their champion against a man of yours at the next games, for a double purse and double fame. The feud deepens by 10; win, and their renown falls. Fail to appear and it costs you fame, favour and your men\'s respect.')}
-        ${deal('sabotage', 'Sabotage', 'Two chances in three: their best man misses the next games and their renown falls. Otherwise your man is caught: Magistrate favour -10, fame -5, and the feud deepens by 25.')}</div>${said}`;
+        ${deal('sabotage', 'Sabotage', 'A two-in-three chance that their best man misses the next games and their renown falls. Otherwise your man is caught: Magistrate favour -10, fame -5, and the feud deepens by 25.')}</div>${said}`;
     detail = `<div class="panel housecard" style="border-left:6px solid ${d.col}">
         <div><b>${d.lanista}.</b> <span class="dim">${d.blurb}</span></div>
         <div class="today"><span class="lbl">Their way</span><div>${typeof way === 'function' ? way() : way}</div></div>
@@ -1667,10 +1667,10 @@ function festivalNote(brief) {
   const need = today ? crownNeed() : FEST_CROWN[type], won = f.won || 0;
   const crownText = type === 'tourney' ? 'win the tournament' : type === 'melee' ? 'win the great melee' : `win ${need} of the festival's bouts`;
   const crown = f.crowned ? '<span class="gold">crowned victor</span>' : today && type !== 'tourney' ? `crown: ${won} of ${need} won` : `crown: ${crownText}`;
-  const crownTip = `Be named victor of the festival: ${crownText} on the day. It pays ${round5(PURSE[tier()] * 0.8)} denarii (half as much again for a sponsor), pleases the Magistrate, and the crown stays with the house: each one adds 2% to the fame of every bout after, up to 20%. You hold ${trophies()}.`;
+  const crownTip = `Be named victor of the festival: ${crownText} on the day. It pays ${round5(PURSE[tier()] * 0.8)} denarii (50% more for a sponsor), pleases the Magistrate, and the crown stays with the house: each one adds 2% to the fame of every bout after, up to 20%. You hold ${trophies()}.`;
   const sb = sponsorBlock(), canAsk = !f.sponsor && left <= 5 && left >= 0 && !(today && G.bouts.some(b => b.done));
-  const sponsor = f.sponsor ? `<span class="chip gold"${tip('Your name is on the festival: your men earn a quarter more fame in its bouts, and the crown pays half as much again.')}>Sponsor</span>`
-    : canAsk ? `<button class="mini" data-act="sponsor" ${sb ? 'disabled' : ''}${tip(`Pay ${sponsorCost()} denarii to put your name on the festival. The Magistrate is pleased at once, your men earn a quarter more fame in the festival's bouts, and its crown pays half as much again.${sb ? '\n' + sb : ''}`)}>Sponsor it &mdash; ${sponsorCost()}</button>` : '';
+  const sponsor = f.sponsor ? `<span class="chip gold"${tip('Your name is on the festival: your men earn 25% more fame in its bouts, and the crown pays 50% more.')}>Sponsor</span>`
+    : canAsk ? `<button class="mini" data-act="sponsor" ${sb ? 'disabled' : ''}${tip(`Pay ${sponsorCost()} denarii to put your name on the festival. The Magistrate is pleased at once, your men earn 25% more fame in the festival's bouts, and its crown pays 50% more.${sb ? '\n' + sb : ''}`)}>Sponsor it &mdash; ${sponsorCost()}</button>` : '';
   if (brief) return `<div class="panel festline"><b${tip(F.blurb)}>${F.name}</b> <small>${when}</small> <small${tip(crownTip)}>&middot; ${crown}</small>${sponsor}</div>`;
   const then = (G.festQueue || []).map(x => `<span${tip(FESTIVALS[x.type].blurb)}><b>${FESTIVALS[x.type].name}</b> <small>day ${x.day}</small></span>`).join('');
   return `<div class="panel festcard"><h3>${F.name} <small>${when}</small>${sponsor}</h3>
@@ -1703,7 +1703,7 @@ What the rounds have cost him: he has ${Math.round(tHealth(g) * 100)}% of his he
   if (T.bet) bet = `<div class="tbet"><span class="lbl">Your bet</span><span><b class="num">${T.bet.stake}</b> on <b>${T.bet.name}</b> at x${T.bet.pay}${T.bet.settled ? (T.bet.won ? `: <b class="gold">it pays ${T.bet.gain}</b>` : ': <span class="bad">lost</span>') : `, to pay <b class="gold num">${Math.round(T.bet.stake * T.bet.pay)}</b>`}</span></div>`;
   else if (canBet) {
     const o = ui.tbet && odds[ui.tbet];
-    bet = `<div class="tbet"${tip('One bet on who takes the laurel, yours or anybody\'s, laid before the first round. Click a man on the bracket, then a stake.')}><span class="lbl">Back a man</span>${o
+    bet = `<div class="tbet"${tip('You may place one bet on who wins the tournament, your own man or anyone else, before the first round. Click a man on the bracket, then a stake.')}><span class="lbl">Back a man</span>${o
       ? `<span><b>${o.name}</b> at x${o.pay}</span><div class="acts mini">${[25, 50, 100, 250].map(w => `<button class="mini" data-act="tbet" data-v="${w}" ${G.denarii < w ? 'disabled' : ''}>${w}</button>`).join('')}</div>`
       : '<small class="dim">click a man on the bracket to see what the bookmakers pay on him</small>'}</div>`;
   }
@@ -1722,7 +1722,7 @@ What the rounds have cost him: he has ${Math.round(tHealth(g) * 100)}% of his he
   } else if (T.state === 'running' && T.bout && me) {
     const o = winOdds([me], boutEnemies(T.bout)), foe = boutEnemies(T.bout)[0], tb = tendBlock();
     const wager = Math.min(ui.wagers[T.bout.id] || 0, Math.max(0, G.denarii));
-    const tend = T.round === 0 ? '' : `<div class="tbet"><span class="lbl"${tip('Between rounds he is given a little wine and a bandage as it is. There is time for one thing more.')}>Between rounds</span>${T.tended
+    const tend = T.round === 0 ? '' : `<div class="tbet"><span class="lbl"${tip('Between rounds he gets a little wine and a bandage anyway. You have time to do one more thing for him.')}>Between rounds</span>${T.tended
       ? `<span class="gold">${TENDS[T.tended].name}</span>`
       : Object.keys(TENDS).map(k => `<button class="mini" data-act="ttend" data-v="${k}" ${tb ? 'disabled' : ''}${tip(TENDS[k].what)}>${TENDS[k].name}</button>`).join('')}</div>`;
     body = `<div class="kvs three">
@@ -1907,7 +1907,7 @@ function noteItems() {      // everything owned when the game is opened is old n
 const CMP_ROWS = [
   ['dmg', 'Damage on a blow', v => v.toFixed(1)], ['armor', 'Taken off a blow', v => v.toFixed(2)],
   ['block', 'Block', v => (v * 100).toFixed(1) + '%'], ['dodge', 'Dodge', v => (v * 100).toFixed(1) + '%'], ['speed', 'Speed', v => Math.round(v * 100) + '%'],
-  ['stunRes', 'Stuns shorter', v => Math.round(v * 100) + '%'], ['critRes', 'Telling blows fewer', v => Math.round(v * 100) + '%'],
+  ['stunRes', 'Stuns shorter', v => Math.round(v * 100) + '%'], ['critRes', 'Fewer critical hits taken', v => Math.round(v * 100) + '%'],
   ['bleedRes', 'Shrugs off bleeding', v => Math.round(v * 100) + '%'], ['hamRes', 'Shrugs off a hamstring', v => Math.round(v * 100) + '%'], ['armRes', 'Shrugs off an arm wound', v => Math.round(v * 100) + '%'],
 ];
 function cmpCard(id, gid) {
@@ -1981,7 +1981,7 @@ function viewSmith() {
   // the stall: a tile to a piece, with its picture, what it is, who it would better, and its price
   const row = x => lrow('isel', x.id, `<span class="dpic" data-cmp="${x.id}">${itemArt(x, 72)}${best(x).length ? `<u class="up">&#9650;</u>` : ''}${x.pride ? `<u class="pride">&#9733;</u>` : ''}</span>
       <span class="nm"><span class="rar r${x.r}">${RARITY[x.r]}</span> ${x.slot === 'weapon' ? WEAPON_NAMES[x.cls] : SLOT_INFO[x.slot].piece}</span>
-      <small${best(x).length ? tip('Better than what they wear now: ' + best(x).join(', ') + '.') : x.pride ? tip('The piece on the stall he is proudest of. He lets it go a fifth cheap, to a house whose men will be seen wearing it.') : ''}>${best(x).length ? `<span class="good">for ${best(x).length === 1 ? best(x)[0] : best(x).length + ' men'}</span>` : x.slot === 'weapon' && !G.roster.some(g => g.cls === x.cls) ? '<span class="dim">no one can use it</span>' : `<span class="dim">${itemGist(x)}</span>`}</small>
+      <small${best(x).length ? tip('Better than what they wear now: ' + best(x).join(', ') + '.') : x.pride ? tip('The smith is proudest of this piece. He sells it 20% cheaper, so that it will be seen in the arena.') : ''}>${best(x).length ? `<span class="good">for ${best(x).length === 1 ? best(x)[0] : best(x).length + ' men'}</span>` : x.slot === 'weapon' && !G.roster.some(g => g.cls === x.cls) ? '<span class="dim">no one can use it</span>' : `<span class="dim">${itemGist(x)}</span>`}</small>
       <b class="num ${G.denarii < buyPrice(x) ? 'bad' : 'gold'}">${buyPrice(x)}</b>`, 'stile');
   const stock = S.stock.map(x => row(x)).join('') || '<div class="listnote">He has sold everything he had. Come back on the next market day.</div>';
   const tile = x => `<button ${tileLook(x, 'rtile big' + (ui.isel === x.id ? ' sel' : ''))} data-act="rowsel" data-v="isel" data-w="${x.id}" data-cmp="${x.id}">${itemArt(x, 72)}${best(x).length ? '<u>&#9650;</u>' : ''}</button>`;
@@ -2010,7 +2010,7 @@ function viewSmith() {
         const rb = reforgeBlock(it), work = Object.keys(FITS).filter(k => FITS[k].weapon === (it.slot === 'weapon'));
         return `<div class="workrow"><span class="lbl"${tip('Work the smith will do on a piece you own, on the racks or on a man.')}>Smith's work</span>
           <button class="mini" data-act="reforge" data-v="${it.id}" ${rb ? 'disabled' : ''}${tip(`Takes it up one grade, to ${it.r < 6 ? RARITY[it.r + 1] : RARITY[6]}, for less than a new piece would cost. ${reforgeLimit() > 1 ? 'Two pieces' : 'One piece'} between games (${reforgesDone()} done). About ${Math.round(masterChance('reforge') * 100)} times in 100 it comes out master-wrought.${rb ? '\n' + rb : ''}`)}>Reforge${it.r < 6 ? ` to ${RARITY[it.r + 1]} &mdash; ${reforgeCost(it)}` : ''}</button>
-          ${it.fit ? `<span class="chip gold"${tip(FITS[it.fit].what)}>${FITS[it.fit].name}</span><button class="mini" data-act="strip" data-v="${it.id}" ${stripBlock(it) ? 'disabled' : ''}${tip(`Strikes the fitting off again, so that another can be put on.${stripBlock(it) ? '\n' + stripBlock(it) : ''}`)}>Strip it &mdash; ${stripCost(it)}</button>` : work.map(k => { const fb = fitBlock(it, k); return `<button class="mini" data-act="fit" data-v="${it.id}" data-w="${k}" ${fb ? 'disabled' : ''}${tip(`${FITS[k].what}\nOne fitting to a piece; it can be struck off again for half the cost.${fb ? '\n' + fb : ''}`)}>${FITS[k].name}</button>`; }).join('') + `<small class="dim num">${fitCost(it)}</small>`}</div>`; })() : ''}
+          ${it.fit ? `<span class="chip gold"${tip(FITS[it.fit].what)}>${FITS[it.fit].name}</span><button class="mini" data-act="strip" data-v="${it.id}" ${stripBlock(it) ? 'disabled' : ''}${tip(`Removes the fitting, so that another can be added.${stripBlock(it) ? '\n' + stripBlock(it) : ''}`)}>Strip it &mdash; ${stripCost(it)}</button>` : work.map(k => { const fb = fitBlock(it, k); return `<button class="mini" data-act="fit" data-v="${it.id}" data-w="${k}" ${fb ? 'disabled' : ''}${tip(`${FITS[k].what}\nOne fitting per piece; it can be removed again for half the cost.${fb ? '\n' + fb : ''}`)}>${FITS[k].name}</button>`; }).join('') + `<small class="dim num">${fitCost(it)}</small>`}</div>`; })() : ''}
       <div class="buyrow" style="margin:0 0 6px">${wearer ? `<small class="dim">Worn by <b>${wearer.name}</b>. Take it off him in his dossier to sell it or hand it on.</small>` : own ? `<button data-act="smithsell" data-v="${it.id}"${tip('He buys back at half the full price.')}>Sell back &mdash; ${Math.round(itemPrice(it) / 2)}</button><small class="dim">It is on your racks. Give it to a man below, or sell it back.</small>`
             : `<button data-act="smithbuy" data-v="${it.id}" ${short ? 'disabled' : ''}${tip('Buy it for the racks, to give out later. Key: B')}>Buy for the racks &mdash; ${price}</button><small class="${short ? 'bad' : 'dim'}">${short ? `You are ${price - G.denarii} denarii short.` : `Leaves you ${G.denarii - price}. Or buy it straight onto a man below.`}</small>`}</div>
       ${wearer ? '' : wearers ? `<div class="sendhead"><span>Who could wear it, best gain first</span></div><div class="list wearers ${G.roster.filter(g => fits(it, g)).length > 4 ? 'twoup' : ''}">${wearers}</div>` : `<div class="dim" style="font-size:13px">${it.slot === 'weapon' ? `Only a ${CLASSES[it.cls].name} can use it, and you have none.` : 'You have no one to wear it.'}</div>`}
@@ -2022,11 +2022,11 @@ function viewSmith() {
       <div class="dim" style="font-size:13px">Offers ${4 + lv} pieces each market day, graded ${range[0]} to ${range[range.length - 1]}.${lv < 4 ? ` <span class="gold">Improved: ${5 + lv} pieces, graded ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0)[0]} to ${RARITY.filter((_, i) => SMITH_ODDS[lv + 1][i] > 0).slice(-1)[0]}.</span>` : ' There is no finer forge in the empire.'}</div></div>
       ${lv < 4 ? `<div style="text-align:right"><button data-act="smithup" ${G.denarii < up ? 'disabled' : ''}>Improve the forge &mdash; ${up}</button>${G.denarii < up ? `<small class="bad" style="display:block;font-size:11px">short by ${up - G.denarii}</small>` : ''}</div>` : ''}
     </div>
-    <div class="workrow" style="margin-top:6px"><span class="lbl"${tip(`Pay now, a fifth over the price, and a piece of the kind you name is on your racks on the next market day: grade ${RARITY[forgeMax()]}, the best this forge makes. About ${Math.round(masterChance('order') * 100)} times in 100 it comes out master-wrought: better than its grade, and for good.`)}>Commission</span>
+    <div class="workrow" style="margin-top:6px"><span class="lbl"${tip(`Pay now, 20% over the usual price, and the piece you order is on your racks on the next market day: grade ${RARITY[forgeMax()]}, the best this forge makes. About ${Math.round(masterChance('order') * 100)} times in 100 it comes out master-wrought: permanently better than its grade.`)}>Commission</span>
       ${S.order ? `<b class="gold">${RARITY[S.order.r]} ${S.order.slot === 'weapon' ? WEAPON_NAMES[S.order.cls] : SLOT_INFO[S.order.slot].piece}</b> <small class="dim">ready on the next market day</small>`
         : [...new Set(G.roster.map(g => g.cls))].map(k => `<button class="mini" data-act="smithorder" data-v="weapon" data-w="${k}" ${orderItemBlock('weapon') ? 'disabled' : ''}${tip(`A grade ${RARITY[forgeMax()]} ${WEAPON_NAMES[k]} for ${orderItemCost('weapon')}.`)}>${WEAPON_NAMES[k]}</button>`).join('')
           + ARMOR_SLOTS.map(k => `<button class="mini" data-act="smithorder" data-v="${k}" ${orderItemBlock(k) ? 'disabled' : ''}${tip(`A grade ${RARITY[forgeMax()]} ${SLOT_INFO[k].piece} for ${orderItemCost(k)}.`)}>${SLOT_INFO[k].piece}</button>`).join('')}</div>
-    ${outclassed().length ? `<div class="workrow" style="margin-top:4px"><span class="lbl">Racks</span><button class="mini ${ui.clearArm ? 'primary' : ''}" data-act="smithclear"${tip(`Sells the ${outclassed().length} spare piece${outclassed().length === 1 ? '' : 's'} that would better nobody you have and are not the best of their kind on the racks: ${outclassed().map(x => RARITY[x.r] + ' ' + itemName(x)).join(', ')}.`)}>${ui.clearArm ? 'Sure? ' : ''}Sell what no one needs &mdash; ${outclassed().reduce((n, x) => n + Math.round(itemPrice(x) / 2), 0)}</button></div>` : ''}
+    ${outclassed().length ? `<div class="workrow" style="margin-top:4px"><span class="lbl">Racks</span><button class="mini ${ui.clearArm ? 'primary' : ''}" data-act="smithclear"${tip(`Sells the ${outclassed().length} spare piece${outclassed().length === 1 ? '' : 's'} that would not improve any of your men and are not the best of their kind on the racks: ${outclassed().map(x => RARITY[x.r] + ' ' + itemName(x)).join(', ')}.`)}>${ui.clearArm ? 'Sure? ' : ''}Sell what no one needs &mdash; ${outclassed().reduce((n, x) => n + Math.round(itemPrice(x) / 2), 0)}</button></div>` : ''}
     ${armourerRow()}
     </div>`;
   return `<div class="fill even">
@@ -2138,7 +2138,7 @@ function viewChronicle() {
   }
   const count = k => G.log.filter(e => e.k === k).length;
   const filters = LOG_FILTERS.map(([k, n]) => `<button class="${f === k ? 'on' : ''}" data-act="lfilter" data-v="${k}">${n}${k === 'all' ? '' : ` <span class="num">${count(k)}</span>`}</button>`).join('');
-  const abouts = LOG_ABOUT.map(([k, n]) => `<button class="${topic === k ? 'on' : ''}" data-act="ltopic" data-v="${k}"${k === 'all' ? '' : tip(`Only what concerns ${n.toLowerCase()}, judged from the words of each entry.`)}>${n}${k === 'all' ? '' : ` <span class="num">${G.log.filter(e => (f === 'all' || e.k === f) && logTopic(e, k)).length}</span>`}</button>`).join('');
+  const abouts = LOG_ABOUT.map(([k, n]) => `<button class="${topic === k ? 'on' : ''}" data-act="ltopic" data-v="${k}"${k === 'all' ? '' : tip(`Only what concerns ${n.toLowerCase()}, picked out by the words in each entry.`)}>${n}${k === 'all' ? '' : ` <span class="num">${G.log.filter(e => (f === 'all' || e.k === f) && logTopic(e, k)).length}</span>`}</button>`).join('');
   // where the house stands
   const t = tier(), nextFame = t < TIERS.length - 1 ? TIERS[t + 1].fame : FINAL_FAME, base = TIERS[t].fame, T = G.tally, fought = T.wins + T.losses;
   const place = G.houses.filter(H => H.prestige > G.fame).length + 1;
@@ -2164,7 +2164,7 @@ function viewChronicle() {
   if (ct === 'deeds') {
     const row = D => { const day = (G.deeds || {})[D.id], at = D.at ? D.at() : null;
       return `<div class="deed ${day ? 'done' : ''}"${tip(`${D.name}: ${D.what}${day ? `\nDone on day ${day}.` : at ? `\n${Math.min(at[0], at[1])} of ${at[1]} so far.` : '\nNot yet.'}`)}><b>${D.name}</b><small>${D.what}</small><span class="num">${day ? 'day ' + day : at ? `${Math.min(at[0], at[1])}/${at[1]}` : '&mdash;'}</span></div>`; };
-    right = `<div class="deeds"${tip('Each deed is done once and stays done. If the house falls, every deed is a point of legacy for the heir.')}>${DEEDS.map(row).join('')}</div>`;
+    right = `<div class="deeds"${tip('Each deed can be earned once. If the house falls, every deed is worth one legacy point to the heir.')}>${DEEDS.map(row).join('')}</div>`;
   } else if (ct === 'records') {
     const R = G.records || {}, rec = (label, k, fmt, none) => { const x = R[k]; return `<div${x ? tip(`${x.who}, against ${x.vs || 'the field'}, on day ${x.day}.`) : ''}><span>${label}</span><b class="num ${x ? '' : 'dim'}">${x ? fmt(x.v) : '&mdash;'}</b><small>${x ? `${x.who} &middot; day ${x.day}` : none}</small></div>`; };
     const count = (label, v, sub) => `<div><span>${label}</span><b class="num ${v ? '' : 'dim'}">${v || 0}</b><small>${sub}</small></div>`;
@@ -2192,7 +2192,7 @@ function viewChronicle() {
       <div class="subtabs logtabs about">${abouts}<button class="copy" data-act="lcopy" ${shown.length ? '' : 'disabled'}${tip('Copies what is listed here, every page of it, as plain text: to keep the story of the house, or to send it to somebody.')}>${ui.lcopied === G.day + ':' + shown.length ? 'Copied' : 'Copy'}</button></div>
       <div class="pane" data-pane="log-${f}-${topic}-${pg}"><div class="panel log">${rows || '<div class="dim">Nothing of that kind has happened yet.</div>'}</div>${pager}</div></div>
     <div><h2>The annals</h2>
-      <div class="subtabs logtabs">${tabs.map(([k, n]) => `<button class="${ct === k ? 'on' : ''}" data-act="ctab" data-v="${k}"${k === 'deeds' ? tip('Things the house has done once and for all. Each is a point of legacy for the heir if the house falls.') : ''}>${n}</button>`).join('')}</div>
+      <div class="subtabs logtabs">${tabs.map(([k, n]) => `<button class="${ct === k ? 'on' : ''}" data-act="ctab" data-v="${k}"${k === 'deeds' ? tip('Achievements of the house, each earned once. Each is worth one legacy point to the heir if the house falls.') : ''}>${n}</button>`).join('')}</div>
       <div class="pane" data-pane="annals-${ct}">${right}</div></div>
   </div>`;
 }
@@ -2300,7 +2300,7 @@ function showEvent() {
   const btns = E.opts.map((o, i) => { const ok = !o.ok || o.ok(pe.c); return `<button class="evopt" data-act="evopt" data-v="${i}" ${ok ? '' : 'disabled'}><span class="k">${i + 1}</span><span>${o.label(pe.c)}</span>${ok ? '' : '<small>not possible now</small>'}</button>`; }).join('');
   const tt = tutorState(), first = (tt.on || tt.hints) && !tt.seen.event;
   if (first) { tt.seen.event = true; save(); }
-  showModal(`<div class="ev">${eventArt(pe.id)}<h2>${E.title}</h2>${eventPeople(pe.c)}<p class="evtext">${E.text(pe.c)}</p>${first ? '<p class="evnote"><b>Your steward:</b> matters like this come up every few days, dominus. Each answer has its price; once you have chosen I will set out what it changed. A greyed answer is one the purse or the house cannot manage today.</p>' : ''}
+  showModal(`<div class="ev">${eventArt(pe.id)}<h2>${E.title}</h2>${eventPeople(pe.c)}<p class="evtext">${E.text(pe.c)}</p>${first ? '<p class="evnote"><b>Your steward:</b> events like this come up every few days, dominus. Every answer has a cost. After you choose, I will show you what changed. A greyed-out answer is one you cannot afford, or do not qualify for, today.</p>' : ''}
     <div class="evopts">${btns}</div>
     <div class="evfoot"><span>Your purse: <b class="num ${G.denarii < 0 ? 'bad' : ''}">${G.denarii}</b> denarii</span><span>Keys 1&ndash;${E.opts.length} answer</span></div></div>`);
   SFX.ui('scroll');
@@ -2334,13 +2334,13 @@ function startFight(boutId, tourneyBout) {
   if ((tut.on || tut.hints) && !tut.seen.fight) {
     tut.seen.fight = true; save(); ui.heldFight = [boutId, tourneyBout];
     showModal(`<h2>Before he goes out</h2>
-      <p>Your men fight on their own, as they were trained and as their standing orders say. What you decide is their <b>abilities</b>.</p>
-      <ul><li><b>The gold bar</b> under a man's health is his charge. It fills slowly by itself, and faster with every blow given or taken.</li>
-      <li><b>When it is full, the fight stops</b> and you choose which of his abilities he uses: keys 1 to 4, or click. If you would rather they chose for themselves, switch <b>Abilities</b> to auto below the sand.</li>
-      <li><b>You also choose who it is for.</b> With more than one foe standing, click one on the sand or in the panel (or press T) to aim at him. <b>All on him</b> (F) sets your whole side on that man; <b>Hold it</b> (W) keeps the charge for a better moment.</li>
+      <p>Your men fight by themselves, following their training and their standing orders. What you decide is which <b>abilities</b> they use.</p>
+      <ul><li><b>The gold bar</b> under a man's health is his charge. It fills slowly over time, and faster with every blow he lands or takes.</li>
+      <li><b>When it is full, the fight pauses</b> and you choose which ability he uses: keys 1 to 4, or click. If you would rather your men chose for themselves, switch <b>Abilities</b> to auto, below the sand.</li>
+      <li><b>You also choose the target.</b> When more than one enemy is standing, click one on the sand or in the panel (or press T) to aim at him. <b>All on him</b> (F) makes all your men attack that enemy. <b>Hold it</b> (W) keeps the charge for a better moment.</li>
       <li><b>Styles.</b> Strength beats Agility, Agility beats Skill, Skill beats Strength. The marks on the bout card show whose style has the edge.</li>
-      <li><b>Throw in the cloth</b> (key C): your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once a bout, and never in a fight to the death.</li></ul>
-      <p>Below the sand you can run the fight faster, <b>pause</b> it (Space), or skip to the result. Rest the mouse on any fighter to see what he is and what he carries. The crowd's bar matters: an exciting fight earns more fame.</p>
+      <li><b>Throw in the cloth</b> (key C): your worst-hurt man yields at once. A man who yields is spared far more often than one who is struck down. You can do it once per bout, and never in a fight to the death.</li></ul>
+      <p>Below the sand you can speed the fight up, <b>pause</b> it (Space), or skip to the result. Hover over any fighter to see who he is and what he carries. The crowd's bar matters: an exciting fight earns more fame.</p>
       <div class="row"><button class="primary" data-act="fightgo">To the sand</button></div>`);
     return;
   }
@@ -2391,13 +2391,13 @@ function villageGate() {
   if (!M.told) {
     M.told = true; save();
     showModal(`<h2>Beyond the walls</h2>
-      <p>The whole school marches with you: every man, the mules, the baggage. What lies out there is on no map you own. The country is under parchment until you have walked it.</p>
-      <ul><li><b>Marching takes time.</b> A day passes for each day's march: further by road, less through forest, hill and marsh. Point at a spot and the map says how many days it is; click, and it counts them down as you go.</li>
-      <li><b>Going into a place takes the day</b>, and so does making camp. Nobody trains out here. Marching tires the men; camp rests them.</li>
-      <li><b>Every fit man fights</b> when it comes to it, and there is no crowd to spare the fallen: a man who goes down lives or dies by luck and your medicus.</li>
-      <li><b>The skulls</b> by a place say how hard it is. The country is worse the farther you go from home.</li>
+      <p>The whole school marches with you: every man, the mules, the baggage. You have no map of what is out there: the map is blank until you have walked the ground.</p>
+      <ul><li><b>Marching takes time.</b> A day's march covers more ground by road, and less through forest, hill and marsh. Point at a spot and the map shows how many days away it is. Click, and it counts the days down as you go.</li>
+      <li><b>Going into a place takes a day</b>, and so does making camp. Nobody trains out here. Marching tires the men; camp rests them.</li>
+      <li><b>Every fit man fights</b> when there is a fight, and there is no crowd to spare the fallen: whether a man who goes down lives or dies depends on luck and your medicus.</li>
+      <li><b>The skulls</b> beside a place show how hard it is. The country gets more dangerous the farther you go from home.</li>
       <li><b>Games are still held in town</b> every fifth day, in the months when the arena is open. If you are not there, you miss them.</li>
-      <li>Nothing out here can be done twice. Walk back into the town to go home.</li></ul>${okBtn('March')}`);
+      <li>Each place out here can only be done once. To go home, walk back into the town.</li></ul>${okBtn('March')}`);
   }
 }
 // The order buttons: greyed while your voice recovers, with the seconds left on them.
@@ -2414,7 +2414,7 @@ function paintOrders() {
     y.textContent = fight.armed === 'yield' ? `Sure? ${worst ? worst.g.name + ' yields' : 'Yield'}` : worst && B.fighters.filter(x => x.team === 0).length > 1 ? `Throw in the cloth: ${worst.g.name}` : 'Throw in the cloth';
     y.classList.toggle('armed', fight.armed === 'yield');
     y.dataset.tip = B.death ? 'There is no yielding in a bout to the death.' : B.towel ? 'The cloth has been thrown once already; it cannot be thrown again.' : B.over ? 'It is over.'
-      : 'Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. Once per bout, and it cannot be taken back, so it asks you twice.';
+      : 'Throw in the cloth: your worst-hurt man yields at once. A man who yields is spared far more often than one struck down. You can do it once per bout. It cannot be undone, so you must press twice to confirm.';
     sk.textContent = fight.armed === 'skip' ? 'Sure? Skip it' : 'Skip to result';
     sk.classList.toggle('armed', fight.armed === 'skip');
   }
@@ -2458,10 +2458,10 @@ function paintOrders() {
         const chips = foes.map(o => { const on = o === tg, nm = o.g.beast ? 'The ' + o.c.name.toLowerCase() : o.g.name, pct = Math.round(clamp(o.hp / o.maxHp, 0, 1) * 100), e = styleEdge(pick.style, o.style);
           return `<button class="tchip ${on ? 'on' : ''} ${B.marked === o ? 'marked' : ''}" data-act="abtarget" data-v="${B.fighters.indexOf(o)}"${tip(`${nm}: ${Math.max(0, Math.round(o.hp))} of ${o.maxHp} health${o.snare > 0 ? ', netted' : ''}${o.stun > 0.3 ? ', stunned' : ''}${o.bleed > 0 ? ', bleeding' : ''}.${e > 1 ? '\nYour man\'s style beats his.' : e < 1 ? '\nHis style beats your man\'s.' : ''}${on ? '\nThe ability will be used on him.' : '\nClick to aim at him.'}`)}>${o.g.beast ? '' : styleMark(o.g)}<b>${nm}</b><i class="bar hp"><i style="width:${pct}%"></i></i>${e > 1 ? '<em class="good">&#9650;</em>' : e < 1 ? '<em class="bad">&#9660;</em>' : ''}</button>`; }).join('');
         return `<div class="ptargets"><span class="lbl">${foes.length > 1 ? 'Aim at' : 'His mark'}</span>${foes.length > 1 ? chips : ''}
-          ${tg && mates > 1 ? `<button class="mini ${B.marked === tg ? 'primary' : ''}" data-act="abmark"${tip('Set the whole side on this man: every one of yours goes for him until he is down. Press again to take it off.')}>${B.marked === tg ? 'All are on him' : 'All on him'} <span class="k">F</span></button>` : ''}</div>`; })()}
+          ${tg && mates > 1 ? `<button class="mini ${B.marked === tg ? 'primary' : ''}" data-act="abmark"${tip('Makes all your men attack this man until he is down. Press again to cancel.')}>${B.marked === tg ? 'All are on him' : 'All on him'} <span class="k">F</span></button>` : ''}</div>`; })()}
       <div class="abrow">${pick.abl.map(card).join('')}</div>
       <div class="pfoot"><span>Keys <b>1</b>&ndash;<b>${pick.abl.length}</b> choose${liveFoes(B, pick).length > 1 ? ' &middot; <b>T</b> next foe' : ''}</span>
-        <button class="mini" data-act="abhold"${tip('Hold the charge: he fights on with it full, and the fight stops for him again in four seconds. For when the moment is wrong: the foe is out of reach, a friend is about to stun him, the net is about to land.')}>Hold it <span class="k">W</span></button>
+        <button class="mini" data-act="abhold"${tip('Hold the charge: he fights on with it full, and the fight pauses for him again in four seconds. Use it when the moment is wrong: the enemy is out of reach, or a friend is about to stun or net him.')}>Hold it <span class="k">W</span></button>
         <button class="mini" data-act="abpickai">Let him choose <span class="k">A</span></button></div>`;
     paintResultFaces();
     SFX.ui('chime');
@@ -2552,7 +2552,7 @@ function fightReport(B) {
       <span class="bar dealt"><i style="width:${Math.round(f.dmgDealt / top * 100)}%"></i></span><span class="num">${Math.round(f.dmgDealt)} dealt</span><span class="num">${Math.round(f.dmgTaken)} taken</span></div>`;
   };
   return `<div class="resmen${mine.length > 1 ? ' two' : ''}${mine.length >= 3 ? ' compact' : ''}${mine.length >= 5 ? ' three' : ''}">${mine.map(man).join('')}</div>
-    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, mine.length >= 5 ? 3 : 4).map(foe).join('')}${foes.length > (mine.length >= 5 ? 3 : 4) ? `<div class="dim" style="font-size:11px">and ${foes.length - (mine.length >= 5 ? 3 : 4)} more, in the line-by-line telling below</div>` : ''}</div>
+    <div class="resfoes"><div class="lbl">Against</div>${foes.slice(0, mine.length >= 5 ? 3 : 4).map(foe).join('')}${foes.length > (mine.length >= 5 ? 3 : 4) ? `<div class="dim" style="font-size:11px">and ${foes.length - (mine.length >= 5 ? 3 : 4)} more, listed in the full log below</div>` : ''}</div>
     ${B.log && B.log.length ? `<details class="reslog"><summary>The fight, line by line (${B.log.length})</summary><div class="lb">${fightLogHtml(B)}</div></details>` : ''}`;
 }
 // The head of that screen, and the tiles of what it paid.
@@ -2588,7 +2588,7 @@ function finishFight() {
     catch (err) {
       console.error(err);
       if (G.field) G.field.fight = null;
-      w = { win: B.winner === 0, lines: ['<span class="dim">Something went wrong in the reckoning of this fight, and what it should have brought was not counted. The school marches on.</span>'] };
+      w = { win: B.winner === 0, lines: ['<span class="dim">Something went wrong working out the result of this fight, and its rewards were not counted. The game carries on.</span>'] };
       try { save(); } catch (e2) { /* nothing more to be done */ }
     }
     SFX.play(w.win ? 'victory' : 'defeat'); SFX.music(null);
@@ -3126,11 +3126,11 @@ function intro() {
     <p>Your uncle is dead and his gladiator school is yours: two fighters, a leaking roof, and 250 denarii.</p>
     <ul>
       <li>Set each fighter to <b>train</b> or <b>rest</b>, then end the day.</li>
-      <li>Every fifth day there are <b>games</b>: win bouts for purses and fame. After a month of them the arena is shut for a month, and then opens again.</li>
-      <li>Fame opens greater arenas. At ${FINAL_FAME} fame, the Emperor sends for you.</li>
-      <li>Between games, hire men out on <b>contracts</b>, arm them at the <b>Blacksmith</b>, hire staff under <b>Household</b> and court the powerful under <b>Patrons</b>.</li>
+      <li>Every fifth day there are <b>games</b>: win bouts for purses and fame. After a month of games the arena shuts for a month, and then opens again.</li>
+      <li>Fame opens bigger arenas. At ${FINAL_FAME} fame, the Emperor sends for you.</li>
+      <li>Between games, hire men out on <b>contracts</b>, arm them at the <b>Blacksmith</b>, hire staff under <b>Household</b> and win the favour of the powerful under <b>Patrons</b>.</li>
       <li>Tired or wounded men lose. Dead men stay dead.</li>
-      <li>Stay in debt for ${graceDays()} days and the creditors take the ludus. That is not the end: your heir begins again, with whatever the family managed to keep.</li>
+      <li>Stay in debt for ${graceDays()} days and the creditors take the ludus. That is not the end: your heir starts again, with whatever the family managed to keep.</li>
     </ul>
     <p class="dim" style="font-size:13px">Your steward can walk you through the first week (about five minutes), and afterwards speak up only when something new happens. You can dismiss him at any time, and call him back from the Chronicle.</p>
     <div class="row"><button class="primary" data-act="tutstart">Show me the ropes</button><button data-act="close">I know the trade</button></div>`);

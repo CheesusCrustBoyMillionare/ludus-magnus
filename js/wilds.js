@@ -685,7 +685,7 @@ function wildFight(title, foes, backdrop, win, o) {
 
 // ---------- spoils ----------
 const RELICS = {
-  crest:   { name: 'The centurion\'s crest', slot: 'head', r: 5, note: 'Worn by the last officer of the Seventeenth. Telling blows against him are a further 15% less likely.', add: z => { z.critRes += 0.15; } },
+  crest:   { name: 'The centurion\'s crest', slot: 'head', r: 5, note: 'Worn by the last officer of the Seventeenth. Critical hits against him are a further 15% less likely.', add: z => { z.critRes += 0.15; } },
   cuirass: { name: 'A legate\'s cuirass', slot: 'chest', r: 6, note: 'Silvered scale, made for a man who expected to be looked at. Takes a further 1.5 off every blow.', add: z => { z.armor += 1.5; } },
   pelt:    { name: 'Pelt of the fell lion', slot: 'shoulders', r: 5, note: 'Lighter than any pauldron. He dodges 4% more.', add: z => { z.dodge += 0.046; } },
   greaves: { name: 'The runner\'s greaves', slot: 'legs', r: 5, note: 'Bronze beaten thin as a leaf. He moves a further 6% faster.', add: z => { z.speed += 0.06; } },
@@ -1211,7 +1211,7 @@ Object.assign(RELICS, {
   wolfmantle: { quest: true, name: 'The wolf-stone mantle', slot: 'shoulders', r: 5, note: 'A grey pelt nobody remembers killing. He dodges 4% more and bleeds far less.', add: z => { z.dodge += 0.046; z.bleedRes += 0.25; } },
   colossus:   { quest: true, name: "The colossus's greaves", slot: 'legs', r: 6, note: 'Cast for a statue, not a man; they fit all the same. A further 1 off every blow, and he cannot be hamstrung.', add: z => { z.armor += 1; z.hamRes += 0.5; } },
   cutlass:    { quest: true, name: "The sea-captain's blade", slot: 'weapon', r: 4, note: 'Light, curved and quick in the hand. A further 1 on every blow, and he moves 4% faster.', add: z => { z.dmg += 1; z.speed += 0.04; } },
-  oldhelm:    { quest: true, name: "The first champion's helm", slot: 'head', r: 6, note: 'The crest is gone; the dents are not. Telling blows against him are a further 14% less likely.', add: z => { z.critRes += 0.14; } },
+  oldhelm:    { quest: true, name: "The first champion's helm", slot: 'head', r: 6, note: 'The crest is gone; the dents are not. Critical hits against him are a further 14% less likely.', add: z => { z.critRes += 0.14; } },
   eaglecrest: { quest: true, name: 'The eagle-feather crest', slot: 'head', r: 4, note: 'Three feathers from the nest on the rock. He moves a further 6% faster.', add: z => { z.speed += 0.06; } },
   bracers:    { quest: true, name: "The quarry-master's bracers", slot: 'arms', r: 5, note: 'Iron bands made to turn a falling block. A further 6% block, and his sword arm cannot be numbed.', add: z => { z.block += 0.06; z.armRes += 0.4; } },
   bogiron:    { quest: true, name: 'The bog-iron cuirass', slot: 'chest', r: 5, note: 'Black, pitted, and harder than anything a smith has made since. Takes a further 1.3 off every blow.', add: z => { z.armor += 1.3; } },
@@ -2499,7 +2499,7 @@ function landUseWords(u, got) {
   if (f.tire) out.push(`fatigue +${f.tire}`);
   if (f.heal) out.push(`health +${Math.round(f.heal * 100)}%`);
   if (f.mend) out.push('a day off one wound');
-  if (f.cheer) out.push(`spirits ${f.cheer > 0 ? '+' : ''}${f.cheer}`);
+  if (f.cheer) out.push(`morale ${f.cheer > 0 ? '+' : ''}${f.cheer}`);
   if (f.xp) out.push(`+${f.xp} experience for each fit man`);
   if (f.coin) out.push(got !== undefined ? `+${got} denarii` : 'a little silver');
   if (f.favor) out.push(`${PATRONS[f.favor[0]].name.replace(/^The /, '')} favour +${f.favor[1]}`);

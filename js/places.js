@@ -7,14 +7,14 @@
 let placeLayer = null, placeMask = null;
 const RAR_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545', '#f0705e'];
 const PLACE_TIPS = {
-  market: 'The slave market. The men on the block are the ones for sale today; the pen holds any the dealer is keeping for you, and a gold dais is a prize lot up for auction.',
-  smith: 'The forge. What hangs on the wall is what the smith has to sell; the colours are the grades. Your armourer works at the bench, and a commission waits under its cloth.',
-  arena: 'The arena from the street. In a month when it is shut the gates are barred, the flags furled and the bookmakers gone. It grows with your name: a fence of logs round the pits, then arches of timber and of stone, and at the last the purple of the Emperor down its walls. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
-  contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. A rail for the mules of the carriers stands at the corner, and the packs by the road belong to men who are away.',
+  market: 'The slave market. The men on the block are for sale today. The pen holds any man the dealer is keeping for you, and a man on a gold platform is the prize lot, sold by auction.',
+  smith: 'The forge. The pieces hanging on the wall are what the smith has for sale, coloured by grade. Your armourer works at the bench, and a piece you have commissioned waits under a cloth.',
+  arena: 'The arena, seen from the street. In a month when it is shut the gates are barred, the flags furled and the bookmakers gone. It grows with your fame: first a log fence round the pits, then arches of timber, then stone, and finally the Emperor\'s purple down its walls. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
+  contracts: 'The forum. Each tablet on the board is an offer of work, and a gold one asks for you by name. The carriers tie their mules at the rail on the corner, and the packs by the road belong to your men who are away.',
   patrons: 'The temple. The three fires burn as high as each patron\'s favour. Your own shrine stands to the right of the steps.',
-  rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first: click one to read that house. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner. The man under the town\'s talk keeps a book on the houses\' own bouts, and there are dice in the corner.',
-  facilities: 'Your own house. The people in the court are the staff you have hired; those waiting by the wall are looking for a place. The granary and its garden stand at the corner.',
-  chronicle: 'The record house. The shelves fill as your chronicle grows; the urns are your dead, the busts your line, and the wreaths the festival crowns the house has won.',
+  rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first: click one to read about that house. A crown marks the house that holds the championship, and a laurel marks the winner of the last tournament. The bookmaker, under the talk of the town, takes bets on the bouts the houses fight against each other, and there are dice in the corner.',
+  facilities: 'Your own house. The people in the court are the staff you have hired, and those waiting by the wall are looking for work. The granary and its garden stand at the corner.',
+  chronicle: 'The record house. The shelves fill as your chronicle grows. The urns are your dead, the busts are your family line, and the wreaths are the festival crowns the house has won.',
 };
 
 function drawPlace(cv, T, tab) {

@@ -280,7 +280,7 @@ const nextMarket = () => G.day + (GAMES_EVERY - G.day % GAMES_EVERY);           
 const hottestHouse = () => G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0];
 const PETITIONS = {
   magistrate: [
-    { id: 'card', name: 'A richer card', cost: 10, need: 35, desc: 'Every purse at the next games is half as large again.',
+    { id: 'card', name: 'A richer card', cost: 10, need: 35, desc: 'Every purse at the next games is 50% larger.',
       run: () => { G.richCard = nextGames(); return 'He has a word with the men who pay for the games. The next card will be worth fighting for.'; } },
     { id: 'fine', name: 'Have a rival fined', cost: 12, need: 40, desc: 'The house you have the worst feud with loses 25 renown. They will know who asked.',
       block: () => hottestHouse().grudge >= 15 ? '' : 'You have no quarrel worth bringing before him.',
@@ -295,17 +295,17 @@ const PETITIONS = {
       run: () => { const n = guildAdvance(); G.denarii += n; return `A clerk counts ${n} denarii onto the table and writes your name in a long book.`; } },
     { id: 'grain', name: 'Grain at their cost', cost: 10, need: 35, desc: 'Your men eat for nothing until the next market day.',
       run: () => { G.grainUntil = nextMarket(); return 'Their carts will stop at your gate first. Until the next market day the barley costs you nothing.'; } },
-    { id: 'book', name: 'Their book behind your men', cost: 14, need: 60, desc: 'At the next games every wager you win pays half as much again.',
+    { id: 'book', name: 'Their book behind your men', cost: 14, need: 60, desc: 'At the next games every wager you win pays 50% more.',
       run: () => { G.bookUntil = nextGames(); return 'The men who make the odds are told whose money to be generous with. At the next games your wagers are written at a better price.'; } },
   ],
   temple: [
-    { id: 'blessing', name: 'A blessing on the school', cost: 10, need: 20, desc: 'Every man\'s morale +15, and the fallen are spared a tenth more often at the next games.',
+    { id: 'blessing', name: 'A blessing on the school', cost: 10, need: 20, desc: 'Every man\'s morale +15, and the fallen are spared 10% more often at the next games.',
       run: () => { G.roster.forEach(g => { g.morale = clamp(g.morale + 15, 0, 100); }); G.blessed = nextGames(); return 'The priests come with fire and laurel and go round every cell. The men stand straighter for it.'; } },
     { id: 'heal', name: 'The priests\' care', cost: 12, need: 35, desc: 'Every wound mends two days sooner, and every man is made whole.',
       block: () => G.roster.some(g => !g.away && (g.injury > 0 || g.hp < maxHp(g))) ? '' : 'Nobody here needs it.',
       run: () => { G.roster.forEach(g => { if (g.away) return; g.injury = Math.max(0, g.injury - 2); g.hp = maxHp(g); }); return 'The temple keeps men who know wounds better than any medicus. They work through the night.'; } },
-    { id: 'oracle', name: 'The oracle names a champion', cost: 18, need: 60, desc: 'The best of your men who is not already so is named Favoured of Nemesis, for good: the crowd spares him more often when he falls.',
-      block: () => oracleMan() ? '' : 'Every man you have is hers already, or you have none.',
+    { id: 'oracle', name: 'The oracle names a champion', cost: 18, need: 60, desc: 'Your best man who does not already have it gains the trait Favoured of Nemesis for good: the crowd spares him more often when he falls.',
+      block: () => oracleMan() ? '' : 'Every man you have is already Favoured, or you have no men.',
       run: () => { const g = oracleMan(); g.traits.push('blessed'); g.morale = 100; addStory(g, 'Named by the oracle of Nemesis before the whole town.'); return `The lot is cast three times and falls three times the same way. <b>${g.name}</b> is led out and shown to the people: Favoured of Nemesis, from this day.`; } },
   ],
 };
@@ -396,8 +396,8 @@ function seekStaff(role) {
   return true;
 }
 // What the house most lacks, in the steward's opinion: the first vacant post in the order that matters.
-const STAFF_NEED = [['doctore', 'nobody is teaching the men, and they cannot spar'], ['medicus', 'every wound takes its own time, and more of the fallen die'], ['cook', 'the men eat what they are given, and their spirits show it'],
-  ['unctor', 'the men carry yesterday\'s work into today'], ['scout', 'we buy men at market without knowing what is in them'], ['dispensator', 'nobody is watching what the kitchen and the wages cost'], ['faber', 'the blades are kept by whoever carries them']];
+const STAFF_NEED = [['doctore', 'nobody is teaching the men, and they cannot spar'], ['medicus', 'wounds heal slowly, and more of the fallen die'], ['cook', 'the food is poor, and morale suffers for it'],
+  ['unctor', 'the men shake off fatigue more slowly'], ['scout', 'we cannot see a recruit\'s talent before we buy him'], ['dispensator', 'food and wages cost more than they need to'], ['faber', 'nobody is looking after the weapons and armour']];
 const staffLack = () => STAFF_NEED.find(([k]) => !G.staff[k]) || null;
 function genHires() {
   const maxS = clamp(1 + tier(), 1, 3), sought = G.hireOrder && STAFF_ROLES[G.hireOrder] ? G.hireOrder : null;
@@ -870,7 +870,7 @@ function dealCost(kind, g) {
 }
 // Why a dealing cannot be had just now, or nothing if it can.
 function dealBlock(H, kind, g) {
-  if (H.dealt === dealCycle()) return 'You have had your dealing with this house since the last market day.';
+  if (H.dealt === dealCycle()) return 'You have already dealt with this house since the last market day.';
   const cost = dealCost(kind, g);
   if (kind === 'gift' && H.grudge <= 0) return 'There is no quarrel to mend.';
   if (kind === 'spar') {
@@ -879,7 +879,7 @@ function dealBlock(H, kind, g) {
   }
   if (kind === 'challenge') {
     if (H.called) return 'You have called them out already: it is on the next card.';
-    if (!G.roster.some(x => !x.away && x.injury <= 0)) return 'You have no one fit to stand behind it.';
+    if (!G.roster.some(x => !x.away && x.injury <= 0)) return 'You have no fit man to back the challenge.';
   }
   if (kind === 'buy') {
     if (!g || !H.roster.includes(g)) return 'He is not theirs to sell.';
@@ -967,7 +967,7 @@ function houseCard() {
 const bookPrice = p => Math.max(1.1, Math.round(BOOK_CUT / p * 20) / 20);
 const bookQuote = (A, B) => { const p = pairOdds(A, B); return { p, a: bookPrice(p), b: bookPrice(1 - p) }; };
 function bookBlock(stake) {
-  if (tavern().bet) return 'Your money is down already: one stake at each games.';
+  if (tavern().bet) return 'You have already placed a bet: one per games.';
   if (stake > G.denarii) return `You are ${stake - G.denarii} denarii short.`;
   return '';
 }
@@ -1011,7 +1011,7 @@ function tavernDice(stake) {
 const nightMen = () => G.roster.filter(g => !g.away && g.injury <= 0);
 const nightCost = () => nightMen().length * (NIGHT_HEAD + 4 * tier());
 function nightBlock() {
-  if (tavern().night === dealCycle()) return 'They have had their night since the last market day.';
+  if (tavern().night === dealCycle()) return 'They have already had their night out since the last market day.';
   if (G.field) return 'The school is on the road.';
   if (!nightMen().length) return 'You have nobody fit to send.';
   if (nightCost() > G.denarii) return `You are ${nightCost() - G.denarii} denarii short.`;
@@ -1186,11 +1186,11 @@ const FITS = {
   weighted:  { name: 'Weighted', weapon: true,  what: '+0.8 damage a blow, but 1% less dodge for the weight of it.', add: z => { z.dmg += 0.8; z.dodge -= 0.01; } },
   balanced:  { name: 'Balanced', weapon: true,  what: '+2% block and +1% dodge: it comes back to guard quicker.', add: z => { z.block += 0.02; z.dodge += 0.01; } },
   studded:   { name: 'Studded',  weapon: false, what: 'Takes a sixth more off every blow.', add: z => { z.armor *= 7 / 6; } },
-  padded:    { name: 'Padded',   weapon: false, what: 'Stuns are 10% shorter and telling blows 2% less likely.', add: z => { z.stunRes += 0.1; z.critRes += 0.02; } },
+  padded:    { name: 'Padded',   weapon: false, what: 'Stuns are 10% shorter and critical hits against him 2% less likely.', add: z => { z.stunRes += 0.1; z.critRes += 0.02; } },
   quick:     { name: 'Quick',    weapon: true,  what: 'Ground thin and light in the hand: he moves 3% faster, for 0.3 less damage a blow.', add: z => { z.speed += 0.03; z.dmg -= 0.3; } },
   braced:    { name: 'Braced',   weapon: false, what: 'Splints at the joints: 15% more chance to shrug off a hamstring or an arm wound.', add: z => { z.hamRes += 0.15; z.armRes += 0.15; } },
   lined:     { name: 'Lined',    weapon: false, what: 'Oiled leather inside: bleeding is shrugged off 20% more often.', add: z => { z.bleedRes += 0.2; } },
-  lightened: { name: 'Lightened', weapon: false, what: 'Costs no dodge to wear, and gives 0.4% back; a tenth less protection.', add: z => { z.dodge = Math.max(z.dodge, 0) + 0.004; z.armor *= 0.9; } },
+  lightened: { name: 'Lightened', weapon: false, what: 'Costs no dodge to wear, and gives 0.4% back; 10% less protection.', add: z => { z.dodge = Math.max(z.dodge, 0) + 0.004; z.armor *= 0.9; } },
 };
 // The best grade this forge can make.
 const forgeMax = () => { let m = 0; SMITH_ODDS[G.smith.level].forEach((v, i) => { if (v > 0) m = i; }); return m; };
@@ -1204,7 +1204,7 @@ function findItem(id) {
 // Reforging takes a piece up one grade, for less than the difference in price. One piece between games.
 function reforgeCost(it) { return it.r >= 6 ? 0 : Math.max(10, Math.round((itemPrice(Object.assign({}, it, { r: it.r + 1 })) - itemPrice(it)) * 0.9 / 5) * 5); }
 function reforgeBlock(it) {
-  if (it.relic) return 'No smith living would put a hammer to it.';
+  if (it.relic) return 'It is one of a kind: no smith can reforge it.';
   if (it.r >= 6) return 'There is no better steel.';
   if (it.r >= forgeMax()) return `This forge can make nothing better than grade ${RARITY[forgeMax()]}. Improve the forge.`;
   if (reforgesDone() >= reforgeLimit()) return reforgeLimit() > 1 ? 'He has reforged two pieces since the last market day, and that is all even his shop can do.' : 'He has reforged one piece since the last market day, and it is slow work.';
@@ -1223,10 +1223,10 @@ function reforge(id) {
 function fitCost(it) { return Math.max(15, Math.round(ITEM_PRICE[it.r] * SLOT_INFO[it.slot].price * 0.3 / 5) * 5); }
 function fitBlock(it, k) {
   const F = FITS[k];
-  if (!F || F.weapon !== (it.slot === 'weapon')) return 'That is not work for this kind of piece.';
-  if (it.relic) return 'No smith living would put a hammer to it.';
+  if (!F || F.weapon !== (it.slot === 'weapon')) return 'That fitting does not go on this kind of piece.';
+  if (it.relic) return 'It is one of a kind: no smith can alter it.';
   if (it.fit) return 'It has been worked on already.';
-  if (G.smith.level < 1) return 'A village smith does not know the work. Improve the forge.';
+  if (G.smith.level < 1) return 'A village smith cannot do fittings. Improve the forge.';
   if (G.denarii < fitCost(it)) return `You are ${fitCost(it) - G.denarii} denarii short.`;
   return '';
 }
@@ -1239,7 +1239,7 @@ function fitItem(id, k) {
 // A fitting can be struck off again, for half what it cost to put on, and another put in its place.
 function stripCost(it) { return Math.max(10, Math.round(fitCost(it) / 2 / 5) * 5); }
 function stripBlock(it) {
-  if (!it.fit) return 'There is nothing on it to strip.';
+  if (!it.fit) return 'It has no fitting to remove.';
   if (G.denarii < stripCost(it)) return `You are ${stripCost(it) - G.denarii} denarii short.`;
   return '';
 }
@@ -1274,10 +1274,10 @@ function sellOutclassed() {
 }
 function itemEffect(it) {
   const z = itemStats(it);
-  const fitted = (it.fit && FITS[it.fit] ? ` ${FITS[it.fit].name}: ${FITS[it.fit].what}` : '') + (it.mw ? (it.slot === 'weapon' ? ` Master-wrought: ${MASTER_DMG} of that damage is the smith's best work.` : ' Master-wrought: a tenth more protection than its grade.') : '');
+  const fitted = (it.fit && FITS[it.fit] ? ` ${FITS[it.fit].name}: ${FITS[it.fit].what}` : '') + (it.mw ? (it.slot === 'weapon' ? ` Master-wrought: ${MASTER_DMG} of that damage is the smith's best work.` : ' Master-wrought: 10% more protection than its grade.') : '');
   if (it.slot === 'weapon') return `+${+z.dmg.toFixed(1)} damage on every blow. Only a ${CLASSES[it.cls].name} can use it.${fitted}`;
   const bits = [`Takes ${z.armor.toFixed(1)} damage off every blow`];
-  if (it.slot === 'head') bits.push(`stuns are ${pc(z.stunRes)} shorter`, `telling blows against him ${pc(z.critRes)} less likely`);
+  if (it.slot === 'head') bits.push(`stuns are ${pc(z.stunRes)} shorter`, `critical hits against him ${pc(z.critRes)} less likely`);
   if (it.slot === 'chest') bits.push('the heaviest protection of any piece');
   if (it.slot === 'legs') bits.push(`${pc(z.hamRes)} chance to shrug off a hamstring`, `moves ${pc(z.speed)} faster`);
   if (it.slot === 'arms') bits.push(`${pc(z.armRes)} chance to shrug off an arm wound`, `+${(z.block * 100).toFixed(1)}% block with a shield`);
@@ -1520,7 +1520,7 @@ function sponsorBlock() {
   const F = G.festival;
   if (!F || F.day < G.day) return 'There is no festival to sponsor.';
   if (F.sponsor) return 'Your name is on it already.';
-  if (F.day - G.day > 5) return 'The editor is not taking sponsors yet: come back when the heralds have cried it.';
+  if (F.day - G.day > 5) return 'It cannot be sponsored yet: come back in the last five days before the festival.';
   if (F.day === G.day && (G.bouts || []).some(b => b.done)) return 'The games have begun.';
   if (G.denarii < sponsorCost()) return `You are ${sponsorCost() - G.denarii} denarii short.`;
   return '';
@@ -1689,7 +1689,7 @@ function laurelWon(name, hid, gid) { (G.laurels = G.laurels || []).push({ day: G
 const TENDS = {
   surgeon: { name: 'The surgeon', what: 'He is stitched and bound: a further 30% of the health he has lost comes back.' },
   whet:    { name: 'The armourer', what: 'His blade is ground and his straps reset: 10% more damage in the next round.' },
-  wine:    { name: 'Wine and a word', what: 'You sit with him. His spirits rise by 30 and he sheds 30 fatigue.' },
+  wine:    { name: 'Wine and a word', what: 'You sit with him. His morale rises by 30 and his fatigue falls by 30.' },
 };
 function tendBlock() {
   const T = G.tourney;
@@ -1926,7 +1926,7 @@ function stakesBlock(b) {
   if (b.done) return 'It has been fought.';
   if (b.death) return 'It is to the death already.';
   if (b.saturn) return 'Nobody dies on Saturnalia.';
-  if (b.hunt || b.final || b.tourney || b.melee || b.novice || b.style || !b.houseId) return 'The editor will not hear of it for this bout.';
+  if (b.hunt || b.final || b.tourney || b.melee || b.novice || b.style || !b.houseId) return 'This bout cannot be made a fight to the death.';
   if (tier() < 1) return 'The village pits do not fight to the death.';
   return '';
 }

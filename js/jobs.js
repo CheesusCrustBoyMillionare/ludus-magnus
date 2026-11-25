@@ -119,7 +119,7 @@ const CONTRACTS = {
     name: 'An exhibition in the next town', patron: 'guild', tier: 1, days: [3, 4], size: 2, danger: 0.3, pay: 1.1, fame: 3, travel: true, glory: true,
     w: { str: 0.3, agi: 0.3, end: 0, skl: 0.4 }, cls: [], likes: ['showy', 'laureate', 'quick'], hates: ['nervous', 'lazy'],
     trait: null, events: ['crowd', 'rivals', 'dice', 'windfall'],
-    text: c => `A town on the road to ${c.land} has no school of its own and a fair coming. The Guild is selling it a day of games, and wants two of yours to be most of them.`,
+    text: c => `A town on the road to ${c.land} has a fair coming and no gladiator school of its own. The Guild is selling it a day of games, and wants two of your men as the main attraction.`,
     win: n => `${n} filled a wooden arena three days running. The Guild sold every seat twice, and your name went up the road with the carts.`,
     fail: n => `The crowd had seen better at a cock-fight, and said so. ${n} came home to a short purse and a long silence.`,
   },
@@ -127,7 +127,7 @@ const CONTRACTS = {
     name: 'Order at the quarry', patron: 'magistrate', tier: 1, days: [4, 6], size: 2, danger: 0.55, pay: 1.2,
     w: { str: 0.6, agi: 0, end: 0.4, skl: 0 }, cls: ['murmillo', 'hoplomachus'], likes: ['brute', 'ironhide', 'thickskin', 'steady'], hates: ['nervous', 'frail'],
     trait: null, anger: { temple: -2 }, events: ['bribe', 'wound', 'insult', 'homesick'],
-    text: () => 'The convicts at the town\'s quarry have killed an overseer and are sitting on the stone. The Magistrate wants it settled before the garrison hears of it, by two men who are not squeamish. The priests call it butcher\'s work.',
+    text: () => 'The convicts at the town\'s quarry have killed an overseer and are refusing to work. The Magistrate wants it settled before the garrison hears of it, by two men who are not squeamish. The priests call it butcher\'s work.',
     win: n => `${n} walked into the quarry at dawn and the stone was moving again by noon. Nobody asks how.`,
     fail: n => `The convicts had hammers and nothing to lose. ${n} came out of the quarry faster than they went in.`,
   },
@@ -167,7 +167,7 @@ const CONTRACTS = {
     name: 'Blood for a great man\'s pyre', patron: 'temple', tier: 1, days: [1, 2], size: 2, danger: 0.55, pay: 1.3, fame: 3, glory: true, scar: 'cut',
     w: { str: 0.3, agi: 0.2, end: 0, skl: 0.5 }, cls: ['thraex', 'murmillo', 'dimachaerus'], likes: ['showy', 'steady', 'blessed', 'duelist'], hates: ['nervous', 'embittered'],
     trait: 'blessed', events: ['crowd', 'insult', 'jobOmen'],
-    text: () => 'A man who was three times duumvir is to be burned at dusk, and his sons mean to do it in the old way: two pairs fighting beside the pyre, so that he does not go down with nothing. The priests want men who will give a death its due and not make a butcher\'s yard of it.',
+    text: () => 'A man who was three times chief magistrate of the town is to be cremated at dusk, and his sons want it done in the old way: two pairs of gladiators fighting beside the pyre in his honour. The priests want men who will fight with dignity, and not turn it into a slaughter.',
     win: n => `${n} fought by firelight in front of the whole town standing silent, and when it was done the eldest son put a coin in each man's hand himself.`,
     fail: n => `It was clumsy, and long, and the widow turned her face away. ${n} came home by the back streets.`,
   },
@@ -233,7 +233,7 @@ function aptitude(g, D, land) {
   if (land && g.origin === land) { mult += 0.15; why.push(`knows ${land}`); }
   if (g.traits.includes('travelled') && !(D.likes || []).includes('travelled')) { mult += 0.08; why.push('well-travelled'); }
   if (D.glory) { const f = Math.min(0.24, g.wins * 0.03); if (f > 0) { mult += f; why.push('a known face'); } }
-  if (g.morale < 40) why.push('but in low spirits');
+  if (g.morale < 40) why.push('but his morale is low');
   if (g.fatigue > 60) why.push('but tired');
   mult *= (0.85 + g.morale / 400) * (1 - Math.max(0, g.fatigue - 50) / 250);
   return { score: base * mult, why };
@@ -285,9 +285,9 @@ function makeContract(type, t) {
 // dangerous work only: three-tenths more, but the patron thinks the less of you for asking.
 const TERMS = {
   standard: { name: 'Standard', what: 'Paid in full when the work is done well.' },
-  advance: { name: 'An advance', what: 'A third of the pay now, a third when it is done, and the rest forgone. If it fails you keep what you had, and they think worse of you for it.' },
-  provision: { name: 'Provisioned', what: 'A fifth of the pay spent now on guides, mules and bribes: the chance of success is 8 points better.' },
-  hazard: { name: 'Hazard pay', what: 'Dangerous work only. Three-tenths more pay, half the favour, and one point of favour lost for asking.' },
+  advance: { name: 'An advance', what: 'You are paid a third now and a third when the work is done, and give up the last third. If the work fails you keep the advance, but they think worse of you for it.' },
+  provision: { name: 'Provisioned', what: '20% of the pay is spent now on guides, mules and bribes, and the chance of success is 8 points better.' },
+  hazard: { name: 'Hazard pay', what: 'Dangerous work only. 30% more pay, half the favour, and you lose one point of favour for asking.' },
 };
 function contractTerms(c, terms) {
   const D = CONTRACTS[c.type];
@@ -1063,7 +1063,7 @@ Object.assign(EVENTS, FIELD_EVENTS, {
       }) },
       { label: () => 'Let him send them his winnings after every games (free)', run: c => questMan(c, g => {
         questReward(g, 'provider', 'Found his daughter. Somebody eats by what he wins.');
-        return `It is arranged: a cart driver will carry his winnings to them after every games. ${g.name} now has someone depending on him, and fights more carefully and more sharply for it: +3% dodge, and telling blows 3% more often.`;
+        return `It is arranged: a cart driver will carry his winnings to them after every games. ${g.name} now has someone depending on him, and fights more carefully and more sharply for it: +3% dodge, and +3% chance of a critical hit.`;
       }) },
       { label: () => 'He has seen them. March on (morale -25)', run: c => questMan(c, g => {
         g.morale = clamp(g.morale - 25, 0, 100); addStory(g, 'Stood at his daughter\'s door once, and was marched away.'); endQuest(g, 'failed');

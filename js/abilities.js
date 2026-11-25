@@ -28,26 +28,26 @@ const STYLE_EDGE = 0.1;
 const ABILITIES = {
   murmillo: {
     str: [
-      { name: 'Shield bash', desc: 'Slams his shield into a foe: little hurt, but stunned and thrown back.', fx: { mult: 0.5, stun: 1.1, kb: 70 } },
+      { name: 'Shield bash', desc: 'Slams his shield into a foe: little damage, but the foe is stunned and thrown back.', fx: { mult: 0.5, stun: 1.1, kb: 70 } },
       { name: 'Overhand chop', desc: 'A blow from above with his whole weight in it.', fx: { mult: 1.75, kb: 50 } },
       { name: 'Break the line', desc: 'Drives into the press: strikes every foe close by, staggering them.', fx: { mult: 1.25, aoe: 28, stun: 0.6, kb: 60 } },
     ],
     agi: [
       { name: 'Shield rush', desc: 'Crosses the sand at a run and hits shield-first.', fx: { mult: 1.0, lunge: true, kb: 65, stun: 0.3 } },
-      { name: 'Sidestep', desc: 'For five seconds he is much harder to hit, and quicker to answer.', fx: { buff: { t: 5, dodge: 0.25, haste: 0.85 } } },
-      { name: 'Second wind', desc: 'Gets back a fifth of his health and shakes off bleeding and snares.', fx: { heal: 0.22, cleanse: true } },
+      { name: 'Sidestep', desc: 'For five seconds he is much harder to hit, and attacks faster.', fx: { buff: { t: 5, dodge: 0.25, haste: 0.85 } } },
+      { name: 'Second wind', desc: 'Recovers about a fifth of his health, and shakes off bleeding and nets.', fx: { heal: 0.22, cleanse: true } },
     ],
     skl: [
-      { name: 'Shield wall', desc: 'For six seconds he blocks far more and takes a quarter less.', fx: { buff: { t: 6, block: 0.3, dr: 0.25 } } },
-      { name: 'Counter-guard', desc: 'For six seconds he blocks more and hits a quarter harder.', fx: { buff: { t: 6, block: 0.2, dmg: 0.25 } } },
-      { name: 'Find the gap', desc: 'A thrust past shield and armour that leaves the foe open.', fx: { mult: 1.6, pierce: true, unblockable: true, expose: 4 } },
+      { name: 'Shield wall', desc: 'For six seconds he blocks far more and takes 25% less damage.', fx: { buff: { t: 6, block: 0.3, dr: 0.25 } } },
+      { name: 'Counter-guard', desc: 'For six seconds he blocks more and hits 25% harder.', fx: { buff: { t: 6, block: 0.2, dmg: 0.25 } } },
+      { name: 'Find the gap', desc: 'A thrust that ignores shield and armour, and leaves the foe exposed: for a while every blow on him lands harder.', fx: { mult: 1.6, pierce: true, unblockable: true, expose: 4 } },
     ],
   },
   thraex: {
     str: [
       { name: 'Hacking blow', desc: 'A heavy downward cut.', fx: { mult: 1.5, kb: 45 } },
-      { name: 'Sunder', desc: 'Cuts through armour and numbs the arm behind it: the foe hits a quarter softer for six seconds.', fx: { mult: 1.3, pierce: true, weak: { amt: 0.25, t: 6 } } },
-      { name: 'Executioner', desc: 'A killing stroke, far worse for a man already badly hurt.', fx: { mult: 1.9, exec: 1.5 } },
+      { name: 'Sunder', desc: 'Cuts through armour and numbs the arm behind it: the foe hits 25% softer for six seconds.', fx: { mult: 1.3, pierce: true, weak: { amt: 0.25, t: 6 } } },
+      { name: 'Executioner', desc: 'A killing stroke that hits far harder against a man who is already badly hurt.', fx: { mult: 1.9, exec: 1.5 } },
     ],
     agi: [
       { name: 'Quick cut', desc: 'Two fast cuts.', fx: { mult: 0.75, n: 2 } },
@@ -57,23 +57,23 @@ const ABILITIES = {
     skl: [
       { name: 'Hooking cut', desc: 'Reaches round shield and armour. Cannot be blocked, and the wound bleeds.', fx: { mult: 0.95, unblockable: true, pierce: true, bleed: true } },
       { name: 'Hamstring', desc: 'Cuts the leg: the foe is slowed and dodges half as well for the rest of the fight.', fx: { mult: 0.7, ham: true } },
-      { name: 'Open the vein', desc: 'Cannot be blocked, dodged or turned by armour, and bleeds twice over.', fx: { mult: 1.25, unblockable: true, nodge: true, pierce: true, bleed: 2 } },
+      { name: 'Open the vein', desc: 'Cannot be blocked or dodged, ignores armour, and causes double bleeding.', fx: { mult: 1.25, unblockable: true, nodge: true, pierce: true, bleed: 2 } },
     ],
   },
   retiarius: {
     str: [
       { name: 'Trident thrust', desc: 'All three points, driven home.', fx: { mult: 1.5, kb: 55 } },
-      { name: 'Pin', desc: 'Pins the foe where he stands: stunned for a second, armour no help.', fx: { mult: 1.1, pierce: true, stun: 1.0 } },
+      { name: 'Pin', desc: 'Pins the foe where he stands: stunned for a second, and his armour does not help.', fx: { mult: 1.1, pierce: true, stun: 1.0 } },
       { name: 'Gaff', desc: 'Hooks and tears: a heavy wound that bleeds and throws him back.', fx: { mult: 1.8, pierce: true, bleed: true, kb: 70 } },
     ],
     agi: [
       { name: 'Slip away', desc: 'Skips out of reach, and for five seconds is very hard to hit.', fx: { back: true, buff: { t: 5, dodge: 0.3 } } },
-      { name: 'Net sweep', desc: 'Swings the net low through every foe close by, tangling whom it catches.', fx: { mult: 0.3, aoe: 28, net: 2 } },
+      { name: 'Net sweep', desc: 'Swings the net low through every foe close by, tangling everyone it catches.', fx: { mult: 0.3, aoe: 28, net: 2 } },
       { name: 'Dance of the tide', desc: 'For seven seconds his blows come much faster, and he dodges more.', fx: { buff: { t: 7, haste: 0.7, dodge: 0.15 } } },
     ],
     skl: [
-      { name: 'Cast net', desc: 'Snares a foe for three and a half seconds: he can neither dodge nor block, and every blow hurts more.', fx: { net: 3.5 } },
-      { name: 'Tangle', desc: 'A snare that also fouls the sword arm: he hits a third softer.', fx: { net: 3, weak: { amt: 0.3, t: 5 } } },
+      { name: 'Cast net', desc: 'Nets a foe for three and a half seconds: he cannot dodge or block, and every blow hurts him more.', fx: { net: 3.5 } },
+      { name: 'Tangle', desc: 'A net that also tangles the sword arm: he hits 30% softer.', fx: { net: 3, weak: { amt: 0.3, t: 5 } } },
       { name: 'Drag down', desc: 'Nets him, hauls him off his feet, and strikes as he falls.', fx: { net: 3.5, mult: 1.4, stun: 0.8 } },
     ],
   },
@@ -90,15 +90,15 @@ const ABILITIES = {
     ],
     skl: [
       { name: 'Measured thrust', desc: 'Placed, not thrown: it cannot be blocked or dodged.', fx: { mult: 1.2, unblockable: true, nodge: true } },
-      { name: 'Set spear', desc: 'For six seconds he takes a fifth less and hits a fifth harder.', fx: { buff: { t: 6, dr: 0.2, dmg: 0.2 } } },
-      { name: 'Heart-seeker', desc: 'Always a telling blow, and armour does not turn it.', fx: { mult: 1.5, pierce: true, crit: true } },
+      { name: 'Set spear', desc: 'For six seconds he takes 20% less damage and hits 20% harder.', fx: { buff: { t: 6, dr: 0.2, dmg: 0.2 } } },
+      { name: 'Heart-seeker', desc: 'Always a critical hit, and it ignores armour.', fx: { mult: 1.5, pierce: true, crit: true } },
     ],
   },
   dimachaerus: {
     str: [
       { name: 'Twin cleave', desc: 'Both blades, one after the other.', fx: { mult: 0.98, n: 2 } },
       { name: 'Butcher\'s cross', desc: 'A crossing cut that opens a vein.', fx: { mult: 1.8, bleed: true } },
-      { name: 'Frenzy', desc: 'For seven seconds he hits a third harder and takes a little more.', fx: { buff: { t: 7, dmg: 0.35, dr: -0.15 } } },
+      { name: 'Frenzy', desc: 'For seven seconds he hits 35% harder, but takes 15% more damage.', fx: { buff: { t: 7, dmg: 0.35, dr: -0.15 } } },
     ],
     agi: [
       { name: 'Flurry', desc: 'Three cuts in the time of one.', fx: { mult: 0.72, n: 3 } },

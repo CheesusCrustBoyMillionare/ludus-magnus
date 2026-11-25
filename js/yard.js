@@ -1156,8 +1156,8 @@ function sceneWord(h) {
   if (h.fighter) { const g = typeof byId === 'function' ? byId(h.fighter) : null; return g ? g.name.toUpperCase() + '  -  CLICK TO OPEN HIS DOSSIER' : ''; }
   if (h.house) { const d = typeof houseDef === 'function' ? houseDef(h.house) : null; return d ? d.name.toUpperCase() + '  -  CLICK TO READ THIS HOUSE' : ''; }
   if (h.offer) return 'AN OFFER OF WORK  -  CLICK TO READ IT';
-  if (h.tavern) return h.tavern === 'dice' ? 'THE DICERS  -  CLICK TO THROW WITH THEM' : 'THE MAN WITH THE BOOK  -  CLICK TO LAY A STAKE';
-  if (h.school) return 'THE SCHOOL\'S OWN BUILDINGS  -  CLICK TO SEE TO THEM';
+  if (h.tavern) return h.tavern === 'dice' ? 'THE DICE PLAYERS  -  CLICK TO PLAY' : 'THE BOOKMAKER  -  CLICK TO PLACE A BET';
+  if (h.school) return 'THE SCHOOL\'S OWN BUILDINGS  -  CLICK TO IMPROVE THEM';
   return '';
 }
 function sceneOver(cv, T, tab) {

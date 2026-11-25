@@ -224,10 +224,10 @@
   function standing(B) {
     const up = t => B.fighters.filter(f => f.team === t && !f.down && !f.yielded);
     if (B.fighters.length <= 4) return B.fighters.map(f => nameOf(f) + (f.down ? ' is down' : f.yielded ? ' has yielded' : ' ' + Math.max(0, Math.ceil(f.hp)) + ' of ' + Math.round(f.maxHp))).join(', ');
-    const side = t => { const all = B.fighters.filter(f => f.team === t), on = up(t); return on.length + ' of ' + all.length + ' standing at ' + Math.round(100 * on.reduce((s, f) => s + Math.max(0, f.hp), 0) / Math.max(1, all.reduce((s, f) => s + f.maxHp, 0))) + ' in the hundred'; };
+    const side = t => { const all = B.fighters.filter(f => f.team === t), on = up(t); return on.length + ' of ' + all.length + ' standing at ' + Math.round(100 * on.reduce((s, f) => s + Math.max(0, f.hp), 0) / Math.max(1, all.reduce((s, f) => s + f.maxHp, 0))) + ' percent of their health'; };
     return 'Yours: ' + side(0) + '. Theirs: ' + side(1);
   }
-  const blowWords = (who, w) => (/^!?\d+$/.test(w) ? who + ' takes ' + w.replace('!', '') + (w[0] === '!' ? ', a telling blow' : '') : /^\+\d+$/.test(w) ? who + ' gains ' + w.slice(1) + ' health' : /^block \d+$/.test(w) ? who + ' blocks, and takes ' + w.slice(6) : w === 'miss' ? 'A blow at ' + who + ' misses' : w === 'dodge' ? who + ' dodges' : w === 'net misses' ? 'The net misses ' + who : who + ': ' + w.toLowerCase());
+  const blowWords = (who, w) => (/^!?\d+$/.test(w) ? who + ' takes ' + w.replace('!', '') + (w[0] === '!' ? ', a critical hit' : '') : /^\+\d+$/.test(w) ? who + ' gains ' + w.slice(1) + ' health' : /^block \d+$/.test(w) ? who + ' blocks, and takes ' + w.slice(6) : w === 'miss' ? 'A blow at ' + who + ' misses' : w === 'dodge' ? who + ' dodges' : w === 'net misses' ? 'The net misses ' + who : who + ': ' + w.toLowerCase());
   setInterval(() => {
     if (typeof fight === 'undefined' || !fight || !fight.B || !fight.B.log) { st.logB = null; return; }
     const B = fight.B, now = Date.now();
@@ -253,7 +253,7 @@
     let rows = []; try { rows = placeRows().slice(0, 4); } catch (e) { /* none known */ }
     const here = (() => { try { return landmarkHere(); } catch (e) { return ''; } })();
     return 'The column is in ' + wildRegion(F.x, F.y) + ', on ' + ground(F) + (here ? ', at ' + here : '') + '. ' + (TIER_WORD[t - 1] ? TIER_WORD[t - 1].charAt(0).toUpperCase() + TIER_WORD[t - 1].slice(1) + ' danger' : 'No danger') + '. '
-      + left + ' in the hundred of the day\'s march is left. The town gate is ' + way(WILD.TOWN.x, WILD.TOWN.y) + '. '
+      + left + ' percent of the day\'s march is left. The town gate is ' + way(WILD.TOWN.x, WILD.TOWN.y) + '. '
       + (rows.length ? 'Places known: ' + rows.map(r => r.name + ', ' + way(r.st.x, r.st.y)).join('; ') + '.' : 'No place is known yet.');
   }
   doc.addEventListener('lookabout', () => { live.textContent = ''; say(whereabouts()); });

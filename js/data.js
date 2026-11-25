@@ -59,35 +59,35 @@ const TRAITS = {
   quick:       { name: 'Quick hands', good: true,  desc: 'Attacks 10% faster.' },
   ironhide:    { name: 'Ironhide',    good: true,  desc: '+15% health.' },
   showy:       { name: 'Showman',     good: true,  desc: 'Every blow thrills the crowd more.' },
-  keen:        { name: 'Keen eye',    good: true,  desc: '+6% chance of a telling blow.' },
+  keen:        { name: 'Keen eye',    good: true,  desc: '+6% chance of a critical hit.' },
   disciplined: { name: 'Disciplined', good: true,  desc: 'Trains 20% faster.' },
   tireless:    { name: 'Tireless',    good: true,  desc: 'Training tires him 30% less.' },
   bloodthirsty:{ name: 'Bloodthirsty',good: true,  desc: '+15% damage against wounded foes.' },
   lionheart:   { name: 'Lionheart',   good: true,  desc: '+20% damage when badly hurt.' },
   lazy:        { name: 'Lazy',        good: false, desc: 'Trains 20% slower.' },
-  frail:       { name: 'Frail',       good: false, desc: 'Injuries take half again as long to heal.' },
+  frail:       { name: 'Frail',       good: false, desc: 'Injuries take 50% longer to heal.' },
   nervous:     { name: 'Nervous',     good: false, desc: '-5% accuracy before a crowd.' },
   guarded:     { name: 'Guarded',     good: true,  desc: '+5% to dodge and block.' },
-  ironlungs:   { name: 'Iron lungs',  good: true,  desc: 'His charge fills a quarter faster, so his abilities come round sooner.' },
+  ironlungs:   { name: 'Iron lungs',  good: true,  desc: 'His charge fills 25% faster, so he uses abilities more often.' },
   thickskin:   { name: 'Thick skin',  good: true,  desc: 'Shrugs 2 damage off every blow.' },
-  killer:      { name: 'Killer instinct', good: true, desc: 'Telling blows hit far harder.' },
+  killer:      { name: 'Killer instinct', good: true, desc: 'His critical hits do far more damage.' },
   steady:      { name: 'Steady',      good: true,  desc: 'Morale never falls below half.' },
   duelist:     { name: 'Duelist',     good: true,  desc: '+10% damage and +4% dodge when he fights alone.' },
   shieldmate:  { name: 'Shoulder to shoulder', good: true, desc: '+8% damage, and takes 8% less, when he fights beside others.' },
   opener:      { name: 'First to strike', good: true, desc: 'Begins every fight with his charge half full.' },
   finisher:    { name: 'Finisher',    good: true,  desc: '+25% damage against a foe below a third of his health.' },
   fleet:       { name: 'Fleet of foot', good: true, desc: 'Moves 15% faster and dodges 3% more.' },
-  ironwill:    { name: 'Iron will',   good: true,  desc: 'Stuns are 30% shorter, and nets hold him a third less long.' },
+  ironwill:    { name: 'Iron will',   good: true,  desc: 'Stuns are 30% shorter, and nets hold him for a third less time.' },
   mender:      { name: 'Quick to mend', good: true, desc: 'A day of rest restores 30% more health and sheds 20% more fatigue.' },
   quickstudy:  { name: 'Quick study', good: true,  desc: 'Every use of an ability counts twice towards mastering it.' },
   teacher:     { name: 'Born teacher', good: true, desc: 'When he teaches, his pupils learn a further 15% faster.' },
-  darling:     { name: 'The crowd\'s darling', good: true, desc: 'A bout he helps to win earns a fifth more fame.' },
+  darling:     { name: 'The crowd\'s darling', good: true, desc: 'A bout he helps to win earns 20% more fame.' },
   // one for each way of fighting: offered only to a man who fights that way, from Veteranus up
   testudo:     { name: 'Tortoise',    good: true, special: true, cls: 'murmillo', desc: 'The Murmillo\'s craft: +8% block, and armour takes a further 1 off every blow.' },
   undershield: { name: 'Under the shield', good: true, special: true, cls: 'thraex', desc: 'The Thraex\'s craft: his blows are blocked a third less often.' },
   longnet:     { name: 'Weighted net', good: true, special: true, cls: 'retiarius', desc: 'The Retiarius\'s craft: his nets hold a quarter longer.' },
   longreach:   { name: 'The long spear', good: true, special: true, cls: 'hoplomachus', desc: 'The Hoplomachus\'s craft: he strikes from further off, and 6% harder.' },
-  twinfury:    { name: 'Twin fury',   good: true, special: true, cls: 'dimachaerus', desc: 'The Dimachaerus\'s craft: attacks 8% faster, and +5% chance of a telling blow.' },
+  twinfury:    { name: 'Twin fury',   good: true, special: true, cls: 'dimachaerus', desc: 'The Dimachaerus\'s craft: attacks 8% faster, and +5% chance of a critical hit.' },
   laureate:    { name: 'Laureate',    good: true,  special: true, desc: 'A tournament champion. The crowd roars at everything he does.' },
   heirblood:   { name: 'Blood of the house', good: true, special: true, desc: '+8% health. The family has always fed its fighters well.' },
   embittered:  { name: 'Embittered',  good: false, special: true, desc: 'Was promised his freedom and denied it. Trains 30% slower and hits without heart.' },
@@ -102,10 +102,10 @@ const TRAITS = {
   atpeace:     { name: 'At peace',     good: true, special: true, desc: 'The thing that ate at him is settled. Morale never falls below 60, and he will never desert.' },
   bloodoath:   { name: 'Blood-debt paid', good: true, special: true, desc: 'He has killed the men he lived to kill. +8% damage.' },
   twoshares:   { name: 'Fights for two', good: true, special: true, desc: 'Wears a dead man\'s chain on his sword wrist. +4% damage and +3% accuracy.' },
-  provider:    { name: 'Somebody waiting', good: true, special: true, desc: 'A child eats by what he wins. +3% to dodge, and telling blows come 3% more often.' },
+  provider:    { name: 'Somebody waiting', good: true, special: true, desc: 'A child eats by what he wins. +3% dodge, and +3% chance of a critical hit.' },
   oldschool:   { name: 'Old school',   good: true, special: true, desc: 'Taught by a master of the old style. +5% accuracy.' },
   // earned out in the province
-  gravewise:   { name: 'Grave-wise',   good: true, special: true, desc: 'Knows where the dead kept their silver. While he is with the school, ruins and tombs give up half as much again.' },
+  gravewise:   { name: 'Grave-wise',   good: true, special: true, desc: 'Knows where the dead kept their silver. While he is with the school, ruins and tombs yield 50% more.' },
   reaver:      { name: 'Outlaw-hunter', good: true, special: true, desc: 'Has fought where there is no sand and no rules. +10% damage in any fight outside the arena.' },
   eaglesworn:  { name: 'Eagle-sworn',  good: true, special: true, desc: 'Trains under the eagle of the Seventeenth. +5% damage, and trains 5% faster.' },
 };
@@ -143,11 +143,11 @@ const SMITH_ODDS = [
 const FACILITIES = {
   barracks:  { name: 'Barracks',        desc: 'Cells for your fighters.', effect: l => `Room for ${3 + 2 * l} gladiators` },
   ground:    { name: 'Training ground', desc: 'Posts, weights and a doctore to shout at them.', effect: l => l ? `Every man trains ${20 * l}% faster` : 'Bare sand: no help to training' },
-  infirmary: { name: 'Infirmary',       desc: 'A medicus, clean linen, sour wine.', effect: l => l ? `A day's rest restores ${22 + 8 * l}% of health, wounds mend sooner, the fallen are ${4 * l}% likelier to live` : `A day's rest restores 22% of health` },
+  infirmary: { name: 'Infirmary',       desc: 'A medicus, clean linen, sour wine.', effect: l => l ? `A day's rest restores ${22 + 8 * l}% of health, wounds mend sooner, the fallen are ${4 * l}% more likely to live` : `A day's rest restores 22% of health` },
   baths:     { name: 'Baths',           desc: 'Hot water does what the whip cannot.', effect: l => `A day's rest sheds ${30 + 8 * l} fatigue and lifts morale by ${2 + 2 * l}` },
-  shrine:    { name: 'Shrine', desc: 'An altar of your own in the Temple precinct, for the gods of the house, and for Nemesis.', effect: l => l ? `Morale settles ${3 * l} higher, and the fallen are ${2 * l}% likelier to live` : 'No shrine: the men pray where they can' },
+  shrine:    { name: 'Shrine', desc: 'An altar of your own in the Temple precinct, for the gods of the house, and for Nemesis.', effect: l => l ? `Morale settles ${3 * l} higher, and the fallen are ${2 * l}% more likely to live` : 'No shrine: the men pray where they can' },
   stores:    { name: 'Granary & garden', desc: 'Dry storage, a kitchen garden, a pig.', effect: l => l ? `Food costs ${10 * l}% less` : 'Everything is bought at the gate, at the gate\'s price' },
-  eagle:     { name: 'Eagle', desc: 'A hunting eagle, kept in a mews at the stables and flown over the column on the march.', effect: l => l ? `In the province you see ${20 * l}% further, and are likelier by ${15 * l} in the hundred to learn how strong an enemy is before you fight` : 'No bird: the school sees what a man on foot sees' },
+  eagle:     { name: 'Eagle', desc: 'A hunting eagle, kept in a mews at the stables and flown over the column on the march.', effect: l => l ? `In the province you see ${20 * l}% further, and are ${15 * l}% more likely to learn how strong an enemy is before you fight` : 'No bird: the school sees what a man on foot sees' },
   stables:   { name: 'Stables & carts', desc: 'Mules, a wagon, and a boy who knows the roads.', effect: l => l ? `In the province the column goes ${12 * l}% further in a day` : 'The school marches on its own feet' },
 };
 // How hard the men are worked. rate: how fast they learn. tire: what a day's drill costs them. morale: where spirits settle.
@@ -198,7 +198,7 @@ const RANKS = [
 
 const STAFF_ROLES = {
   doctore: { name: 'Doctore', desc: s => `Training +${15 * s}%. Fighters may spar.` },
-  medicus: { name: 'Medicus', desc: s => `Injuries often mend a day sooner (${15 * s}% each day). The fallen are ${3 * s}% likelier to live.` },
+  medicus: { name: 'Medicus', desc: s => `Injuries often mend a day sooner (${15 * s}% each day). The fallen are ${3 * s}% more likely to live.` },
   cook:    { name: 'Cook',    desc: s => `Morale settles ${5 * s} higher. A day's rest restores ${4 * s}% more health.` },
   scout:   { name: 'Scout',   desc: s => `Reveals a recruit's talent before you buy${s >= 2 ? ', finds an extra recruit' : ''}${s >= 3 ? ', haggles prices down 10%' : ''}.` },
   unctor:  { name: 'Unctor',  desc: s => `A day's rest sheds ${5 * s} more fatigue. Training tires ${6 * s}% less.` },
@@ -210,7 +210,7 @@ const STAFF_NAMES = ['Sabinus', 'Rufus', 'Felix', 'Priscus', 'Macer', 'Celer', '
 
 const PATRONS = {
   magistrate: {
-    name: 'The Magistrate', desc: 'He stages the games. His favour fattens every purse.',
+    name: 'The Magistrate', desc: 'He stages the games. His favour makes every purse bigger.',
     perk: f => `Purses +${Math.round(f * 0.3)}%${f >= 60 ? ', and an extra bout at every games' : ' (an extra bout at 60 favour)'}`,
   },
   guild: {
@@ -251,11 +251,11 @@ const BEASTS = {
 
 const FESTIVAL_EVERY = 15;
 const FESTIVALS = {
-  hunt:    { name: 'The Beast Hunt', blurb: 'Animals from across the empire are loosed on the sand. Beasts give no quarter and take none, and the crowd adores a man who kills one.' },
+  hunt:    { name: 'The Beast Hunt', blurb: 'Animals from across the empire are loosed on the sand. Beasts never yield and never spare a man, and the crowd adores a man who kills one.' },
   melee:   { name: 'The Great Melee', blurb: 'A battle restaged with live steel: four or five a side against a single rival house.' },
   funeral: { name: 'Funeral Games', blurb: 'A great man is dead and his heirs honour him in blood. Every bout is to the death, and every purse is far richer.' },
   tourney: { name: 'The Laurel Tournament', blurb: 'Eight fighters, three rounds, one day. The last man standing takes the laurel.' },
-  triumph: { name: 'A Triumph', blurb: 'A general is home from the frontier, and his prisoners are given swords. The captives fight to the death for rich purses, and the dealer sells what is left of them a fifth cheaper that day.' },
+  triumph: { name: 'A Triumph', blurb: 'A general is home from the frontier, and his prisoners are given swords. The captives fight to the death for rich purses, and the dealer sells the survivors 20% cheaper that day.' },
   saturnalia: { name: 'Saturnalia', blurb: 'The world is turned upside down. No bout is to the death, every bout earns far more fame, the bookmakers pay a quarter more, and the men are given the run of the wine.' },
   mars: { name: 'The Games of Mars', blurb: 'Three rich duels, each open to one way of fighting only: one for strength, one for agility, one for skill. A school with only one kind of man will sit most of it out.' },
 };
