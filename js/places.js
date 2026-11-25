@@ -43,13 +43,17 @@ function drawPlace(cv, T, tab) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
 
+  // Everybody drawn in the place is written down as he is drawn (where his feet are, which way he faces, what he is),
+  // so that whoever stands nearer than the master of the house can be drawn again over him (see placeGuest).
+  const folk = [], person = (x, y, d, o) => { folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); };
   const E = {
-    T, R, sky, wx, night: sky.night, games: isGamesDay(),
+    T, R, sky, wx, night: sky.night, games: isGamesDay(), folk,
+    P0: (x, y, d, o) => yardPerson(ctx, Math.round(x), Math.round(y), d, o),      // one who is not written down: the master himself
     ctx: () => ctx,
     // a person on the street, feet at x, y; d is 1 facing right, -1 left
-    P: (x, y, d, o) => yardPerson(ctx, Math.round(x), Math.round(y), d, Object.assign({ tunic: '#8a4a3a' }, o)),
+    P: (x, y, d, o) => person(Math.round(x), Math.round(y), d, Object.assign({ tunic: '#8a4a3a' }, o)),
     // someone walking the length of the picture and coming round again
-    walker: (i, y, speed, o) => { const x = (((i * 137 + T * speed) % 660) + 660) % 660 - 35, lap = Math.floor((i * 137 + T * speed) / 660), k = Math.abs(i * 5 + lap * 3) % 8, carry = (o && o.item) ? {} : k === 1 ? { item: 'basket' } : k === 3 ? { item: 'jar' } : k === 5 ? { item: 'sack' } : {}; yardPerson(ctx, Math.round(x), y, speed > 0 ? 1 : -1, Object.assign({ tunic: '#8a4a3a', moving: true, walk: T * 9 + i }, o, carry)); },      // some of them are carrying something home, and not the same thing each time they come by
+    walker: (i, y, speed, o) => { const x = (((i * 137 + T * speed) % 660) + 660) % 660 - 35, lap = Math.floor((i * 137 + T * speed) / 660), k = Math.abs(i * 5 + lap * 3) % 8, carry = (o && o.item) ? {} : k === 1 ? { item: 'basket' } : k === 3 ? { item: 'jar' } : k === 5 ? { item: 'sack' } : {}; person(Math.round(x), y, speed > 0 ? 1 : -1, Object.assign({ tunic: '#8a4a3a', moving: true, walk: T * 9 + i }, o, carry)); },      // some of them are carrying something home, and not the same thing each time they come by
     sign: (x, y, text, gold) => late.push(() => {
       ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
       const w = Math.ceil(ctx.measureText(text).width) + 8;
@@ -107,7 +111,11 @@ function drawPlace(cv, T, tab) {
     for (const [cx, ch] of [[18, 34], [44, 26], [556, 30], [578, 38], [300, 22]]) E.cypress(cx, 122, ch);
   }
   scene.draw(E);
-  placeGuest(E, tab);                           // and the master of the house, if he has come in
+  // and the master of the house, if he has come in. He is drawn where he stands in the depth of the picture: over
+  // whoever is further off, under whoever is nearer; and after the dog, the children and the pigeons that go along the
+  // foot of it only if he is nearer than they are.
+  const guest = placeGuest(E, tab), guestFront = !!guest && guest.y >= 180;
+  if (guest && !guestFront) guest.draw();
   if (!scene.indoor && sky.night < 0.6 && wx.rain < 0.4) {      // a dog with business of its own goes through, now and then
     const cyc = ((T + tab.length * 17) % 61) / 14;
     if (cyc < 1) { const d = tab.length % 2 ? 1 : -1, dx = Math.round(d > 0 ? -20 + cyc * 640 : 610 - cyc * 640), dy = 184, st = Math.sin(T * 14) > 0 ? 1 : 0, c = ['#8a6a4a', '#c9b48a', '#3a322c'][tab.length % 3], F = (px, py, w, hh, col) => R(d > 0 ? dx + px : dx - px - w, dy + py, w, hh, col);
@@ -126,6 +134,8 @@ function drawPlace(cv, T, tab) {
     const up = ((T + tab.length * 17) % 61) / 14, fl = up > 0.05 && up < 0.5 ? (up - 0.05) / 0.45 : 0;      // PASS 35: they go up together when the dog comes through, wheel, and settle again
     for (let i = 0; i < 6; i++) { const px = 60 + ((i * 163 + tab.length * 37) % 470), py = 176 + (i % 2) * 6, peck = Math.sin(T * 5 + i * 1.7) > 0.5 ? 1 : 0; if (fl > 0) { const a = Math.sin(fl * Math.PI), fx = px + Math.sin(fl * 6 + i) * 40 * a, fy = py - a * (70 + i * 6), wg = Math.sin(T * 20 + i) > 0 ? 1 : 0; R(fx, fy - 1, 3, 2, i % 2 ? '#8f97a0' : '#c9d1d9'); R(fx - 2, fy - 1 - wg, 2, 1, '#6f7780'); R(fx + 3, fy - 1 - wg, 2, 1, '#6f7780'); } else { R(px, py - 2, 3, 2, i % 2 ? '#8f97a0' : '#c9d1d9'); R(px + 2, py - 3 + peck, 1, 1, '#6f7780'); R(px, py, 1, 1, '#c98a4a'); R(px - 1, py, 5, 1, 'rgba(0,0,0,.14)'); } }
   }
+
+  if (guestFront) guest.draw();
 
   // the light of the hour: full out of doors, a little of it under a roof
   const tint = scene.indoor ? mixHex('#ffffff', sky.tint, 0.35) : sky.tint;
@@ -209,7 +219,7 @@ function sceneWalk(tab, x, y) {
 // His footfalls, while he is walking where he was sent in the picture.
 function guestSteps(Gs, dt) { Gs.stepT = (Gs.stepT || 0) - dt; if (Gs.stepT <= 0) { Gs.stepT = 0.3; if (typeof SFX !== 'undefined') SFX.ui('step'); } }
 function placeGuest(E, tab) {
-  if (typeof vil === 'undefined' || vil.inside !== tab || !GUEST[tab] || typeof ui === 'undefined') return;
+  if (typeof vil === 'undefined' || vil.inside !== tab || !GUEST[tab] || typeof ui === 'undefined') return null;
   const { R, T } = E, o = GUEST[tab](), Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }), pt = o.point;
   if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = o.door; Gs.y = o.y; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; Gs.goal = null; Gs.sel = null; }      // just in: he starts at the door
   if (Gs.y === undefined) Gs.y = o.y;
@@ -222,9 +232,10 @@ function placeGuest(E, tab) {
   if (moving) { const step = Math.min(gap, (lv ? lv.pace : 62) * dt); Gs.x += gx / gap * step; Gs.y += gy / gap * step; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, dt); }
   else if (!goal) Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
   const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
+  return { x: X, y: Y, draw() {
   if (goal && moving) { E.ctx().globalAlpha = 0.45 + 0.35 * Math.sin(T * 6); R(goal.x - 4, goal.y - 1, 9, 2, '#f5d584'); R(goal.x - 2, goal.y - 2, 5, 4, '#f5d584'); E.ctx().globalAlpha = 1; }      // where he has been sent, marked on the floor
   if (pt && pt.frame && !lv) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed
-  E.P(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
+  E.P0(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
   R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a');                                                   // the purple stripe, and the laurel
   R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
   if (!moving && pt && !lv && !goal) {                                                              // his arm up, and his stick to reach what his arm cannot: gold at the tip
@@ -232,6 +243,9 @@ function placeGuest(E, tab) {
     for (let q = 0; q <= reach; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > reach - 3 ? '#e3b48f' : '#d9a57c');
     const far = Math.max(reach + 2, Math.min(n - 16, reach + 30)); for (let q = reach + 1; q <= far; q++) R(Math.round(sx + ax / n * q), Math.round(sy + ay / n * q), 1, 1, q > far - 2 ? '#e8b545' : '#7a5a2a');
   }
+  // whoever stands nearer than he does, and across him, is drawn again over him
+  for (const [px, py, pd, po] of E.folk) if (py > Y && py - Y < 40 && Math.abs(px - X) < 20) E.P0(px, py, pd, po);
+  } };
 }
 const PLACE_SCENES = {
   // ---- the slave market: stalls, and the block with today's men on it ----
