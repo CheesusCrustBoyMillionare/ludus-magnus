@@ -936,12 +936,15 @@ function drawYard(cv, T) {
     } });
   });
   if (typeof vil !== 'undefined' && vil.inside === 'ludus') {      // the master, in at the street gate: over to the man whose dossier is open, or else by the gate with his thumbs in his belt
-    const Gs = yardGuest; if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = 537; Gs.y = GY + 8; Gs.d = -1; Gs.t = T; Gs.walk = 0; }
+    const Gs = yardGuest; if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = 537; Gs.y = GY + 8; Gs.d = -1; Gs.t = T; Gs.walk = 0; Gs.goal = null; Gs.sel = null; }
+    { const sel = (ui.school ? 's' : 'm') + ui.sel; if (Gs.sel !== sel) { if (Gs.sel !== null) Gs.goal = null; Gs.sel = sel; } }      // another man's dossier opened: he leaves where he was sent (see sceneWalk, places.js) and goes over to him
     const gdt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
     const lv = vil.leaving && vil.leaving.key === 'ludus' ? vil.leaving : null;      // sent somewhere else: back to the street gate at a good pace, and out (see village.js)
-    const who = yardSel && yardSel.id === ui.sel && !ui.school && !lv ? yardSel : null, tx = lv ? 537 : who ? who.x + (who.x > 300 ? 17 : -17) : 492, ty = lv ? GY + 8 : who ? clamp(who.y + 3, GY + 6, YARD.H - 6) : GY + 12, gx = tx - Gs.x, gy = ty - Gs.y, far = Math.hypot(gx, gy), moving = far > 1.2;
+    const goal = lv ? null : Gs.goal || null;                                    // sent to a spot in the yard by a click on it: he goes there, and waits
+    const who = yardSel && yardSel.id === ui.sel && !ui.school && !lv && !goal ? yardSel : null, tx = lv ? 537 : goal ? goal.x : who ? who.x + (who.x > 300 ? 17 : -17) : 492, ty = lv ? GY + 8 : goal ? goal.y : who ? clamp(who.y + 3, GY + 6, YARD.H - 6) : GY + 12, gx = tx - Gs.x, gy = ty - Gs.y, far = Math.hypot(gx, gy), moving = far > 1.2;
     if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 58 * LEAVE_PACE; lv.need = far / lv.pace; } if (!moving) lv.out = true; }
-    if (moving) { const st = Math.min(far, (lv ? lv.pace : 58) * gdt); Gs.x += gx / far * st; Gs.y += gy / far * st; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += gdt * 11 * (lv ? LEAVE_PACE : 1); } else Gs.d = who ? (who.x > Gs.x ? 1 : -1) : -1;
+    if (moving) { const st = Math.min(far, (lv ? lv.pace : 58) * gdt); Gs.x += gx / far * st; Gs.y += gy / far * st; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += gdt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, gdt); } else if (!goal) Gs.d = who ? (who.x > Gs.x ? 1 : -1) : -1;
+    if (goal && moving) things.push({ y: goal.y - 0.5, draw: () => { ctx.globalAlpha = 0.45 + 0.35 * Math.sin(T * 6); R(goal.x - 4, goal.y - 1, 9, 2, '#f5d584'); R(goal.x - 2, goal.y - 2, 5, 4, '#f5d584'); ctx.globalAlpha = 1; } });      // where he has been sent, marked on the sand
     const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
     things.push({ y: Y, draw: () => {
       yardPerson(ctx, X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
@@ -1026,9 +1029,10 @@ function startYard() {
   if (!yardRaf) yardRaf = requestAnimationFrame(yardFrame);
 }
 // What was clicked: a fighter (nearest the front wins) or a building.
+// Where on the picture a click fell, on its own 590 by 190 grid.
+function scenePoint(cv, e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * YARD.W, y: (e.clientY - r.top) / r.height * YARD.H }; }
 function yardPick(cv, e) {
-  const r = cv.getBoundingClientRect();
-  const x = (e.clientX - r.left) / r.width * YARD.W, y = (e.clientY - r.top) / r.height * YARD.H;
+  const { x, y } = scenePoint(cv, e);
   const hits = yardHits.filter(h => x >= h.x0 && x <= h.x1 && y >= h.y0 && y <= h.y1);
   return hits.filter(h => h.fighter).sort((a, b) => b.y1 - a.y1)[0] || hits.filter(h => !h.low)[0] || hits[0] || null;
 }

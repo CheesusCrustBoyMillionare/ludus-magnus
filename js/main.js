@@ -561,7 +561,7 @@ function helpModal() {
       <div class="hsec"><h3>On a fighter\'s card</h3><p><span class="chip red">Injured 2d</span> out until healed &nbsp; <span class="chip red">Exhausted</span> must rest &nbsp; <span class="chip gold">Perk to choose</span> a rank gained &nbsp; <span class="chip gold">Away</span> on a contract</p></div>
       <div class="hsec"><h3>On the province map</h3><p>Skulls beside a place: how dangerous it is, one to five. A gold name: a place you have marked, or that someone has asked to be taken to.</p></div>`,
     keys: () => keys('Everywhere', [['Tab', 'to each button in turn; Enter or Space presses it'], ['H', 'this book'], [typeof escFree === 'function' && !escFree() ? 'Esc' : 'Esc', typeof escFree === 'function' && !escFree() ? 'leave full screen (the browser keeps this key)' : 'close a window'], ['Enter', 'go on from a notice'], ['1 to 3', 'answer a matter that wants a choice']])
-      + keys('At the ludus and in town', [['W A S D', 'walk the lanista about the town'], ['E', 'end the day'], ['G', 'run the days to the next games (to market day, while the arena is shut)'], ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand']])
+      + keys('At the ludus and in town', [['W A S D', 'walk the lanista about the town'], ['Click the picture', 'inside a building, walk to that spot in it'], ['E', 'end the day'], ['G', 'run the days to the next games (to market day, while the arena is shut)'], ['Up, Down', 'through the list on screen'], ['Left, Right', 'through the pages of a dossier'], ['1 to 5', 'the chosen fighter\'s work: rest, strength, agility, skill, spar'], ['B', 'buy at the market or the smith; pick the best men for a bout or a contract'], ['Enter', 'to the sand']])
       + keys('In a fight', [['1 to 4', 'choose the ability'], ['A', 'let him choose this once'], ['Space', 'pause'], ['.', 'step a tenth of a second'], ['[ and ]', 'slower and faster'], ['L', 'the log of the fight'], ['C, twice', 'throw in the cloth'], ['click the sand', 'cut short an entrance, an announcement, a death or the ending']])
       + keys('In the province', [['W A S D', 'march the column'], ['click', 'march to that place'], ['E', 'make camp'], ['M', 'the whole map'], ['R', 'set out for home']]),
   };
@@ -2582,7 +2582,8 @@ const ACTIONS = {
   village(v, w, el, e) { const k = villagePick(el, e); if (k) villageWalkTo(k); },
   yard(v, w, el, e) {                       // click a fighter to open his dossier, a building to go to its screen
     const h = typeof yardPick === 'function' ? yardPick(el, e) : null;
-    if (!h) return;
+    // nothing there to click, or only the open ground of the yard: you walk to the spot, if you are in the place
+    if (!h || h.low) { const p = typeof scenePoint === 'function' ? scenePoint(el, e) : null; if (p && typeof sceneWalk === 'function' && sceneWalk(ui.tab, p.x, p.y)) { SFX.ui('tick'); return; } if (!h) return; }
     if (h.house) { ui.hsel = h.house; ui.dealArm = null; SFX.ui('scroll'); render(); return; }      // a shield on the tavern wall: that house is the one read
     if (h.tavern) { ACTIONS[h.tavern === 'dice' ? 'tdice' : 'tbook'](); return; }                    // the dicers' corner, and the man with the book
     if (h.offer) { ui.csel = h.offer; SFX.ui('scroll'); render(); const row = document.querySelector('#view .lrow.sel'); if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' }); return; }      // a tablet on the board of work: that offer is the one read

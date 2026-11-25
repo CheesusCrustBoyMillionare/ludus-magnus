@@ -191,21 +191,43 @@ const GUEST = {
   facilities: () => ({ door: 20, y: 176, wait: 300, point: null }),
   chronicle: () => ({ door: 20, y: 162, wait: 300, point: null }),
 };
+// How far up the picture he may walk: no further back than the line he keeps, or a little way off the foot of the wall.
+const guestTop = (tab, o) => Math.min(o.y, ((PLACE_SCENES[tab] && PLACE_SCENES[tab].floor) || 124) + 22), GUEST_FOOT = 186;
+// A click on the picture of the place he is in, where nothing in it was clicked: he walks to that spot (Gs.goal), and
+// stays there until he is sent somewhere else in it, something is chosen in the list for him to point at, or he leaves.
+// Called back while on his way to the door, he does not go. True if there was anybody there to send.
+function sceneWalk(tab, x, y) {
+  if (typeof vil === 'undefined' || vil.inside !== tab || typeof ui === 'undefined') return false;
+  let Gs, goal;
+  if (tab === 'ludus') { Gs = yardGuest; goal = { x: clamp(x, 12, 578), y: clamp(y, YARD.GY + 6, YARD.H - 6) }; }
+  else { const o = GUEST[tab] && GUEST[tab](); if (!o) return false; Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }); goal = { x: clamp(x, 12, 578), y: clamp(y, guestTop(tab, o), GUEST_FOOT) }; }
+  if (vil.leaving && vil.leaving.key === tab) { vil.path = null; vil.then = null; }
+  Gs.goal = goal;
+  if (ui.still) { Gs.x = goal.x; Gs.y = goal.y; const cv = document.getElementById('yard'); if (cv) cv._drawnW = 0; }      // pictures held still: he is simply there
+  return true;
+}
+// His footfalls, while he is walking where he was sent in the picture.
+function guestSteps(Gs, dt) { Gs.stepT = (Gs.stepT || 0) - dt; if (Gs.stepT <= 0) { Gs.stepT = 0.3; if (typeof SFX !== 'undefined') SFX.ui('step'); } }
 function placeGuest(E, tab) {
   if (typeof vil === 'undefined' || vil.inside !== tab || !GUEST[tab] || typeof ui === 'undefined') return;
   const { R, T } = E, o = GUEST[tab](), Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }), pt = o.point;
-  if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = o.door; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; }      // just in: he starts at the door
+  if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = o.door; Gs.y = o.y; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; Gs.goal = null; Gs.sel = null; }      // just in: he starts at the door
+  if (Gs.y === undefined) Gs.y = o.y;
+  const sel = pt ? pt.x + ':' + pt.y : ''; if (Gs.sel !== sel) { if (Gs.sel !== null) Gs.goal = null; Gs.sel = sel; }      // something new chosen in the list: he leaves where he was sent and goes to it
   const dt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
   const lv = vil.leaving && vil.leaving.key === tab ? vil.leaving : null;      // sent elsewhere: he makes for the door
-  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = lv ? o.door : pt ? pt.x + side * 13 : o.wait, gap = tx - Gs.x, moving = Math.abs(gap) > 1;
-  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 62 * LEAVE_PACE; lv.need = Math.abs(gap) / lv.pace; } if (!moving) lv.out = true; }      // half as fast again as he walks about the place, and the map waits for him
-  if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), (lv ? lv.pace : 62) * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); } else Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
-  const X = Math.round(Gs.x), Y = o.y, d = Gs.d;
+  const goal = lv ? null : Gs.goal || null;                                    // sent to a spot in the picture: he goes there
+  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = lv ? o.door : goal ? goal.x : pt ? pt.x + side * 13 : o.wait, ty = goal ? goal.y : o.y, gx = tx - Gs.x, gy = ty - Gs.y, gap = Math.hypot(gx, gy), moving = gap > 1;
+  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 62 * LEAVE_PACE; lv.need = gap / lv.pace; } if (!moving) lv.out = true; }      // half as fast again as he walks about the place, and the map waits for him
+  if (moving) { const step = Math.min(gap, (lv ? lv.pace : 62) * dt); Gs.x += gx / gap * step; Gs.y += gy / gap * step; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, dt); }
+  else if (!goal) Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
+  const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
+  if (goal && moving) { E.ctx().globalAlpha = 0.45 + 0.35 * Math.sin(T * 6); R(goal.x - 4, goal.y - 1, 9, 2, '#f5d584'); R(goal.x - 2, goal.y - 2, 5, 4, '#f5d584'); E.ctx().globalAlpha = 1; }      // where he has been sent, marked on the floor
   if (pt && pt.frame && !lv) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed
   E.P(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
   R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a');                                                   // the purple stripe, and the laurel
   R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
-  if (!moving && pt && !lv) {                                                                       // his arm up, and his stick to reach what his arm cannot: gold at the tip
+  if (!moving && pt && !lv && !goal) {                                                              // his arm up, and his stick to reach what his arm cannot: gold at the tip
     const sx = X + d * 3, sy = Y - 26, ax = pt.x - d * 8 - sx, ay = pt.y - sy, n = Math.hypot(ax, ay) || 1, reach = 11 + (Math.sin(T * 2.2) > 0.6 ? 1 : 0);
     for (let q = 0; q <= reach; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > reach - 3 ? '#e3b48f' : '#d9a57c');
     const far = Math.max(reach + 2, Math.min(n - 16, reach + 30)); for (let q = reach + 1; q <= far; q++) R(Math.round(sx + ax / n * q), Math.round(sy + ay / n * q), 1, 1, q > far - 2 ? '#e8b545' : '#7a5a2a');

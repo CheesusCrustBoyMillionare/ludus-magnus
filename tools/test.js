@@ -1900,6 +1900,9 @@ test('the town: an arena as great as the games, the doctore and the stables at t
   assert(v.includes('const LEAVE_PACE = 1.5;') && pl.includes('lv.pace = 62 * LEAVE_PACE') && y.includes('lv.pace = 58 * LEAVE_PACE') && v.includes('Lv.need + 0.5'), 'at half as fast again as he walks about it, and the map waits until he is there');
   assert(v.includes('townRumours()') && v.includes("'forum'") && v.includes("'square'"), 'there are people in the forum and the square, and what they are saying can be read');
   assert(!v.includes("R(f.dx - 5, f.y + 38, 10, 7"), 'the forge fire is a fire, not a box in the doorway');
+  // inside a place, a click on its picture where nothing is walks him to the spot; and the list still calls him back to point
+  assert(pl.includes('function sceneWalk(tab, x, y)') && pl.includes('Gs.goal = goal;') && pl.includes('goal ? goal.x : pt ?') && y.includes('goal ? goal.x : who ?') && m.includes('sceneWalk(ui.tab, p.x, p.y)') && m.includes('if (!h || h.low) {'), 'a click on the picture of the place he is in walks him to it');
+  assert(pl.includes('if (Gs.sel !== null) Gs.goal = null;') && y.includes('if (Gs.sel !== null) Gs.goal = null;') && pl.includes('vil.inside !== tab'), 'until something is chosen for him to go to, and only while he is in the place');
   // the side bar: no switch for the picture of the yard; a slider each for the sound and the music
   const s = read('js/sfx.js'), foot = m.slice(m.indexOf("$('#sidefoot').innerHTML"), m.indexOf('function volSlider'));
   assert(foot.length > 100 && !foot.includes('yardtoggle') && foot.includes("volSlider('sound')") && foot.includes("volSlider('music')"), 'the Yard button is gone from the side bar, and the sliders are there');
