@@ -1004,10 +1004,78 @@ function drawYard(cv, T) {
   sceneVignette(ctx, 590, 190, 0.3);
 }
 
+// ---------- over either picture: what the mouse is on, the doors of a place just come into, the half light of one just left ----------
+const sceneFx = { hover: null, tab: null, wipe: -1, dim: 0, t: 0, key: '' };
+// Which thing in the picture a point is on: a fighter first (the nearest the front), then anything else that is not
+// merely open ground, then that.
+function sceneHit(x, y) {
+  const hits = yardHits.filter(h => x >= h.x0 && x <= h.x1 && y >= h.y0 && y <= h.y1);
+  return hits.filter(h => h.fighter).sort((a, b) => b.y1 - a.y1)[0] || hits.filter(h => !h.low)[0] || hits[0] || null;
+}
+// What it is, and what a click on it does: for the line along the foot of the picture while the mouse rests on it.
+function sceneWord(h) {
+  if (!h) return '';
+  if (h.fighter) { const g = typeof byId === 'function' ? byId(h.fighter) : null; return g ? g.name.toUpperCase() + '  -  CLICK TO OPEN HIS DOSSIER' : ''; }
+  if (h.house) { const d = typeof houseDef === 'function' ? houseDef(h.house) : null; return d ? d.name.toUpperCase() + '  -  CLICK TO READ THIS HOUSE' : ''; }
+  if (h.offer) return 'AN OFFER OF WORK  -  CLICK TO READ IT';
+  if (h.tavern) return h.tavern === 'dice' ? 'THE DICERS  -  CLICK TO THROW WITH THEM' : 'THE MAN WITH THE BOOK  -  CLICK TO LAY A STAKE';
+  if (h.school) return 'THE SCHOOL\'S OWN BUILDINGS  -  CLICK TO SEE TO THEM';
+  return '';
+}
+function sceneOver(cv, T, tab) {
+  const ctx = cv.getContext('2d'), S = cv.width / YARD.W, F = sceneFx;
+  ctx.setTransform(S, 0, 0, S, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = false;
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const dt = clamp(T - F.t, 0, 0.1); F.t = T;
+  const hasVil = typeof vil !== 'undefined', still = typeof ui !== 'undefined' && !!ui.still, inside = hasVil && vil.inside === tab, first = F.tab === null;
+  // he has gone out of the place, and has not yet come into another: its picture stands in half light until he does
+  const gone = hasVil && !first && !inside;
+  F.dim = still ? (gone ? 1 : 0) : clamp(F.dim + (gone ? 1 : -1) * dt * 3.5, 0, 1);
+  if (F.dim > 0) { ctx.fillStyle = 'rgba(14,9,6,' + (0.38 * F.dim).toFixed(3) + ')'; ctx.fillRect(0, 0, YARD.W, YARD.H); }
+  // come into a place: its doors open on the picture of it
+  if (!first && F.tab !== tab && !still) F.wipe = 0;
+  F.tab = tab;
+  if (F.wipe >= 0) {
+    F.wipe += dt / 0.45;
+    if (F.wipe >= 1) F.wipe = -1;
+    else { const w = Math.round(YARD.W / 2 * Math.pow(1 - F.wipe, 2.2));
+      for (const side of [0, 1]) { const x0 = side ? YARD.W - w : 0;
+        R(x0, 0, w, YARD.H, '#2a1c14'); for (let q = 14; q < YARD.W / 2; q += 26) { const px = side ? YARD.W - w + q : w - q; if (px >= x0 && px < x0 + w) R(px, 0, 1, YARD.H, '#1c1310'); }      // the planks of the door, sliding with it
+        for (const by of [34, 150]) { R(x0, by, w, 5, '#3a3a40'); R(x0, by, w, 1, '#55555c'); }                                                                                   // its iron bands
+        if (w > 3) { const ex = side ? x0 : w - 3; R(ex, 0, 3, YARD.H, '#5a4326'); R(side ? ex : ex + 2, 0, 1, YARD.H, '#8a6a3a'); } } }
+  }
+  // what the mouse is on: a gold line round anything that can be clicked, with a word about it along the foot; and on the
+  // open floor of a place he is in, a faint mark where a click would send him
+  const m = F.hover; let cur = '';
+  if (m && F.wipe < 0) {
+    const h = sceneHit(m.x, m.y), walk = inside && (!h || h.low) && typeof sceneSpot === 'function' ? sceneSpot(tab, m.x, m.y) : null;
+    if (walk) { if (!still) { ctx.globalAlpha = 0.3 + 0.15 * Math.sin(T * 6); R(walk.x - 4, walk.y - 1, 9, 2, '#f5d584'); R(walk.x - 2, walk.y - 2, 5, 4, '#f5d584'); ctx.globalAlpha = 1; } }
+    else if (h) {
+      cur = 'pointer';
+      const x0 = Math.max(1, h.x0), y0 = Math.max(1, h.y0), x1 = Math.min(YARD.W - 1, h.x1), y1 = Math.min(YARD.H - 1, h.y1), c = '#f5d584';
+      ctx.globalAlpha = still ? 0.85 : 0.6 + 0.3 * Math.sin(T * 6);
+      R(x0, y0, x1 - x0, 1, c); R(x0, y1 - 1, x1 - x0, 1, c); R(x0, y0, 1, y1 - y0, c); R(x1 - 1, y0, 1, y1 - y0, c); ctx.globalAlpha = 1;
+      const say = sceneWord(h);
+      if (say) { ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; const w = Math.ceil(ctx.measureText(say).width) + 10; R(YARD.W / 2 - w / 2, 178, w, 10, 'rgba(24,16,10,.9)'); ctx.fillStyle = c; ctx.fillText(say, YARD.W / 2, 185); }
+    }
+  }
+  if (cv.style.cursor !== cur) cv.style.cursor = cur;
+}
+// Where the mouse is over the picture, kept for the line round what it is on (sceneOver). With the pictures held still
+// the picture is painted again only when the mouse comes onto something else.
+function watchScene(cv) {
+  if (cv._watched) return;
+  cv._watched = true;
+  const again = () => { const h = sceneFx.hover ? sceneHit(sceneFx.hover.x, sceneFx.hover.y) : null, k = h ? [h.x0, h.y0, h.x1, h.y1].join() : ''; if (k !== sceneFx.key) { sceneFx.key = k; if (typeof ui !== 'undefined' && ui.still) cv._drawnW = 0; } };
+  cv.addEventListener('mousemove', e => { sceneFx.hover = scenePoint(cv, e); again(); });
+  cv.addEventListener('mouseleave', () => { sceneFx.hover = null; again(); });
+}
+
 // The picture is the yard at your own school, and the place itself at any other door in the village (places.js).
 function drawScene(cv, T) {
   const tab = typeof ui !== 'undefined' ? ui.tab : 'ludus';
   if (tab !== 'ludus' && typeof PLACE_SCENES !== 'undefined' && PLACE_SCENES[tab]) drawPlace(cv, T, tab); else drawYard(cv, T);
+  sceneOver(cv, T, tab);
 }
 function yardFrame(ts) {
   const cv = document.getElementById('yard');
@@ -1025,14 +1093,11 @@ function yardFrame(ts) {
 function startYard() {
   const cv = document.getElementById('yard');
   if (!cv) return;
+  watchScene(cv);
   if (cv.offsetWidth > 0) { drawScene(cv, performance.now() / 1000); cv._drawnW = cv.width; } else cv._drawnW = 0;      // put away: not painted until it is back (yardFrame)
   if (!yardRaf) yardRaf = requestAnimationFrame(yardFrame);
 }
 // What was clicked: a fighter (nearest the front wins) or a building.
 // Where on the picture a click fell, on its own 590 by 190 grid.
 function scenePoint(cv, e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * YARD.W, y: (e.clientY - r.top) / r.height * YARD.H }; }
-function yardPick(cv, e) {
-  const { x, y } = scenePoint(cv, e);
-  const hits = yardHits.filter(h => x >= h.x0 && x <= h.x1 && y >= h.y0 && y <= h.y1);
-  return hits.filter(h => h.fighter).sort((a, b) => b.y1 - a.y1)[0] || hits.filter(h => !h.low)[0] || hits[0] || null;
-}
+function yardPick(cv, e) { const { x, y } = scenePoint(cv, e); return sceneHit(x, y); }

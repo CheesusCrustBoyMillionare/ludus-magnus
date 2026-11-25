@@ -269,7 +269,8 @@ function villageLayer() {
   // What you have built shows on the map, so the map is painted again whenever a level changes.
   const F = (typeof G !== 'undefined' && G && G.fac) || {}, SM = (typeof G !== 'undefined' && G && G.smith) ? (G.smith.level | 0) : 0;
   const AL = arenaGeom().L;                    // (and puts the arena's ground where its size has it, before anything is laid out round it)
-  const key = [F.barracks, F.ground, F.infirmary, F.baths, F.shrine, F.stores, F.stables, SM, AL].map(v => v | 0).join('');
+  const SHUT = typeof arenaShut === 'function' && typeof G !== 'undefined' && !!G && arenaShut();      // a month without games: its gate barred, its awning in, nobody in the seats
+  const key = [F.barracks, F.ground, F.infirmary, F.baths, F.shrine, F.stores, F.stables, SM, AL, SHUT ? 1 : 0].map(v => v | 0).join('');
   if (vil.layer && vil.layer.width === VILLAGE.W * VILLAGE.S && vil.layerKey === key) return vil.layer;
   vil.layerKey = key;
   const cv = document.createElement('canvas'); cv.width = VILLAGE.W * VILLAGE.S; cv.height = VILLAGE.H * VILLAGE.S;
@@ -396,18 +397,19 @@ function villageLayer() {
         ell(cx + 2, cy + 4, RX, RY, 'rgba(0,0,0,.2)'); ell(cx, cy + 2, RX, RY, '#4f7038'); ell(cx, cy, RX, RY, '#6f8f48'); ring(RX - 1, RY - 1, '#86a658', '#6a8a44');      // the bank, turfed: its far side catches the light
         ring(RX - 5, RY - 3, '#a68c5a', '#8f7748');                                                                    // its inner slope, bare earth
         for (const [rr, n] of [[0.8, 30], [0.68, 24]]) for (let q = 0; q < n; q++) { const a2 = q / n * 6.283 + 0.1; if (q % 6 === 5 || Math.abs(a2 - 1.571) < 0.3) continue; const [sx, sy] = on(a2, rr); R(sx - 2, sy, 4, 1, Math.sin(a2) < 0 ? '#c9a763' : '#7a5a34'); R(sx - 2, sy + 1, 4, 1, 'rgba(0,0,0,.18)'); }      // planks laid on it to sit on
-        for (let i2 = 0; i2 < 16; i2++) { const a2 = rnd(i2, 6.283), [sx, sy] = on(a2, 0.66 + rnd(i2 + 40, 0.26)); R(sx, sy - 1, 1, 2, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few idlers on any day
+        for (let i2 = 0; i2 < (SHUT ? 0 : 16); i2++) { const a2 = rnd(i2, 6.283), [sx, sy] = on(a2, 0.66 + rnd(i2 + 40, 0.26)); R(sx, sy - 1, 1, 2, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few idlers on any day
         const SX = rd(RX * 0.56), SY = rd(RY * 0.56);
         ring(SX + 2, SY + 2, '#5e4426', '#4a3520'); ell(cx, cy + 1, SX, SY, '#b89a60'); ell(cx, cy + 1, SX, SY - 1, '#cfae6f'); ell(cx, cy + 1, SX - 2, SY - 2, '#d6b87c');      // the pit, and the sand at the bottom of it
         for (let i2 = 0; i2 < 30; i2++) { const a2 = rnd(i2 + 200, 6.283), rr = rnd(i2 + 260, 0.9); R(cx + Math.cos(a2) * (SX - 2) * rr, cy + 1 + Math.sin(a2) * (SY - 1) * rr, 2, 1, i2 % 3 ? '#c4a468' : '#e0c890'); }
         R(cx - 9, cy + 3, 3, 1, '#a8744e'); R(cx + 7, cy - 2, 2, 1, '#a8744e'); R(cx, cy - 4, 1, 5, '#6b4f2c'); R(cx, cy + 1, 2, 1, 'rgba(0,0,0,.25)');                  // old stains, and the post beasts are chained to
         for (let q = 0; q < 40; q++) { const a2 = q / 40 * 6.283; if (Math.abs(a2 - 1.571) < 0.22) continue; const sx = cx + Math.cos(a2) * (SX + 1), sy = cy + 1 + Math.sin(a2) * (SY + 1); R(sx, sy - 3, 1, 3, Math.sin(a2) < 0 ? '#a8834a' : '#6b4f2c'); R(sx, sy - 3, 1, 1, Math.sin(a2) < 0 ? '#c9a763' : '#8a6a3a'); }      // stakes round the edge of it
         R(cx - 4, cy + SY, 8, RY - SY + 3, '#b59a64');                                                                  // the way down, cut through the bank
-        { const bx = cx - 10, b0 = cy - RY - 5; R(bx + 1, b0 + 8, 20, 1, 'rgba(0,0,0,.2)'); R(bx + 1, b0 + 3, 18, 5, '#2a1d16'); R(bx + 1, b0 + 6, 18, 2, '#7a5a34'); R(bx, b0 + 2, 1, 7, '#5e4426'); R(bx + 19, b0 + 2, 1, 7, '#5e4426'); for (let q = 0; q < 5; q++) R(bx + q * 4, b0, 4, 3, q % 2 ? '#e8d7b0' : '#a8452e'); R(bx, b0 + 3, 20, 1, 'rgba(0,0,0,.3)'); }      // a plank stand under a striped cloth, for whoever is paying
+        { const bx = cx - 10, b0 = cy - RY - 5; R(bx + 1, b0 + 8, 20, 1, 'rgba(0,0,0,.2)'); R(bx + 1, b0 + 3, 18, 5, '#2a1d16'); R(bx + 1, b0 + 6, 18, 2, '#7a5a34'); R(bx, b0 + 2, 1, 7, '#5e4426'); R(bx + 19, b0 + 2, 1, 7, '#5e4426'); if (SHUT) R(bx, b0 + 2, 20, 1, '#5e4426'); else { for (let q = 0; q < 5; q++) R(bx + q * 4, b0, 4, 3, q % 2 ? '#e8d7b0' : '#a8452e'); R(bx, b0 + 3, 20, 1, 'rgba(0,0,0,.3)'); } }      // a plank stand under a striped cloth, for whoever is paying (the cloth is taken in when there are no games)
         { const tx = cx - RX - 11, ty = cy + 11; ell(tx + 1, ty + 1, 8, 2, 'rgba(0,0,0,.2)'); for (let q = 0; q < 7; q++) R(tx - q, ty - 7 + q, q * 2 + 1, 1, q % 2 ? '#d8c9a0' : '#cbbb90'); R(tx, ty - 9, 1, 2, '#5e4426'); R(tx - 1, ty - 4, 2, 4, '#3a2a1c'); }      // the tent the fighters wait in
         { const kx = cx + RX + 7, ky = cy + 12; R(kx, ky + 3, 12, 1, 'rgba(0,0,0,.2)'); R(kx, ky - 3, 10, 4, '#8a6a3a'); R(kx, ky - 4, 10, 1, '#a8834a'); R(kx + 1, ky, 3, 3, '#3a2a1c'); R(kx + 6, ky, 3, 3, '#3a2a1c'); R(kx + 10, ky - 2, 4, 1, '#6b4f2c'); R(kx + 1, ky - 6, 8, 2, '#d9c27a'); R(kx + 2, ky - 7, 6, 1, '#e6d088'); }      // a cart of straw to soak up what is spilt
         R(cx - 7, gy - 13, 2, 13, '#5e4426'); R(cx - 7, gy - 13, 1, 13, '#8a6a3a'); R(cx + 5, gy - 13, 2, 13, '#5e4426'); R(cx + 5, gy - 13, 1, 13, '#8a6a3a'); R(cx - 9, gy - 15, 18, 2, '#6b4f2c'); R(cx - 9, gy - 15, 18, 1, '#94703f');      // two posts and a beam: the gate
         R(cx - 2, gy - 13, 4, 4, '#a02d22'); R(cx - 2, gy - 13, 4, 1, '#c8483a'); R(cx - 5, gy, 10, 2, '#a8956a');
+        if (SHUT) { R(cx - 6, gy - 8, 12, 2, '#7a5a34'); R(cx - 6, gy - 8, 12, 1, '#a8834a'); R(cx - 6, gy - 4, 12, 2, '#7a5a34'); R(cx - 6, gy - 4, 12, 1, '#a8834a'); }      // two rails across the way in
       } else {
         // ----- a ring of seats: timber on a footing of stone, then stone, then the great arena, then that arena dressed for the Emperor -----
         const C = [null,
@@ -429,7 +431,7 @@ function villageLayer() {
         for (let k = 0; k < C.tiers; k++) ring(rd(RX * (0.945 - k * 0.329 / (C.tiers - 1))), rd(RY * (0.93 - k * 0.392 / (C.tiers - 1))), k % 2 ? C.seat[0] : C.seat[1], k % 2 ? C.seat[2] : C.seat[3]);
         for (let q = 0; q < C.stairs; q++) { const a2 = q / C.stairs * 6.283 + 0.17; for (let rr = 0.6; rr < 0.95; rr += 0.026) { const [sx, sy] = on(a2, rr); R(sx, sy, 1, 1, Math.sin(a2) < 0 ? C.stair[0] : C.stair[1]); } }      // stairs between the blocks
         if (L >= 2) for (let q = 0; q < C.stairs; q++) { const a2 = q / C.stairs * 6.283 + 0.17 + 3.1416 / C.stairs, [sx, sy] = on(a2, 0.79); R(sx - 1, sy, 2, 2, '#3a3020'); R(sx - 1, sy - 1, 2, 1, C.rim); }                         // the passages people come up by
-        for (let i2 = 0; i2 < C.folk; i2++) { const a2 = rnd(i2, 6.283), k = Math.floor(rnd(i2 + 40, 6.99)), [sx, sy] = on(a2, 0.61 + k * 0.047); R(sx, sy, 1, 1, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few people about on any day
+        for (let i2 = 0; i2 < (SHUT ? 0 : C.folk); i2++) { const a2 = rnd(i2, 6.283), k = Math.floor(rnd(i2 + 40, 6.99)), [sx, sy] = on(a2, 0.61 + k * 0.047); R(sx, sy, 1, 1, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few people about on any day
         // the wall round the sand, the sand raked in rings, a gate at either end, the posts, old stains
         ring(rd(RX * 0.56), rd(RY * 0.47), C.wall[0], C.wall[1]); ring(rd(RX * 0.545), rd(RY * 0.44), C.wall[2], C.wall[3]); ring(rd(RX * 0.515), rd(RY * 0.4), C.wall[4], C.wall[5]);
         const SX = rd(RX * 0.5), SY = rd(RY * 0.36);
@@ -442,7 +444,8 @@ function villageLayer() {
         // what flies over it: poles for a few flags; at the great arena, masts all round and the awning drawn out over the far seats
         if (L >= 3) {
           for (let q = 0; q < 26; q++) { const a2 = q / 26 * 6.283 + 0.12, [mx, my] = on(a2, 0.99); R(mx, my - 3, 1, 4, '#5a4326'); R(mx, my - 4, 1, 1, L === 4 ? gold : '#f0e6c8'); }
-          for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305, stripe = L === 4 ? (q % 2 ? '#f0dca0' : purple) : (q % 2 ? '#efe6cf' : '#c9a05a');
+          if (SHUT) for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305; for (let t2 = 0; t2 < 0.24; t2 += 0.02) { const [ax2, ay2] = on(a0 + t2, 0.965); R(ax2, ay2, 2, 1, L === 4 ? '#b89ac0' : '#d8ceb4'); } }      // the awning furled along the rim
+          else for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305, stripe = L === 4 ? (q % 2 ? '#f0dca0' : purple) : (q % 2 ? '#efe6cf' : '#c9a05a');
             for (let t2 = 0; t2 < 0.24; t2 += 0.014) for (let rr = 0.72; rr < 0.98; rr += 0.034) { const [ax2, ay2] = on(a0 + t2, rr); R(ax2, ay2, 2, 1, Math.floor(t2 / 0.048) % 2 ? stripe : shade(stripe, 0.88)); }
             const [e1x, e1y] = on(a0, 0.72), [e2x] = on(a0 + 0.24, 0.72); R(e1x, e1y + 1, Math.max(2, rd(e2x - e1x)), 1, L === 4 ? gold : 'rgba(40,30,10,.25)'); }
         } else for (const q of ARENA_FLAGS[L]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99); R(mx, my - 5, 1, 6, '#5a4326'); }
@@ -457,12 +460,13 @@ function villageLayer() {
         // the gate: timber posts and a lintel, then an arch between pilasters, then the great gate under its gable, then that gilded
         if (L === 1) {
           R(cx - 10, gy - 14, 20, 14, '#7a5a34'); for (let q = -8; q < 10; q += 4) R(cx + q, gy - 14, 1, 14, '#5e4426'); R(cx - 12, gy - 17, 3, 17, '#5e4426'); R(cx - 12, gy - 17, 1, 17, '#8a6a3a'); R(cx + 9, gy - 17, 3, 17, '#5e4426'); R(cx + 9, gy - 17, 1, 17, '#8a6a3a');
-          R(cx - 13, gy - 18, 26, 3, '#6b4f2c'); R(cx - 13, gy - 18, 26, 1, '#94703f'); R(cx - 6, gy - 11, 12, 11, '#2a1a12'); R(cx - 1, gy - 11, 1, 11, '#3a2a1c'); R(cx - 2, gy - 17, 4, 4, '#a02d22'); R(cx - 2, gy - 17, 4, 1, '#c8483a'); R(cx - 7, gy, 14, 2, '#a8956a');
+          R(cx - 13, gy - 18, 26, 3, '#6b4f2c'); R(cx - 13, gy - 18, 26, 1, '#94703f'); R(cx - 6, gy - 11, 12, 11, SHUT ? '#5e4426' : '#2a1a12'); R(cx - 1, gy - 11, 1, 11, '#3a2a1c'); if (SHUT) { R(cx - 7, gy - 7, 14, 2, '#8a6a3a'); R(cx - 7, gy - 7, 14, 1, '#a8834a'); } R(cx - 2, gy - 17, 4, 4, '#a02d22'); R(cx - 2, gy - 17, 4, 1, '#c8483a'); R(cx - 7, gy, 14, 2, '#a8956a');
         } else {
           const body = L === 2 ? C.rim2 : L === 4 ? '#e8dcc0' : '#d8cca8', rows = L === 2 ? 3 : 5;
           R(cx - 12, gy - 17, 24, 17, body); R(cx - 12, gy - 17, 2, 17, C.rim); R(cx + 10, gy - 17, 2, 17, C.face);
           for (let q = 0; q < rows; q++) R(cx - 12 + q * 2, gy - 18 - q, 24 - q * 4, 1, L === 4 ? (q % 2 ? '#fff0b0' : gold) : q === 4 ? gold : L === 2 ? C.rim : '#efe4c4');
           R(cx - 7, gy - 12, 14, 12, '#3a2416'); R(cx - 6, gy - 13, 12, 1, '#3a2416'); R(cx - 7, gy - 12, 14, 1, '#5a4326'); R(cx - 1, gy - 12, 1, 12, '#5a3c20'); R(cx - 8, gy, 16, 2, '#b8a888'); R(cx - 10, gy + 2, 20, 1, '#a39a84');
+          if (SHUT) { R(cx - 7, gy - 12, 14, 12, '#5e4426'); for (let q = -6; q < 7; q += 3) R(cx + q, gy - 12, 1, 12, '#4a3520'); R(cx - 1, gy - 12, 1, 12, '#2a1c14'); R(cx - 8, gy - 8, 16, 2, '#8a6a3a'); R(cx - 8, gy - 8, 16, 1, '#b8935a'); R(cx - 1, gy - 6, 2, 3, '#c9a21e'); }      // the doors shut, and a beam across them
           if (L >= 3) for (const sx of [-24, 21]) { const st = L === 4 ? ['#b6832c', '#fff0b0', gold, '#f5d584', '#c9962e', '#b6832c'] : ['#a39d8a', '#d4cfbc', '#d9d2bd', '#e4ddc8', '#c9c3ae', '#b5af9b'];
             R(cx + sx, gy - 2, 4, 3, L === 4 ? '#d8cdb6' : st[0]); R(cx + sx, gy - 3, 4, 1, st[1]); R(cx + sx + 1, gy - 10, 2, 7, st[2]); R(cx + sx + 1, gy - 12, 2, 2, st[3]); R(cx + sx, gy - 9, 1, 3, st[4]); R(cx + sx + 3, gy - 8, 1, 2, st[5]); }
           if (L === 4) {      // the Emperor's colours down the pilasters, his eagle over the gable, and purple laid on the steps
@@ -706,6 +710,7 @@ function drawVillage(cv, T) {
       if (n >= 7) { const u = (T * 0.035) % 2, k = u < 1 ? u : 2 - u; still(fo.x + 22 + k * 56, fy + 26, { tunic: '#8a4a3a', hair: '#6a4a2a', face: u < 1 ? 'right' : 'left', moving: true, walk: T * 7 }); } }
     // two who meet every morning on the east side of the square, and have never yet run out of things to say
     still(327, 112, { tunic: '#b06a8a', hair: '#3a2a1c', skin: '#e3b48f', face: 'right' }); still(336, 113, { tunic: '#5a8a9a', hair: '#c9c2b2', face: 'left' }); talks.push([{ x: 327, y: 112 }, { x: 336, y: 113 }, 'square']);
+    if (typeof arenaShut === 'function' && arenaShut()) still(a.dx + 15, a.dy - 2, { tunic: '#6b6b74', hair: '#8a8478', face: Math.sin(T * 0.2) > 0.6 ? 'left' : 'down' });      // a month without games: one old watchman at the barred gate
     // children chasing each other round the fountain, and the dog that goes with them
     for (let i = 0; i < 2; i++) { const an = T * 1.3 + i * 0.8, cx = 296 + Math.cos(an) * 24, cy = 124 + Math.sin(an) * 14; folk.push({ y: cy, draw: () => vilChild(ctx, cx, cy, Math.sin(an) > 0 ? 'left' : 'right', T * 16 + i, i ? '#b06a8a' : '#5a8a9a') }); }
     { const an = T * 1.3 - 0.55, dx = 296 + Math.cos(an) * 26, dy = 125 + Math.sin(an) * 15, lf = Math.sin(an) > 0; folk.push({ y: dy, draw: () => { R(dx - 3, dy - 3, 6, 3, '#8a6a4a'); R(dx + (lf ? -5 : 3), dy - 5, 3, 3, '#8a6a4a'); R(dx - 3, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 1 : 0), '#6a4a2a'); R(dx + 2, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 0 : 1), '#6a4a2a'); R(dx + (lf ? 3 : -4), dy - 4, 1, 2, '#8a6a4a'); } }); }
@@ -782,7 +787,7 @@ function drawVillage(cv, T) {
       const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * [0, 8, 12, 16, 16][L]);
       if (len > 1) { ctx.fillStyle = `rgba(20,14,6,${(0.1 + low * 0.08).toFixed(3)})`; for (let yy = -RY + 6; yy <= RY + 5; yy += 1) { const hw = Math.round(RX * Math.sqrt(Math.max(0, 1 - ((yy - 4) * (yy - 4)) / ((RY + 1) * (RY + 1))))); if (hw > 0) ctx.fillRect(dir > 0 ? cx + hw : cx - hw - len, cy + yy, len, 1); } }
     }
-    const boxY = Math.round(L === 0 ? cy - RY - 3 : cy - RY * 0.8);
+    const boxY = Math.round(L === 0 ? cy - RY - 3 : cy - RY * 0.8), shutNow = typeof arenaShut === 'function' && arenaShut();      // a month without games: nothing stirs in it
     if (games) {
       const rows = [3, 4, 6, 7, 7][L], r0 = L === 0 ? 0.66 : 0.61, full = [0.4, 0.62, 0.8, 0.88, 0.92][L];
       for (let k = 0; k < rows; k++) { const rr = r0 + k * (0.94 - r0 - 0.047) / (rows - 1), n = Math.round((62 + k * 84 / rows) * RX / 83);
@@ -797,18 +802,18 @@ function drawVillage(cv, T) {
       if (close && Math.sin(T * 14) > 0.3) { R(Math.round(ax), Math.round(ay) - 4, 1, 1, '#fff0b0'); R(Math.round(ax) + (Math.sin(T * 30) > 0 ? 1 : -1), Math.round(ay) - 5, 1, 1, '#f5c04a'); }
       for (let q = 0; q < 3; q++) { const p2 = (T * 0.8 + q / 3) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(ax - 4 + q * 4 + Math.sin(p2 * 5 + q) * 2, ay + 1 - p2 * 3, 2, 1, '#f0dcaa'); } ctx.globalAlpha = 1;
       { const by = boxY + (L === 0 ? 3 : 0); R(cx - 1, by + 1 - (close ? 1 : 0), 2, 1, '#d9a57c'); R(cx - 1, by + 2 - (close ? 1 : 0), 2, 3, L === 4 ? '#7a3a8e' : '#f1ead8'); if (L === 4) R(cx - 1, by - (close ? 1 : 0), 2, 1, '#e8b545'); if (L >= 3) { R(cx - 5, by + 2, 1, 3, '#c9a21e'); R(cx + 4, by + 2, 1, 3, '#c9a21e'); } }
-    } else if (night < 0.5) {
+    } else if (night < 0.5 && !shutNow) {
       for (let q = 0; q < (L ? 2 : 1); q++) { const a2 = T * 0.2 + q * 3.1, px = cx + Math.cos(a2) * RX * 0.34, py = cy + Math.sin(a2) * RY * 0.24; R(px, py - 4, 2, 1, '#d9a57c'); R(px, py - 3, 2, 3, '#8a6a4a'); R(px + (Math.cos(a2) > 0 ? 2 : -3), py - 1, 3, 1, '#6b4f2c'); R(px - Math.cos(a2) * 5, py, 4, 1, 'rgba(240,220,170,.6)'); }
     }
-    if (L >= 3) for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305 + 0.12, [ux, uy] = on(a0, 0.85); if (Math.sin(T * (1.4 + wx.gust * 3) + q * 1.1) > 0.3) R(ux - 3, uy, 6, 1, 'rgba(255,250,235,.5)'); }
-    for (const q of ARENA_FLAGS[L]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99), wv = Math.sin(T * 5 + q) > 0 ? 1 : 0, fc = L === 4 ? (games ? '#e8b545' : '#7a3a8e') : games ? '#c23b2e' : '#c9a21e'; R(mx + 1, my - 6 + wv, 4, 2, fc); R(mx + 4, my - 5 - wv + 1, 1, 1, shade(fc, 0.8)); }
-    if (L === 0) { const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(cx + 10, boxY - 4, 1, 5, '#5a4326'); R(cx + 11, boxY - 4 + wv, 3, 2, games ? '#c23b2e' : '#c9a21e'); }      // one rag on a pole over the stand
+    if (L >= 3 && !shutNow) for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305 + 0.12, [ux, uy] = on(a0, 0.85); if (Math.sin(T * (1.4 + wx.gust * 3) + q * 1.1) > 0.3) R(ux - 3, uy, 6, 1, 'rgba(255,250,235,.5)'); }
+    for (const q of shutNow ? [] : ARENA_FLAGS[L]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99), wv = Math.sin(T * 5 + q) > 0 ? 1 : 0, fc = L === 4 ? (games ? '#e8b545' : '#7a3a8e') : games ? '#c23b2e' : '#c9a21e'; R(mx + 1, my - 6 + wv, 4, 2, fc); R(mx + 4, my - 5 - wv + 1, 1, 1, shade(fc, 0.8)); }
+    if (L === 0 && !shutNow) { const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(cx + 10, boxY - 4, 1, 5, '#5a4326'); R(cx + 11, boxY - 4 + wv, 3, 2, games ? '#c23b2e' : '#c9a21e'); }      // one rag on a pole over the stand
     if (L === 4 && Math.sin(T * 2.3) > 0.8) { R(cx - 1, ar.y + ar.h - 28, 1, 1, '#ffffff'); R(cx + 3, boxY - 8, 1, 1, '#ffffff'); }                             // the sun on the eagles
     if (night > 0.3) {
-      const la2 = Math.min(1, (night - 0.3) * 2.5), fl2 = Math.sin(T * 11) > 0 ? 1 : 0, nt = [5, 8, 11, 14, 14][L], gw = L === 0 ? 7 : 11;
+      const la2 = Math.min(1, (night - 0.3) * 2.5), fl2 = Math.sin(T * 11) > 0 ? 1 : 0, nt = shutNow ? 0 : [5, 8, 11, 14, 14][L], gw = L === 0 ? 7 : 11;
       for (let q = 0; q < nt; q++) { const [tx2, ty2] = on(q / nt * 6.283 + 0.3, 0.99); ctx.globalAlpha = la2; R(tx2, ty2 - 5 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, tx2, ty2 - 4, 8, '255,170,80', 0.28 * la2); }
       for (const gx of [-gw, gw]) { ctx.globalAlpha = la2; R(cx + gx, ar.y + ar.h - 13 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, cx + gx, ar.y + ar.h - 11, 10, '255,170,80', 0.32 * la2); }
-      sceneGlow(ctx, cx, cy, Math.round(40 * RX / 83), '255,190,110', (games ? 0.16 : 0.05) * la2);
+      if (!shutNow) sceneGlow(ctx, cx, cy, Math.round(40 * RX / 83), '255,190,110', (games ? 0.16 : 0.05) * la2);
     }
   }
   // PASS 30. men on the north wall, walking their beat, and a flag on each of the lower towers

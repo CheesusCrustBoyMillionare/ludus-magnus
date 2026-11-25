@@ -9,7 +9,7 @@ const RAR_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545
 const PLACE_TIPS = {
   market: 'The slave market. The men on the block are the ones for sale today; the pen holds any the dealer is keeping for you, and a gold dais is a prize lot up for auction.',
   smith: 'The forge. What hangs on the wall is what the smith has to sell; the colours are the grades. Your armourer works at the bench, and a commission waits under its cloth.',
-  arena: 'The arena from the street. It grows with your name: a fence of logs round the pits, then arches of timber and of stone, and at the last the purple of the Emperor down its walls. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
+  arena: 'The arena from the street. In a month when it is shut the gates are barred, the flags furled and the bookmakers gone. It grows with your name: a fence of logs round the pits, then arches of timber and of stone, and at the last the purple of the Emperor down its walls. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
   contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. A rail for the mules of the carriers stands at the corner, and the packs by the road belong to men who are away.',
   patrons: 'The temple. The three fires burn as high as each patron\'s favour. Your own shrine stands to the right of the steps.',
   rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first: click one to read that house. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner. The man under the town\'s talk keeps a book on the houses\' own bouts, and there are dice in the corner.',
@@ -210,11 +210,16 @@ const guestTop = (tab, o) => Math.min(o.y, ((PLACE_SCENES[tab] && PLACE_SCENES[t
 // A click on the picture of the place he is in, where nothing in it was clicked: he walks to that spot (Gs.goal), and
 // stays there until he is sent somewhere else in it, something is chosen in the list for him to point at, or he leaves.
 // Called back while on his way to the door, he does not go. True if there was anybody there to send.
+// Where in the picture of a place a click at x, y would send him: the nearest spot to it that he can stand on.
+function sceneSpot(tab, x, y) {
+  if (tab === 'ludus') return { x: clamp(x, 12, 578), y: clamp(y, YARD.GY + 6, YARD.H - 6) };
+  const o = GUEST[tab] && GUEST[tab]();
+  return o ? { x: clamp(x, 12, 578), y: clamp(y, guestTop(tab, o), GUEST_FOOT) } : null;
+}
 function sceneWalk(tab, x, y) {
   if (typeof vil === 'undefined' || vil.inside !== tab || typeof ui === 'undefined') return false;
-  let Gs, goal;
-  if (tab === 'ludus') { Gs = yardGuest; goal = { x: clamp(x, 12, 578), y: clamp(y, YARD.GY + 6, YARD.H - 6) }; }
-  else { const o = GUEST[tab] && GUEST[tab](); if (!o) return false; Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }); goal = { x: clamp(x, 12, 578), y: clamp(y, guestTop(tab, o), GUEST_FOOT) }; }
+  const goal = sceneSpot(tab, x, y); if (!goal) return false;
+  const Gs = tab === 'ludus' ? yardGuest : sceneGuests[tab] || (sceneGuests[tab] = { token: 0 });
   if (vil.leaving && vil.leaving.key === tab) { vil.path = null; vil.then = null; }
   Gs.goal = goal;
   if (ui.still) { Gs.x = goal.x; Gs.y = goal.y; const cv = document.getElementById('yard'); if (cv) cv._drawnW = 0; }      // pictures held still: he is simply there
@@ -391,7 +396,7 @@ const PLACE_SCENES = {
 
   // ---- the arena, from the street ----
   arena: { draw(E) {
-    const { R, T } = E, t = tier(), imperial = G.won || G.fame >= FINAL_FAME, W = [{ c: '#7a5a34', d: '#5e4426', l: '#94703f' }, { c: '#a88f66', d: '#8f7650', l: '#c4ab7c' }, { c: '#b89b6e', d: '#a3875c', l: '#d8c08e' }, { c: '#d6ccb8', d: '#b5aa94', l: '#f0e8d6' }][Math.min(3, t)];
+    const { R, T } = E, t = tier(), imperial = G.won || G.fame >= FINAL_FAME, shut = arenaShut(), W = [{ c: '#7a5a34', d: '#5e4426', l: '#94703f' }, { c: '#a88f66', d: '#8f7650', l: '#c4ab7c' }, { c: '#b89b6e', d: '#a3875c', l: '#d8c08e' }, { c: '#d6ccb8', d: '#b5aa94', l: '#f0e8d6' }][Math.min(3, t)];
     E.paving(124, '#cdae78', '#bf9f6a');
     const rows = Math.min(4, 2 + t);                      // a greater arena stands taller
     if (t === 0) {                                        // the village pits: no arches, only a fence of split logs round a hole in a field
@@ -408,9 +413,15 @@ const PLACE_SCENES = {
     if (E.games && t > 0) for (let r = 1; r < rows; r++) { const y = 124 - (r + 1) * 26, inset = r * 8; let n = 0;      // the town in the upper arches, on its feet
       for (let x = 46 + inset; x < 546 - inset; x += 30, n++) { if ((n * 7 + r * 3) % 4 === 0) continue; const up = Math.sin(T * 3 + n * 1.3 + r) > 0.5 ? 1 : 0;
         R(x + 3, y + 17 - up, 3, 3, TOWN_SKINS[(n + r) % 4]); R(x + 2, y + 20 - up, 5, 6 + up, TOWN_TUNICS[(n * 3 + r) % 9]); R(x + 9, y + 18, 3, 3, TOWN_SKINS[(n + r + 1) % 4]); R(x + 8, y + 21, 5, 5, TOWN_TUNICS[(n * 5 + r + 2) % 9]); } }
-    for (let i = 0; i < 7; i++) { const x = 70 + i * 75; R(x, top - 14, 1, 14, '#5a4326'); R(x + 1, top - 14 + (Math.sin(T * 4 + i) > 0 ? 0 : 1), 7, 4, imperial ? (i % 2 ? '#e8b545' : '#7a3a8e') : ['#8a2a20', '#c9a21e', '#2f6db8'][i % 3]); }
+    for (let i = 0; i < 7; i++) { const x = 70 + i * 75; R(x, top - 14, 1, 14, '#5a4326'); if (shut) { R(x + 1, top - 13, 1, 7, imperial ? '#7a3a8e' : '#8a7a5a'); continue; } R(x + 1, top - 14 + (Math.sin(T * 4 + i) > 0 ? 0 : 1), 7, 4, imperial ? (i % 2 ? '#e8b545' : '#7a3a8e') : ['#8a2a20', '#c9a21e', '#2f6db8'][i % 3]); }
     R(270, 96, 50, 28, '#120c0a'); R(274, 92, 42, 4, '#120c0a'); R(280, 88, 30, 4, '#120c0a'); R(266, 88, 4, 36, W.l); R(320, 88, 4, 36, W.l);       // the great gate
-    for (let i = 0; i < 6; i++) R(273 + i * 8, 96, 1, 28, '#3a2a1c');
+    if (!shut) for (let i = 0; i < 6; i++) R(273 + i * 8, 96, 1, 28, '#3a2a1c');
+    else {                                                 // shut for the month: the doors closed, a beam across them, and a chain
+      R(270, 96, 50, 28, '#5e4426'); for (let i = 0; i < 9; i++) R(270 + i * 6, 96, 1, 28, i % 2 ? '#4a3520' : '#6b4f2c'); R(294, 96, 2, 28, '#2a1c14');
+      R(270, 100, 50, 2, '#3a3a40'); R(270, 118, 50, 2, '#3a3a40'); for (let i = 0; i < 6; i++) { R(274 + i * 8, 100, 2, 2, '#8d9094'); R(274 + i * 8, 118, 2, 2, '#8d9094'); }
+      R(266, 107, 58, 5, '#7a5a34'); R(266, 107, 58, 1, '#a8834a'); R(266, 111, 58, 1, '#4a3520'); R(264, 105, 3, 9, '#3a3a40'); R(323, 105, 3, 9, '#3a3a40');
+      for (let i = 0; i < 5; i++) R(288 + i * 3, 112 + (i % 2), 2, 2, '#8d9094'); R(293, 114, 4, 5, '#c9a21e'); R(294, 113, 2, 1, '#8d9094');
+    }
     if (t === 0) { R(262, 84, 66, 5, W.d); R(262, 84, 66, 1, W.l); R(290, 78, 10, 7, '#e8e2d2'); R(292, 80, 2, 2, '#1c1410'); R(296, 80, 2, 2, '#1c1410'); R(293, 83, 4, 1, '#1c1410'); }      // a beam over the way in, and an ox skull nailed to it
     if (imperial) {                                       // the Emperor's colours down the gate and along the wall, and gold on the cornice
       R(30, top, 530, 2, '#e8b545'); R(262, 84, 66, 4, '#e8b545'); R(262, 84, 66, 1, '#fff0b0');
@@ -424,14 +435,19 @@ const PLACE_SCENES = {
       E.sign(295, 78, 'GAMES TODAY', true);
     } else {
       E.P(210, 152, 1, { tunic: '#8a8a8a', hair: '#6a6a6a', item: 'broom', sweep: Math.sin(T * 3) > 0 });
+      if (shut) { const lx = 392, lh = t === 0 ? 30 : 44, dab = Math.sin(T * 2.2) > 0 ? 1 : 0;
+        R(lx + 12, 124 - lh - 8, 20, 16, 'rgba(255,250,235,.16)'); R(lx + 14, 124 - lh - 6, 12 + dab * 3, 10, 'rgba(255,250,235,.14)');      // the patch he has done
+        R(lx, 124 - lh, 2, lh, '#6b4f2c'); R(lx + 8, 124 - lh, 2, lh, '#6b4f2c'); for (let q = 4; q < lh; q += 6) R(lx, 124 - q, 10, 1, '#8a6a3a');
+        E.P(lx + 5, 124 - lh + 20, 1, { tunic: '#c9b48a', hair: '#2a1c14', skin: TOWN_SKINS[1], item: 'bucket' }); R(lx + 12, 124 - lh - 2 - dab * 3, 2, 5, '#f4f0e4');
+        R(lx + 16, 118, 6, 6, '#7a5a34'); R(lx + 16, 118, 6, 1, '#f4f0e4'); }
       for (let i = 0; i < 3; i++) E.walker(i, 164 + i * 8, i % 2 ? -13 : 16, townsman(i + 4));
       const dg = daysToGames(); E.sign(295, 78, `${arenaShut() ? 'SHUT FOR THE MONTH: ' : ''}NEXT GAMES IN ${dg} DAY${dg === 1 ? '' : 'S'}`);
     }
     E.shade(30, 124, 530);
     if (t >= 2) for (let x = 53; x < 540; x += 60) { if (x > 250 && x < 330) continue; const y = 124 - rows * 26 + 12, sc = imperial ? '#e8b545' : '#e8e2d2'; R(x, y + 6, 4, 10, sc); R(x + 1, y + 3, 2, 3, sc); R(x - 1, y + 16, 6, 2, imperial ? '#b6832c' : '#c9c2ae'); }      // statues in the upper arches of a great arena
     R(266, 124, 58, 3, '#b8a888'); R(262, 127, 66, 3, '#a39a84');                               // steps up to the gate
-    R(96, 108, 26, 16, '#6b4f2c'); R(98, 110, 22, 12, '#f1ead8'); for (let i = 0; i < 4; i++) R(100, 112 + i * 3, 12 + (i % 2) * 5, 1, '#6b573c'); R(94, 106, 30, 2, '#4a3520');      // the day's card, posted by the wall
-    R(452, 104, 34, 20, '#7a5a34'); for (let i = 0; i < 6; i++) R(450 + i * 6, 98, 6, 6, i % 2 ? '#f1ead8' : '#b93a2e'); R(452, 116, 34, 2, '#94703f'); E.P(468, 124, -1, { tunic: '#a8763a', hair: '#2a1c14' }); R(452, 116, 34, 8, '#7a5a34'); R(452, 116, 34, 2, '#94703f');      // where the tokens are sold
+    R(96, 108, 26, 16, '#6b4f2c'); R(98, 110, 22, 12, shut ? '#d8cfb8' : '#f1ead8'); if (!shut) for (let i = 0; i < 4; i++) R(100, 112 + i * 3, 12 + (i % 2) * 5, 1, '#6b573c'); R(94, 106, 30, 2, '#4a3520');      // the day's card, posted by the wall
+    R(452, 104, 34, 20, '#7a5a34'); for (let i = 0; i < 6; i++) R(450 + i * 6, 98, 6, 6, i % 2 ? '#f1ead8' : '#b93a2e'); R(452, 116, 34, 2, '#94703f'); if (shut) { R(454, 105, 30, 11, '#5e4426'); for (let i = 0; i < 5; i++) R(454 + i * 6, 105, 1, 11, '#4a3520'); R(454, 110, 30, 1, '#3a3a40'); } else E.P(468, 124, -1, { tunic: '#a8763a', hair: '#2a1c14' }); R(452, 116, 34, 8, '#7a5a34'); R(452, 116, 34, 2, '#94703f');      // where the tokens are sold
     E.sign(295, Math.max(11, top - 20), imperial ? 'THE GREAT ARENA: THE EMPEROR\'S GAMES' : TIERS[Math.min(3, t)].name.toUpperCase(), t >= 3);
     if (G.fame >= FINAL_FAME && !G.won) {      // the eagle over the gate: the Emperor has sent for you
       R(294, 44, 2, 12, '#8a6230'); R(288, 38, 14, 6, '#e8b545'); R(284, 40, 4, 3, '#e8b545'); R(302, 40, 4, 3, '#e8b545'); R(293, 35, 4, 3, '#e8b545'); E.sign(295, Math.max(23, top - 32), 'THE EMPEROR SUMMONS YOU', true); }
@@ -441,10 +457,10 @@ const PLACE_SCENES = {
       if (holder) { const c = yours ? '#e8b545' : '#d8d2c0'; E.P(170, 130, 1, { tunic: c, skin: c, hair: yours ? '#b6832c' : '#c9c2ae', item: 'sword' }); E.wreath(170, 96, yours ? '#fff0b0' : '#5d7f3f'); }
       E.sign(170, 162, holder ? `CHAMPION: ${holder.name.toUpperCase()}` : t >= 1 ? 'THE TITLE STANDS EMPTY' : 'NO CHAMPION IN THE PITS', !!yours); }
     // the bookmakers, their board and their strongbox
-    R(126, 106, 24, 20, '#2a2a2a'); R(124, 104, 28, 2, '#6b4f2c'); for (let i = 0; i < 4; i++) { R(129, 109 + i * 4, 8 + (i % 2) * 4, 1, '#e8e2d2'); R(143, 109 + i * 4, 4, 1, i % 2 ? '#e8b545' : '#e8e2d2'); }
-    R(118, 140, 34, 4, '#6b4f2c'); R(121, 144, 3, 12, '#5e4426'); R(146, 144, 3, 12, '#5e4426'); for (let i = 0; i < 5; i++) R(124 + (i % 3) * 3, 138 - Math.floor(i / 3) * 2, 2, 2, '#e8b545');
-    E.P(138, 158, 1, { tunic: '#4a6a8a', hair: '#2a1c14', item: 'scroll' });
-    E.sign(136, 100, (G.streak || 0) >= 2 ? `WAGERS - ${G.streak} WON RUNNING` : 'WAGERS', (G.streak || 0) >= 2);
+    R(126, 106, 24, 20, '#2a2a2a'); R(124, 104, 28, 2, '#6b4f2c'); if (!shut) for (let i = 0; i < 4; i++) { R(129, 109 + i * 4, 8 + (i % 2) * 4, 1, '#e8e2d2'); R(143, 109 + i * 4, 4, 1, i % 2 ? '#e8b545' : '#e8e2d2'); } else { R(130, 112, 14, 1, 'rgba(232,226,210,.25)'); R(133, 118, 10, 1, 'rgba(232,226,210,.18)'); }
+    R(118, 140, 34, 4, '#6b4f2c'); R(121, 144, 3, 12, '#5e4426'); R(146, 144, 3, 12, '#5e4426'); if (!shut) { for (let i = 0; i < 5; i++) R(124 + (i % 3) * 3, 138 - Math.floor(i / 3) * 2, 2, 2, '#e8b545');
+      E.P(138, 158, 1, { tunic: '#4a6a8a', hair: '#2a1c14', item: 'scroll' }); }
+    E.sign(136, 100, shut ? 'NO BOOK THIS MONTH' : (G.streak || 0) >= 2 ? `WAGERS - ${G.streak} WON RUNNING` : 'WAGERS', !shut && (G.streak || 0) >= 2);
     // the festival crowns the house has won, hung on a rail by the wall
     { const n = typeof trophies === 'function' ? trophies() : 0;
       R(500, 132, 2, 26, '#5e4426'); R(572, 132, 2, 26, '#5e4426'); R(498, 130, 78, 3, '#6b4f2c');
