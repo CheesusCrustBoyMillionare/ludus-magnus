@@ -347,6 +347,7 @@ function showBack(ctx, B, T) {
     for (const c of S.shouts) {
       if (c.t < 0) continue;
       const k = c.t / c.dur, x = clamp(c.x, 20, 408), y = c.y - k * 7;
+      { const V = B.view || { z: 1, ox: 0, oy: 0 }, sx = x * FINE * V.z + V.ox, sy = y * FINE * V.z + V.oy; if (sy < 150 && (sx < 450 || sx > 830)) continue; }      // (it would lie under one of the plates at the top of the picture)
       ctx.globalAlpha = Math.min(1, k * 8) * Math.min(1, (1 - k) * 3);
       const w = ctx.measureText(c.word).width;
       ctx.fillStyle = 'rgba(12,8,5,.78)'; ctx.fillRect(x - w / 2 - 2, y - 5, w + 4, 7); ctx.fillRect(x - 1, y + 2, 2, 1);

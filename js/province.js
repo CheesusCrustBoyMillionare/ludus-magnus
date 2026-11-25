@@ -3967,6 +3967,21 @@ function provIcon(ctx, s, T, done) {
   }
 }
 
+// The season over the country (the map itself is painted once, in spring green): a wash of the season's colour over
+// the land in view, and something lying on it: leaves in the woods in autumn, snow on the high ground in winter and
+// frost on the low; and snow lying everywhere while it is falling. Drawn under the fog and under everything that moves.
+function provSeason(ctx, x0, y0, w, h, step, wx) {
+  const se = typeof sceneSeason === 'function' ? sceneSeason() : 0, white = (wx && wx.white) || 0;
+  if (!se && !white) return;
+  ctx.fillStyle = se === 1 ? 'rgba(214,196,96,.07)' : se === 2 ? 'rgba(190,118,36,.17)' : se === 3 ? 'rgba(232,238,244,.26)' : 'rgba(0,0,0,0)'; ctx.fillRect(x0, y0, w, h);
+  if (white > 0) { ctx.fillStyle = 'rgba(244,248,252,' + (0.3 * white).toFixed(3) + ')'; ctx.fillRect(x0, y0, w, h); }
+  if (se < 2) return;
+  for (let y = Math.floor(y0 / step) * step; y < y0 + h; y += step) for (let x = Math.floor(x0 / step) * step; x < x0 + w; x += step) {
+    const v = wildHash(x, y, 1700), k = wildTile(x, y), px = x + Math.floor(v * 97) % step, py = y + Math.floor(v * 53) % step;
+    if (se === 2) { if (k === T_FOREST ? v > 0.3 : (k === T_GRASS || k === T_MEADOW) && v > 0.9) { ctx.fillStyle = ['#c9822e', '#a8562a', '#d9a23a'][Math.floor(v * 30) % 3]; ctx.fillRect(px, py, k === T_FOREST ? 2 : 1, 1); } }
+    else if (k === T_PEAK || k === T_HILL ? v > 0.25 : k === T_FOREST ? v > 0.6 : (k === T_GRASS || k === T_MEADOW || k === T_ROAD) && v > 0.82) { ctx.fillStyle = k === T_PEAK || k === T_HILL ? 'rgba(250,252,255,.8)' : 'rgba(244,248,252,.6)'; ctx.fillRect(px, py, k === T_PEAK || k === T_HILL ? 3 : 2, 1); }
+  }
+}
 function drawProvince(cv, T) {
   if (prov.big) return drawOverview(cv, T);
   const F = G.field, ctx = cv.getContext('2d'), S = PROV.S = cv.width / PROV.VW;      // a whole number, chosen for the screen (see fitScenes in main.js)
@@ -3975,6 +3990,9 @@ function drawProvince(cv, T) {
   ctx.drawImage(provLand(), camX, camY, PROV.VW, PROV.VH, 0, 0, PROV.VW * S, PROV.VH * S);
   ctx.setTransform(S, 0, 0, S, -camX * S, -camY * S);
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  // How large the words on this map must be written to be read: as they are on a wide screen, larger on a small one.
+  const LU = clamp(10 / (6 * ((cv.clientWidth || PROV.VW * 2) / PROV.VW)), 1, 2);
+  provSeason(ctx, camX, camY, PROV.VW, PROV.VH, 7, typeof yardWeather === 'function' ? yardWeather(sceneClock()) : null);
   const inView = (x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
   const M = wildMap();
 
@@ -4177,12 +4195,13 @@ function drawProvince(cv, T) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = la; R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 10, 1, 4, '#3a2a1c'); ctx.globalAlpha = 1;
   }
-  ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
+  ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
 
   // names, and marks that show even through the fog
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   // a name on the map, with a red pip for each skull of danger
-  const tag = (x, y, text, col, bg, pips) => { const tw = Math.ceil(ctx.measureText(text).width), w = tw + 6 + (pips ? pips * 5 + 2 : 0); R(x - w / 2, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); ctx.textAlign = 'left'; ctx.fillStyle = col || '#f2e6cc'; ctx.fillText(text, x - w / 2 + 3, y); ctx.textAlign = 'center'; for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
+  const tag0 = (x, y, text, col, bg, pips) => { const tw = Math.ceil(ctx.measureText(text).width), w = tw + 6 + (pips ? pips * 5 + 2 : 0); R(x - w / 2, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); ctx.textAlign = 'left'; ctx.fillStyle = col || '#f2e6cc'; ctx.fillText(text, x - w / 2 + 3, y); ctx.textAlign = 'center'; for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
+  const tag = (x, y, ...rest) => { if (LU <= 1) return tag0(x, y, ...rest); ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(LU, LU); tag0(0, 0, ...rest); ctx.restore(); };      // the same, grown about the spot it names
   if (inView(tx, ty, 70)) tag(tx - 12, ty - 38, 'HOME', '#2a1a0c', '#f5d584');
   for (const s of sites) {
     if (!inView(s.x, s.y, 40)) continue;
@@ -4199,23 +4218,24 @@ function drawProvince(cv, T) {
   for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 0.6, r.y + oy * 0.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); }
 
   // on the glass: where you are, and how to move
-  ctx.setTransform(S, 0, 0, S, 0, 0);
+  ctx.setTransform(S * LU, 0, 0, S * LU, 0, 0);
   ctx.font = 'bold 7px Consolas, monospace'; ctx.textAlign = 'left';
   const where = wildRegion(F.x, F.y).toUpperCase(), ww = Math.ceil(ctx.measureText(where).width), danger = wildTier(F.x, F.y);
   ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 4, ww + 14 + danger * 6, 12);
   ctx.fillStyle = '#f2e6cc'; ctx.fillText(where, 9, 13);
   for (let i = 0; i < danger; i++) { ctx.fillStyle = '#e2695c'; ctx.fillRect(ww + 14 + i * 6, 7, 5, 4); ctx.fillRect(ww + 15 + i * 6, 11, 3, 2); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(ww + 15 + i * 6, 8, 1, 1); ctx.fillRect(ww + 17 + i * 6, 8, 1, 1); }
   provDial(ctx, 4, 18);
+  ctx.setTransform(S, 0, 0, S, 0, 0);
   ctx.font = 'bold 7px Consolas, monospace'; ctx.textAlign = 'left';
   // at the edge of the view: which way home is, and which way to anything a clue has marked
-  ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
+  ctx.font = 'bold ' + Math.round(6 * LU * 10) / 10 + 'px Consolas, monospace'; ctx.textAlign = 'center';
   const point = (wx, wy, label, col, bg) => {
     if (wx > camX + 10 && wx < camX + PROV.VW - 10 && wy > camY + 10 && wy < camY + PROV.VH - 10) return;
     const cx = PROV.VW / 2, cy = PROV.VH / 2, dx = wx - (camX + cx), dy = wy - (camY + cy), k = Math.min((cx - 26) / Math.abs(dx || 0.01), (cy - 22) / Math.abs(dy || 0.01));
     const px = Math.round(cx + dx * k), py = Math.round(cy + dy * k), d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, w = Math.ceil(ctx.measureText(label).width) + 6;
-    ctx.fillStyle = bg; ctx.fillRect(px - w / 2, py - 5, w, 9);
+    ctx.fillStyle = bg; ctx.fillRect(px - w / 2, py - 5 * LU, w, Math.round(9 * LU));
     for (let i = 0; i < 5; i++) ctx.fillRect(Math.round(px + ux * (w / 2 + 1 + i) - (4 - i) * Math.abs(uy)), Math.round(py + uy * (6 + i) - (4 - i) * Math.abs(ux)), 1 + Math.round((4 - i) * 2 * Math.abs(uy)), 1 + Math.round((4 - i) * 2 * Math.abs(ux)));
-    ctx.fillStyle = col; ctx.fillText(label, px, py + 2);
+    ctx.fillStyle = col; ctx.fillText(label, px, py + 2 * LU);
   };
   for (const s of sites) if (M.marks[s.id] && !siteDone(s) && siteLive(s)) point(s.x, s.y, s.kind === 'cache' ? 'DIG' : s.kind === 'herb' ? 'HERB' : QUEST_SITE[s.kind] || s.journey ? 'JOURNEY' : s.kind === 'tale' ? 'STORY' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) ? 'EAGLE' : 'MARKED', '#2a1a0c', '#f5d584');
   point(tx, ty, 'HOME', '#2a1a0c', '#f1ead8');
@@ -4243,7 +4263,7 @@ function drawProvince(cv, T) {
   if (hv) {
     const [lines, sk] = hoverLines(hv), hx = hv.x - camX, hy = hv.y - camY;
     ctx.strokeStyle = 'rgba(245,213,132,.8)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(hx) - 11.5, Math.round(hy) - 12.5, 23, 20);
-    provCard(ctx, hx, hy - 8, lines, sk, 1, PROV.VW, PROV.VH);
+    provCard(ctx, hx, hy - 8, lines, sk, LU, PROV.VW, PROV.VH);
     ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
   }
   // night falls when camp is made, and lifts again
@@ -4260,13 +4280,15 @@ function drawProvince(cv, T) {
   }
   ctx.textAlign = 'center'; ctx.font = 'bold 7px Consolas, monospace';
   const mw = marchWord(), pk = !hv && !mw ? provPeek() : (hv ? provPeek() : null);
-  if (mw) { const w = Math.ceil(ctx.measureText(mw.text).width) + 12; ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 32, w, 12); ctx.fillStyle = mw.miss ? '#f08a7c' : '#f5d584'; ctx.fillText(mw.text, PROV.VW / 2, PROV.VH - 23); }
+  // the two lines along the foot, grown about the middle of the foot (but never wider than the map)
+  const foot = (w, f) => { const s = Math.min(LU, (PROV.VW - 8) / w); if (s <= 1) return f(); ctx.save(); ctx.translate(PROV.VW / 2, PROV.VH); ctx.scale(s, s); ctx.translate(-PROV.VW / 2, -PROV.VH); f(); ctx.restore(); };
+  if (mw) { const w = Math.ceil(ctx.measureText(mw.text).width) + 12; foot(w, () => { ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 32, w, 12); ctx.fillStyle = mw.miss ? '#f08a7c' : '#f5d584'; ctx.fillText(mw.text, PROV.VW / 2, PROV.VH - 23); }); }
   if (pk && prov.mouse) {                    // by the mouse: what the march there would take
     const t = daysWord(pk.days).toUpperCase(), w = Math.ceil(ctx.measureText(t).width) + 8, mx = clamp(prov.mouse.u * PROV.VW + 8, 2, PROV.VW - w - 2), my = clamp(prov.mouse.v * PROV.VH + (hv ? 16 : 10), 12, PROV.VH - 36);
     ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(mx, my, w, 10); ctx.textAlign = 'left'; ctx.fillStyle = pk.days < 0 ? '#f08a7c' : pk.days === 0 ? '#9fce86' : '#f5d584'; ctx.fillText(t, mx + 4, my + 7.5); ctx.textAlign = 'center';
   }
   const tip = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : town(F) < 60 ? 'W A S D OR CLICK TO WALK  -  M FOR THE WHOLE MAP  -  R TO GO HOME' : '';
-  if (tip) { const w = Math.ceil(ctx.measureText(tip).width) + 12; ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 18, w, 12); ctx.fillStyle = '#f5d584'; ctx.fillText(tip, PROV.VW / 2, PROV.VH - 9); }
+  if (tip) { const w = Math.ceil(ctx.measureText(tip).width) + 12; foot(w, () => { ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 18, w, 12); ctx.fillStyle = '#f5d584'; ctx.fillText(tip, PROV.VW / 2, PROV.VH - 9); }); }
 }
 const town = F => Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y);
 
@@ -4277,6 +4299,7 @@ function drawOverview(cv, T) {
   ctx.drawImage(provLand(), 0, 0, WILD.W, WILD.H, 0, 0, cv.width, cv.height);
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(k, 0, 0, k, 0, 0);
+  provSeason(ctx, 0, 0, WILD.W, WILD.H, 14, typeof yardWeather === 'function' ? yardWeather(sceneClock()) : null);
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   for (let fy = 0; fy < WILD.FH; fy++) for (let fx = 0; fx < WILD.FW; fx++) if (!fogAt(fx, fy)) R(fx * Fg, fy * Fg, Fg + 1, Fg + 1, wildHash(fx, fy, 7) > 0.5 ? '#d9c8a0' : '#d5c299');
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';

@@ -1956,6 +1956,14 @@ test('the town: an arena as great as the games, the doctore and the stables at t
   assert(y.includes('const guestGlance = T =>') && pl.includes('guestGlance(T) ? -1 : 1') && v.includes('vil.idleT > 4'), 'left with nothing to do, he looks about him');
   assert(y.includes("return { kind: 'snow', rain: 0, snow: amt") && y.includes('function sceneSnow(') && y.includes('function sceneStorm(') && v.includes('sceneSnow(ctx, 590, 190, T, wx.snow, 110)') && pl.includes('sceneSnow(ctx, 590, 190, T, wx.snow)'), 'it snows in winter, and storms in autumn');
   assert(y.includes('function fighterCard(cv, h)') && css.includes('#ycard .yb'), 'a man in the yard has his card');
+  // the fight and the province: the view lifted clear of the choices, a pit that is a pit, the season and the snow over the country, words that can be read
+  { const cb = read('js/combat.js'), sh = read('js/show.js');
+    assert(cb.includes("const pk = document.getElementById('arenaPick')") && cb.includes('CH - 240 * FINE * cz - uu, 0);') && cb.includes('(CH - uu) / 2 - cam.y * FINE * cz'), 'while a choice is waited on, the man it is for stands clear above it');
+    assert(cb.includes("if (th.planks) {      // the pits: no seats") && cb.includes('a path trodden down the bank'), 'the pits are fought in a pit');
+    assert(sh.includes('if (sy < 150 && (sx < 450 || sx > 830)) continue;'), 'and nothing is shouted from under the names of the two sides');
+    assert(p.includes('function provSeason(ctx, x0, y0, w, h, step, wx)') && p.split('provSeason(ctx, ').length - 1 === 3 && p.includes('sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140)'), 'the season and the snow lie over the province, near and far');
+    assert(p.includes('const LU = clamp(10 / (6 * ((cv.clientWidth || PROV.VW * 2) / PROV.VW)), 1, 2);') && p.includes('const tag = (x, y, ...rest) =>') && p.includes('lines, sk, LU, PROV.VW, PROV.VH'), 'and the words on it are written large enough for the size it is shown at');
+    assert(css.includes('@media (min-width: 1150px) {\n  #arenaBar .grp button { font-size: 12.5px;'), 'the controls of a fight are of a size to be read'); }
   // the side bar: no switch for the picture of the yard; a slider each for the sound and the music
   const s = read('js/sfx.js'), foot = m.slice(m.indexOf("$('#sidefoot').innerHTML"), m.indexOf('function volSlider'));
   assert(foot.length > 100 && !foot.includes('yardtoggle') && foot.includes("volSlider('sound')") && foot.includes("volSlider('music')"), 'the Yard button is gone from the side bar, and the sliders are there');

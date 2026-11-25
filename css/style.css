@@ -1749,6 +1749,13 @@ button.mini.jgo { margin: 0 4px 3px 0; padding: 1px 8px; font-size: 10.5px; vert
 #arenaBar .grp button[data-act=speed] { min-width: 32px; padding: 5px 6px; font-family: Consolas, monospace; font-weight: bold; font-size: 12px; margin-right: -5px; border-radius: 0; }
 #arenaBar .grp button[data-act=speed]:first-of-type { border-radius: 2px 0 0 2px; }
 #arenaBar .grp #pauseBtn { margin-left: 9px; min-width: 96px; }
+/* on a screen with the room for it, the controls of a fight are of a size to be read and hit */
+@media (min-width: 1150px) {
+  #arenaBar .grp button { font-size: 12.5px; padding: 7px 10px; }
+  #arenaBar button[data-key]::after { font-size: 10.5px; padding: 0 4px; }
+  #arenaBar .grp button[data-act=speed] { font-size: 13.5px; min-width: 38px; padding: 7px 8px; }
+  #arenaBar .grp #pauseBtn { min-width: 112px; }
+}
 #arenaOrders button { min-width: 0; }
 #arenaBar #skipBtn { margin-left: 6px; }
 @media (max-width: 900px) { #arenaBar .grp { padding: 0 6px; } }

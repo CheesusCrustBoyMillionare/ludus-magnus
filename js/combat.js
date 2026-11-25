@@ -2111,6 +2111,14 @@ function renderBackdrop(B) {
   }
   // the rows: each seat lit along its top edge, in shade down its face
   for (let y = 23; y <= 65; y += 9) {
+    if (th.planks) {      // the pits: no seats, only the earth thrown up out of the hole, cut into steps, turf along each and a plank here and there to sit on
+      const e = shade('#77653f', 0.86 + (y - 23) / 42 * 0.24);
+      R(0, y - 8, 428, 8, e); R(0, y, 428, 1, '#7f9a4b'); R(0, y + 1, 428, 1, shade(e, 0.7));
+      for (let x = (y * 7) % 13; x < 428; x += 13) R(x, y - 1, 2 + (x % 3), 1, (x + y) % 2 ? '#6f8f42' : '#93ab58');
+      for (let x = (y * 11) % 17; x < 428; x += 17) R(x, y - 5 + (x % 3), 2, 1, shade(e, x % 2 ? 0.85 : 1.15));
+      for (let x = 12 + (y % 18) * 2; x < 428; x += 46) { R(x, y - 3, 24, 2, '#a8834a'); R(x, y - 3, 24, 1, '#c9a763'); R(x, y - 1, 24, 1, 'rgba(0,0,0,.25)'); R(x + 2, y - 1, 1, 1, '#5e4426'); R(x + 21, y - 1, 1, 1, '#5e4426'); }
+      continue;
+    }
     R(0, y - 8, 428, 8, shade(th.stands, 0.92 + (y - 23) / 42 * 0.16));
     R(0, y, 428, 1, shade(th.stands, 1.55)); R(0, y + 1, 428, 1, shade(th.step, 0.8));
     if (stone) for (let x = (y % 2) * 7; x < 428; x += 14) R(x, y - 7, 1, 7, th.step);       // the joints between the blocks
@@ -2118,6 +2126,7 @@ function renderBackdrop(B) {
   }
   // the stairs up through the crowd, each from its own doorway
   for (const a of ARENA_AISLES) {
+    if (th.planks) { R(a, 15, 9, 51, '#8f7c52'); R(a, 15, 1, 51, '#75643e'); R(a + 8, 15, 1, 51, '#75643e'); for (let y = 18; y < 66; y += 4) R(a + 1, y, 7, 1, '#7c6a44'); continue; }      // a path trodden down the bank, and no doorway at the foot of it
     R(a, 15, 9, 51, shade(th.stands, 1.5)); R(a, 15, 1, 51, shade(th.stands, 1.15)); R(a + 8, 15, 1, 51, shade(th.stands, 1.15));
     for (let y = 17; y < 58; y += 3) R(a + 1, y, 7, 1, shade(th.stands, 1.15));
     R(a + 1, 57, 7, 9, '#120c0a'); R(a, 56, 9, 1, stone ? th.wallTop : '#7a5a34'); R(a + 2, 55, 5, 1, stone ? th.wallTop : '#7a5a34');
@@ -2350,7 +2359,14 @@ function drawBattle(ctx, B) {
   cam.z += (want - cam.z) * ck; if (Math.abs(cam.z - want) < 0.004) cam.z = want;
   if (cam.tx != null) { cam.x += (cam.tx - cam.x) * ck; cam.y += (cam.ty - cam.y) * ck; }
   const cz = cam.z + (B.fixedCam || finish ? 0 : Math.min(0.05, B.flashT * 0.45)), CW = 1280, CH = 720;      // and it starts forward at a heavy blow
-  const cox = cz === 1 ? 0 : clamp(CW / 2 - cam.x * FINE * cz, CW - 428 * FINE * cz, 0), coy = cz === 1 ? 0 : clamp(CH / 2 - cam.y * FINE * cz, CH - 240 * FINE * cz, 0);
+  // While the fight waits on a choice, the choices lie across the foot of the picture. The view is lifted by as much of
+  // the picture as they cover, so that the man it has stopped for stands clear above them, even one fighting at the near
+  // edge of the sand; and it comes down again as they are put away.
+  let under = 0;
+  if (picking && typeof document !== 'undefined') { const pk = document.getElementById('arenaPick'), cr = ctx.canvas.getBoundingClientRect(); if (pk && !pk.hidden && cr.height) under = clamp((cr.bottom - pk.getBoundingClientRect().top) / cr.height, 0, 0.6) * CH; }
+  B.under = (B.under || 0) + (under - (B.under || 0)) * (1 - Math.pow(0.002, cdt)); if (B.under < 0.5 && !under) B.under = 0;
+  const uu = B.under;
+  const cox = cz === 1 ? 0 : clamp(CW / 2 - cam.x * FINE * cz, CW - 428 * FINE * cz, 0), coy = cz === 1 && !uu ? 0 : clamp((CH - uu) / 2 - cam.y * FINE * cz, CH - 240 * FINE * cz - uu, 0);
   B.view = { z: cz, ox: cox, oy: coy };       // for whatever needs to find a man on the screen, or the mouse on the sand
   const view = unit => ctx.setTransform(unit * cz * K, 0, 0, unit * cz * K, (cox + shx) * K, (coy + shy) * K);
 
@@ -2358,6 +2374,7 @@ function drawBattle(ctx, B) {
   view(FINE);
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
+  if (uu > 0 && !B.wild) { ctx.fillStyle = shade(B.theme.sand, 0.95); ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); }      // more sand below the sand, for the little of it that shows either side of the choices
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
 
   const dusk = B.light === 'dusk';
@@ -2380,7 +2397,7 @@ function drawBattle(ctx, B) {
   drawVfx(ctx, B, false);
   drawAuras(ctx, B, T);
   if (picking) {                              // the fight has stopped for him: the sand dims, and he and his man stand out
-    ctx.fillStyle = 'rgba(8,5,2,.45)'; ctx.fillRect(0, 0, 428, 240);
+    ctx.fillStyle = 'rgba(8,5,2,.45)'; ctx.fillRect(0, 0, 428, 240 + (uu > 0 ? Math.ceil(uu / (FINE * cz)) + 2 : 0));
     const tg = picking.target && !out(picking.target) ? picking.target : null;
     if (tg) { drawSprite(ctx, { ...spr(tg), flash: 0 }); const tx = tg.x * 2, ty = tg.y * 2 - tg.tall - 12 + Math.round(Math.sin(T * 7) * 2); ctx.fillStyle = '#ff5a4a'; for (let i = 0; i < 4; i++) ctx.fillRect(tx - 3 + i, ty + i, 7 - i * 2, 1); }
     ctx.strokeStyle = `rgba(255,210,74,${(0.6 + 0.3 * Math.sin(T * 6)).toFixed(2)})`; ctx.lineWidth = 1.5;
