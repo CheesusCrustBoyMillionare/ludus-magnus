@@ -52,6 +52,9 @@ function drawPlace(cv, T, tab) {
     if (host && y >= 140 && !o.moving && o.swing === undefined && o.sweep === undefined && Math.abs(host.x - x) < 46 && Math.abs(host.x - x) > 3 && Math.abs(host.y - y) < 30) { d = host.x > x ? 1 : -1; if (o.face) { o = Object.assign({}, o); delete o.face; } }
     folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); };
   const SE = sceneSeason();
+  // Somebody walking by along y: where a table, a fountain or a cart stands in his way he bears round the front of it.
+  const inWay = typeof guestRects === 'function' ? guestRects(tab) : [];
+  const walkY = (x, y) => { let out = y; for (const r of inWay) { if (y < r[1] || y >= r[3]) continue; const dx = x < r[0] - 6 ? r[0] - 6 - x : x > r[2] + 6 ? x - r[2] - 6 : 0; if (dx < 26) { const k = 1 - dx / 26, e = k * k * (3 - 2 * k); out = Math.max(out, Math.round(y + (Math.min(186, r[3] + 1) - y) * e)); } } return out; };
   const E = {
     T, R, sky, wx, night: sky.night, games: isGamesDay(), folk,
     P0: (x, y, d, o) => yardPerson(ctx, Math.round(x), Math.round(y), d, o),      // one who is not written down: the master himself
@@ -59,7 +62,7 @@ function drawPlace(cv, T, tab) {
     // a person on the street, feet at x, y; d is 1 facing right, -1 left
     P: (x, y, d, o) => person(Math.round(x), Math.round(y), d, Object.assign({ tunic: '#8a4a3a' }, o)),
     // someone walking the length of the picture and coming round again
-    walker: (i, y, speed, o) => { const x = (((i * 137 + T * speed) % 660) + 660) % 660 - 35, lap = Math.floor((i * 137 + T * speed) / 660), k = Math.abs(i * 5 + lap * 3) % 8, carry = (o && o.item) ? {} : k === 1 ? { item: 'basket' } : k === 3 ? { item: 'jar' } : k === 5 ? { item: 'sack' } : {}; person(Math.round(x), y, speed > 0 ? 1 : -1, Object.assign({ tunic: '#8a4a3a', moving: true, walk: T * 9 + i }, o, carry)); },      // some of them are carrying something home, and not the same thing each time they come by
+    walker: (i, y, speed, o) => { const x = (((i * 137 + T * speed) % 660) + 660) % 660 - 35, lap = Math.floor((i * 137 + T * speed) / 660), k = Math.abs(i * 5 + lap * 3) % 8, carry = (o && o.item) ? {} : k === 1 ? { item: 'basket' } : k === 3 ? { item: 'jar' } : k === 5 ? { item: 'sack' } : {}; person(Math.round(x), walkY(x, y), speed > 0 ? 1 : -1, Object.assign({ tunic: '#8a4a3a', moving: true, walk: T * 9 + i }, o, carry)); },      // some of them are carrying something home, and not the same thing each time they come by
     sign: (x, y, text, gold) => late.push(() => {
       ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
       const w = Math.ceil(ctx.measureText(text).width) + 8;
@@ -183,7 +186,7 @@ function drawPlace(cv, T, tab) {
       if (day > 0.15) for (let q = 0; q < 9; q++) { const u = (q * 0.37 + 0.1) % 1, v = (T * (0.02 + (q % 3) * 0.008) + q * 0.19) % 1, ax = pts[0][0] + (pts[1][0] - pts[0][0]) * u, ay = pts[0][1] + (pts[1][1] - pts[0][1]) * u, bx = pts[3][0] + (pts[2][0] - pts[3][0]) * u, by = pts[3][1] + (pts[2][1] - pts[3][1]) * u; ctx.fillStyle = `rgba(255,248,220,${(0.5 * day * Math.sin(v * Math.PI)).toFixed(3)})`; ctx.fillRect(Math.round(ax + (bx - ax) * v + Math.sin(T + q) * 2), Math.round(ay + (by - ay) * v), 1, 1); }      // dust, seen only where the light is
     }
   }
-  if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneRain(ctx, 590, 190, T, wx.rain); sceneAir(ctx, T, sky, wx, 128, true); sceneWet(ctx, T, sky, wx, 128, lamps, [], true); }
+  if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneWhite(ctx, 590, 122, 68, wx.white); sceneRain(ctx, 590, 190, T, wx.rain); sceneSnow(ctx, 590, 190, T, wx.snow); sceneStorm(ctx, 590, 190, T, wx); sceneAir(ctx, T, sky, wx, 128, true); sceneWet(ctx, T, sky, wx, 128, lamps, [], true); }
   if (!scene.indoor && tab !== 'arena' && E.games) sceneBunting(ctx, T, 40, 550, 44, wx);
   if (!scene.indoor) sceneGrade(ctx, sky, wx);
   late.forEach(f => f());
@@ -300,7 +303,7 @@ function placeGuest(E, tab) {
   if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 62 * LEAVE_PACE; lv.need = routeLength(Gs, way) / lv.pace; } if (!moving) lv.out = true; }      // half as fast again as he walks about the place, and the map waits for him
   if (moving) { const step = (lv ? lv.pace : 62) * dt; if (gap <= step) { Gs.x = to.x; Gs.y = to.y; way.shift(); } else { Gs.x += gx / gap * step; Gs.y += gy / gap * step; } if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, dt); }
   else if (!goal) Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
-  const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
+  const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d * (!moving && !lv && !(pt && !goal) && guestGlance(T) ? -1 : 1);      // with nothing to point at he looks about him now and then
   return { x: X, y: Y, draw() {
   if (goal && moving) { E.ctx().globalAlpha = 0.45 + 0.35 * Math.sin(T * 6); R(goal.x - 4, goal.y - 1, 9, 2, '#f5d584'); R(goal.x - 2, goal.y - 2, 5, 4, '#f5d584'); E.ctx().globalAlpha = 1; }      // where he has been sent, marked on the floor
   if (pt && pt.frame && !lv) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed

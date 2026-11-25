@@ -449,6 +449,24 @@ h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
 #vlabels .vsay b { display: block; margin-bottom: 2px; padding-bottom: 1px; border-bottom: 1px solid #d8ccb0; color: #8a5a14; }
 #vlabels .vsay.up { margin-bottom: 3px; } #vlabels .vsay.down { margin-top: 3px; }
 #topbar .stat .season { color: inherit; opacity: .8; }
+/* what the purse or the fame has just gained or lost, rising beside the figure (tickFloat in main.js) */
+.tkf { position: fixed; z-index: 60; pointer-events: none; font: bold 13px Consolas, monospace; font-style: normal; text-shadow: 0 1px 0 #000, 0 0 4px #000; animation: tkf 1.4s ease-out forwards; }
+.tkf.up { color: #f5d584; } .tkf.down { color: #f08a7c; } .tkf.fame.up { color: #c8e6a8; }
+@keyframes tkf { 0% { opacity: 0; transform: translateY(4px); } 12% { opacity: 1; transform: translateY(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
+@media (prefers-reduced-motion: reduce) { .tkf { animation-duration: .01s; } }
+/* the card for the fighter the mouse rests on in the yard (fighterCard in yard.js) */
+#ycard { position: absolute; z-index: 4; pointer-events: none; transform: translate(-50%, -100%); width: 150px; padding: 5px 8px 6px; background: rgba(24,16,10,.95); border: 1px solid var(--bronze, #8a6a3a); box-shadow: 0 3px 0 #0008; color: #ecdcbb; font-size: 11px; line-height: 1.25; }
+#ycard.below { transform: translate(-50%, 0); }
+#ycard b { display: block; font: 700 12px var(--display, serif); letter-spacing: .06em; text-transform: uppercase; color: #f5d584; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ycard small { display: block; margin: 0 0 4px; font-size: 10.5px; color: #c9b890; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ycard .yb { display: grid; grid-template-columns: 3.6em minmax(0, 1fr) 3.4em; align-items: center; gap: 5px; margin: 2px 0; }
+#ycard .yb i { font-style: normal; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #a8947a; }
+#ycard .yb u { display: block; height: 5px; background: #120c08; border: 1px solid #3a2a1c; text-decoration: none; }
+#ycard .yb s { display: block; height: 100%; text-decoration: none; }
+#ycard .yb s.hp { background: #c23b2e; } #ycard .yb s.ft { background: #c9a21e; } #ycard .yb s.mo { background: #5f9a4a; }
+#ycard .yb em { font: bold 10.5px Consolas, monospace; font-style: normal; text-align: right; color: #f2e6cc; }
+#ycard p { margin: 4px 0 0; font-size: 11px; color: #ecdcbb; }
+#ycard .gold { color: #f5d584; }
 /* how loud: a slider each for the sound and the music, in the side bar and under Settings */
 .vol { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) 2.2em; align-items: center; gap: 6px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); cursor: pointer; }
 #sidefoot .vol { grid-column: 1 / -1; padding: 2px 1px 0; flex: 1 1 150px; min-width: 130px; align-self: center; }

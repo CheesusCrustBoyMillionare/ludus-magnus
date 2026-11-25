@@ -211,6 +211,7 @@ function villageStep(dt, frozen) {
     if (followPath(vil, dt, VILLAGE.SPEED)) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); }
   }
   vil.moving = Math.hypot(vil.x - x0, vil.y - y0) > 0.01;
+  vil.idleT = vil.moving || vil.inside || vil.enter ? 0 : (vil.idleT || 0) + dt;      // how long he has stood in the street with nothing to do
   if (vil.moving) { vil.stepT = (vil.stepT || 0) - dt; if (vil.stepT <= 0) { vil.stepT = 0.18; if (typeof SFX !== 'undefined') SFX.ui('step'); } }
   if (vil.moving) { vil.walk += dt * 17; vil.puffT -= dt; if (vil.puffT <= 0) { vil.puffT = 0.16; vil.puffs.push({ x: vil.x + (Math.random() * 4 - 2), y: vil.y, t: 0 }); } }
   for (const q of vil.puffs) q.t += dt;
@@ -710,7 +711,7 @@ function drawVillage(cv, T) {
   const still = (x, y, o) => folk.push({ y, draw: () => { const f = o && o.moving ? null : toHim(x, y); vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o, f ? { face: f } : null)); } });
   const notes = [];                    // marks over the heads of people who are waiting for you: [x, y, colour]
   const talks = [];                    // two with something to say to each other: [one, the other, a name for the pair]
-  if (!dark) {                                   // a carter and his mule, coming along the upper street to the gate, every so often
+  if (!dark && !(G.festival && G.festival.day === G.day)) {      // a carter and his mule, coming along the upper street to the gate, every so often (he keeps off it while a procession has it)
     const cx = ((T * 13) % 900) - 60, cy = 85;
     if (cx > 8 && cx < 560) folk.push({ y: cy, draw: () => {
       const st = Math.sin(T * 9) > 0 ? 1 : 0;
@@ -771,6 +772,35 @@ function drawVillage(cv, T) {
     // two who meet every morning on the east side of the square, and have never yet run out of things to say
     still(327, 112, { tunic: '#b06a8a', hair: '#3a2a1c', skin: '#e3b48f', face: 'right' }); still(336, 113, { tunic: '#5a8a9a', hair: '#c9c2b2', face: 'left' }); talks.push([{ x: 327, y: 112 }, { x: 336, y: 113 }, 'square']);
     if (typeof arenaShut === 'function' && arenaShut()) still(a.dx + 15, a.dy - 2, { tunic: '#6b6b74', hair: '#8a8478', face: Math.sin(T * 0.2) > 0.6 ? 'left' : 'down' });      // a month without games: one old watchman at the barred gate
+    // games day: the school's men are marched from their own gate to the arena's, once, and wait there in a rank while there are bouts still to fight
+    if (games && !G.field && (G.bouts || []).some(b => !b.done)) {
+      const men = G.roster.filter(g => !g.away && g.injury <= 0).slice(0, 6), lu = placeOf('ludus');
+      if (vil.march !== G.day) { vil.march = G.day; vil.marchT = T; }
+      const t = T - vil.marchT, x0 = lu.dx, x1 = a.dx - 46, dur = (x1 - x0) / 30;
+      men.forEach((g, i) => { const tx = x1 - i * 7, ty = a.dy + 3 + (i % 2) * 3, s = clamp((t - i * 0.4) / dur, 0, 1), px = x0 + (tx - x0) * s, py = lu.dy + 3 + (ty - lu.dy - 3) * s, going = s < 1;
+        if (s > 0) folk.push({ y: py, draw: () => vilPerson(ctx, px, py, { face: going ? 'right' : 'up', moving: going, walk: T * 9 + i * 2, tunic: '#c23b2e', hair: g.look.hair, skin: g.look.skin }) }); });
+    }
+    // a festival: its procession goes along the upper street to the arena, over and over, all day
+    if (G.festival && G.festival.day === G.day) {
+      const kind = (G.festival.shown || G.festival.type) === 'funeral' ? 'funeral' : (G.festival.shown || G.festival.type) === 'triumph' ? 'triumph' : 'rite', hx = ((T * 15) % 780) - 100, hy = 82;
+      const one = (off, o, extra) => { const px = hx - off, py = hy + (off % 3); if (px < 6 || px > 566) return; folk.push({ y: py, draw: () => { vilPerson(ctx, px, py, Object.assign({ face: 'right', moving: true, walk: T * 8 + off }, o)); if (extra) extra(px, py); } }); };
+      if (kind === 'funeral') {
+        one(0, { tunic: '#2a2a30', hair: '#2a1c14' }, (px, py) => { R(px + 4, py - 17, 1, 9, '#3a2a1c'); R(px + 3, py - 19 - (Math.sin(T * 11) > 0 ? 1 : 0), 3, 3, '#e2702a'); });                  // a torch before the dead, by day
+        one(12, { tunic: '#3a3a44', hair: '#6a4a2a' }); one(24, { tunic: '#3a3a44', hair: '#2a1c14' }, (px, py) => { R(px - 3, py - 13, 18, 2, '#5e4426'); R(px - 1, py - 16, 14, 3, '#e8e2d2'); R(px + 10, py - 17, 3, 2, '#d9a57c'); });      // the bier, on two men's shoulders
+        for (let q = 0; q < 4; q++) one(40 + q * 8, { tunic: q % 2 ? '#2a2a30' : '#4a3a3a', hair: q % 2 ? '#c9c2b2' : '#2a1c14' });                                                                // the mourners
+      } else if (kind === 'triumph') {
+        one(0, { tunic: '#a02d22', hair: '#b4bec8' }, (px, py) => { R(px + 4, py - 24, 1, 16, '#8a6230'); R(px + 1, py - 27, 7, 4, '#e8b545'); R(px + 3, py - 29, 3, 2, '#e8b545'); });                 // the eagle carried before them
+        for (let q = 0; q < 5; q++) one(10 + q * 7, { tunic: '#a02d22', hair: '#b4bec8' }, (px, py) => R(px + 4, py - 18, 1, 14, '#c1c7cc'));                                                              // soldiers, spears up
+        for (let q = 0; q < 3; q++) one(52 + q * 7, { tunic: '#8a7a5a', hair: '#2a1c14', skin: '#c9966c' }, (px, py) => { if (q) R(px + 3, py - 9, 5, 1, '#6b5334'); });                                   // captives, roped
+        one(80, { tunic: '#7a5e48', hair: '#2a1c14' }, (px, py) => { R(px - 16, py - 8, 13, 6, '#8a6a3a'); R(px - 16, py - 9, 13, 1, '#a8834a'); R(px - 14, py - 13, 9, 4, '#e8b545'); R(px - 14, py - 2, 4, 4, '#3a2a1c'); R(px - 8, py - 2, 4, 4, '#3a2a1c'); });      // a cart of what was taken
+      } else {
+        one(0, { tunic: '#f1ead8', hair: '#c9c2b2' }, (px, py) => { R(px + 4, py - 24, 1, 16, '#8a6230'); R(px + 2, py - 26, 6, 6, '#7a2a8a'); R(px + 2, py - 26, 6, 1, '#e8b545'); R(px + 4, py - 24, 2, 2, '#e8b545'); });      // the standard of the games
+        one(10, { tunic: '#f1ead8', hair: '#3a2a1c' }); one(18, { tunic: '#f1ead8', hair: '#6a4a2a' });                                                                                             // priests
+        one(28, { tunic: '#4a6a8a', hair: '#2a1c14' }, (px, py) => R(px + 4, py - 12, 4, 1, '#e8dcc0')); one(36, { tunic: '#7a7a3a', hair: '#2a1c14' }, (px, py) => { R(px + 3, py - 9, 4, 4, '#a8763a'); R(px + 3, py - 9, 4, 1, '#e8dcc0'); });      // a piper, and a drum
+        one(52, { tunic: '#8a4a3a', hair: '#2a1c14' }, (px, py) => { R(px + 6, py - 9, 12, 6, '#e8e2d2'); R(px + 16, py - 12, 5, 5, '#e8e2d2'); R(px + 20, py - 13, 1, 2, '#c9c2ae'); R(px + 7, py - 3, 2, 4, '#c9c2ae'); R(px + 14, py - 3, 2, 4, '#c9c2ae'); for (let q = 0; q < 4; q++) R(px + 7 + q * 3, py - 10, 2, 1, q % 2 ? '#c23b2e' : '#4a6a2a'); });      // a white ox, garlanded, and the man who leads it
+        for (let q = 0; q < 3; q++) one(78 + q * 8, { tunic: ['#a8763a', '#6a4a7a', '#3f7a5a'][q], hair: q % 2 ? '#6a4a2a' : '#2a1c14' });                                                              // and whoever cares to follow
+      }
+    }
     // children chasing each other round the fountain, and the dog that goes with them
     for (let i = 0; i < 2; i++) { const an = T * 1.3 + i * 0.8, cx = 296 + Math.cos(an) * 24, cy = 124 + Math.sin(an) * 14; folk.push({ y: cy, draw: () => vilChild(ctx, cx, cy, Math.sin(an) > 0 ? 'left' : 'right', T * 16 + i, i ? '#b06a8a' : '#5a8a9a') }); }
     { const an = T * 1.3 - 0.55, dx = 296 + Math.cos(an) * 26, dy = 125 + Math.sin(an) * 15, lf = Math.sin(an) > 0; folk.push({ y: dy, draw: () => { R(dx - 3, dy - 3, 6, 3, '#8a6a4a'); R(dx + (lf ? -5 : 3), dy - 5, 3, 3, '#8a6a4a'); R(dx - 3, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 1 : 0), '#6a4a2a'); R(dx + 2, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 0 : 1), '#6a4a2a'); R(dx + (lf ? 3 : -4), dy - 4, 1, 2, '#8a6a4a'); } }); }
@@ -785,6 +815,7 @@ function drawVillage(cv, T) {
   }
   if (!vil.inside) folk.push({ y: vil.y, draw: () => {
     const look = { face: vil.face, walk: vil.walk, moving: vil.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true };
+    if (vil.idleT > 4 && !vil.path) look.face = ['left', 'down', 'right', 'down'][Math.floor((vil.idleT - 4) / 2.4) % 4];      // left standing, he looks up and down the street
     const k = vil.enter ? clamp(vil.enter.t / DOOR_IN, 0, 1) : vil.outT > 0 ? vil.outT / DOOR_OUT : 0;      // how far into the doorway he is
     if (k <= 0) { vilPerson(ctx, vil.x, vil.y, look); return; }
     // going in: up off the step into the doorway, growing small as he goes (a little smaller than the door), and gone
@@ -909,6 +940,8 @@ function drawVillage(cv, T) {
     R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 10, 1, 4, '#3a2a1c');     // he carries a brand
     ctx.globalAlpha = 1; glow(vil.x, vil.y - 6, 13);
   }
+  if (wx.white > 0) { ctx.fillStyle = `rgba(244,248,252,${(0.3 * wx.white).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }      // snow lying over everything, and going again
+  sceneSnow(ctx, 590, 190, T, wx.snow, 110); sceneStorm(ctx, 590, 190, T, wx);
   if (wx.rain > 0) {
     ctx.fillStyle = `rgba(200,215,235,${(0.5 * wx.rain).toFixed(3)})`;
     for (let i = 0, n = Math.round(70 * wx.rain); i < n; i++) { const x = Math.floor(((i * 97.3 - T * 70) % 620 + 620) % 620 - 15), y = Math.floor((i * 61.7 + T * 340 + (i % 7) * 13) % 200 - 5); ctx.fillRect(x, y, 1, 4); ctx.fillRect(x - 1, y + 4, 1, 2); }

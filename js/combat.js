@@ -2397,7 +2397,7 @@ function drawBattle(ctx, B) {
     if (tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, 428, 240); ctx.globalCompositeOperation = 'source-over'; }
     if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.1 * wx.over).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
     if (wx.wet > 0) { ctx.fillStyle = `rgba(70,45,20,${(0.14 * wx.wet).toFixed(3)})`; ctx.fillRect(0, 86, 428, 154); }
-    sceneRain(ctx, 428, 240, T, wx.rain, 90);
+    sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * 0.7); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
   }
   if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
   for (const x of B.wild ? [] : ARENA_TORCHES) {

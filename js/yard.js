@@ -13,6 +13,8 @@ const yardAgents = {};      // staff and resting fighters who move about: where 
 let yardBirds = null;
 let yardForce = null;
 let yardSel = null;         // where the fighter whose dossier is open stands in the yard, this frame
+// The master, standing with nothing to do, looks over his shoulder every so often: a second or so in every nine.
+const guestGlance = T => ((T * 0.11 + 0.2) % 1) > 0.87;
 const yardGuest = { token: 0, x: 537, y: 136, d: -1, t: 0, walk: 0 };      // the lanista, when he has come in at the gate       // for testing from the console: { weather: 'rain', u: 0.8 } pins the weather and the hour
 
 // Anyone who walks about the yard. He heads for (tx, ty), then waits there.
@@ -45,7 +47,9 @@ function yardWeather(T) {
   let k = kind(i), prev = kind(i - 1), amt = k === 'clear' ? 0 : Math.min(1, p / 0.12, (1 - p) / 0.12);
   let wet = Math.max(k === 'rain' ? Math.min(1, p / 0.3) : 0, prev === 'rain' && k !== 'rain' ? Math.max(0, 1 - p / 0.6) : 0);
   if (yardForce && yardForce.weather) { k = yardForce.weather; amt = k === 'clear' ? 0 : 1; wet = k === 'rain' ? 1 : 0; }
-  return { kind: k, rain: k === 'rain' ? amt : 0, gust: k === 'wind' ? amt : 0, over: amt * ({ cloud: 0.75, rain: 1, wind: 0.3 }[k] || 0), wet };
+  // In winter what would be rain is snow: nothing runs or pools, it falls slowly and lies white for a while (white).
+  if (k === 'rain' && sceneSeason() === 3) return { kind: 'snow', rain: 0, snow: amt, gust: 0, over: amt * 0.85, wet: 0, white: Math.max(wet, amt) };
+  return { kind: k, rain: k === 'rain' ? amt : 0, snow: 0, white: prev === 'rain' && sceneSeason() === 3 ? wet : 0, gust: k === 'wind' ? amt : 0, over: amt * ({ cloud: 0.75, rain: 1, wind: 0.3 }[k] || 0), wet: sceneSeason() === 3 ? 0 : wet };
 }
 
 function yardPerson(ctx, X, Y, d, o) {
@@ -122,6 +126,23 @@ function sceneVignette(ctx, w, h, a) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
 }
 // Rain across a scene w by h units: slanting streaks, heavier as amt goes to 1.
+// Snow coming down: slow, drifting from side to side, the nearer flakes larger.
+function sceneSnow(ctx, w, h, T, amt, n) {
+  if (!(amt > 0)) return;
+  for (let i = 0, m = Math.round((n || 90) * amt); i < m; i++) {
+    const big = i % 4 === 0, x = (((i * 53.7 + Math.sin(T * 0.7 + i * 1.3) * 7 + T * 6) % (w + 20)) + w + 20) % (w + 20) - 10, y = (i * 37.3 + T * (big ? 34 : 22) + (i % 5) * 9) % (h + 8) - 4;
+    ctx.fillStyle = big ? 'rgba(255,255,255,' + (0.9 * amt).toFixed(3) + ')' : 'rgba(240,246,252,' + (0.7 * amt).toFixed(3) + ')'; ctx.fillRect(Math.round(x), Math.round(y), big ? 2 : 1, big ? 2 : 1);
+  }
+}
+// Snow lying on the ground from y down, and going again: how white is how much has fallen.
+function sceneWhite(ctx, w, y, h, white) { if (!(white > 0)) return; ctx.fillStyle = 'rgba(244,248,252,' + (0.34 * white).toFixed(3) + ')'; ctx.fillRect(0, y, w, h); ctx.fillStyle = 'rgba(255,255,255,' + (0.3 * white).toFixed(3) + ')'; for (let i = 0; i < 40; i++) ctx.fillRect((i * 131 + 9) % (w - 8), y + 2 + (i * 43) % Math.max(4, h - 4), 5 + (i % 4) * 3, 1); }
+// A storm in autumn: when the rain is at its heaviest the sky lights, twice in quick succession, every so often. (Never with the pictures held still.)
+function sceneStorm(ctx, w, h, T, wx) {
+  if (!(wx.rain > 0.7) || sceneSeason() !== 2 || (typeof ui !== 'undefined' && ui.still)) return;
+  const n = Math.floor(T / 7), p = T - n * 7, on = Math.abs(Math.sin(n * 91.7) * 43758.5) % 1 > 0.35;
+  const a = !on ? 0 : p < 0.07 ? 0.3 : p > 0.16 && p < 0.21 ? 0.2 : 0;
+  if (a > 0) { ctx.fillStyle = 'rgba(236,240,255,' + a + ')'; ctx.fillRect(0, 0, w, h); }
+}
 function sceneRain(ctx, w, h, T, amt, n) {
   if (!(amt > 0)) return;
   ctx.fillStyle = `rgba(200,215,235,${(0.5 * amt).toFixed(3)})`;
@@ -707,6 +728,7 @@ function drawYard(cv, T) {
     for (let i = 0; i < 26; i++) { const x = (i * 211 + 40) % 580, y = GY + 16 + (i * 29) % 42; R(x, y, 2, 1, '#a8905c'); R(x, y - 1, 1, 1, '#c8b078'); }      // pebbles
   }
   for (let i = 0; i < 90; i++) { const sx = (i * 97) % 588, sy = GY + 6 + (i * 53) % (YARD.H - GY - 8); R(sx, sy, 1 + (i % 3), 1, i % 2 ? '#c9a763' : '#e6c98a'); }
+  sceneWhite(ctx, 590, GY, YARD.H - GY, wx.white);
   if (wx.wet > 0) {
     R(0, GY, 590, YARD.H - GY, `rgba(70,45,20,${(0.22 * wx.wet).toFixed(3)})`);
     const pc = mixHex('#a88a58', sky.bands[2], 0.55), pl = mixHex('#c8b078', sky.bands[1], 0.7);
@@ -955,7 +977,7 @@ function drawYard(cv, T) {
     if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 58 * LEAVE_PACE; lv.need = far / lv.pace; } if (!moving) lv.out = true; }
     if (moving) { const st = Math.min(far, (lv ? lv.pace : 58) * gdt); Gs.x += gx / far * st; Gs.y += gy / far * st; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += gdt * 11 * (lv ? LEAVE_PACE : 1); if (goal) guestSteps(Gs, gdt); } else if (!goal) Gs.d = who ? (who.x > Gs.x ? 1 : -1) : -1;
     if (goal && moving) things.push({ y: goal.y - 0.5, draw: () => { ctx.globalAlpha = 0.45 + 0.35 * Math.sin(T * 6); R(goal.x - 4, goal.y - 1, 9, 2, '#f5d584'); R(goal.x - 2, goal.y - 2, 5, 4, '#f5d584'); ctx.globalAlpha = 1; } });      // where he has been sent, marked on the sand
-    const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
+    const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d * (!moving && !who && !lv && guestGlance(T) ? -1 : 1);      // with nothing to do he looks about him now and then
     things.push({ y: Y, draw: () => {
       yardPerson(ctx, X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
       R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a'); R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
@@ -1011,7 +1033,8 @@ function drawYard(cv, T) {
     }
     ctx.fillStyle = 'rgba(225,238,250,.6)';
     for (let i = 0, n = Math.round(30 * wx.rain); i < n; i++) { const k = Math.floor(T * 10) + i * 17, sx = (k * 73) % 588, sy = GY + 4 + (k * 29) % (YARD.H - GY - 6); ctx.fillRect(sx, sy, 3, 1); ctx.fillRect(sx + 1, sy - 1, 1, 1); }
-    if (wx.rain > 0.8 && T % 13 < 0.1) { ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(0, 0, 590, 190); }
+    if (wx.rain > 0.8 && T % 13 < 0.1 && sceneSeason() !== 2) { ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(0, 0, 590, 190); }
+    sceneStorm(ctx, 590, 190, T, wx);
   }
   if (wx.gust > 0) {                             // sand and leaves on the wind
     ctx.fillStyle = `rgba(245,228,185,${(0.45 * wx.gust).toFixed(3)})`;
@@ -1020,6 +1043,7 @@ function drawYard(cv, T) {
     for (let i = 0; i < 5; i++) R((i * 211 + T * 120) % 640 - 20, GY + 22 + (i * 23) % 30 - Math.abs(Math.sin(T * 5 + i)) * 8, 2, 1, i % 2 ? '#6f8a3a' : '#a8722e');
     ctx.globalAlpha = 1;
   }
+  sceneSnow(ctx, 590, 190, T, wx.snow);
   sceneAir(ctx, T, sky, wx, GY, false);
   if (typeof isGamesDay === 'function' && isGamesDay()) sceneBunting(ctx, T, 168, 500, 60, wx);
   sceneGrade(ctx, sky, wx);
@@ -1097,8 +1121,29 @@ function sceneDust(ctx, p, x, y, w, h) {
     ctx.fillStyle = 'rgba(214,196,160,' + (0.62 * (1 - p)).toFixed(3) + ')'; for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); ctx.fillRect(Math.round(cx - hw), Math.round(cy + dy), hw * 2 + 1, 1); } }
 }
 
+// A card for the fighter the mouse is resting on in the yard: who he is, how he stands today, and what he is set to.
+// Written as text of the page beside him, so that it can be read at any size of picture.
+function fighterCard(cv, h) {
+  let el = document.getElementById('ycard');
+  const g = h && h.fighter && typeof byId === 'function' ? byId(h.fighter) : null;
+  if (!g) { if (el && !el.hidden) el.hidden = true; return; }
+  if (!el) { if (!cv.parentNode) return; el = document.createElement('div'); el.id = 'ycard'; el.setAttribute('aria-hidden', 'true'); cv.parentNode.insertBefore(el, cv.nextSibling); }
+  const sc = cv.clientWidth / YARD.W, cx = cv.offsetLeft + cv.clientLeft + (h.x0 + h.x1) / 2 * sc, top = cv.offsetTop + cv.clientTop + h.y0 * sc, below = h.y0 * sc < 96;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'), mhp = typeof maxHp === 'function' ? maxHp(g) : g.hp, bar = (label, v, max, cls, word) => '<div class="yb"><i>' + label + '</i><u><s class="' + cls + '" style="width:' + clamp(Math.round(v / max * 100), 0, 100) + '%"></s></u><em>' + word + '</em></div>';
+  const doing = g.injury > 0 ? 'Injured: ' + g.injury + ' day' + (g.injury === 1 ? '' : 's') + ' to mend' : ({ rest: 'Resting', str: 'Drilling strength', agi: 'Drilling agility', skl: 'Drilling skill', spar: 'Sparring', teach: 'Teaching the others' }[g.activity] || 'Resting') + (g.auto ? ' (the doctore\'s choice)' : '');
+  const html = '<b>' + esc(g.name) + '</b><small>' + esc((typeof RANKS !== 'undefined' && RANKS[g.rank] ? RANKS[g.rank].name + ' &middot; ' : '') + (typeof CLASSES !== 'undefined' && CLASSES[g.cls] ? CLASSES[g.cls].name : '')).replace('&amp;middot;', '&middot;') + (typeof rating === 'function' ? ' &middot; power ' + rating(g) : '') + '</small>'
+    + bar('Health', g.hp, mhp, 'hp', Math.round(g.hp) + '/' + mhp) + bar('Fatigue', g.fatigue, 100, 'ft', Math.round(g.fatigue)) + bar('Morale', g.morale, 100, 'mo', Math.round(g.morale))
+    + '<p>' + esc(doing) + (g.perkPending > 0 ? ' &middot; <span class="gold">a perk to choose</span>' : '') + '</p>';
+  if (el._html !== html) { el._html = html; el.innerHTML = html; }
+  const left = clamp(Math.round(cx), cv.offsetLeft + 78, cv.offsetLeft + cv.clientWidth - 78), y = Math.round(below ? cv.offsetTop + cv.clientTop + h.y1 * sc + 14 : top - 6), pos = left + ',' + y + ',' + below;
+  if (el._pos !== pos) { el._pos = pos; el.style.left = left + 'px'; el.style.top = y + 'px'; el.className = below ? 'below' : ''; }
+  if (el.hidden) el.hidden = false;
+}
+
 // ---------- over either picture: what the mouse is on, the doors of a place just come into, the half light of one just left ----------
 const sceneFx = { hover: null, tab: null, wipe: -1, dim: 0, t: 0, key: '' };
+// What opens on the picture of a place when it is come into: plank doors unless it has something of its own.
+const SCENE_DOORS = { market: 'curtain', contracts: 'linen', patrons: 'bronze', chronicle: 'bronze', facilities: 'red', arena: 'portcullis' };
 // Which thing in the picture a point is on: a fighter first (the nearest the front), then anything else that is not
 // merely open ground, then that.
 function sceneHit(x, y) {
@@ -1131,11 +1176,24 @@ function sceneOver(cv, T, tab) {
   if (F.wipe >= 0) {
     F.wipe += dt / 0.45;
     if (F.wipe >= 1) F.wipe = -1;
-    else { const w = Math.round(YARD.W / 2 * Math.pow(1 - F.wipe, 2.2));
-      for (const side of [0, 1]) { const x0 = side ? YARD.W - w : 0;
-        R(x0, 0, w, YARD.H, '#2a1c14'); for (let q = 14; q < YARD.W / 2; q += 26) { const px = side ? YARD.W - w + q : w - q; if (px >= x0 && px < x0 + w) R(px, 0, 1, YARD.H, '#1c1310'); }      // the planks of the door, sliding with it
-        for (const by of [34, 150]) { R(x0, by, w, 5, '#3a3a40'); R(x0, by, w, 1, '#55555c'); }                                                                                   // its iron bands
-        if (w > 3) { const ex = side ? x0 : w - 3; R(ex, 0, 3, YARD.H, '#5a4326'); R(side ? ex : ex + 2, 0, 1, YARD.H, '#8a6a3a'); } } }
+    else { const e = Math.pow(1 - F.wipe, 2.2), w = Math.round(YARD.W / 2 * e), kind = SCENE_DOORS[tab] || 'planks';
+      if (kind === 'portcullis') {                      // the arena: an iron grate going up
+        const hgt = Math.round(YARD.H * e); ctx.fillStyle = 'rgba(14,10,8,' + (0.55 * e + 0.2).toFixed(3) + ')'; ctx.fillRect(0, 0, YARD.W, hgt);
+        for (let x = 10; x < YARD.W; x += 24) { R(x, 0, 5, hgt, '#3a3a40'); R(x, 0, 1, hgt, '#5c5c64'); R(x + 1, hgt, 3, 3, '#3a3a40'); R(x + 2, hgt + 3, 1, 2, '#3a3a40'); }
+        for (let y = hgt - 14; y > -4; y -= 22) { R(0, y, YARD.W, 4, '#34343a'); R(0, y, YARD.W, 1, '#5c5c64'); for (let x = 10; x < YARD.W; x += 24) R(x + 1, y + 1, 3, 2, '#8d9094'); }
+      } else for (const side of [0, 1]) { const x0 = side ? YARD.W - w : 0, slide = q => (side ? YARD.W - w + q : w - q);
+        if (kind === 'curtain' || kind === 'linen') {   // the market's striped awning cloth, or the forum's linen: drawn aside in folds
+          for (let q = 0; q < w; q++) { const px = side ? YARD.W - 1 - q : q, band = Math.floor((q + (YARD.W / 2 - w) * 0.6) / 14) % 2, fold = (q + (YARD.W / 2 - w)) % 14 < 2;
+            R(px, 0, 1, YARD.H, kind === 'linen' ? (fold ? '#c9bea0' : band ? '#efe6cf' : '#e4dabd') : fold ? (band ? '#8a2a20' : '#c9bea0') : band ? '#b93a2e' : '#efe6cf'); }
+          if (w > 2) { const ex = side ? x0 : w - 2; R(ex, 0, 2, YARD.H, kind === 'linen' ? '#7a2a8a' : '#e8b545'); for (let y = 6; y < YARD.H; y += 12) R(side ? ex - 2 : ex + 2, y, 2, 6, kind === 'linen' ? '#7a2a8a' : '#e8b545'); }
+          R(x0, 0, w, 4, '#5e4426'); R(x0, 4, w, 1, 'rgba(0,0,0,.3)');
+        } else {                                        // doors: planks banded with iron; the temple's and the record house's of bronze; your own house's painted red
+          const col = { planks: ['#2a1c14', '#1c1310', '#3a3a40', '#55555c', '#5a4326', '#8a6a3a'], bronze: ['#7a5628', '#5e4020', '#b98a34', '#e8c060', '#5e4020', '#dcae48'], red: ['#7e241c', '#5e1612', '#b6832c', '#e8b545', '#4a1410', '#e8b545'] }[kind] || null, K = col || ['#2a1c14', '#1c1310', '#3a3a40', '#55555c', '#5a4326', '#8a6a3a'];
+          R(x0, 0, w, YARD.H, K[0]); for (let q = 14; q < YARD.W / 2; q += 26) { const px = slide(q); if (px >= x0 && px < x0 + w) R(px, 0, 1, YARD.H, K[1]); }
+          for (const by of [34, 150]) { R(x0, by, w, 5, K[2]); R(x0, by, w, 1, K[3]); }
+          if (kind !== 'planks') for (let q = 20; q < YARD.W / 2; q += 26) for (let by = 56; by < 140; by += 28) { const px = slide(q); if (px >= x0 + 1 && px < x0 + w - 2) { R(px - 1, by, 3, 3, K[3]); R(px, by + 1, 1, 1, K[1]); } }      // studs
+          if (w > 3) { const ex = side ? x0 : w - 3; R(ex, 0, 3, YARD.H, K[4]); R(side ? ex : ex + 2, 0, 1, YARD.H, K[5]); if (kind !== 'planks') { const rx = side ? ex + 7 : ex - 8; R(rx, 92, 4, 6, K[3]); R(rx + 1, 94, 2, 3, K[0]); } }      // the leading edge, and a ring to pull it by
+        } } }
   }
   // what the mouse is on: a gold line round anything that can be clicked, with a word about it along the foot; and on the
   // open floor of a place he is in, a faint mark where a click would send him
@@ -1148,11 +1206,13 @@ function sceneOver(cv, T, tab) {
       const x0 = Math.max(1, h.x0), y0 = Math.max(1, h.y0), x1 = Math.min(YARD.W - 1, h.x1), y1 = Math.min(YARD.H - 1, h.y1), c = '#f5d584';
       ctx.globalAlpha = still ? 0.85 : 0.6 + 0.3 * Math.sin(T * 6);
       R(x0, y0, x1 - x0, 1, c); R(x0, y1 - 1, x1 - x0, 1, c); R(x0, y0, 1, y1 - y0, c); R(x1 - 1, y0, 1, y1 - y0, c); ctx.globalAlpha = 1;
+      fighterCard(cv, h);
       const say = sceneWord(h);
       if (say) { ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; const w = Math.ceil(ctx.measureText(say).width) + 10; R(YARD.W / 2 - w / 2, 178, w, 10, 'rgba(24,16,10,.9)'); ctx.fillStyle = c; ctx.fillText(say, YARD.W / 2, 185); }
     }
   }
   if (cv.style.cursor !== cur) cv.style.cursor = cur;
+  if (cur !== 'pointer') fighterCard(cv, null);
   dayTurn(ctx, YARD.W, YARD.H);
 }
 // Where the mouse is over the picture, kept for the line round what it is on (sceneOver). With the pictures held still
@@ -1162,7 +1222,7 @@ function watchScene(cv) {
   cv._watched = true;
   const again = () => { const h = sceneFx.hover ? sceneHit(sceneFx.hover.x, sceneFx.hover.y) : null, k = h ? [h.x0, h.y0, h.x1, h.y1].join() : ''; if (k !== sceneFx.key) { sceneFx.key = k; if (typeof ui !== 'undefined' && ui.still) cv._drawnW = 0; } };
   cv.addEventListener('mousemove', e => { sceneFx.hover = scenePoint(cv, e); again(); });
-  cv.addEventListener('mouseleave', () => { sceneFx.hover = null; again(); });
+  cv.addEventListener('mouseleave', () => { sceneFx.hover = null; again(); fighterCard(cv, null); });
 }
 
 // The picture is the yard at your own school, and the place itself at any other door in the village (places.js).

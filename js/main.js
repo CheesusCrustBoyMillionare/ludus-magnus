@@ -614,15 +614,40 @@ function render() {
 
 // The bar down the right-hand side: the day's figures and the two buttons that move time on,
 // then (from renderTabs) the screens, and at the foot the saves and the small switches.
+// The purse and the fame in the bar at the side are seen to move: when either changes, the figure runs from what it was to
+// what it is over most of a second, and what was gained or lost rises beside it and fades. (Not when the pictures are held
+// still; and not when another campaign has been opened, or an heir has taken over, when the figures are simply different.)
+const TICK = { den: null, fame: null, key: '', day: 0, raf: 0 };
+const tickAt = (t, now) => { const p = clamp((now - t.t0) / 700, 0, 1), e = 1 - Math.pow(1 - p, 3); return Math.round(t.from + (t.to - t.from) * e); };
+function tickNum(k, v) {
+  const now = performance.now(), key = slot + ':' + (G.dynasty ? G.dynasty.gen : 0), other = TICK.key !== key || G.day < TICK.day, t = TICK[k];
+  if (other || !t || ui.still) { TICK[k] = { from: v, to: v, t0: 0 }; return v; }
+  if (t.to !== v) { const d = v - t.to; TICK[k] = { from: tickAt(t, now), to: v, t0: now }; tickFloat(k, d); if (!TICK.raf) TICK.raf = requestAnimationFrame(tickRun); setTimeout(tickRun, 760); }      // (and once more when it should be done, in case no frame came)
+  return tickAt(TICK[k], now);
+}
+function tickRun() {
+  const now = performance.now(); let going = false;
+  for (const [k, id] of [['den', 'tkDen'], ['fame', 'tkFame']]) { const t = TICK[k], el = document.getElementById(id); if (!t) continue; const v = tickAt(t, now); if (el && el.textContent !== String(v)) el.textContent = v; if (now - t.t0 < 700) going = true; }
+  TICK.raf = going ? requestAnimationFrame(tickRun) : 0;
+}
+// What was gained or lost, rising beside the figure. Kept outside the bar, which is written afresh after every action.
+function tickFloat(k, d) {
+  const at = document.getElementById(k === 'den' ? 'tkDen' : 'tkFame'); if (!at || !d) return;
+  const r = at.getBoundingClientRect(); if (!r.width) return;
+  const el = document.createElement('i'); el.className = 'tkf ' + (d > 0 ? 'up' : 'down') + (k === 'fame' ? ' fame' : ''); el.setAttribute('aria-hidden', 'true');
+  el.textContent = (d > 0 ? '+' : '\u2212') + Math.abs(d); el.style.left = Math.round(r.right + 4) + 'px'; el.style.top = Math.round(r.top + (document.querySelectorAll('.tkf').length % 3) * 9) + 'px';
+  document.body.appendChild(el); setTimeout(() => el.remove(), 1500);
+}
 function renderTop() {
   const t = tier();
   const next = TIERS[t + 1] ? TIERS[t + 1].fame : FINAL_FAME;
+  const shown = { den: tickNum('den', G.denarii), fame: tickNum('fame', G.fame) }; TICK.key = slot + ':' + (G.dynasty ? G.dynasty.gen : 0); TICK.day = G.day;      // the figures as they stand this instant, on their way to what they are
   const dg = daysToGames(), net = stipend() - upkeep(), shut = arenaShut(), far = dg > GAMES_EVERY;      // far: the next games are past the next market day, so the days are run to that
   $('#topbar').innerHTML = `
     <h1 class="title">LUDUS MAGNUS${G.dynasty.gen > 1 ? ` <small${tip('dynasty')}>${ordinal(G.dynasty.gen)} generation</small>` : ''}</h1>
     <div class="stat"${tip('day')}><b>${ic('day')}${G.day}</b><span>Day<span class="season"> &middot; ${SEASONS[seasonNo(G.day)]}</span></span></div>
-    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}${G.denarii}<span class="sr"> denarii</span></b><span>${net >= 0 ? '+' : ''}${net} a day</span></div>
-    <div class="stat"${tip('fame')}><b>${ic('fame')}${G.fame}<small>/${next}</small><span class="sr"> fame</span></b><span>${TIERS[t].name}</span></div>
+    <div class="stat"${tip('denarii')}><b class="${G.denarii < 0 ? 'bad' : 'gold'}">${ic('coin')}<span id="tkDen">${shown.den}</span><span class="sr"> denarii</span></b><span>${net >= 0 ? '+' : ''}${net} a day</span></div>
+    <div class="stat"${tip('fame')}><b>${ic('fame')}<span id="tkFame">${shown.fame}</span><small>/${next}</small><span class="sr"> fame</span></b><span>${TIERS[t].name}</span></div>
     <div class="stat games${shut ? ' shut' : ''}"${tip('games')}><b>${ic('games')}${dg === 0 ? 'TODAY' : dg + (dg === 1 ? ' day' : ' days')}</b><span>${shut ? 'Arena shut &middot; next games' : 'Next games'}</span></div>
     <button class="primary" data-act="endday"${tip('endday')}>End day<span class="key">E</span></button>
     <button data-act="skipdays"${tip('skip')} ${Math.min(dg, far ? daysToMarket() || GAMES_EVERY : dg) > 1 ? '' : 'disabled'}>${far ? 'To market day' : 'To the games'}<span class="key">G</span></button>`;
