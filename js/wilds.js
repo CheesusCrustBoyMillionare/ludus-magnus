@@ -1555,7 +1555,7 @@ function errandDone(q, lines, res) {
     it.relic = q.relic; wildMap().relics.push(q.relic); G.armoury.push(it);
     lines.push(`<span class="gold"><b>${RELICS[q.relic].name}</b> is in your armoury${it.slot === 'weapon' ? `, and it suits the hand of a ${CLASSES[it.cls].name.toLowerCase()}` : ''}.</span> <span class="dim">${RELICS[q.relic].note}</span>`);
   }
-  if (T.recruit && G.roster.length < capacity()) { const g = makeGladiator(WILD_BUDGET[q.tier - 1] + 2); g.origin = 'a slaver\'s pen'; G.roster.push(g); lines.push(`<span class="gold">One of those freed was sold out of an arena in the east. <b>${g.name}</b>, ${CLASSES[g.cls].name.toLowerCase()}, asks to fight for the house that came for him.</span>`); }
+  if (T.recruit && G.roster.length < capacity()) { const g = makeGladiator(WILD_BUDGET[q.tier - 1] + 2); g.origin = 'a slaver\'s pen'; welcome(g); G.roster.push(g); lines.push(`<span class="gold">One of those freed was sold out of an arena in the east. <b>${g.name}</b>, ${CLASSES[g.cls].name.toLowerCase()}, asks to fight for the house that came for him.</span>`); }
   if (T.after) T.after(q, lines);
   G.errands = errands().filter(e => e !== q);
   delete wildMap().marks['e' + q.id];

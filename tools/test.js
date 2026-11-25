@@ -2256,6 +2256,7 @@ test('quests: people at the fountain, landmarks, unique pieces, deadlines, and n
     const lines = errandDone(q, []);
     assert(G.denarii === purse && G.fame === fame && !errands().length && !wildSites().some(x => x.errand) && owed().length === 1 && owed()[0] === q && q.owedPay === q.pay && lines.join(' ').length > 30 && !/undefined|NaN/.test(lines.join(' ')), k + ' is done, and the pay is waiting at home');
     if (T.recruit) assert(G.roster.length === men + 1, k + ' brings a freed man into the school');
+    assert(G.roster.every(g => g.gear && SLOTS.every(s => s in g.gear)), k + ': every man of the school has a place for each piece of kit');      // a man let in without one broke the smith's and the armoury's screens
     // home: the purse at the fountain, and for some, more to do
     assert(fountainFolk().length === 1 && fountainFolk()[0].owed, k + ': the giver is at the fountain to pay');
     const said = errandPay(q.id, false).join(' ');
