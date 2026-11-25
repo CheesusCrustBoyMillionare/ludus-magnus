@@ -198,8 +198,8 @@ function placeGuest(E, tab) {
   const dt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
   const lv = vil.leaving && vil.leaving.key === tab ? vil.leaving : null;      // sent elsewhere: he makes for the door
   const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = lv ? o.door : pt ? pt.x + side * 13 : o.wait, gap = tx - Gs.x, moving = Math.abs(gap) > 1;
-  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) lv.pace = Math.max(170, Math.abs(gap) / 0.45); if (!moving) lv.out = true; }
-  if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), (lv ? lv.pace : 62) * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * (lv ? 22 : 11); } else Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
+  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 62 * LEAVE_PACE; lv.need = Math.abs(gap) / lv.pace; } if (!moving) lv.out = true; }      // half as fast again as he walks about the place, and the map waits for him
+  if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), (lv ? lv.pace : 62) * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * 11 * (lv ? LEAVE_PACE : 1); } else Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
   const X = Math.round(Gs.x), Y = o.y, d = Gs.d;
   if (pt && pt.frame && !lv) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed
   E.P(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });

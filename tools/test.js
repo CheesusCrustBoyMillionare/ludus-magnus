@@ -1897,6 +1897,7 @@ test('the town: an arena as great as the games, the doctore and the stables at t
   assert(!/STABLES|stablesModal|drawStables/.test(p + m), 'nothing of the stables is left outside the gate');
   assert(!pl.includes("post('doctore'") && !pl.includes('YOUR STABLES'), 'nor in the house, nor at the forum');
   assert(v.includes('vil.leaving = {') && pl.includes('lv.out = true') && y.includes('lv.out = true'), 'he is seen to the door of the place he is leaving, in its picture');
+  assert(v.includes('const LEAVE_PACE = 1.5;') && pl.includes('lv.pace = 62 * LEAVE_PACE') && y.includes('lv.pace = 58 * LEAVE_PACE') && v.includes('Lv.need + 0.5'), 'at half as fast again as he walks about it, and the map waits until he is there');
   assert(v.includes('townRumours()') && v.includes("'forum'") && v.includes("'square'"), 'there are people in the forum and the square, and what they are saying can be read');
   assert(!v.includes("R(f.dx - 5, f.y + 38, 10, 7"), 'the forge fire is a fire, not a box in the doorway');
   // the side bar: no switch for the picture of the yard; a slider each for the sound and the music

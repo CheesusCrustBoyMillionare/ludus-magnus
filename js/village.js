@@ -169,6 +169,9 @@ function followPath(o, dt, speed) {
 // picture says when he has reached it, see placeGuest in places.js and the yard's guest in yard.js); then he comes out
 // at that door on the map, and only then sets off. Steered with the keys he is out at once.
 const INDOORS = PLACES.map(p => p.key), DOOR_IN = 0.75, DOOR_OUT = 0.45, DOOR_LEAVE = 0.7;      // every building in the town
+// On his way to the door he walks half as fast again as he does about the place: brisk, not a sprint. The picture says
+// how long that will take him (leaving.need), and the map waits that long and a little over before giving him up.
+const LEAVE_PACE = 1.5;
 function villageOut() { if (vil.inside || vil.enter) { vil.outKey = vil.inside || vil.enter.key; vil.outT = DOOR_OUT; } vil.inside = null; vil.enter = null; vil.leaving = null; }
 // Is the picture of the place on the screen and moving, so that he can be seen to its door?
 function sceneShown() { if (typeof document === 'undefined' || (typeof ui !== 'undefined' && (ui.still || ui.noyard))) return false; const cv = document.getElementById('yard'); return !!cv && cv.offsetWidth > 0; }
@@ -190,7 +193,7 @@ function villageStep(dt, frozen) {
   if (vil.leaving && !frozen) {
     const Lv = vil.leaving; Lv.t += dt;
     if (!vil.path) vil.leaving = null;                                                                    // called back before he reached the door: he stays
-    else if (Lv.out || Lv.t > DOOR_LEAVE || (Lv.t > 0.2 && performance.now() - (vil.sceneT || 0) > 250)) villageOut();      // at the door (or the picture is not being painted): out he comes
+    else if (Lv.out || Lv.t > (Lv.need !== undefined ? Lv.need + 0.5 : DOOR_LEAVE) || (Lv.t > 0.2 && performance.now() - (vil.sceneT || 0) > 250)) villageOut();      // at the door (or the picture is not being painted): out he comes
   }
   if (!frozen && (kx || ky)) {                       // steering takes over from any walk he was sent on
     vil.path = null; vil.then = null;

@@ -940,8 +940,8 @@ function drawYard(cv, T) {
     const gdt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
     const lv = vil.leaving && vil.leaving.key === 'ludus' ? vil.leaving : null;      // sent somewhere else: back to the street gate at a good pace, and out (see village.js)
     const who = yardSel && yardSel.id === ui.sel && !ui.school && !lv ? yardSel : null, tx = lv ? 537 : who ? who.x + (who.x > 300 ? 17 : -17) : 492, ty = lv ? GY + 8 : who ? clamp(who.y + 3, GY + 6, YARD.H - 6) : GY + 12, gx = tx - Gs.x, gy = ty - Gs.y, far = Math.hypot(gx, gy), moving = far > 1.2;
-    if (lv) { vil.sceneT = performance.now(); if (!lv.pace) lv.pace = Math.max(170, far / 0.45); if (!moving) lv.out = true; }
-    if (moving) { const st = Math.min(far, (lv ? lv.pace : 58) * gdt); Gs.x += gx / far * st; Gs.y += gy / far * st; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += gdt * 11; } else Gs.d = who ? (who.x > Gs.x ? 1 : -1) : -1;
+    if (lv) { vil.sceneT = performance.now(); if (!lv.pace) { lv.pace = 58 * LEAVE_PACE; lv.need = far / lv.pace; } if (!moving) lv.out = true; }
+    if (moving) { const st = Math.min(far, (lv ? lv.pace : 58) * gdt); Gs.x += gx / far * st; Gs.y += gy / far * st; if (Math.abs(gx) > 0.5) Gs.d = gx > 0 ? 1 : -1; Gs.walk += gdt * 11 * (lv ? LEAVE_PACE : 1); } else Gs.d = who ? (who.x > Gs.x ? 1 : -1) : -1;
     const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d;
     things.push({ y: Y, draw: () => {
       yardPerson(ctx, X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
