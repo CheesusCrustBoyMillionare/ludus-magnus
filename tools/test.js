@@ -161,7 +161,7 @@ test('200 days of play keep the books straight', () => game()(function () {
     for (const g of G.roster) assert(g.hp >= 1 && g.hp <= maxHp(g) && g.fatigue >= 0 && g.fatigue <= 100 && g.morale >= 0 && g.morale <= 100, g.name + ' out of range');
     const bad = badNumber(G); assert(!bad, 'bad number at ' + bad + ' on day ' + G.day);
   }
-  assert(games === 40 && events > 10, 'expected 40 games days and some events, got ' + games + ' and ' + events);
+  assert(games === gamesNo(G.day) && games === 22 && events > 10, 'expected 22 games days (the arena is shut every other month) and some events, got ' + games + ' and ' + events);
   assert(sent > 15, 'expected contracts to run, got ' + sent);
   assert(G.houses.every(h => h.roster.length >= 3 && h.roster.length <= 9), 'rival rosters stay stocked');
 }));
@@ -1846,6 +1846,65 @@ test('the province: with stables the school rides, and better stables turn the h
   assert(box.HORSE_COATS.length >= 5 && src.includes('const mounts = (G.fac && G.fac.stables) | 0;'), 'every man has a beast of a different coat, and it follows the stables');
 });
 
+test('the calendar: a month of games, a month with the arena shut, and market day every fifth day in both', () => game()(function () {
+  newGame();
+  const on = []; for (let d = 1; d <= 180; d++) if (gamesOn(d)) on.push(d);
+  assert(on.join() === '5,10,15,20,25,30,65,70,75,80,85,90,125,130,135,140,145,150', 'games on every fifth day of every other month: ' + on.join());
+  assert(on.every((d, i) => gamesNo(d) === i + 1 && gamesDayNo(i + 1) === d) && gamesNo(64) === 6 && gamesNo(4) === 0, 'and they can be counted, there and back');
+  G.day = 30; assert(isGamesDay() && isMarketDay() && !arenaShut() && nextGames() === 65 && nextMarket() === 35, 'the last games of the month: the next are thirty-five days off, the next market five');
+  G.day = 31; assert(!isGamesDay() && arenaShut() && daysToGames() === 34 && daysToMarket() === 4 && monthEnds() === 61, 'the arena is shut, and says for how long');
+  G.day = 60; assert(isMarketDay() && !isGamesDay() && arenaShut() && daysToGames() === 5, 'market day in a shut month is no games day');
+  G.day = 61; assert(!arenaShut() && daysToGames() === 4, 'and then it opens');
+  // the day itself: a shut month has its market days, with fresh stock and new work, and no bouts
+  newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(26));
+  while (G.day < 34) { G.denarii = 500; endDay(); G.pendingEvent = null; G.reports.length = 0; }
+  const stock = G.market.map(m => m.id).join(), work = G.contracts.map(c => c.id).join(), fav = G.patrons.magistrate, years = (G.annals || []).length;
+  G.denarii = 500; endDay(); G.pendingEvent = null;
+  assert(G.day === 35 && !G.bouts && !G.tourney, 'no bouts on a market day when the arena is shut');
+  assert(G.market.map(m => m.id).join() !== stock && G.contracts.map(c => c.id).join() !== work && G.patrons.magistrate === fav - 1 && G.annals.length === years + 1, 'but the dealer and the board change, favour fades, and the day is written into the years');
+  assert(!missesGames(20) && (G.day = 58, missesGames(8)) && !missesGames(7), 'a man sent out in a shut month misses nothing until the arena opens');
+  // festivals fall only on days there are games, every third of them, and every other one is the tournament
+  newGame(); const seen = [];
+  for (let n = 0; n < 12; n++) { seen.push(G.festival.day + ':' + G.festival.type); assert(gamesOn(G.festival.day) && gamesNo(G.festival.day) % 3 === 0, 'a festival on a day with no games: ' + G.festival.day); G.day = G.festival.day + 1; scheduleFestival(); }
+  assert(seen[0] === '15:hunt' && seen[1] === '30:tourney' && seen[2].startsWith('75:') && seen[3] === '90:tourney', 'the first is a hunt on day 15, the tournament on day 30, and the next after the shut month: ' + seen.slice(0, 4).join(' '));
+  // a save from before the arena kept its months: a festival promised for a day that now has no games is promised again
+  newGame(); G.day = 33; G.festival = { day: 45, type: 'melee' }; G.festQueue = [{ day: 60, type: 'tourney' }, { day: 75, type: 'hunt' }]; migrate();
+  assert(G.festival.day === 75 && G.festQueue.length === 2 && G.festQueue.every(x => gamesOn(x.day)), 'an old calendar is drawn up afresh: ' + G.festival.day);
+}));
+test('the town: what people are saying is true of the country, the town and the school', () => game()(function () {
+  newGame(); G.day = 3;
+  const all = townRumours(), far = s => Math.hypot(s.x - WILD.TOWN.x, s.y - WILD.TOWN.y);
+  assert(all.length >= 6 && all.every(s => typeof s === 'string' && s.length > 20 && s.length < 230 && !/undefined|NaN|\[object/.test(s)), 'a handful of lines, each of them words: ' + all.join(' / '));
+  assert(new Set(all).size === all.length, 'and no line twice');
+  assert(rumourWay(WILD.TOWN.x + 100, WILD.TOWN.y) === 'east' && rumourWay(WILD.TOWN.x, WILD.TOWN.y - 100) === 'north' && rumourWay(WILD.TOWN.x - 70, WILD.TOWN.y + 70) === 'south-west', 'the points of the compass');
+  assert(rumourName('A wolf den') === 'a wolf den' && rumourName('The Home Fields') === 'the Home Fields' && rumourName('Brennos the Flayer') === 'Brennos the Flayer', 'a name keeps its capital, a thing does not');
+  // a den that is spoken of is a den that is out there, where they say it is; dealt with, it is spoken of no more
+  const den = wildSites().filter(s => s.kind === 'lair' && !s.fixed && !siteDone(s)).sort((a, b) => far(a) - far(b))[0];
+  const told = s => s.includes(rumourName(den.name)) && s.includes(rumourName(wildRegion(den.x, den.y))) && s.includes(rumourWay(den.x, den.y) + ' of the town');
+  assert(den && all.some(told), 'the nearest den is talked of, with the country it is in and the way to it');
+  wildMap().done[den.id] = 1; assert(townRumours().join() !== all.join(), 'and the talk moves on when it has been dealt with');
+  postBounty(true); assert(bountyLive() && townRumours().some(s => s.includes(rumourName(G.bounty.name)) && /Magistrate/.test(s)), 'the Magistrate\'s bounty is talked of');
+  G.denarii = -50; assert(townRumours().some(s => /owes money/.test(s)), 'and so are the lanista\'s debts');
+  G.fame = FINAL_FAME; assert(townRumours().some(s => /Rome has sent/.test(s)), 'and the summons from Rome');
+}));
+test('the town: an arena as great as the games, the doctore and the stables at the school, and the way out at every door', () => {
+  const v = read('js/village.js'), m = read('js/main.js'), p = read('js/province.js'), pl = read('js/places.js'), y = read('js/yard.js');
+  const looks = eval(v.match(/const ARENA_LOOKS = (\[.*?\]);/)[1]);
+  assert(looks.length === 5 && looks.every((k, i) => k.cy - k.RY >= 2 && k.cy + k.RY <= 70 && k.RX <= 83 && (!i || k.RX >= looks[i - 1].RX)), 'five arenas, from the pits to the Emperor\'s games: each as big as the last or bigger, and all inside the walls');
+  assert(v.includes('G.won || G.fame >= FINAL_FAME ? 4 : clamp(tier(), 0, 3)') && v.includes('vil.arenaL !== L'), 'which of them stands follows the school\'s fame, and the ground is moved to match');
+  assert(m.includes("LUDUS_POSTS = ['doctore']") && m.includes("SCHOOL_FACS = ['barracks', 'ground', 'infirmary', 'baths', 'stables', 'eagle']") && !m.includes('Hire one under Household'), 'the doctore and the stables are at the school');
+  assert(m.includes('|| facNeed(v)) return;'), 'and no eagle is bought without a mews to keep it in');
+  assert(!/STABLES|stablesModal|drawStables/.test(p + m), 'nothing of the stables is left outside the gate');
+  assert(!pl.includes("post('doctore'") && !pl.includes('YOUR STABLES'), 'nor in the house, nor at the forum');
+  assert(v.includes('vil.leaving = {') && pl.includes('lv.out = true') && y.includes('lv.out = true'), 'he is seen to the door of the place he is leaving, in its picture');
+  assert(v.includes('townRumours()') && v.includes("'forum'") && v.includes("'square'"), 'there are people in the forum and the square, and what they are saying can be read');
+  assert(!v.includes("R(f.dx - 5, f.y + 38, 10, 7"), 'the forge fire is a fire, not a box in the doorway');
+  // the side bar: no switch for the picture of the yard; a slider each for the sound and the music
+  const s = read('js/sfx.js'), foot = m.slice(m.indexOf("$('#sidefoot').innerHTML"), m.indexOf('function volSlider'));
+  assert(foot.length > 100 && !foot.includes('yardtoggle') && foot.includes("volSlider('sound')") && foot.includes("volSlider('music')"), 'the Yard button is gone from the side bar, and the sliders are there');
+  assert(m.includes('type="range" min="0" max="100"') && m.includes("addEventListener('input'") && s.includes('setVolume(v)') && s.includes('setMusicVolume(v)') && s.includes('get volume()') && s.includes('get musicVolume()'), 'a slider sets how loud, as it is moved');
+  assert(m.includes("sw('yardtoggle', 'The picture of the yard'"), 'the picture can still be put away under Settings');
+});
 test('the province: places make the country round them', () => {
   const src = read('js/province.js'), wilds = read('js/wilds.js');
   const from = src.indexOf('const SET_OF = {'), to = src.indexOf('const setting = (x, y, r, name, sd) => {');
@@ -2198,11 +2257,23 @@ test('quests: people at the fountain, landmarks, unique pieces, deadlines, and n
     assert(st.kind === 'errand_clue' && st.x === q.x && q.mark2 && q.mark2 !== q.mark, 'first, where he was last seen');
     q.step = 1; st = wildSites().find(x => x.errand === q.id);
     assert(st.kind === 'errand_fight' && st.x === q.x2 && st.y === q.y2 && st.name.includes(q.mark2.slice(1)), 'then, where they took him'); }
-  // the difficulty follows the school: a new house is sent near, a great one far
-  { newGame(); G.tally.wins = 1; let lo = 0, hi = 0; const N = 60;
+  // the difficulty follows the school's strength, not its name: a weak house is sent near, a strong one far
+  { newGame(); G.tally.wins = 1; G.fame = 5000; let lo = 0, hi = 0; const N = 60;
     for (let i = 0; i < N; i++) { const q = errandNew('wolves'); lo += q.tier; }
-    G.fame = 5000; for (let i = 0; i < N; i++) { const q = errandNew('wolves'); hi += q.tier; }
-    assert(tier() >= 2 && hi / N > lo / N, 'a greater school is sent to worse places: ' + (lo / N).toFixed(2) + ' then ' + (hi / N).toFixed(2)); }
+    G.fame = 0; G.roster = []; for (let i = 0; i < 8; i++) G.roster.push(makeGladiator(60));
+    for (let i = 0; i < N; i++) { const q = errandNew('wolves'); hi += q.tier; }
+    assert(hi / N > lo / N + 1, 'a stronger school is sent to worse places, whatever its fame: ' + (lo / N).toFixed(2) + ' then ' + (hi / N).toFixed(2)); }
+  // and nobody comes to the fountain with work that is beyond the school, or beneath it
+  for (const [n, b] of [[2, 22], [4, 34], [6, 46], [9, 66]]) {
+    newGame(); G.tally.wins = 1; G.roster = []; for (let i = 0; i < n; i++) G.roster.push(makeGladiator(b));
+    const mine = schoolMight(); let came = 0, fights = 0;
+    for (let i = 0; i < 150; i++) { G.asks = []; const q = rollAsks(true); if (!q) continue; came++; if (ERRANDS[q.tpl].foes) fights++;
+      assert(q.need > 0 && q.need <= mine * SUIT_HARD, n + ' men of strength ' + mine + ' were asked to face ' + q.need + ' (' + q.tpl + ', danger ' + q.tier + ')');
+      assert(q.need >= mine * SUIT_EASY || q.tier >= 5 || q.tier >= fitTier(mine), n + ' men of strength ' + mine + ' were asked to face only ' + q.need + ' (' + q.tpl + ', danger ' + q.tier + ')'); }
+    assert(came >= 140 && fights >= 20, 'and there is still work for a school of ' + n + ', some of it fighting: ' + came + ', ' + fights);
+  }
+  { newGame(); G.tally.wins = 1; const weak = schoolMight(), t0 = fitTier(weak); G.roster.forEach(g => { g.away = 1; g.injury = 3; }); assert(schoolMight() > 0 && fitTier(schoolMight()) <= t0, 'the school is weighed as it stands, men away and men hurt among them');
+    assert(errandSuits(40, 1, 44) && !errandSuits(60, 2, 44) && !errandSuits(40, 2, 400) && errandSuits(100, 5, 900) && tierMight(1) < tierMight(3) && tierMight(3) < tierMight(5), 'suited: no stronger than an even thing, and not a trifle unless there is nothing worse to be had'); }
   // the fountain: nobody before the gate is open; then people come, wait three days, and go
   newGame();
   while (G.day < GAMES_EVERY) { G.day++; for (let i = 0; i < 20; i++) rollAsks(); }
@@ -2273,11 +2344,13 @@ if (!quick) {
 
   test('a careful player usually wins the campaign', () => {
     // Measured at about 85% over 60 runs. With 30 runs, chance alone almost never drops it below 18.
+    // With the arena shut every other month the campaign is longer in days than it was: the median victory moved from
+    // about day 285 to about day 365 (the shut months are spent training, on contracts and on the road, so it is not doubled).
     const r = spawnSync(process.execPath, [path.join(__dirname, 'autoplay.js'), root, '30', 'good'], { encoding: 'utf8', maxBuffer: 1 << 24 });
     assert(r.status === 0, 'autoplay.js failed: ' + r.stderr.slice(0, 200));
     const d = JSON.parse(r.stdout), won = d.results.won;
     assert(won >= 18, `careful auto-player won only ${won} of 30 campaigns; expected at least 18`);
-    assert(d.medianWinDay >= 120 && d.medianWinDay <= 340, 'median victory on day ' + d.medianWinDay + '; allowed 120-340');
+    assert(d.medianWinDay >= 180 && d.medianWinDay <= 440, 'median victory on day ' + d.medianWinDay + '; allowed 180-440');
     assert(d.medianTierDay[0] <= 45, 'second arena reached on day ' + d.medianTierDay[0] + '; expected by day 45');
     assert(d.winRate >= 0.5 && d.winRate <= 0.85, 'bout win rate ' + d.winRate + '; allowed 0.50-0.85');
     return `${won}/30 campaigns won, median day ${d.medianWinDay}, ${Math.round(d.winRate * 100)}% of bouts`;

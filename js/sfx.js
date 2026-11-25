@@ -11,7 +11,16 @@ const SFX = (() => {
   let musicBus = null, drone = null, musicOn = true, amb = null;
   const MUSIC_KEY = 'ludus-magnus-music', MUSIC_LEVEL = 0.22;      // well under the blows and the crowd
   const last = {};
-  try { muted = localStorage.getItem(MUTE_KEY) === '1'; musicOn = localStorage.getItem(MUSIC_KEY) !== '0'; } catch (e) { /* storage unavailable */ }
+  // How loud: each on a slider from 0 to 100. Where the sliders start (80 and 60) is as loud as the game was before it had
+  // them; the top of the sound is a little louder than that, and the top of the music a good deal louder, for those who
+  // want the band over the blows. A slider at nothing is the same as the old switch at off, and is remembered as that.
+  const VOL_KEY = 'ludus-magnus-volume', MVOL_KEY = 'ludus-magnus-musicvol', VOL0 = 80, MVOL0 = 60;
+  let vol = VOL0, mvol = MVOL0;
+  const pct = (v, d) => { const n = Math.round(+v); return v === null || v === '' || !isFinite(n) ? d : Math.max(5, Math.min(100, n)); };
+  try { muted = localStorage.getItem(MUTE_KEY) === '1'; musicOn = localStorage.getItem(MUSIC_KEY) !== '0'; vol = pct(localStorage.getItem(VOL_KEY), VOL0); mvol = pct(localStorage.getItem(MVOL_KEY), MVOL0); } catch (e) { /* storage unavailable */ }
+  const masterLevel = () => muted ? 0 : Math.min(1, LEVEL * Math.pow(vol / VOL0, 2));
+  const musicLevel = () => musicOn ? MUSIC_LEVEL * Math.pow(mvol / MVOL0, 2) : 0;
+  const keep = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage unavailable */ } };
 
   const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -22,7 +31,7 @@ const SFX = (() => {
     try {
       ctx = make ? make() : new AC();
       // everything passes through a compressor, so a pile of blows at once thickens rather than crackles
-      master = ctx.createGain(); master.gain.value = muted ? 0 : LEVEL; master.connect(ctx.destination);
+      master = ctx.createGain(); master.gain.value = masterLevel(); master.connect(ctx.destination);
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -16; comp.knee.value = 14; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.18;
       comp.connect(master);
@@ -74,7 +83,7 @@ const SFX = (() => {
       const roarUp = ctx.createGain(); roarUp.gain.value = CROWD_ROAR; roar.connect(roarUp); send(roarUp, 3400);
 
       // music has its own fader, and a little of the same echo
-      musicBus = ctx.createGain(); musicBus.gain.value = musicOn ? MUSIC_LEVEL : 0; musicBus.connect(comp);
+      musicBus = ctx.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(comp);
       const mv = ctx.createGain(); mv.gain.value = 0.35; musicBus.connect(mv); mv.connect(verb);
       // the drone under every tune: a root and the fifth above it, held like a pipe
       const dl = ctx.createBiquadFilter(); dl.type = 'lowpass'; dl.frequency.value = 520;
@@ -515,8 +524,26 @@ const SFX = (() => {
       musicOn = !musicOn;
       try { localStorage.setItem(MUSIC_KEY, musicOn ? '1' : '0'); } catch (e) { /* storage unavailable */ }
       if (!ctx) return;
-      musicBus.gain.setTargetAtTime(musicOn ? MUSIC_LEVEL : 0, ctx.currentTime, 0.15);
+      musicBus.gain.setTargetAtTime(musicLevel(), ctx.currentTime, 0.15);
       if (musicOn) { M.mode = undefined; conduct(); }    // start the piece afresh
+    },
+    // The sliders: 0 to 100. Nothing is off; anything more is on, and that loud.
+    get volume() { return muted ? 0 : vol; },
+    get musicVolume() { return musicOn ? mvol : 0; },
+    setVolume(v) {
+      v = Math.max(0, Math.min(100, Math.round(+v) || 0));
+      const was = muted; muted = v <= 0; if (v > 0) vol = v;
+      keep(MUTE_KEY, muted ? '1' : '0'); keep(VOL_KEY, vol);
+      if (master) master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.02);
+      if (was && !muted) conduct();
+    },
+    setMusicVolume(v) {
+      v = Math.max(0, Math.min(100, Math.round(+v) || 0));
+      const was = musicOn; musicOn = v > 0; if (v > 0) mvol = v;
+      keep(MUSIC_KEY, musicOn ? '1' : '0'); keep(MVOL_KEY, mvol);
+      if (!ctx) return;
+      musicBus.gain.setTargetAtTime(musicLevel(), ctx.currentTime, 0.08);
+      if (musicOn && !was) { M.mode = undefined; conduct(); }    // back from nothing: the piece starts afresh
     },
     // For tuning: writes out some seconds of a piece without playing it and reports how loud it is.
     async probeMusic(mode, seconds, heat, moodFor) {
@@ -621,7 +648,7 @@ const SFX = (() => {
     toggle() {
       muted = !muted;
       try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) { /* storage unavailable */ }
-      if (master) master.gain.setTargetAtTime(muted ? 0 : LEVEL, ctx.currentTime, 0.02);
+      if (master) master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.02);
       if (!muted) conduct();
     },
     // For tuning: renders one sound without playing it and reports how loud it is.

@@ -9,7 +9,7 @@ const RAR_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545
 const PLACE_TIPS = {
   market: 'The slave market. The men on the block are the ones for sale today; the pen holds any the dealer is keeping for you, and a gold dais is a prize lot up for auction.',
   smith: 'The forge. What hangs on the wall is what the smith has to sell; the colours are the grades. Your armourer works at the bench, and a commission waits under its cloth.',
-  arena: 'The arena from the street. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
+  arena: 'The arena from the street. It grows with your name: a fence of logs round the pits, then arches of timber and of stone, and at the last the purple of the Emperor down its walls. On games days the town queues at its gates. The statue is the champion, the wreaths are your festival crowns, and the bookmakers keep their board by the wall.',
   contracts: 'The forum. Each tablet on the board is an offer of work; a gold one asks for you by name. A rail for the mules of the carriers stands at the corner, and the packs by the road belong to men who are away.',
   patrons: 'The temple. The three fires burn as high as each patron\'s favour. Your own shrine stands to the right of the steps.',
   rivals: 'The tavern. The shields on the wall are the schools of the province, the most renowned first: click one to read that house. A crown marks the house that holds the championship, and a laurel the last tournament\'s winner. The man under the town\'s talk keeps a book on the houses\' own bouts, and there are dice in the corner.',
@@ -174,7 +174,7 @@ const townsman = i => ({ tunic: TOWN_TUNICS[i % 9], skin: TOWN_SKINS[i % 4], hai
 
 // The lanista, in the picture of whatever place he has gone into (vil.inside, see village.js). He comes in at the side
 // the door is on, goes to whatever is being read in the list beside the picture, and points it out; with nothing of
-// the place's chosen, he waits where a visitor would. For each place: where he comes in, the line he walks, where he
+// the place's chosen, he waits where a visitor would. Sent somewhere else (vil.leaving, see village.js) he goes back to the door at a good pace, and only then comes out on the map of the town. For each place: where he comes in, the line he walks, where he
 // waits, and (point) what he should be pointing at just now: { x, y } of the thing, and frame: [w, h] to ring it.
 const sceneGuests = {};
 const GUEST = {
@@ -196,14 +196,16 @@ function placeGuest(E, tab) {
   const { R, T } = E, o = GUEST[tab](), Gs = sceneGuests[tab] || (sceneGuests[tab] = { token: 0 }), pt = o.point;
   if (Gs.token !== vil.insideT) { Gs.token = vil.insideT; Gs.x = o.door; Gs.d = o.door > 295 ? -1 : 1; Gs.t = T; Gs.walk = 0; }      // just in: he starts at the door
   const dt = clamp(T - Gs.t, 0, 0.1); Gs.t = T;
-  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = pt ? pt.x + side * 13 : o.wait, gap = tx - Gs.x, moving = Math.abs(gap) > 1;
-  if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), 62 * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * 11; } else Gs.d = pt ? -side : (o.door > 295 ? -1 : 1);
+  const lv = vil.leaving && vil.leaving.key === tab ? vil.leaving : null;      // sent elsewhere: he makes for the door
+  const side = pt ? (pt.x > 40 ? -1 : 1) : 0, tx = lv ? o.door : pt ? pt.x + side * 13 : o.wait, gap = tx - Gs.x, moving = Math.abs(gap) > 1;
+  if (lv) { vil.sceneT = performance.now(); if (!lv.pace) lv.pace = Math.max(170, Math.abs(gap) / 0.45); if (!moving) lv.out = true; }
+  if (moving) { const step = Math.sign(gap) * Math.min(Math.abs(gap), (lv ? lv.pace : 62) * dt); Gs.x += step; Gs.d = step > 0 ? 1 : -1; Gs.walk += dt * (lv ? 22 : 11); } else Gs.d = pt && !lv ? -side : (o.door > 295 ? -1 : 1);
   const X = Math.round(Gs.x), Y = o.y, d = Gs.d;
-  if (pt && pt.frame) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed
+  if (pt && pt.frame && !lv) { const [fw, fh] = pt.frame, c = '#f5d584'; E.ctx().globalAlpha = 0.55 + 0.35 * Math.sin(T * 5); R(pt.x - fw / 2, pt.y - fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y + fh / 2, fw, 1, c); R(pt.x - fw / 2, pt.y - fh / 2, 1, fh, c); R(pt.x + fw / 2 - 1, pt.y - fh / 2, 1, fh + 1, c); E.ctx().globalAlpha = 1; }      // the thing in question, ringed
   E.P(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
   R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a');                                                   // the purple stripe, and the laurel
   R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
-  if (!moving && pt) {                                                                              // his arm up, and his stick to reach what his arm cannot: gold at the tip
+  if (!moving && pt && !lv) {                                                                       // his arm up, and his stick to reach what his arm cannot: gold at the tip
     const sx = X + d * 3, sy = Y - 26, ax = pt.x - d * 8 - sx, ay = pt.y - sy, n = Math.hypot(ax, ay) || 1, reach = 11 + (Math.sin(T * 2.2) > 0.6 ? 1 : 0);
     for (let q = 0; q <= reach; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > reach - 3 ? '#e3b48f' : '#d9a57c');
     const far = Math.max(reach + 2, Math.min(n - 16, reach + 30)); for (let q = reach + 1; q <= far; q++) R(Math.round(sx + ax / n * q), Math.round(sy + ay / n * q), 1, 1, q > far - 2 ? '#e8b545' : '#7a5a2a');
@@ -349,21 +351,32 @@ const PLACE_SCENES = {
 
   // ---- the arena, from the street ----
   arena: { draw(E) {
-    const { R, T } = E, t = tier(), W = [{ c: '#7a5a34', d: '#5e4426', l: '#94703f' }, { c: '#a88f66', d: '#8f7650', l: '#c4ab7c' }, { c: '#b89b6e', d: '#a3875c', l: '#d8c08e' }, { c: '#d6ccb8', d: '#b5aa94', l: '#f0e8d6' }][Math.min(3, t)];
+    const { R, T } = E, t = tier(), imperial = G.won || G.fame >= FINAL_FAME, W = [{ c: '#7a5a34', d: '#5e4426', l: '#94703f' }, { c: '#a88f66', d: '#8f7650', l: '#c4ab7c' }, { c: '#b89b6e', d: '#a3875c', l: '#d8c08e' }, { c: '#d6ccb8', d: '#b5aa94', l: '#f0e8d6' }][Math.min(3, t)];
     E.paving(124, '#cdae78', '#bf9f6a');
     const rows = Math.min(4, 2 + t);                      // a greater arena stands taller
-    for (let r = 0; r < rows; r++) {
+    if (t === 0) {                                        // the village pits: no arches, only a fence of split logs round a hole in a field
+      for (let x = 30; x < 560; x += 6) { const hgt = 40 + ((x * 7) % 5) - (x % 18 === 0 ? 4 : 0), c = (x / 6) % 3 ? W.c : shade(W.c, 0.9); R(x, 124 - hgt, 6, hgt, c); R(x, 124 - hgt, 1, hgt, W.l); R(x + 5, 124 - hgt, 1, hgt, W.d); R(x + 1, 124 - hgt - 2, 4, 2, c); R(x + 2, 124 - hgt - 4, 2, 2, c); if ((x * 13) % 7 === 0) R(x + 2, 124 - hgt + 12 + (x % 11), 2, 3, W.d); }
+      R(30, 96, 530, 3, W.d); R(30, 96, 530, 1, W.l); R(30, 112, 530, 3, W.d); R(30, 112, 530, 1, W.l);      // the rails the logs are pegged to
+      for (let x = 60; x < 540; x += 96) { if (x > 230 && x < 330) continue; R(x, 70, 3, 54, '#4a3520'); R(x, 70, 1, 54, W.l); }      // and the posts that hold it up
+    }
+    for (let r = 0; r < (t === 0 ? 0 : rows); r++) {
       const y = 124 - (r + 1) * 26, inset = r * 8;
       R(30 + inset, y, 530 - inset * 2, 26, r % 2 ? shade(W.c, 0.94) : W.c); R(30 + inset, y, 530 - inset * 2, 2, W.l); R(30 + inset, y + 24, 530 - inset * 2, 2, W.d);
       for (let x = 46 + inset; x < 546 - inset; x += 30) { R(x, y + 8, 16, 18, '#1c1410'); R(x + 2, y + 6, 12, 2, '#1c1410'); R(x + 4, y + 4, 8, 2, '#1c1410'); R(x - 3, y + 4, 2, 22, W.d); }
     }
-    const top = 124 - rows * 26;
-    if (E.games) for (let r = 1; r < rows; r++) { const y = 124 - (r + 1) * 26, inset = r * 8; let n = 0;      // the town in the upper arches, on its feet
+    const top = t === 0 ? 80 : 124 - rows * 26;
+    if (E.games && t > 0) for (let r = 1; r < rows; r++) { const y = 124 - (r + 1) * 26, inset = r * 8; let n = 0;      // the town in the upper arches, on its feet
       for (let x = 46 + inset; x < 546 - inset; x += 30, n++) { if ((n * 7 + r * 3) % 4 === 0) continue; const up = Math.sin(T * 3 + n * 1.3 + r) > 0.5 ? 1 : 0;
         R(x + 3, y + 17 - up, 3, 3, TOWN_SKINS[(n + r) % 4]); R(x + 2, y + 20 - up, 5, 6 + up, TOWN_TUNICS[(n * 3 + r) % 9]); R(x + 9, y + 18, 3, 3, TOWN_SKINS[(n + r + 1) % 4]); R(x + 8, y + 21, 5, 5, TOWN_TUNICS[(n * 5 + r + 2) % 9]); } }
-    for (let i = 0; i < 7; i++) { const x = 70 + i * 75; R(x, top - 14, 1, 14, '#5a4326'); R(x + 1, top - 14 + (Math.sin(T * 4 + i) > 0 ? 0 : 1), 7, 4, ['#8a2a20', '#c9a21e', '#2f6db8'][i % 3]); }
+    for (let i = 0; i < 7; i++) { const x = 70 + i * 75; R(x, top - 14, 1, 14, '#5a4326'); R(x + 1, top - 14 + (Math.sin(T * 4 + i) > 0 ? 0 : 1), 7, 4, imperial ? (i % 2 ? '#e8b545' : '#7a3a8e') : ['#8a2a20', '#c9a21e', '#2f6db8'][i % 3]); }
     R(270, 96, 50, 28, '#120c0a'); R(274, 92, 42, 4, '#120c0a'); R(280, 88, 30, 4, '#120c0a'); R(266, 88, 4, 36, W.l); R(320, 88, 4, 36, W.l);       // the great gate
     for (let i = 0; i < 6; i++) R(273 + i * 8, 96, 1, 28, '#3a2a1c');
+    if (t === 0) { R(262, 84, 66, 5, W.d); R(262, 84, 66, 1, W.l); R(290, 78, 10, 7, '#e8e2d2'); R(292, 80, 2, 2, '#1c1410'); R(296, 80, 2, 2, '#1c1410'); R(293, 83, 4, 1, '#1c1410'); }      // a beam over the way in, and an ox skull nailed to it
+    if (imperial) {                                       // the Emperor's colours down the gate and along the wall, and gold on the cornice
+      R(30, top, 530, 2, '#e8b545'); R(262, 84, 66, 4, '#e8b545'); R(262, 84, 66, 1, '#fff0b0');
+      for (const x of [240, 334, 120, 454]) { const w = Math.sin(T * 2.4 + x) > 0 ? 1 : 0; R(x, top + 6, 16, 1, '#5a4326'); R(x + 1, top + 7, 14, 40 + w, '#7a3a8e'); R(x + 1, top + 7, 14, 2, '#9a5aaa'); R(x + 1, top + 7, 2, 40 + w, '#5a2a6a'); R(x + 5, top + 18, 6, 6, '#e8b545'); R(x + 3, top + 20, 10, 2, '#e8b545'); R(x + 1, top + 45 + w, 14, 2, '#e8b545'); }
+      R(288, 124, 14, 30, '#7a3a8e'); R(288, 124, 1, 30, '#e8b545'); R(301, 124, 1, 30, '#e8b545');
+    }
     if (E.games) {
       for (let i = 0; i < 13; i++) { const bx = 250 + i * 7, by = 82 + Math.round(Math.sin(i / 12 * Math.PI) * 4); R(bx, by, 7, 1, '#3a2a1c'); R(bx + 1, by + 1, 5, 3 + (Math.sin(T * 5 + i) > 0 ? 1 : 0), ['#c23b2e', '#e3b04a', '#2f6db8'][i % 3]); }
       for (let i = 0; i < 12; i++) E.P(330 + i * 17 + (i % 2) * 3, 150 + (i % 3) * 8, -1, townsman(i));          // the queue
@@ -372,14 +385,14 @@ const PLACE_SCENES = {
     } else {
       E.P(210, 152, 1, { tunic: '#8a8a8a', hair: '#6a6a6a', item: 'broom', sweep: Math.sin(T * 3) > 0 });
       for (let i = 0; i < 3; i++) E.walker(i, 164 + i * 8, i % 2 ? -13 : 16, townsman(i + 4));
-      const dg = daysToGames(); E.sign(295, 78, `NEXT GAMES IN ${dg} DAY${dg === 1 ? '' : 'S'}`);
+      const dg = daysToGames(); E.sign(295, 78, `${arenaShut() ? 'SHUT FOR THE MONTH: ' : ''}NEXT GAMES IN ${dg} DAY${dg === 1 ? '' : 'S'}`);
     }
     E.shade(30, 124, 530);
-    if (t >= 2) for (let x = 53; x < 540; x += 60) { if (x > 250 && x < 330) continue; const y = 124 - rows * 26 + 12; R(x, y + 6, 4, 10, '#e8e2d2'); R(x + 1, y + 3, 2, 3, '#e8e2d2'); R(x - 1, y + 16, 6, 2, '#c9c2ae'); }      // statues in the upper arches of a great arena
+    if (t >= 2) for (let x = 53; x < 540; x += 60) { if (x > 250 && x < 330) continue; const y = 124 - rows * 26 + 12, sc = imperial ? '#e8b545' : '#e8e2d2'; R(x, y + 6, 4, 10, sc); R(x + 1, y + 3, 2, 3, sc); R(x - 1, y + 16, 6, 2, imperial ? '#b6832c' : '#c9c2ae'); }      // statues in the upper arches of a great arena
     R(266, 124, 58, 3, '#b8a888'); R(262, 127, 66, 3, '#a39a84');                               // steps up to the gate
     R(96, 108, 26, 16, '#6b4f2c'); R(98, 110, 22, 12, '#f1ead8'); for (let i = 0; i < 4; i++) R(100, 112 + i * 3, 12 + (i % 2) * 5, 1, '#6b573c'); R(94, 106, 30, 2, '#4a3520');      // the day's card, posted by the wall
     R(452, 104, 34, 20, '#7a5a34'); for (let i = 0; i < 6; i++) R(450 + i * 6, 98, 6, 6, i % 2 ? '#f1ead8' : '#b93a2e'); R(452, 116, 34, 2, '#94703f'); E.P(468, 124, -1, { tunic: '#a8763a', hair: '#2a1c14' }); R(452, 116, 34, 8, '#7a5a34'); R(452, 116, 34, 2, '#94703f');      // where the tokens are sold
-    E.sign(295, Math.max(11, top - 20), TIERS[Math.min(3, t)].name.toUpperCase(), t >= 3);
+    E.sign(295, Math.max(11, top - 20), imperial ? 'THE GREAT ARENA: THE EMPEROR\'S GAMES' : TIERS[Math.min(3, t)].name.toUpperCase(), t >= 3);
     if (G.fame >= FINAL_FAME && !G.won) {      // the eagle over the gate: the Emperor has sent for you
       R(294, 44, 2, 12, '#8a6230'); R(288, 38, 14, 6, '#e8b545'); R(284, 40, 4, 3, '#e8b545'); R(302, 40, 4, 3, '#e8b545'); R(293, 35, 4, 3, '#e8b545'); E.sign(295, Math.max(23, top - 32), 'THE EMPEROR SUMMONS YOU', true); }
     // the champion, in stone on his plinth; gilded if he is yours
@@ -439,17 +452,8 @@ const PLACE_SCENES = {
     // the fountain
     R(136, 160, 44, 10, '#b8ab94'); R(134, 158, 48, 3, '#d8cdb6'); R(139, 161, 38, 5, '#4f8fb8'); R(156, 146, 4, 14, '#c9c2ae'); R(153, 144, 10, 3, '#d8d2c0');
     for (let i = 0; i < 6; i++) { const q = (T * 1.4 + i / 6) % 1; R(157 + Math.round((i % 2 ? 1 : -1) * q * 9), 144 - Math.round(Math.sin(q * Math.PI) * 7), 1, 2, '#d6ecf8'); } for (let i = 0; i < 3; i++) R(142 + ((i * 13 + Math.floor(T * 6)) % 30), 163, 4, 1, '#d6ecf8');
-    // your stables, at the corner of the square: a rail, then a roof, then a cart, then a proper yard
-    { const sl = 0;      // (your own stables are outside the east gate now: this is only the forum's rail)
-      if (!sl) { R(14, 150, 2, 14, '#5e4426'); R(58, 150, 2, 14, '#5e4426'); R(12, 152, 50, 2, '#7a5a34'); }
-      else {
-        R(8, 132, 66, 30, '#5a4a3e'); R(8, 132, 66, 2, '#6b5a4c'); for (let x = 8; x < 74; x += 22) R(x, 132, 3, 32, '#6b4f2c'); R(72, 132, 3, 32, '#6b4f2c');
-        if (sl >= 3) E.tiles(2, 122, 78, 10); else { R(2, 124, 78, 8, '#b89a5a'); for (let x = 2; x < 80; x += 5) R(x, 124, 1, 8, '#9a7e44'); R(2, 124, 78, 1, '#d0b46e'); }
-        R(10, 156, 62, 2, '#7a5a34'); for (let q = 0; q < 4; q++) R(14 + q * 6, 158, 4, 3, '#c9a763');      // the manger
-      }
-      E.mule(30, 166, 1); if (sl >= 3) E.mule(58, 164, -1, '#6f5a48');
-      if (sl >= 2) { R(84, 164, 30, 8, '#7a5a34'); R(84, 164, 30, 2, '#94703f'); R(112, 167, 10, 2, '#5e4426'); for (const wx of [90, 108]) { R(wx - 4, 170, 8, 8, '#3a2a1c'); R(wx - 2, 172, 4, 4, '#8a6a3a'); R(wx - 1, 173, 2, 2, '#3a2a1c'); } for (let q = 0; q < 2; q++) E.sack(92 + q * 10, 164); }
-      E.sign(54, 186, `YOUR STABLES ${E.pips(sl, 3)}`, sl >= 3); }
+    // a rail at the corner of the square, where the carriers tie up their mules (your own stables are in the yard of the school)
+    R(14, 150, 2, 14, '#5e4426'); R(58, 150, 2, 14, '#5e4426'); R(12, 152, 50, 2, '#7a5a34'); E.mule(30, 166, 1);
     { const rep = workRep(); E.sign(271, 136, `YOUR NAME FOR WORK: ${workWord(rep).toUpperCase()}`, rep >= 35); }
     if ((G.jobs || []).length) E.sign(546, 150, `${G.jobs.length} OF YOUR OUTINGS AWAY`);
     R(572, 150, 8, 18, '#c9c2ae'); R(570, 148, 12, 3, '#d8d2c0'); R(574, 154, 4, 1, '#8a8478'); R(574, 158, 4, 1, '#8a8478');      // the milestone on the east road
@@ -586,9 +590,8 @@ const PLACE_SCENES = {
     // the household: whoever you have taken on, each at his work
     let n = 0;
     const post = (role, x, o, word) => { if (!st[role]) return; const k = n++; E.P(x, 150 + (k % 2) * 6, x < 295 ? 1 : -1, o); E.sign(x, k % 2 ? 185 : 174, `${word} ${E.pips(st[role].skill, 3)}`, st[role].skill >= 3); };
-    post('doctore', 84, { tunic: '#8a4a3a', hair: '#8a8a8a', item: 'staff' }, 'DOCTORE');
-    post('medicus', 150, { tunic: '#f1ead8', hair: '#3a2a1c', item: 'bag' }, 'MEDICUS');
-    post('unctor', 214, { tunic: '#5a8a9a', hair: '#2a1c14', item: 'bucket' }, 'UNCTOR');
+    post('medicus', 104, { tunic: '#f1ead8', hair: '#3a2a1c', item: 'bag' }, 'MEDICUS');
+    post('unctor', 196, { tunic: '#5a8a9a', hair: '#2a1c14', item: 'bucket' }, 'UNCTOR');
     post('cook', 376, { tunic: '#a8763a', apron: '#f1ead8', hair: '#2a1c14', item: Math.sin(T * 2) > 0 ? 'ladle' : 'pot' }, 'COOK');
     post('dispensator', 440, { tunic: '#8a8a8a', hair: '#c9c2b2', item: 'scroll' }, 'DISPENSATOR');
     post('scout', 504, { tunic: '#3f7a5a', hair: '#6a4a2a', item: 'scroll' }, 'SCOUT');
@@ -607,7 +610,7 @@ const PLACE_SCENES = {
     for (let q = 0; q < 26; q++) { const vx = 60 + Math.round(Math.sin(q * 0.9) * 3); R(vx, 122 - q * 2, 2, 2, q % 3 ? '#4f7a3a' : '#6f8f48'); if (q % 5 === 2) R(vx + 2, 121 - q * 2, 2, 2, '#7a2a8a'); }
     R(262, 64, 66, 3, '#8a6a3a'); for (let x = 264; x < 328; x += 6) R(x, 60, 1, 4, '#6b4f2c'); R(262, 59, 66, 1, '#a8834a');
     // those looking for a place wait along the wall
-    { const seek = (G.hires || []).filter(h => h.role !== 'faber').length;
+    { const seek = (G.hires || []).filter(h => h.role !== 'faber' && h.role !== 'doctore').length;
       R(108, 122, 60, 3, '#7a5a34'); R(112, 125, 2, 5, '#5e4426'); R(162, 125, 2, 5, '#5e4426');
       for (let i = 0; i < Math.min(4, seek); i++) E.P(118 + i * 14, 128, 1, townsman(i + 3));
       E.sign(138, 104, seek ? `${seek} SEEKING A PLACE` : 'THE HALL IS EMPTY', seek > 0); }

@@ -1471,24 +1471,50 @@ const errandSites = () => errands().map(q => {
   const T = ERRANDS[q.tpl], second = T.type === 'rescue' && q.step === 1;
   return { id: 'e' + q.id, kind: 'errand_' + (T.type === 'rescue' ? (second ? 'fight' : 'clue') : T.type), x: second ? q.x2 : q.x, y: second ? q.y2 : q.y, tier: q.tier, name: T.title(second ? q.mark2 : q.mark), fixed: true, errand: q.id };
 }).concat(journeySites()).concat(taleSites());      // and the landmarks where your own men's journeys end, and where a story of the place stands
-// A new matter for the fountain, of about the right weight for the school as it stands. Null if nothing suits today.
+// How strong the school is, for the purpose of who comes asking: its best company as the men stand today, at home or away.
+const schoolMight = () => Math.round(G.roster.slice().sort((a, b) => power(b) - power(a)).slice(0, WILD.PARTY).reduce((n, g) => n + power(g), 0));
+// What a piece of work would set against it: the strength of whoever is waiting at the end of it; or, where nobody is, of
+// the kind of company that keeps the roads in that country.
+const tierMight = t => Math.round(WILD_BUDGET[t - 1] * Math.max(2, wildCount(t) - 2));
+const errandMight = q => { const T = ERRANDS[q.tpl]; return T.foes ? strength(T.foes(q)) : tierMight(q.tier); };
+// The worst country the school could go into and expect to hold its own.
+const fitTier = mine => { let t = 1; for (let k = 2; k <= 5; k++) if (tierMight(k) <= mine * SUIT_HARD) t = k; return t; };
+// Work suits a school when what waits there is no stronger than "an even thing" (see sizeUp), and not so weak that it
+// is no work at all; nothing is too slight for a school that has outgrown the worst there is.
+const SUIT_HARD = 1.05, SUIT_EASY = 0.4;
+const errandSuits = (need, tier, mine) => need <= mine * SUIT_HARD && (need >= mine * SUIT_EASY || tier >= 5 || tier >= fitTier(mine));
+// A new matter for the fountain. Nobody brings a school work that is beyond it or beneath it: each is weighed against
+// the school's strength, and only one that suits is brought (its weight is kept on it, as q.need). Null if nothing suits
+// today. A matter asked for by name (the next part of something begun, or one made for an event) always comes.
 function errandNew(only, giver) {
-  const want = clamp(tier() + 1 + (chance(0.35) ? 1 : 0), 1, 5), taken = asksNow().concat(errands()).map(q => q.tpl), M = wildMap();
+  const mine = schoolMight(), want = clamp(fitTier(mine) - (chance(0.3) ? 1 : 0), 1, 5), taken = asksNow().concat(errands()).map(q => q.tpl), M = wildMap();
   const keys = Object.keys(ERRANDS).filter(k => (only ? k === only : !ERRANDS[k].chain) && !taken.includes(k) && !(ERRANDS[k].relic && (M.relics.includes(ERRANDS[k].relic) || G.armoury.some(it => it.relic === ERRANDS[k].relic))));
   // the unique pieces are spoken of less often than ordinary work, and only once the school can get there
   const pool = keys.filter(k => !ERRANDS[k].relic || only || (chance(0.3) && (landmarkAt(ERRANDS[k].marks[0]) ? wildTier(landmarkAt(ERRANDS[k].marks[0]).x, landmarkAt(ERRANDS[k].marks[0]).y) : 9) <= tier() + 3));
   if (!pool.length) return null;
-  const tpl = pick(pool), T = ERRANDS[tpl];
-  const spots = T.marks.map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p).map(o => Object.assign(o, { t: wildTier(o.p.x, o.p.y) }));
-  if (!spots.length) return null;
-  const aim = clamp(want + (T.harder || 0), 1, 5), near = Math.min(...spots.map(o => Math.abs(o.t - aim))), spot = pick(spots.filter(o => Math.abs(o.t - aim) === near));
-  const kind = giver ? giver.kind : pick(T.givers), Gv = GIVERS[kind], t = spot.t;
-  // a quest far out costs a games day, so it is paid about what that day would have brought
-  const q = { id: ++G.nextId, tpl, mark: spot.m, x: spot.p.x, y: spot.p.y, tier: t, giver: giver ? { kind: giver.kind, name: giver.name } : { kind, name: pick(Gv.names) }, step: 0,
-    boss: T.keeper || (T.boss ? (L => { const free = L.filter(n => !G.roster.some(g => g.name === n)); return pick(free.length ? free : L); })(QUEST_NAMES[T.boss === 'great' ? greatKind(t) : T.boss]) : null),      // never the name of a man who has since sworn to you
-    pay: round5(((80 + 60 * t) * rand(0.9, 1.2) + PURSE[tier()]) * (T.pay || 1)), fame: t + (T.fame || 0), leaves: G.day + 3, days: 10 + t * 3, relic: T.relic || null };
-  if (T.type === 'rescue') { const s2 = T.marks2.map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p && o.m !== q.mark); if (!s2.length) return null; const o = pick(s2); q.mark2 = o.m; q.x2 = o.p.x; q.y2 = o.p.y; q.tier = clamp(Math.max(t, wildTier(o.p.x, o.p.y) - 1), 1, 5); }
-  return q;
+  const make = (tpl, spot) => {
+    const T = ERRANDS[tpl], kind = giver ? giver.kind : pick(T.givers), Gv = GIVERS[kind], t = spot.t;
+    // a quest far out costs a games day, so it is paid about what that day would have brought
+    const q = { id: ++G.nextId, tpl, mark: spot.m, x: spot.p.x, y: spot.p.y, tier: t, giver: giver ? { kind: giver.kind, name: giver.name } : { kind, name: pick(Gv.names) }, step: 0,
+      boss: T.keeper || (T.boss ? (L => { const free = L.filter(n => !G.roster.some(g => g.name === n)); return pick(free.length ? free : L); })(QUEST_NAMES[T.boss === 'great' ? greatKind(t) : T.boss]) : null),      // never the name of a man who has since sworn to you
+      pay: round5(((80 + 60 * t) * rand(0.9, 1.2) + PURSE[tier()]) * (T.pay || 1)), fame: t + (T.fame || 0), leaves: G.day + 3, days: 10 + t * 3, relic: T.relic || null };
+    if (T.type === 'rescue') { const s2 = T.marks2.map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p && o.m !== q.mark); if (!s2.length) return null; const o = pick(s2); q.mark2 = o.m; q.x2 = o.p.x; q.y2 = o.p.y; q.tier = clamp(Math.max(t, wildTier(o.p.x, o.p.y) - 1), 1, 5); }
+    q.need = errandMight(q);
+    return q;
+  };
+  // each kind of work in turn, in no order; and for each, the places it could be at, those of about the right weight first
+  const order = pool.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  let spare = null;
+  for (const tpl of order) {
+    const T = ERRANDS[tpl], aim = clamp(want + (T.harder || 0), 1, 5);
+    const spots = T.marks.map(m => ({ m, p: landmarkAt(m) })).filter(o => o.p).map(o => Object.assign(o, { t: wildTier(o.p.x, o.p.y), r: Math.random() })).sort((a, b) => Math.abs(a.t - aim) - Math.abs(b.t - aim) || a.r - b.r);
+    for (const spot of spots.slice(0, 6)) {
+      const q = make(tpl, spot); if (!q) continue;
+      if (errandSuits(q.need, q.tier, mine)) return q;
+      if (!spare) spare = q;
+    }
+  }
+  return only ? spare : null;
 }
 // Each morning: those who have waited three days go home, and now and then somebody new is at the fountain.
 function rollAsks(force) {
@@ -2512,4 +2538,58 @@ function landmarkHere() {
   const S = landmarkSpots(); let best = null, bd = 24;
   for (const n in S) { const d = Math.hypot(S[n].x - F.x, S[n].y - F.y); if (d < bd) { bd = d; best = n; } }
   return best;
+}
+
+// ---------- the talk of the town ----------
+// What people in the square are saying today: a line for each thing worth saying, drawn from how the school, the town
+// and the country outside the gate really stand. The village shows one when the mouse rests on two who are talking
+// (village.js). Nothing here is made up: a den that is spoken of is a den that is out there, where they say it is.
+const rumourWay = (x, y) => ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'][((Math.round(Math.atan2(y - WILD.TOWN.y, x - WILD.TOWN.x) / (Math.PI / 4)) % 8) + 8) % 8];
+const rumourName = s => /^(The|A|An) /.test(s) ? lower(s) : s;      // "a wolf den", but "Brennos the Flayer"
+function townRumours() {
+  const out = [], say = s => { if (s && !out.includes(s)) out.push(s); };
+  const far = s => Math.hypot(s.x - WILD.TOWN.x, s.y - WILD.TOWN.y), reg = s => rumourName(wildRegion(s.x, s.y)), at = s => `out in ${reg(s)}, ${rumourWay(s.x, s.y)} of the town`;
+  const open = wildSites().filter(s => !s.fixed && s.kind !== 'bounty' && String(s.id)[0] === 's' && !siteDone(s)).sort((a, b) => far(a) - far(b));
+  const risk = s => s.tier >= 4 ? ' Men who went to look have not come back.' : s.tier <= 1 ? ' It would not take many men.' : '';
+  // the country outside the gate: the nearest dens and camps nobody has dealt with
+  open.filter(s => s.kind === 'lair').slice(0, 2).forEach(s => say(`They talk of ${rumourName(s.name)} ${at(s)}. The shepherds will not graze near it.${risk(s)}`));
+  open.filter(s => s.kind === 'camp').slice(0, 2).forEach(s => say(`The carters pay to get past ${rumourName(s.name)}, ${at(s)}. Somebody should burn it out.${risk(s)}`));
+  open.filter(s => s.kind === 'ruin').slice(0, 2).forEach(s => say(`Nobody has been inside ${rumourName(s.name)}, ${at(s)}. There is said to be silver under it.`));
+  const kind = (k, line) => { const s = open.find(q => q.kind === k); if (s) say(line(s)); };
+  kind('healer', s => `There is a wise-woman ${at(s)}. She mends what a medicus cannot.`);
+  kind('merchant', s => `A wandering merchant has pitched ${at(s)}. He sells what the market here never sees.`);
+  kind('hermit', s => `A hermit keeps a cell ${at(s)}. He knows more than he says.`);
+  kind('shrine', s => `There is an old shrine ${at(s)}. It still answers, they say, if you bring it something.`);
+  kind('hamlet', s => `There is a hamlet ${at(s)}, that is on no tax roll. They keep to themselves there.`);
+  // the Magistrate's bounty, the worst of the regions, and the ones the school has made safe
+  if (bountyLive()) { const left = G.bounty.until - G.day; say(`The Magistrate will pay for ${rumourName(G.bounty.name)}, last seen in ${rumourName(G.bounty.region)}, ${rumourWay(G.bounty.x, G.bounty.y)} of the town. ${left > 0 ? `${left} more day${left === 1 ? '' : 's'} and the offer is gone.` : 'The offer ends today.'}`); }
+  { const tally = regionTally(), worst = Object.keys(tally).map(r => ({ r, left: tally[r].n - tally[r].done })).filter(o => o.left >= 2).sort((a, b) => b.left - a.left)[0];
+    if (worst) say(`${worst.r} is the worst of it: ${worst.left} dens and camps, and nobody to clear them.`);
+    safeRegions().slice(0, 2).forEach(r => say(`${r} is quiet since the school went through it. The carters go that way singing.`)); }
+  // a landmark, a different one each day, if anybody has drawn the map
+  { const name = LANDMARKS[(G.day * 7) % LANDMARKS.length], spot = typeof document === 'undefined' || landmarkCache ? landmarkAt(name) : null;
+    if (spot) say(`Have you ever seen ${rumourName(name)}? It stands ${at(spot)}.`); }
+  // the town itself: the games, the houses, the market, the school
+  const dg = daysToGames(), F = G.festival;
+  if (F && FESTIVALS[F.type] && F.day > G.day && F.day - G.day <= 6) say(`${FESTIVALS[F.type].name} in ${F.day - G.day} day${F.day - G.day === 1 ? '' : 's'}. My cousin is coming in from the country for it.`);
+  say(dg === 0 ? 'Games today. Half the town is at the arena already.' : dg === 1 ? 'Games tomorrow. I have my seat, have you?' : '');
+  { const holder = typeof titleHolder === 'function' ? titleHolder() : null;
+    if (holder) say(G.title.house === null ? `${holder.name} holds the championship, and he is one of the lanista's own. Nobody wants to draw him.` : `${holder.name} still holds the championship. Nobody wants to draw him.`); }
+  { const hot = (G.houses || []).slice().sort((a, b) => b.grudge - a.grudge)[0], hd = hot && houseDef(hot.id);
+    if (hd && hot.grudge >= 25) say(`The men of ${hd.name} are saying in the tavern that they will have the lanista's best man on the sand.`);
+    const top = (G.houses || []).slice().sort((a, b) => b.prestige - a.prestige)[0], td = top && houseDef(top.id);
+    if (td) say(top.prestige > G.fame ? `${td.name} is still the house to beat. ${td.lanista} does not let anybody forget it.` : `${td.name} used to be the house to beat. Now it is the lanista's school they talk about.`); }
+  { const best = (G.market || []).slice().sort((a, b) => b.price - a.price)[0];
+    if (best && CLASSES[best.cls]) say(`Have you seen the ${CLASSES[best.cls].name.toLowerCase()} on the block today? ${best.name}, from ${best.origin}. The dealer wants ${best.price} for him.`); }
+  { const fine = ((G.smith && G.smith.stock) || []).slice().sort((a, b) => b.r - a.r)[0];
+    if (fine && fine.r >= 3) say('The smith has a piece on his wall this week that is fit for a consul. He will not say where he got the steel.'); }
+  if (G.denarii < 0) say('They say the lanista owes money all over town. The creditors were at his door this morning.');
+  { const lost = (G.fallen || []).filter(x => G.day - x.day <= 5).slice(-1)[0]; if (lost && lost.name) say(`Poor ${lost.name}. I saw him fall. The sand was red for an hour.`); }
+  if (G.won) say('He has fought before the Emperor, that one, and won. And he still walks to market like the rest of us.');
+  else if (G.fame >= FINAL_FAME) say('Rome has sent for the lanista. They have hung the arena in purple for it.');
+  else { const t = tier(), nx = TIERS[t + 1]; say(nx ? `The lanista's men fight in the ${TIERS[t].name} now. A little more of a name and it will be the ${nx.name}.` : 'The lanista\'s men fight in the Great Arena now. After that there is only Rome.'); }
+  if (!gateOpen()) say('The gate-captain will not open the east gate for a lanista nobody has heard of. One games, and he will.');
+  if (fountainFolk().length) say('Somebody has been waiting by the fountain all morning for the lanista. It will be about work.');
+  if (!out.length) say('Nothing ever happens in this town.');
+  return out;
 }

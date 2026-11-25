@@ -1896,7 +1896,6 @@ function* provLandSteps(fresh) {
   for (let dy = -7; dy <= 6; dy++) for (let dx = -9; dx <= 6; dx++) {
     const tx = tx0 + dx, ty = ty0 + dy, k = at(tx, ty);
     if (inTown(tx, ty, 5) || !inTown(tx, ty, 30) || (k !== T_GRASS && k !== T_MEADOW) || farm(tx, ty) || h(tx, ty, 1150) > 0.62) continue;
-    if (Math.abs(tx * 10 + 5 - STABLES.x) < 30 && Math.abs(ty * 10 + 5 - STABLES.y) < 18) continue;      // the school's stables stand here
     const kind = Math.floor(h(tx, ty, 1151) * OUT.length), x = tx * 10, y = ty * 10, flip = h(tx, ty, 1152) > 0.5, P = (px, py, w, hh, c) => R(flip ? 2 * x + 10 - px - w : px, py, w, hh, c), v = q => h(tx, ty, 1153 + q);
     P.at = px => flip ? 2 * x + 10 - px : px;
     feats.push({ y: y + 9, d: () => OUT[kind](x, y, P, v) });
@@ -2121,7 +2120,6 @@ function* provLandSteps(fresh) {
     const x = tx * 10, y = ty * 10, r0 = h(tx, ty, 1601), drift = wildNoise(tx / 8, ty / 8, 1600), want = k === T_HILL ? 0.02 + Math.max(0, drift - 0.45) * 0.14 : 0.03 + Math.max(0, drift - 0.45) * 0.22;
     if (r0 > want) continue;
     if (farm(tx, ty) || grove(tx, ty) || inTown(tx, ty, 6) || nearMark(x + 5, y + 7) || siteTiles.some(([sx, sy]) => Math.hypot(sx - tx, sy - ty) < 3)) continue;
-    if (Math.abs(x + 5 - STABLES.x) < 30 && Math.abs(y + 5 - STABLES.y) < 20) continue;
     if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const o = at(tx + dx, ty + dy); return o === T_ROAD || o === T_BRIDGE; })) continue;      // not on the verge of a road
     const reg = wildRegion(x + 5, y + 5), n = h(tx, ty, 1602) > 0.72 ? 2 : 1;
     for (let q = 0; q < n; q++) {
@@ -2353,35 +2351,7 @@ function drawHerds(ctx, T, R, inView) {
 // The town. It is drawn live, because it grows: the arena gets bigger as the school's name does. A wall with towers
 // and a gate wherever a road comes in; inside, two great streets crossing at the forum, the temple on its podium,
 // the baths, houses in rows, the amphitheatre, and in the south-west corner your own school under its red flag.
-// The school's stables: outside the east wall, by the road, where the column forms up. An empty paddock until they
-// are built; then a shed and a mule, then stalls and a cart, then a tiled range with a wagon and a team.
-const STABLES = { x: WILD.TOWN.x + 50, y: WILD.TOWN.y + 12 };
-function drawStables(ctx, T, R, night) {
-  const l = (G.fac && G.fac.stables) | 0, x = STABLES.x, y = STABLES.y, v = q => wildHash(q, 77, 1900);
-  // the yard: trodden earth, ragged at its edges
-  for (let dy = -9; dy <= 7; dy++) { const w = Math.round(21 * Math.sqrt(1 - (dy * dy) / 90) + (v(dy + 20) - 0.5) * 4); R(x - w + Math.round((v(dy + 50) - 0.5) * 3), y + dy, w * 2, 1, dy % 3 === 0 ? '#b59a64' : '#c2a674'); }
-  for (let q = 0; q < 10; q++) R(x - 16 + Math.floor(v(q) * 32), y - 6 + Math.floor(v(q + 10) * 12), 2, 1, q % 2 ? '#a8894f' : '#d2b884');
-  // the paddock rail round it, with a gap on the town side
-  for (let q = -20; q <= 20; q += 5) { R(x + q, y + 6, 1, 3, '#6b4f2c'); if (q > -20) R(x + q - 5, y + 7, 5, 1, '#8a6a3a'); }
-  for (let q = -6; q <= 6; q += 4) R(x + 20, y + q, 1, 3, '#6b4f2c'); R(x + 20, y - 5, 1, 12, '#8a6a3a');
-  R(x - 10, y + 2, 7, 3, '#6b4f2c'); R(x - 9, y + 2, 5, 1, '#6fa8c8');                                           // the trough
-  if (!l) { R(x + 6, y - 10, 1, 9, '#5a4326'); R(x + 3, y - 10, 7, 4, '#d8c9a0'); R(x + 4, y - 9, 5, 1, '#8a6a3a'); R(x + 4, y - 7, 4, 1, '#8a6a3a'); return; }      // nothing built: a board on a post says whose ground it is
-  const w = 14 + l * 7, bx = x - 18, by = y - 2;
-  R(bx + 1, by, w + 2, 2, 'rgba(0,0,0,.22)');
-  R(bx, by - 10, w, 10, l >= 3 ? '#dccba0' : l === 2 ? '#a8834a' : '#8a6a3a'); R(bx, by - 10, 1, 10, l >= 3 ? '#efe2bc' : '#a8834a'); R(bx + w - 1, by - 10, 1, 10, l >= 3 ? '#b8a67c' : '#6b4f2c');
-  for (let q = 2; q < w - 4; q += 7) { R(bx + q, by - 8, 5, 8, '#2a1c14'); R(bx + q, by - 4, 5, 1, '#6b4f2c'); }                                              // the stalls, each with its half door
-  if (l >= 3) { for (let q = 0; q < 5; q++) R(bx - 1, by - 15 + q, w + 2, 1, q === 0 ? '#e08a5e' : q % 2 ? '#b5522e' : '#d06a3e'); for (let q = 1; q < w; q += 3) R(bx + q, by - 14, 1, 4, '#a8482a'); }
-  else { R(bx - 1, by - 13, w + 2, 3, '#9a7a42'); R(bx - 1, by - 13, w + 2, 1, '#b8964e'); for (let q = 1; q < w; q += 4) R(bx + q, by - 12, 1, 2, '#7a5a2a'); }
-  // a mule looking out over its door, flicking an ear
-  const ear = Math.sin(T * 0.8) > 0.7 ? 1 : 0; R(bx + 3, by - 6, 4, 2, '#8a6a4a'); R(bx + 6, by - 7, 2, 2, '#8a6a4a'); R(bx + 6 + ear, by - 8, 1, 1, '#6f5a48');
-  if (l >= 2) {                                // a cart in the yard; at the last, a wagon with its hoops, and the team beside it
-    const cx = x + 6, cy = y + 3; R(cx - 1, cy + 3, l >= 3 ? 15 : 11, 1, 'rgba(0,0,0,.2)'); R(cx, cy - 2, l >= 3 ? 13 : 9, 4, '#8a6a3a'); R(cx, cy - 3, l >= 3 ? 13 : 9, 1, '#a8834a'); R(cx + 1, cy + 1, 3, 3, '#3a2a1c'); R(cx + (l >= 3 ? 9 : 5), cy + 1, 3, 3, '#3a2a1c'); R(cx - 4, cy, 4, 1, '#6b4f2c');
-    if (l >= 3) { R(cx + 1, cy - 7, 11, 4, '#e8dcc0'); R(cx + 1, cy - 7, 11, 1, '#f8f0dc'); R(cx + 4, cy - 7, 1, 4, '#c9b890'); R(cx + 8, cy - 7, 1, 4, '#c9b890'); }
-  }
-  if (l >= 3) { const tail = Math.sin(T * 3) > 0.6 ? 1 : 0; for (const [mx, c] of [[-4, '#8a6a4a'], [-13, '#6f5a48']]) { R(x + mx, y + 5, 7, 1, 'rgba(0,0,0,.2)'); R(x + mx, y, 6, 4, c); R(x + mx + 5, y - 2, 3, 3, c); R(x + mx + 7, y - 3, 1, 1, c); R(x + mx - 1, y + tail, 1, 2, '#3a2a1c'); R(x + mx + 1, y + 4, 1, 1, '#3a2a1c'); R(x + mx + 4, y + 4, 1, 1, '#3a2a1c'); }
-    R(x - 22, y - 1, 6, 5, '#d9c070'); R(x - 21, y - 2, 4, 1, '#e6d088'); R(x - 22, y + 2, 6, 1, '#b89a4a'); }      // the team, and hay for it
-  if (night > 0.35) { const fl = Math.sin(T * 11) > 0 ? 1 : 0; R(bx + w, by - 9 - fl, 1, 2 + fl, '#f5c04a'); }      // a lamp at the corner after dark
-}
+// (The school's stables stand in its own yard, inside the walls: see yard.js. Nothing of them is out here.)
 function drawTown(ctx, T, R, tx, ty, tr, night) {
   const X0 = tx - 44, X1 = tx + 19, Y0 = ty - 26, Y1 = ty + 12, W = X1 - X0, gx = Math.floor(tx / 10) * 10 + 5, hv = q => wildHash(q, 77, 1400), lit = night > 0.3;
   const wall = '#b8ab94', wl = '#d8cdb6', wd = '#8f846e', road = k => k === T_ROAD || k === T_BRIDGE;
@@ -3442,11 +3412,8 @@ function provClick(cv, e) {
   if (!G.field) return;
   const r = cv.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
   const x = prov.big ? u * WILD.W : prov.camX + u * PROV.VW, y = prov.big ? v * WILD.H : prov.camY + v * PROV.VH;
-  // the stables: walk to the yard gate, and deal with the stable boy when you get there
-  const st = !prov.big && Math.abs(x - STABLES.x) < 24 && y > STABLES.y - 22 && y < STABLES.y + 10;
-  if (st && Math.hypot(G.field.x - STABLES.x, G.field.y - (STABLES.y + 9)) < 10) { prov.path = null; stablesModal(); return; }
-  const p = st ? provPath(G.field.x, G.field.y, STABLES.x, STABLES.y + 9) : provPath(G.field.x, G.field.y, x, y);
-  if (p) { prov.path = p; prov.dest = st ? 'stables' : null; prov.big = false; } else prov.hint = performance.now() + 1600;
+  const p = provPath(G.field.x, G.field.y, x, y);
+  if (p) { prov.path = p; prov.dest = null; prov.big = false; } else prov.hint = performance.now() + 1600;
 }
 
 // ---------- roaming bands on the move ----------
@@ -3515,7 +3482,7 @@ function provStep(dt) {
       prov.face = faceOf(dx, dy, prov.face);
       if (d <= left) { F.x = t.x; F.y = t.y; left -= d; prov.path.shift(); } else { F.x += dx / d * left; F.y += dy / d * left; left = 0; }
     }
-    if (!prov.path.length) { prov.path = null; if (prov.dest === 'stables') { prov.dest = null; villageStill(); stablesModal(); } }
+    if (!prov.path.length) prov.path = null;
   }
   const moved = Math.hypot(F.x - x0, F.y - y0);
   prov.moving = moved > 0.01;
@@ -3655,7 +3622,6 @@ function provHover() {
   const x = prov.big ? m.u * WILD.W : prov.camX + m.u * PROV.VW, y = prov.big ? m.v * WILD.H : prov.camY + m.v * PROV.VH, reach = prov.big ? 46 : 15;
   let best = null, bd = reach;
   for (const st of wildSites()) { if (!siteKnown(st)) continue; const d = Math.hypot(st.x - x, st.y - y); if (d < bd) { bd = d; best = st; } }
-  if (!best && !prov.big && Math.abs(x - STABLES.x) < 24 && y > STABLES.y - 22 && y < STABLES.y + 10) return { stables: true, x: STABLES.x, y: STABLES.y };
   if (!best && (Math.hypot(WILD.TOWN.x - x, WILD.TOWN.y - y) < reach + 8 || (x > WILD.TOWN.x - 46 && x < WILD.TOWN.x + 21 && y > WILD.TOWN.y - 30 && y < WILD.TOWN.y + 14))) return { home: true, x: WILD.TOWN.x, y: WILD.TOWN.y };
   if (!best && !prov.big) {                     // a landmark, once it has been seen
     const m = (prov.marks || []).find(q => x > q.x - 4 && x < q.x + q.r * 2 + 4 && y > q.y - q.r * 1.6 && y < q.y + 14 && wildSeen(q.x + q.r, q.y));
@@ -3678,7 +3644,6 @@ function hoverLines(hv) {
   if (hv.kind === 'tale') { const T = TALES[hv.tale], t = taleOf(hv.tale), dz = siteDanger(hv);
     return [[[hv.name.toUpperCase(), '#f5d584'], [hv.waiting ? 'Waiting for anybody who will listen.' : T.name + ': the story leads here.', '#d8c8a8']].concat(dz ? [] : [['No fight is looked for.', '#9fce86']], [[wayTo(hv.x, hv.y).toUpperCase() + '  -  CLICK TO MARCH THERE', '#a8947a']]), dz]; }
   if (hv.home) return [[['HOME', '#f5d584'], ['Walk in at the gate to go home.', '#f2e6cc'], [wayTo(hv.x, hv.y).toUpperCase(), '#a8947a']], 0];
-  if (hv.stables) { const l = G.fac.stables | 0; return [[['YOUR STABLES', '#f5d584'], [FACILITIES.stables.effect(l) + '.', '#f2e6cc'], [l < 3 ? 'CLICK TO WALK THERE AND IMPROVE THEM: ' + FAC_COST[l] + ' DENARII' : 'FULLY BUILT', '#a8947a']], 0]; }
   if (hv.landmark) return [[[hv.name.toUpperCase(), '#f2e6cc']].concat(loreOf(hv.name) ? [[loreOf(hv.name), taleLore(hv.name) ? '#f5d584' : '#f2e6cc']] : [], [[(hv.dw ? 'It stands in ' : 'A landmark of ') + wildRegion(hv.x, hv.y) + '.', '#d8c8a8']], !hv.dw && landUse(hv.name) && !landUse(hv.name).off ? [['Here: ' + landUse(hv.name).verb.toLowerCase() + (landUse(hv.name).cost ? ' (' + landUse(hv.name).cost + ' denarii)' : '') + '.', '#c9b47e']] : []), 0];
   const done = siteDone(hv), mark = wildMap().marks[hv.id] && !done, dz = siteDanger(hv);
   const lines = [[hv.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc']];
@@ -4086,7 +4051,6 @@ function drawProvince(cv, T) {
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
   if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), provDark()); drawTraffic(ctx, T, R, inBy); drawMillCart(ctx, T, R, inBy); drawTrade(ctx, T, R, inBy); }
-  if (inView(STABLES.x, STABLES.y, 40)) drawStables(ctx, T, R, provDark());
   // places: the ones you have come upon, and anything a clue has marked
   const sites = wildSites();
   for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; provIcon(ctx, s, T, siteDone(s)); }
@@ -4220,7 +4184,6 @@ function drawProvince(cv, T) {
   // a name on the map, with a red pip for each skull of danger
   const tag = (x, y, text, col, bg, pips) => { const tw = Math.ceil(ctx.measureText(text).width), w = tw + 6 + (pips ? pips * 5 + 2 : 0); R(x - w / 2, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); ctx.textAlign = 'left'; ctx.fillStyle = col || '#f2e6cc'; ctx.fillText(text, x - w / 2 + 3, y); ctx.textAlign = 'center'; for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
   if (inView(tx, ty, 70)) tag(tx - 12, ty - 38, 'HOME', '#2a1a0c', '#f5d584');
-  if (inView(STABLES.x, STABLES.y, 40)) tag(STABLES.x, STABLES.y - 20, 'STABLES', '#2a1a0c', (G.fac.stables | 0) < 3 && G.denarii >= FAC_COST[G.fac.stables | 0] ? '#f5d584' : '#d8c8a8');
   for (const s of sites) {
     if (!inView(s.x, s.y, 40)) continue;
     const seen = wildSeen(s.x, s.y), mark = M.marks[s.id] && !siteDone(s);

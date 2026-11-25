@@ -254,7 +254,7 @@ const contractOdds = (c, men) => jobOdds(CONTRACTS[c.type], c.need, men, 0, c.la
 
 // Would he be away on a games day?
 function missesGames(days) {
-  for (let d = G.day; d < G.day + days; d++) if (d % GAMES_EVERY === 0) return true;
+  for (let d = G.day; d < G.day + days; d++) if (gamesOn(d)) return true;
   return false;
 }
 // A man who might not come back: broken in spirit, or with a broken promise to remember.
@@ -299,7 +299,7 @@ function contractTerms(c, terms) {
 // Once between games a few coins in the right taverns turn up one more piece of work.
 const askAroundCost = () => 20 + tier() * 15;
 function askAroundBlock() {
-  if (G.askedAround === dealCycle()) return 'You have asked around since the last games.';
+  if (G.askedAround === dealCycle()) return 'You have asked around since the last market day.';
   const t = tier();
   if (!Object.keys(CONTRACTS).some(k => CONTRACTS[k].tier <= t && !G.contracts.some(c => c.type === k) && !G.jobs.some(J => J.type === k))) return 'There is no other work to be had.';
   if (G.denarii < askAroundCost()) return `You are ${askAroundCost() - G.denarii} denarii short.`;

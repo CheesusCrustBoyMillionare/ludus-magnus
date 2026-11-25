@@ -436,6 +436,24 @@ h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
 #sidefoot button { padding: 3px 0; font-size: 10px; letter-spacing: .04em; }
 #sidefoot button.wide { grid-column: 1 / -1; padding: 5px 0; font-size: 11px; }
 #sidefoot button.off { opacity: .45; text-decoration: line-through; }
+/* how loud: a slider each for the sound and the music, in the side bar and under Settings */
+.vol { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) 2.2em; align-items: center; gap: 6px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); cursor: pointer; }
+#sidefoot .vol { grid-column: 1 / -1; padding: 2px 1px 0; flex: 1 1 150px; min-width: 130px; align-self: center; }
+.vol b.num { text-align: right; font: bold 11px Consolas, monospace; color: var(--gold); letter-spacing: 0; }
+.vol.off b.num, .vol.off span { color: #a8947a; }
+.vol input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 16px; margin: 0; background: transparent; cursor: pointer; }
+.vol input[type=range]::-webkit-slider-runnable-track { height: 4px; background: linear-gradient(#1a110c, #3a2a1c); border: 1px solid var(--edge); border-radius: 2px; }
+.vol input[type=range]::-moz-range-track { height: 4px; background: linear-gradient(#1a110c, #3a2a1c); border: 1px solid var(--edge); border-radius: 2px; }
+.vol input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 9px; height: 14px; margin-top: -6px; background: linear-gradient(#f5d584, #b6832c); border: 1px solid #2a1a0c; border-radius: 2px; }
+.vol input[type=range]::-moz-range-thumb { width: 8px; height: 13px; background: linear-gradient(#f5d584, #b6832c); border: 1px solid #2a1a0c; border-radius: 2px; }
+.vol.off input[type=range]::-webkit-slider-thumb { background: linear-gradient(#a8947a, #6b5a44); }
+.vol.off input[type=range]::-moz-range-thumb { background: linear-gradient(#a8947a, #6b5a44); }
+.vol input[type=range]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.menu .mitem.mvol { display: block; padding: 7px 13px; border: 1px solid var(--edge); background: var(--panel); color: #ecdcbb; }
+.menu .mitem.mvol .vol { font-size: 13px; letter-spacing: 0; text-transform: none; color: inherit; grid-template-columns: 5em minmax(0, 1fr) 2.6em; gap: 12px; font-weight: 600; }
+.menu .mitem.mvol .vol b.num { font-size: 13px; }
+.menu .mitem.mvol .vol span { color: #ecdcbb; } .menu .mitem.mvol .vol.off span { color: #a8947a; }
+#topbar .stat.games.shut b { color: #c9b890; }
 
 /* dialogs open beside the bar, a short reach from End day, and the steward keeps clear of it */
 #modal { justify-content: flex-end; padding-right: calc(184px * var(--z, 1)); }

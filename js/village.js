@@ -19,8 +19,22 @@ const PLACES = [
 ];
 PLACES.forEach(p => { p.dx = Math.round(p.x + p.w / 2); p.dy = p.y + p.h + 6; });
 const placeOf = key => PLACES.find(p => p.key === key) || PLACES[1];
-// The arena's oval: its centre and its two radii, for painting it, for walking round it and for what moves on it.
-const arenaGeom = () => { const p = PLACES.find(q => q.kind === 'arena'); return { p, cx: p.x + p.w / 2, cy: p.y + 35, RX: p.w / 2 - 1, RY: 33 }; };
+// The arena grows with the school's name, and the town's games with it: a pit dug in a field, a ring of timber, an
+// amphitheatre of stone, the great arena built into the north wall, and at the last that arena hung with purple and
+// gold for the Emperor's games. Each has its own oval: its two radii, and how far down from the wall its centre lies.
+const ARENA_LOOKS = [{ RX: 44, RY: 19, cy: 48, top: 21 }, { RX: 58, RY: 24, cy: 44 }, { RX: 70, RY: 28, cy: 40 }, { RX: 83, RY: 33, cy: 35 }, { RX: 83, RY: 33, cy: 35 }];
+const ARENA_NAMES = ['the village pits', 'a timber ring', 'an amphitheatre of stone', 'the great arena', 'the great arena, dressed for the Emperor'];
+const ARENA_FLAGS = [[], [2, 10, 15, 23], [2, 6, 10, 15, 19, 23], [2, 6, 10, 15, 19, 23], [2, 6, 10, 15, 19, 23]];      // which of its 26 masts carry a flag
+const ARENA_CX = 296;
+const arenaLevel = () => typeof G === 'undefined' || !G ? 3 : G.won || G.fame >= FINAL_FAME ? 4 : clamp(tier(), 0, 3);
+// The arena's oval: its centre and its two radii, for painting it, for walking round it and for what moves on it. When
+// the arena has been rebuilt, the ground it stands on (what a click lands on, where its name hangs) is moved to match,
+// and the way round it is worked out afresh. Its gate, and the doorstep before it, never move.
+function arenaGeom() {
+  const p = PLACES.find(q => q.kind === 'arena'), L = arenaLevel(), K = ARENA_LOOKS[L];
+  if (vil.arenaL !== L) { vil.arenaL = L; p.x = ARENA_CX - K.RX - 1; p.w = K.RX * 2 + 2; p.y = K.top || Math.max(0, K.cy - K.RY - 2); p.h = 72 - p.y; vil.grid = null; }
+  return { p, L, cx: ARENA_CX, cy: K.cy, RX: K.RX, RY: K.RY };
+}
 // Things in the way that are not buildings: the fountain, trees, the well.
 const VIL_TREES = [[98, 21], [477, 24], [580, 52], [6, 102], [140, 120], [248, 108], [342, 108], [482, 124], [584, 98], [20, 168], [300, 182], [440, 180], [150, 182], [560, 178]];
 const VIL_BLOCKS = [{ x: 286, y: 112, w: 20, h: 16 }, { x: 126, y: 176, w: 8, h: 6 }, { x: 366, y: 173, w: 30, h: 9 }].concat(VIL_TREES.map(([x, y]) => ({ x: x - 1, y: y - 2, w: 3, h: 3 })));      // a tree stops you at its trunk, not its shade
@@ -40,6 +54,7 @@ const PLACE_INFO = {
 // ---------- the ground: where a man can walk, and how to get somewhere ----------
 
 function vilGrid() {
+  const A0 = arenaGeom();                       // (a rebuilt arena throws the old grid away)
   if (vil.grid) return vil.grid;
   const C = VILLAGE.CELL, w = Math.ceil(VILLAGE.W / C), h = Math.ceil(VILLAGE.H / C), g = new Uint8Array(w * h);
   const block = r => { for (let cy = Math.floor(r.y / C); cy <= Math.floor((r.y + r.h - 1) / C); cy++) for (let cx = Math.floor(r.x / C); cx <= Math.floor((r.x + r.w - 1) / C); cx++) if (cx >= 0 && cy >= 0 && cx < w && cy < h) g[cy * w + cx] = 1; };
@@ -53,6 +68,7 @@ function vilGrid() {
     }
   });
   VIL_BLOCKS.forEach(block);
+  if (A0.L === 0) { block({ x: A0.cx - A0.RX - 18, y: A0.cy + 3, w: 14, h: 8 }); block({ x: A0.cx + A0.RX + 7, y: A0.cy + 8, w: 14, h: 6 }); }      // the tent and the cart by the pit
   for (let cx = 0; cx < w; cx++) { g[cx] = 1; g[(h - 1) * w + cx] = 1; }               // the map's edge
   for (let cy = 0; cy < h; cy++) { g[cy * w] = 1; g[cy * w + w - 1] = 1; }
   return (vil.grid = { g, w, h });
@@ -88,7 +104,7 @@ function vilPath(x0, y0, x1, y1) {
 function villagePlace(key) {
   const p = placeOf(key);
   vil.x = p.dx; vil.y = p.dy; vil.at = p.key; vil.path = null; vil.then = null; vil.face = 'down'; vil.moving = false;
-  vil.enter = null; vil.outT = 0; vil.inside = INDOORS.includes(p.key) ? p.key : null; if (vil.inside) vil.insideT = performance.now();      // put there, he is put indoors where there is an indoors
+  vil.enter = null; vil.outT = 0; vil.leaving = null; vil.inside = INDOORS.includes(p.key) ? p.key : null; if (vil.inside) vil.insideT = performance.now();      // put there, he is put indoors where there is an indoors
 }
 // Sends him to a door on his own feet. `then` runs when he gets there.
 // Where those who have come with work stand in the square, and where the lanista stops to hear each of them.
@@ -149,8 +165,13 @@ function followPath(o, dt, speed) {
 
 // Doors he goes in at, instead of standing on the step: he walks into the doorway, small in it, and is gone from the
 // map (vil.inside) until he is walked somewhere else; the screen of the place shows him indoors (see places.js).
-const INDOORS = PLACES.map(p => p.key), DOOR_IN = 0.75, DOOR_OUT = 0.35;      // every building in the town
-function villageOut() { if (vil.inside || vil.enter) { vil.outKey = vil.inside || vil.enter.key; vil.outT = DOOR_OUT; } vil.inside = null; vil.enter = null; }
+// Sent somewhere else, he is first seen walking to the door in the picture of the place he is in (vil.leaving: the
+// picture says when he has reached it, see placeGuest in places.js and the yard's guest in yard.js); then he comes out
+// at that door on the map, and only then sets off. Steered with the keys he is out at once.
+const INDOORS = PLACES.map(p => p.key), DOOR_IN = 0.75, DOOR_OUT = 0.45, DOOR_LEAVE = 0.7;      // every building in the town
+function villageOut() { if (vil.inside || vil.enter) { vil.outKey = vil.inside || vil.enter.key; vil.outT = DOOR_OUT; } vil.inside = null; vil.enter = null; vil.leaving = null; }
+// Is the picture of the place on the screen and moving, so that he can be seen to its door?
+function sceneShown() { if (typeof document === 'undefined' || (typeof ui !== 'undefined' && (ui.still || ui.noyard))) return false; const cv = document.getElementById('yard'); return !!cv && cv.offsetWidth > 0; }
 function villageStep(dt, frozen) {
   if (vil.enter) {                              // on his way in at a door
     vil.enter.t += dt;
@@ -162,12 +183,20 @@ function villageStep(dt, frozen) {
   if (vil.held) { if (kx || ky) kx = ky = 0; else vil.held = false; }
   const steer = !frozen && (kx || ky);
   const x0 = vil.x, y0 = vil.y;
-  if (!frozen && (kx || ky || vil.path) && (vil.inside || vil.enter)) villageOut();      // walked anywhere, he comes out first
+  if (!frozen && (kx || ky || vil.path) && (vil.inside || vil.enter)) {      // walked anywhere, he comes out first
+    if (vil.inside && vil.path && !kx && !ky && !vil.leaving && sceneShown()) { vil.leaving = { key: vil.inside, t: 0 }; vil.sceneT = performance.now(); }      // sent on foot: to the door of the place, in its picture
+    else if (!vil.leaving || kx || ky || !vil.inside) villageOut();
+  }
+  if (vil.leaving && !frozen) {
+    const Lv = vil.leaving; Lv.t += dt;
+    if (!vil.path) vil.leaving = null;                                                                    // called back before he reached the door: he stays
+    else if (Lv.out || Lv.t > DOOR_LEAVE || (Lv.t > 0.2 && performance.now() - (vil.sceneT || 0) > 250)) villageOut();      // at the door (or the picture is not being painted): out he comes
+  }
   if (!frozen && (kx || ky)) {                       // steering takes over from any walk he was sent on
     vil.path = null; vil.then = null;
     const n = Math.hypot(kx, ky), s = VILLAGE.SPEED * dt / n;
     moveBy(vil, kx * s, ky * s); vil.face = faceOf(kx, ky, vil.face);
-  } else if (!frozen && vil.path) {
+  } else if (!frozen && vil.path && !vil.leaving && !(vil.outT > 0)) {      // he sets off once he is out at the door
     if (followPath(vil, dt, VILLAGE.SPEED)) { vil.path = null; const f = vil.then; vil.then = null; if (f) f(); }
   }
   vil.moving = Math.hypot(vil.x - x0, vil.y - y0) > 0.01;
@@ -236,7 +265,8 @@ function vilPerson(ctx, X, Y, o) {
 function villageLayer() {
   // What you have built shows on the map, so the map is painted again whenever a level changes.
   const F = (typeof G !== 'undefined' && G && G.fac) || {}, SM = (typeof G !== 'undefined' && G && G.smith) ? (G.smith.level | 0) : 0;
-  const key = [F.barracks, F.ground, F.infirmary, F.baths, F.shrine, F.stores, F.stables, SM].map(v => v | 0).join('');
+  const AL = arenaGeom().L;                    // (and puts the arena's ground where its size has it, before anything is laid out round it)
+  const key = [F.barracks, F.ground, F.infirmary, F.baths, F.shrine, F.stores, F.stables, SM, AL].map(v => v | 0).join('');
   if (vil.layer && vil.layer.width === VILLAGE.W * VILLAGE.S && vil.layerKey === key) return vil.layer;
   vil.layerKey = key;
   const cv = document.createElement('canvas'); cv.width = VILLAGE.W * VILLAGE.S; cv.height = VILLAGE.H * VILLAGE.S;
@@ -254,7 +284,7 @@ function villageLayer() {
   // a kitchen garden and an orchard along the south wall
   for (let i = 0; i < 6; i++) { R(40 + i * 13, 176, 10, 9, '#6b5028'); for (let k = 0; k < 3; k++) R(41 + i * 13 + k * 3, 177 + (k % 2), 2, 6, i % 2 ? '#6f9a3a' : '#8ab04a'); }
   // a hedge under the north wall, an orchard and beehives along the south, and the duck pond
-  for (let x = 6; x < 584; x += 5) { if (x > 206 && x < 384) continue; const hgt = 3 + Math.round(rnd(x, 2)); R(x, 5, 6, hgt, x % 15 < 5 ? '#3f6a2c' : '#4a7a36'); R(x + 1, 5, 3, 1, '#63903f'); if (rnd(x + 9, 1) > 0.85) R(x + 2, 6, 1, 1, '#e8a0a0'); }
+  for (let x = 6; x < 584; x += 5) { if (AL >= 3 && x > 206 && x < 384) continue; const hgt = 3 + Math.round(rnd(x, 2)); R(x, 5, 6, hgt, x % 15 < 5 ? '#3f6a2c' : '#4a7a36'); R(x + 1, 5, 3, 1, '#63903f'); if (rnd(x + 9, 1) > 0.85) R(x + 2, 6, 1, 1, '#e8a0a0'); }
   for (let i = 0; i < 5; i++) { const ox = 240 + i * 13, oy = 180; ell(ox + 1, oy + 2, 5, 2, 'rgba(0,0,0,.2)'); R(ox, oy - 2, 1, 4, '#5a3c20'); ell(ox, oy - 5, 5, 4, '#4a7a36'); ell(ox - 1, oy - 6, 3, 2, '#63903f'); R(ox - 2, oy - 4, 1, 1, '#c23b2e'); R(ox + 2, oy - 6, 1, 1, '#c23b2e'); R(ox + 1, oy - 3, 1, 1, '#e3b04a'); }
   for (let i = 0; i < 3; i++) { const bx = 328 + i * 8; R(bx, 177, 5, 6, '#d9c070'); R(bx, 177, 5, 1, '#e6d088'); R(bx, 179, 5, 1, '#b89a4a'); R(bx, 181, 5, 1, '#b89a4a'); R(bx + 2, 182, 1, 1, '#3a2a1c'); }
   ell(381, 178, 16, 5, '#5f7f3f'); ell(381, 177, 15, 4, '#4f8fb8'); ell(379, 176, 11, 2, '#6fa8cc');
@@ -316,7 +346,7 @@ function villageLayer() {
       wall(x + 2, y + 30, w - 4, 16, '#ead9b4'); for (const cx of [x + 8, x + 18, x + w - 21, x + w - 11]) win(cx, y + 35);
       R(p.dx - 9, y + 31, 2, 15, '#f4ecd8'); R(p.dx + 7, y + 31, 2, 15, '#f4ecd8'); door(p, 8, 11);
     } else if (p.kind === 'ludus') {          // the school: barracks round a sanded yard, and everything you have built there
-      const bl = F.barracks | 0, gl = F.ground | 0, il = F.infirmary | 0, wl = F.baths | 0, ch = bl >= 2 ? 16 : 20;
+      const bl = F.barracks | 0, gl = F.ground | 0, il = F.infirmary | 0, wl = F.baths | 0, ch = bl >= 2 ? 17 : 20;
       tiles(x, y, w, 32, bl >= 1 ? '#a8482a' : '#9a7a42');                               // thatch until the barracks are built up; tile after
       if (bl === 0) for (let q = 0; q < 60; q++) R(x + 1 + rnd(q + 500, w - 3), y + 1 + rnd(q + 560, 30), 1, 2, q % 2 ? '#c8a85a' : '#7a5e30');
       R(x + 16, y + 7, w - 32, ch + 2, '#5a2a18'); R(x + 17, y + 8, w - 34, ch, '#e2c98f');
@@ -329,10 +359,11 @@ function villageLayer() {
       if (wl === 0) { R(x + w - 28, y + ch + 3, 6, 2, '#6b4f2c'); R(x + w - 27, y + ch + 3, 4, 1, '#5aa0d0'); }
       else { const pw = wl >= 2 ? 11 : 8, phh = wl >= 2 ? 6 : 5, px = x + w - 19 - pw, py = y + 8 + ch - phh - 1; R(px, py, pw, phh, wl >= 2 ? '#f4fafb' : '#b8ab94'); R(px + 1, py + 1, pw - 2, phh - 2, '#4f8fb8'); R(px + 2, py + 1, pw - 5, 1, '#8fc3e0'); }
       if (wl >= 3) { ell(x + w - 9, y + 15, 6, 5, '#7f97a4'); ell(x + w - 9, y + 14, 6, 4, '#a8c4d0'); ell(x + w - 11, y + 12, 3, 2, '#cfe2ea'); R(x + w - 10, y + 9, 2, 2, '#e3b04a'); }
-      // the barracks' front: one floor, then two, then a colonnade along it
-      const wy = bl >= 2 ? y + 26 : y + 32, wh = y + 48 - wy;
+      // the barracks' front, seen from the same side as every other front in the town: the roof comes down to its eaves
+      // before the wall begins. One floor; then two, with a row of small windows under the eaves; then a colonnade along it
+      const wy = bl >= 2 ? y + 30 : y + 32, wh = y + 48 - wy;
       wall(x + 2, wy, w - 4, wh, bl >= 2 ? '#e6d6ae' : '#dccba0');
-      for (let cx = x + 8; cx < x + w - 8; cx += 11) { if (Math.abs(cx + 1 - p.dx) > 9) win(cx, y + 37); if (bl >= 2) win(cx, y + 29); }
+      for (let cx = x + 8; cx < x + w - 8; cx += 11) { if (Math.abs(cx + 1 - p.dx) <= 9) continue; win(cx, bl >= 2 ? y + 39 : y + 37); if (bl >= 2) { R(cx, y + 33, 3, 3, '#3a2e24'); R(cx, y + 33, 3, 1, '#8a7a5a'); } }
       door(p, 10, 12, '#4a2c18'); R(p.dx - 7, y + 33, 14, 2, '#7e241c');
       if (bl >= 3) {
         // a colonnade stood out in front of the wall: the wall behind it lies in the shade of the roof it carries, deepest
@@ -346,45 +377,98 @@ function villageLayer() {
           R(cx - 1, wy, 5, 2, '#fbf6ea'); R(cx - 1, wy + 1, 5, 1, '#ddd4be');                           // capital
           R(cx - 1, y + 45, 5, 2, '#fbf6ea'); R(cx - 1, y + 46, 5, 1, '#d6ccb6');                       // base
         }
-        R(x + 1, wy - 1, w - 2, 1, '#f0e8d6'); for (let q = 0; q < 4; q++) R(p.dx - 8 + q * 2, wy - 2 - q, 16 - q * 4, 1, q === 3 ? '#e8b545' : '#f0e8d6'); }
+        R(x + 1, wy - 1, w - 2, 1, '#f0e8d6'); for (let q = 0; q < 3; q++) R(p.dx - 8 + q * 2, wy - 2 - q, 16 - q * 4, 1, q === 2 ? '#e8b545' : '#f0e8d6'); }      // a low gable over the door, lying on the roof
       // the infirmary: a stretch of the front whitewashed, under a green cross, wider as it is improved, with a door of its own
       if (il >= 1) { const iw = 9 + il * 4; R(x + 2, wy, iw, wh, '#f6f1e4'); R(x + 2, wy, iw, 1, '#cfc8b4'); R(x + 2 + iw, wy, 1, wh, '#b8ab94'); R(x + 2, wy + wh - 2, iw, 2, '#ddd6c2'); const cxx = x + 2 + Math.floor(iw / 2); R(cxx, wy + 2, 1, 5, '#3f8a3a'); R(cxx - 2, wy + 4, 5, 1, '#3f8a3a'); if (il >= 2) { R(cxx - 2, y + 40, 4, 8, '#3a2416'); R(cxx - 3, y + 39, 6, 1, '#5a4326'); } if (il >= 3) { R(x + 1, wy - 2, iw + 2, 2, '#c2552e'); R(x + 1, wy - 2, iw + 2, 1, '#de7652'); } }
       R(x + w - 6, y + 22, 1, 11, '#5a4326'); R(x + w - 5, y + 22, 6, 4, '#a02d22'); R(x + w - 5, y + 22, 6, 1, '#c8483a');
-    } else if (p.kind === 'arena') {          // the amphitheatre: the greatest thing in the town, built into its north wall
-      const { cx, cy, RX, RY } = arenaGeom(), rd = Math.round;
+    } else if (p.kind === 'arena') {          // the arena: as great as the school's name has made the games here (ARENA_LOOKS)
+      const { cx, cy, RX, RY, L } = arenaGeom(), rd = Math.round, gy = y + h;      // gy: the foot of its gate, on the street
       const ring = (rx, ry, far, near) => { for (let yy = -ry; yy <= ry; yy++) { const hw = rd(rx * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry)))); ctx.fillStyle = yy < 0 ? far : near; ctx.fillRect(rd(cx - hw), rd(cy + yy), hw * 2, 1); } };
       const on = (a2, rr) => [cx + Math.cos(a2) * RX * rr, cy + Math.sin(a2) * RY * rr];
-      // a paved forecourt before the gate
-      R(cx - 36, y + h - 3, 72, 7, '#c9c3ae'); for (let q = 0; q < 72; q += 6) R(cx - 36 + q + ((q / 6) % 2 ? 0 : 3), y + h + 1, 5, 2, '#d4cfbc'); R(cx - 36, y + h + 3, 72, 1, '#8f8872');
-      // the drum of the outer wall, its arcade and cornice
-      ell(cx + 3, cy + 8, RX + 2, RY + 1, 'rgba(0,0,0,.22)');
-      ell(cx, cy + 5, RX, RY, '#8f8264'); ell(cx, cy + 4, RX, RY, '#b4a682'); ell(cx, cy, RX, RY, '#f0e6c8'); ell(cx, cy, RX - 1, RY - 1, '#dccfac');
-      for (let ax = -(RX - 3); ax <= RX - 3; ax += 5) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy + edge; if (Math.abs(ax) > 12 && edge > 4) { R(cx + ax - 1, yy + 1, 3, 3, '#4a3e2c'); R(cx + ax - 1, yy, 3, 1, '#efe6cc'); R(cx + ax + 2, yy, 1, 4, '#c9bc98'); } }
-      for (let ax = -70; ax <= 70; ax += 4) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy - edge; R(cx + ax, yy - 1, 2, 2, '#f8f0d8'); R(cx + ax, yy + 1, 4, 1, '#c9bc98'); }      // battlements along its far wall, where it stands in for the town's
-      // eight tiers of seats, the far half lit and the near half in its own shade
-      for (let k = 0; k < 8; k++) ring(rd(RX * (0.945 - k * 0.047)), rd(RY * (0.93 - k * 0.056)), k % 2 ? '#e2d6b6' : '#d4c7a4', k % 2 ? '#c9bc9a' : '#b9ac88');
-      for (let q = 0; q < 18; q++) { const a2 = q / 18 * 6.283 + 0.17; for (let rr = 0.6; rr < 0.95; rr += 0.026) { const [sx, sy] = on(a2, rr); R(sx, sy, 1, 1, Math.sin(a2) < 0 ? '#f6eed6' : '#9c8f6e'); } }      // stairs between the blocks
-      for (let q = 0; q < 18; q++) { const a2 = q / 18 * 6.283 + 0.17 + 0.175, [sx, sy] = on(a2, 0.79); R(sx - 1, sy, 2, 2, '#3a3020'); R(sx - 1, sy - 1, 2, 1, '#f0e6c8'); }                                        // the passages people come up by
-      for (let i2 = 0; i2 < 120; i2++) { const a2 = rnd(i2, 6.283), k = Math.floor(rnd(i2 + 40, 6.99)), [sx, sy] = on(a2, 0.61 + k * 0.047); R(sx, sy, 1, 1, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few people about on any day
-      // the wall round the sand, the sand raked in rings, a gate at either end, the posts, old stains
-      ring(rd(RX * 0.56), rd(RY * 0.47), '#7a6c4c', '#8f8060'); ring(rd(RX * 0.545), rd(RY * 0.44), '#f0e6c8', '#d8cca8'); ring(rd(RX * 0.515), rd(RY * 0.4), '#6e6040', '#8a7c5a');
-      const SX = rd(RX * 0.5), SY = rd(RY * 0.36);
-      ell(cx, cy, SX, SY, '#e2c98f'); ell(cx, cy - 1, SX - 1, SY - 2, '#e8d29c'); ell(cx, cy, rd(SX * 0.76), rd(SY * 0.7), '#e0c68a'); ell(cx, cy, rd(SX * 0.5), rd(SY * 0.46), '#e8d29c'); ell(cx, cy, rd(SX * 0.24), rd(SY * 0.24), '#e0c68a');
-      for (let i2 = 0; i2 < 70; i2++) { const a2 = rnd(i2 + 200, 6.283), rr = rnd(i2 + 260, 0.95); R(cx + Math.cos(a2) * (SX - 2) * rr, cy + Math.sin(a2) * (SY - 1) * rr, 2, 1, i2 % 3 ? '#d4ba7e' : '#f0dcaa'); }
-      R(cx - 16, cy + 3, 3, 1, '#b8845a'); R(cx + 11, cy - 4, 2, 1, '#b8845a'); R(cx + 20, cy + 4, 2, 1, '#a8744e'); R(cx - 24, cy - 2, 2, 1, '#b8845a');
-      for (const gx of [-SX - 1, SX - 1]) { R(cx + gx, cy - 2, 3, 5, '#2a2014'); R(cx + gx, cy - 3, 3, 1, '#f0e6c8'); }
-      for (const px of [-7, 7]) { R(cx + px, cy - 4, 1, 4, '#6b4f2c'); R(cx + px, cy, 2, 1, 'rgba(0,0,0,.25)'); }
-      ell(cx, cy + SY, SX - 1, 2, 'rgba(60,40,10,.22)');
-      // masts for the awning, the awning drawn out over the far seats in nine panels, and the magistrate's box
-      for (let q = 0; q < 26; q++) { const a2 = q / 26 * 6.283 + 0.12, [mx, my] = on(a2, 0.99); R(mx, my - 3, 1, 4, '#5a4326'); R(mx, my - 4, 1, 1, '#f0e6c8'); }
-      for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305, stripe = q % 2 ? '#efe6cf' : '#c9a05a';
-        for (let t2 = 0; t2 < 0.24; t2 += 0.014) for (let rr = 0.72; rr < 0.98; rr += 0.034) { const [ax2, ay2] = on(a0 + t2, rr); R(ax2, ay2, 2, 1, Math.floor(t2 / 0.048) % 2 ? stripe : shade(stripe, 0.88)); }
-        const [e1x, e1y] = on(a0, 0.72), [e2x] = on(a0 + 0.24, 0.72); R(e1x, e1y + 1, Math.max(2, rd(e2x - e1x)), 1, 'rgba(40,30,10,.25)'); }
-      { const by = rd(cy - RY * 0.8); R(cx - 10, by, 20, 7, '#6a2a7a'); R(cx - 10, by, 20, 1, '#9a5aaa'); R(cx - 10, by + 6, 20, 1, '#e8b545'); R(cx - 11, by - 1, 1, 9, '#e8b545'); R(cx + 10, by - 1, 1, 9, '#e8b545'); R(cx - 8, by + 2, 16, 3, '#3a1a44'); R(cx - 1, by - 3, 2, 3, '#e8b545'); }
-      // the great gate: an arch between pilasters under a gable, steps, and a statue either side
-      R(cx - 12, y + h - 17, 24, 17, '#d8cca8'); R(cx - 12, y + h - 17, 2, 17, '#f0e6c8'); R(cx + 10, y + h - 17, 2, 17, '#b4a682'); for (let q = 0; q < 5; q++) R(cx - 12 + q * 2, y + h - 18 - q, 24 - q * 4, 1, q === 4 ? '#e8b545' : '#efe4c4');
-      R(cx - 7, y + h - 12, 14, 12, '#3a2416'); R(cx - 6, y + h - 13, 12, 1, '#3a2416'); R(cx - 7, y + h - 12, 14, 1, '#5a4326'); R(cx - 1, y + h - 12, 1, 12, '#5a3c20'); R(cx - 8, y + h, 16, 2, '#b8a888'); R(cx - 10, y + h + 2, 20, 1, '#a39a84');
-      for (const sx of [-24, 21]) { R(cx + sx, y + h - 2, 4, 3, '#a39d8a'); R(cx + sx, y + h - 3, 4, 1, '#d4cfbc'); R(cx + sx + 1, y + h - 10, 2, 7, '#d9d2bd'); R(cx + sx + 1, y + h - 12, 2, 2, '#e4ddc8'); R(cx + sx, y + h - 9, 1, 3, '#c9c3ae'); R(cx + sx + 3, y + h - 8, 1, 2, '#b5af9b'); }
+      if (L === 0) {
+        // ----- the village pits: a hole dug in a field, the earth thrown up round it for people to stand on -----
+        ell(cx, cy + 3, RX + 7, RY + 6, '#93a055'); ell(cx, cy + 3, RX + 4, RY + 4, '#a89a5e');                       // the grass about it trodden bare
+        for (let q = 0; q < 46; q++) { const a2 = rnd(q + 300, 6.283), rr = 0.95 + rnd(q + 340, 0.2); R(cx + Math.cos(a2) * RX * rr, cy + 3 + Math.sin(a2) * (RY + 3) * rr, 2, 1, q % 2 ? '#9a8a52' : '#bcae76'); }
+        R(cx - 6, cy + RY - 2, 12, gy - cy - RY + 5, '#b59a64'); for (let q = 0; q < 8; q++) R(cx - 5 + rnd(q + 380, 9), cy + RY + rnd(q + 390, gy - cy - RY + 2), 2, 1, '#a8894f');      // the track down from the street
+        ell(cx + 2, cy + 4, RX, RY, 'rgba(0,0,0,.2)'); ell(cx, cy + 2, RX, RY, '#4f7038'); ell(cx, cy, RX, RY, '#6f8f48'); ring(RX - 1, RY - 1, '#86a658', '#6a8a44');      // the bank, turfed: its far side catches the light
+        ring(RX - 5, RY - 3, '#a68c5a', '#8f7748');                                                                    // its inner slope, bare earth
+        for (const [rr, n] of [[0.8, 30], [0.68, 24]]) for (let q = 0; q < n; q++) { const a2 = q / n * 6.283 + 0.1; if (q % 6 === 5 || Math.abs(a2 - 1.571) < 0.3) continue; const [sx, sy] = on(a2, rr); R(sx - 2, sy, 4, 1, Math.sin(a2) < 0 ? '#c9a763' : '#7a5a34'); R(sx - 2, sy + 1, 4, 1, 'rgba(0,0,0,.18)'); }      // planks laid on it to sit on
+        for (let i2 = 0; i2 < 16; i2++) { const a2 = rnd(i2, 6.283), [sx, sy] = on(a2, 0.66 + rnd(i2 + 40, 0.26)); R(sx, sy - 1, 1, 2, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few idlers on any day
+        const SX = rd(RX * 0.56), SY = rd(RY * 0.56);
+        ring(SX + 2, SY + 2, '#5e4426', '#4a3520'); ell(cx, cy + 1, SX, SY, '#b89a60'); ell(cx, cy + 1, SX, SY - 1, '#cfae6f'); ell(cx, cy + 1, SX - 2, SY - 2, '#d6b87c');      // the pit, and the sand at the bottom of it
+        for (let i2 = 0; i2 < 30; i2++) { const a2 = rnd(i2 + 200, 6.283), rr = rnd(i2 + 260, 0.9); R(cx + Math.cos(a2) * (SX - 2) * rr, cy + 1 + Math.sin(a2) * (SY - 1) * rr, 2, 1, i2 % 3 ? '#c4a468' : '#e0c890'); }
+        R(cx - 9, cy + 3, 3, 1, '#a8744e'); R(cx + 7, cy - 2, 2, 1, '#a8744e'); R(cx, cy - 4, 1, 5, '#6b4f2c'); R(cx, cy + 1, 2, 1, 'rgba(0,0,0,.25)');                  // old stains, and the post beasts are chained to
+        for (let q = 0; q < 40; q++) { const a2 = q / 40 * 6.283; if (Math.abs(a2 - 1.571) < 0.22) continue; const sx = cx + Math.cos(a2) * (SX + 1), sy = cy + 1 + Math.sin(a2) * (SY + 1); R(sx, sy - 3, 1, 3, Math.sin(a2) < 0 ? '#a8834a' : '#6b4f2c'); R(sx, sy - 3, 1, 1, Math.sin(a2) < 0 ? '#c9a763' : '#8a6a3a'); }      // stakes round the edge of it
+        R(cx - 4, cy + SY, 8, RY - SY + 3, '#b59a64');                                                                  // the way down, cut through the bank
+        { const bx = cx - 10, b0 = cy - RY - 5; R(bx + 1, b0 + 8, 20, 1, 'rgba(0,0,0,.2)'); R(bx + 1, b0 + 3, 18, 5, '#2a1d16'); R(bx + 1, b0 + 6, 18, 2, '#7a5a34'); R(bx, b0 + 2, 1, 7, '#5e4426'); R(bx + 19, b0 + 2, 1, 7, '#5e4426'); for (let q = 0; q < 5; q++) R(bx + q * 4, b0, 4, 3, q % 2 ? '#e8d7b0' : '#a8452e'); R(bx, b0 + 3, 20, 1, 'rgba(0,0,0,.3)'); }      // a plank stand under a striped cloth, for whoever is paying
+        { const tx = cx - RX - 11, ty = cy + 11; ell(tx + 1, ty + 1, 8, 2, 'rgba(0,0,0,.2)'); for (let q = 0; q < 7; q++) R(tx - q, ty - 7 + q, q * 2 + 1, 1, q % 2 ? '#d8c9a0' : '#cbbb90'); R(tx, ty - 9, 1, 2, '#5e4426'); R(tx - 1, ty - 4, 2, 4, '#3a2a1c'); }      // the tent the fighters wait in
+        { const kx = cx + RX + 7, ky = cy + 12; R(kx, ky + 3, 12, 1, 'rgba(0,0,0,.2)'); R(kx, ky - 3, 10, 4, '#8a6a3a'); R(kx, ky - 4, 10, 1, '#a8834a'); R(kx + 1, ky, 3, 3, '#3a2a1c'); R(kx + 6, ky, 3, 3, '#3a2a1c'); R(kx + 10, ky - 2, 4, 1, '#6b4f2c'); R(kx + 1, ky - 6, 8, 2, '#d9c27a'); R(kx + 2, ky - 7, 6, 1, '#e6d088'); }      // a cart of straw to soak up what is spilt
+        R(cx - 7, gy - 13, 2, 13, '#5e4426'); R(cx - 7, gy - 13, 1, 13, '#8a6a3a'); R(cx + 5, gy - 13, 2, 13, '#5e4426'); R(cx + 5, gy - 13, 1, 13, '#8a6a3a'); R(cx - 9, gy - 15, 18, 2, '#6b4f2c'); R(cx - 9, gy - 15, 18, 1, '#94703f');      // two posts and a beam: the gate
+        R(cx - 2, gy - 13, 4, 4, '#a02d22'); R(cx - 2, gy - 13, 4, 1, '#c8483a'); R(cx - 5, gy, 10, 2, '#a8956a');
+      } else {
+        // ----- a ring of seats: timber on a footing of stone, then stone, then the great arena, then that arena dressed for the Emperor -----
+        const C = [null,
+          { dk: '#5e4426', face: '#7a5a34', rim: '#a8834a', rim2: '#94703f', seat: ['#b8935a', '#a8834a', '#8a6a3a', '#7a5a34'], stair: ['#d6b070', '#5e4426'], wall: ['#5e4426', '#6b4f2c', '#b8935a', '#94703f', '#5e4426', '#6b4f2c'], tiers: 4, stairs: 10, drop: 3, folk: 40 },
+          { dk: '#857652', face: '#a8966c', rim: '#e0d0a8', rim2: '#cdbd94', seat: ['#d6c8a2', '#c8b990', '#bdae88', '#ac9d78'], stair: ['#efe4c4', '#8f8262'], wall: ['#7a6c4c', '#8f8060', '#e6d8b4', '#cfc09a', '#6e6040', '#8a7c5a'], tiers: 6, stairs: 14, drop: 4, folk: 80 },
+          { dk: '#8f8264', face: '#b4a682', rim: '#f0e6c8', rim2: '#dccfac', seat: ['#e2d6b6', '#d4c7a4', '#c9bc9a', '#b9ac88'], stair: ['#f6eed6', '#9c8f6e'], wall: ['#7a6c4c', '#8f8060', '#f0e6c8', '#d8cca8', '#6e6040', '#8a7c5a'], tiers: 8, stairs: 18, drop: 5, folk: 120 },
+          { dk: '#9c8f6e', face: '#c9bc9a', rim: '#fbf4de', rim2: '#e8dcc0', seat: ['#efe6cc', '#e0d4b4', '#d2c6a4', '#c2b592'], stair: ['#fffaf0', '#a89a78'], wall: ['#7a6c4c', '#8f8060', '#fbf4de', '#e0d4b4', '#6e6040', '#8a7c5a'], tiers: 8, stairs: 18, drop: 5, folk: 120 }][L];
+        const gold = '#e8b545', purple = '#7a3a8e';
+        // the ground before the gate: trodden earth at a timber ring, paved at a stone one
+        if (L >= 2) { const fw = L >= 3 ? 36 : 26; R(cx - fw, gy - 3, fw * 2, 7, '#c9c3ae'); for (let q = 0; q < fw * 2; q += 6) R(cx - fw + q + ((q / 6) % 2 ? 0 : 3), gy + 1, 5, 2, '#d4cfbc'); R(cx - fw, gy + 3, fw * 2, 1, '#8f8872'); }
+        else { ell(cx, gy + 1, 24, 4, '#b59a64'); for (let q = 0; q < 12; q++) R(cx - 20 + rnd(q + 380, 40), gy - 1 + rnd(q + 390, 4), 2, 1, '#a8894f'); }
+        // the drum of the outer wall, and what holds it up: arches in stone, posts and braces in timber
+        ell(cx + 3, cy + C.drop + 3, RX + 2, RY + 1, 'rgba(0,0,0,.22)');
+        ell(cx, cy + C.drop, RX, RY, C.dk); ell(cx, cy + C.drop - 1, RX, RY, C.face); ell(cx, cy, RX, RY, C.rim); ell(cx, cy, RX - 1, RY - 1, C.rim2);
+        if (L >= 2) for (let ax = -(RX - 3); ax <= RX - 3; ax += 5) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy + edge; if (Math.abs(ax) > 12 && edge > 4) { R(cx + ax - 1, yy + 1, 3, C.drop - 2, '#4a3e2c'); R(cx + ax - 1, yy, 3, 1, C.rim); R(cx + ax + 2, yy, 1, C.drop - 1, C.rim2); } }
+        else for (let ax = -(RX - 3); ax <= RX - 3; ax += 4) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy + edge; if (Math.abs(ax) > 11 && edge > 3) { R(cx + ax, yy, 1, C.drop, '#3a2a1c'); if ((ax & 4) === 0) R(cx + ax + 1, yy + 1, 2, 1, '#4a3520'); } }
+        if (L >= 3) for (let ax = -70; ax <= 70; ax += 4) { const edge = rd(RY * Math.sqrt(Math.max(0, 1 - (ax * ax) / (RX * RX)))), yy = cy - edge; R(cx + ax, yy - 1, 2, 2, '#f8f0d8'); R(cx + ax, yy + 1, 4, 1, '#c9bc98'); }      // battlements along its far wall, where it stands in for the town's
+        // the tiers of seats, the far half lit and the near half in its own shade
+        for (let k = 0; k < C.tiers; k++) ring(rd(RX * (0.945 - k * 0.329 / (C.tiers - 1))), rd(RY * (0.93 - k * 0.392 / (C.tiers - 1))), k % 2 ? C.seat[0] : C.seat[1], k % 2 ? C.seat[2] : C.seat[3]);
+        for (let q = 0; q < C.stairs; q++) { const a2 = q / C.stairs * 6.283 + 0.17; for (let rr = 0.6; rr < 0.95; rr += 0.026) { const [sx, sy] = on(a2, rr); R(sx, sy, 1, 1, Math.sin(a2) < 0 ? C.stair[0] : C.stair[1]); } }      // stairs between the blocks
+        if (L >= 2) for (let q = 0; q < C.stairs; q++) { const a2 = q / C.stairs * 6.283 + 0.17 + 3.1416 / C.stairs, [sx, sy] = on(a2, 0.79); R(sx - 1, sy, 2, 2, '#3a3020'); R(sx - 1, sy - 1, 2, 1, C.rim); }                         // the passages people come up by
+        for (let i2 = 0; i2 < C.folk; i2++) { const a2 = rnd(i2, 6.283), k = Math.floor(rnd(i2 + 40, 6.99)), [sx, sy] = on(a2, 0.61 + k * 0.047); R(sx, sy, 1, 1, ['#8a2a20', '#2f6db8', '#e8dcc0', '#c9a21e', '#3a2a1c'][i2 % 5]); }      // a few people about on any day
+        // the wall round the sand, the sand raked in rings, a gate at either end, the posts, old stains
+        ring(rd(RX * 0.56), rd(RY * 0.47), C.wall[0], C.wall[1]); ring(rd(RX * 0.545), rd(RY * 0.44), C.wall[2], C.wall[3]); ring(rd(RX * 0.515), rd(RY * 0.4), C.wall[4], C.wall[5]);
+        const SX = rd(RX * 0.5), SY = rd(RY * 0.36);
+        ell(cx, cy, SX, SY, '#e2c98f'); ell(cx, cy - 1, SX - 1, SY - 2, '#e8d29c'); ell(cx, cy, rd(SX * 0.76), rd(SY * 0.7), '#e0c68a'); ell(cx, cy, rd(SX * 0.5), rd(SY * 0.46), '#e8d29c'); ell(cx, cy, rd(SX * 0.24), rd(SY * 0.24), '#e0c68a');
+        for (let i2 = 0; i2 < 70; i2++) { const a2 = rnd(i2 + 200, 6.283), rr = rnd(i2 + 260, 0.95); R(cx + Math.cos(a2) * (SX - 2) * rr, cy + Math.sin(a2) * (SY - 1) * rr, 2, 1, i2 % 3 ? '#d4ba7e' : '#f0dcaa'); }
+        R(cx - 16, cy + 3, 3, 1, '#b8845a'); R(cx + 11, cy - 4, 2, 1, '#b8845a'); R(cx + 20, cy + 4, 2, 1, '#a8744e'); R(cx - 24, cy - 2, 2, 1, '#b8845a');
+        for (const gx of [-SX - 1, SX - 1]) { R(cx + gx, cy - 2, 3, 5, '#2a2014'); R(cx + gx, cy - 3, 3, 1, C.rim); }
+        for (const px of [-7, 7]) { R(cx + px, cy - 4, 1, 4, '#6b4f2c'); R(cx + px, cy, 2, 1, 'rgba(0,0,0,.25)'); }
+        ell(cx, cy + SY, SX - 1, 2, 'rgba(60,40,10,.22)');
+        // what flies over it: poles for a few flags; at the great arena, masts all round and the awning drawn out over the far seats
+        if (L >= 3) {
+          for (let q = 0; q < 26; q++) { const a2 = q / 26 * 6.283 + 0.12, [mx, my] = on(a2, 0.99); R(mx, my - 3, 1, 4, '#5a4326'); R(mx, my - 4, 1, 1, L === 4 ? gold : '#f0e6c8'); }
+          for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305, stripe = L === 4 ? (q % 2 ? '#f0dca0' : purple) : (q % 2 ? '#efe6cf' : '#c9a05a');
+            for (let t2 = 0; t2 < 0.24; t2 += 0.014) for (let rr = 0.72; rr < 0.98; rr += 0.034) { const [ax2, ay2] = on(a0 + t2, rr); R(ax2, ay2, 2, 1, Math.floor(t2 / 0.048) % 2 ? stripe : shade(stripe, 0.88)); }
+            const [e1x, e1y] = on(a0, 0.72), [e2x] = on(a0 + 0.24, 0.72); R(e1x, e1y + 1, Math.max(2, rd(e2x - e1x)), 1, L === 4 ? gold : 'rgba(40,30,10,.25)'); }
+        } else for (const q of ARENA_FLAGS[L]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99); R(mx, my - 5, 1, 6, '#5a4326'); }
+        if (L === 4) for (let q = 0; q < 150; q += 2) { const a2 = q / 150 * 6.283; R(cx + Math.cos(a2) * (RX - 0.5), cy + Math.sin(a2) * (RY - 0.5), 1, 1, gold); }      // a gilded cornice all the way round
+        // where the man who gives the games sits: a cloth on poles, a stone box hung with red, the magistrate's purple, the Emperor's own
+        { const by = rd(cy - RY * 0.8);
+          if (L === 1) { R(cx - 8, by + 1, 16, 5, '#2a1d16'); R(cx - 8, by + 4, 16, 2, '#7a5a34'); R(cx - 9, by, 1, 7, '#5e4426'); R(cx + 8, by, 1, 7, '#5e4426'); for (let q = 0; q < 5; q++) R(cx - 10 + q * 4, by - 2, 4, 3, q % 2 ? '#e8d7b0' : '#a8452e'); R(cx - 10, by + 1, 20, 1, 'rgba(0,0,0,.3)'); }
+          else if (L === 2) { R(cx - 9, by, 18, 7, '#5a1f1a'); R(cx - 9, by, 18, 1, C.rim); R(cx - 9, by + 6, 18, 1, gold); R(cx - 7, by + 2, 14, 3, '#3a1210'); R(cx - 10, by - 1, 1, 9, C.rim); R(cx + 9, by - 1, 1, 9, C.rim2); }
+          else if (L === 3) { R(cx - 10, by, 20, 7, '#6a2a7a'); R(cx - 10, by, 20, 1, '#9a5aaa'); R(cx - 10, by + 6, 20, 1, gold); R(cx - 11, by - 1, 1, 9, gold); R(cx + 10, by - 1, 1, 9, gold); R(cx - 8, by + 2, 16, 3, '#3a1a44'); R(cx - 1, by - 3, 2, 3, gold); }
+          else { R(cx - 14, by - 1, 28, 9, '#6a2a7a'); R(cx - 14, by - 1, 28, 1, '#9a5aaa'); R(cx - 14, by + 7, 28, 1, gold); R(cx - 12, by + 2, 24, 3, '#3a1a44'); for (const qx of [-15, -5, 4, 14]) R(cx + qx, by - 2, 1, 10, gold);
+            R(cx - 16, by - 4, 32, 2, gold); R(cx - 16, by - 4, 32, 1, '#fff0b0'); R(cx - 1, by - 9, 2, 5, gold); R(cx - 5, by - 8, 4, 1, gold); R(cx + 1, by - 8, 4, 1, gold); R(cx - 6, by - 7, 2, 1, gold); R(cx + 4, by - 7, 2, 1, gold); R(cx - 1, by - 10, 2, 1, '#fff0b0'); } }      // a golden canopy, and the eagle on it
+        // the gate: timber posts and a lintel, then an arch between pilasters, then the great gate under its gable, then that gilded
+        if (L === 1) {
+          R(cx - 10, gy - 14, 20, 14, '#7a5a34'); for (let q = -8; q < 10; q += 4) R(cx + q, gy - 14, 1, 14, '#5e4426'); R(cx - 12, gy - 17, 3, 17, '#5e4426'); R(cx - 12, gy - 17, 1, 17, '#8a6a3a'); R(cx + 9, gy - 17, 3, 17, '#5e4426'); R(cx + 9, gy - 17, 1, 17, '#8a6a3a');
+          R(cx - 13, gy - 18, 26, 3, '#6b4f2c'); R(cx - 13, gy - 18, 26, 1, '#94703f'); R(cx - 6, gy - 11, 12, 11, '#2a1a12'); R(cx - 1, gy - 11, 1, 11, '#3a2a1c'); R(cx - 2, gy - 17, 4, 4, '#a02d22'); R(cx - 2, gy - 17, 4, 1, '#c8483a'); R(cx - 7, gy, 14, 2, '#a8956a');
+        } else {
+          const body = L === 2 ? C.rim2 : L === 4 ? '#e8dcc0' : '#d8cca8', rows = L === 2 ? 3 : 5;
+          R(cx - 12, gy - 17, 24, 17, body); R(cx - 12, gy - 17, 2, 17, C.rim); R(cx + 10, gy - 17, 2, 17, C.face);
+          for (let q = 0; q < rows; q++) R(cx - 12 + q * 2, gy - 18 - q, 24 - q * 4, 1, L === 4 ? (q % 2 ? '#fff0b0' : gold) : q === 4 ? gold : L === 2 ? C.rim : '#efe4c4');
+          R(cx - 7, gy - 12, 14, 12, '#3a2416'); R(cx - 6, gy - 13, 12, 1, '#3a2416'); R(cx - 7, gy - 12, 14, 1, '#5a4326'); R(cx - 1, gy - 12, 1, 12, '#5a3c20'); R(cx - 8, gy, 16, 2, '#b8a888'); R(cx - 10, gy + 2, 20, 1, '#a39a84');
+          if (L >= 3) for (const sx of [-24, 21]) { const st = L === 4 ? ['#b6832c', '#fff0b0', gold, '#f5d584', '#c9962e', '#b6832c'] : ['#a39d8a', '#d4cfbc', '#d9d2bd', '#e4ddc8', '#c9c3ae', '#b5af9b'];
+            R(cx + sx, gy - 2, 4, 3, L === 4 ? '#d8cdb6' : st[0]); R(cx + sx, gy - 3, 4, 1, st[1]); R(cx + sx + 1, gy - 10, 2, 7, st[2]); R(cx + sx + 1, gy - 12, 2, 2, st[3]); R(cx + sx, gy - 9, 1, 3, st[4]); R(cx + sx + 3, gy - 8, 1, 2, st[5]); }
+          if (L === 4) {      // the Emperor's colours down the pilasters, his eagle over the gable, and purple laid on the steps
+            for (const qx of [-11, 8]) { R(cx + qx, gy - 16, 3, 12, purple); R(cx + qx, gy - 16, 3, 1, gold); R(cx + qx + 1, gy - 12, 1, 2, gold); R(cx + qx, gy - 5, 1, 2, purple); R(cx + qx + 2, gy - 5, 1, 2, purple); }
+            R(cx - 1, gy - 27, 2, 4, gold); R(cx - 5, gy - 26, 4, 1, gold); R(cx + 1, gy - 26, 4, 1, gold); R(cx - 6, gy - 25, 2, 1, gold); R(cx + 4, gy - 25, 2, 1, gold); R(cx - 1, gy - 28, 2, 1, '#fff0b0');
+            R(cx - 3, gy, 6, 3, purple); R(cx - 3, gy, 1, 3, gold); R(cx + 2, gy, 1, 3, gold);
+          }
+        }
+      }
     } else if (p.kind === 'temple') {         // marble, a pediment, and columns across the front
       R(x, y, w, 30, '#d9d2bd'); for (let i = 0; i < 15; i++) R(x + 2 + i * 2.4, y + 14 - i, w - 4 - i * 4.8, 1, i % 2 ? '#ebe5d2' : '#e2dbc6'); R(x, y + 15, w, 15, '#cfc8b2'); for (let yy = y + 17; yy < y + 30; yy += 3) R(x, yy, w, 1, '#bdb6a0');
       R(p.dx - 1, y + 1, 2, 3, '#e3b04a'); R(x, y + 29, w, 1, '#9f987f');
@@ -439,14 +523,6 @@ function villageLayer() {
         R(x0, sy - h2, w2, h2, '#e8e2d2'); R(x0 + 2, sy - h2 + 3, w2 - 4, h2 - 3, '#3a2a1c'); R(x0, sy - h2 + 3, 2, h2 - 3, '#f8f4ea'); R(x0 + w2 - 2, sy - h2 + 3, 2, h2 - 3, '#c9c2ae'); if (l === 3) { R(x0 + 5, sy - h2 + 3, 2, h2 - 3, '#f8f4ea'); R(x0 + w2 - 7, sy - h2 + 3, 2, h2 - 3, '#d8d2c0'); }
         for (let q = 0; q < 4; q++) R(x0 - 1 + q * 2, sy - h2 - q, w2 + 2 - q * 4, 1, q === 0 ? '#d8d2c0' : '#efe9da'); R(x0 + (w2 >> 1) - 1, sy - h2 - 5, 2, 2, l === 3 ? '#e8b545' : '#d8d2c0');
         R(x0 + (w2 >> 1) - 1, sy - 5, 2, 5, '#d8d2c0'); R(x0 + (w2 >> 1) - 1, sy - 7, 2, 2, '#e2702a'); R(x0 - 1, sy - 1, w2 + 2, 1, '#b5ad98'); if (l === 3) { R(x0 - 3, sy - 3, 2, 3, '#5d7f3f'); R(x0 + w2 + 1, sy - 3, 2, 3, '#5d7f3f'); R(x0, sy - h2, w2, 1, '#e8b545'); } } } }
-  // the stables across the street from the forum: a shed and a mule, then stalls and a cart, then a tiled range, a wagon and hay
-  { const l = 0, sx = 402, sy = 185;      // the stables stand outside the east wall now, on the map of the province (province.js): nothing is drawn here
-    if (l >= 1) { const w2 = 12 + l * 6; R(sx + 2, sy, w2 + 2, 2, 'rgba(0,0,0,.2)');
-      R(sx, sy - 9, w2, 9, l >= 3 ? '#dccba0' : '#8a6a3a'); for (let q = 3; q < w2; q += 6) { R(sx + q, sy - 7, 4, 7, '#2a1c14'); R(sx + q, sy - 3, 4, 1, '#6b4f2c'); }
-      if (l >= 3) tiles(sx - 1, sy - 14, w2 + 2, 5, '#a8482a'); else { R(sx - 1, sy - 12, w2 + 2, 3, '#9a7a42'); R(sx - 1, sy - 12, w2 + 2, 1, '#b8964e'); }
-      R(sx + 4, sy - 5, 4, 2, '#8a6a4a'); R(sx + 7, sy - 6, 2, 2, '#8a6a4a');                                      // a mule looking out
-      if (l >= 2) { const cx2 = sx + w2 + 3; R(cx2, sy - 5, 9, 4, '#8a6a3a'); R(cx2, sy - 6, 9, 1, '#a8834a'); R(cx2 + 1, sy - 2, 3, 3, '#3a2a1c'); R(cx2 + 6, sy - 2, 3, 3, '#3a2a1c'); R(cx2 + 9, sy - 4, 4, 1, '#6b4f2c'); if (l >= 3) { R(cx2, sy - 9, 9, 3, '#d9c27a'); R(cx2 + 1, sy - 10, 7, 1, '#e6d088'); } }
-      if (l >= 3) { R(sx - 8, sy - 5, 6, 5, '#d9c070'); R(sx - 7, sy - 6, 4, 1, '#e6d088'); R(sx - 8, sy - 3, 6, 1, '#b89a4a'); } } }
   // the granary and garden beside your house: beds and a pig, then a round store, then a great one with more beds
   { const l = F.stores | 0, gx = 90, gy = 70;
     if (l >= 1) {
@@ -456,11 +532,11 @@ function villageLayer() {
       if (l >= 3) { R(gx + 3, gy - 22, 4, 4, '#d9c070'); R(gx + 3, gy - 22, 4, 1, '#e6d088'); R(gx + 3, gy - 20, 4, 1, '#b89a4a'); } } }
   // the town wall, all the way round, with its battlements
   const stone = '#b8ab94', top = '#d8cdb6', dark = '#8f846e';
-  const AG = arenaGeom(), g0 = Math.round(AG.cx - 40), g1 = Math.round(AG.cx + 40);
+  const AG = arenaGeom(), joined = AG.L >= 3, g0 = joined ? Math.round(AG.cx - 40) : 296, g1 = joined ? Math.round(AG.cx + 40) : 294;      // the great arena is built into the wall; anything less stands clear of it
   R(0, 0, g0, 3, stone); R(0, 3, g0, 1, dark); R(g1, 0, 590 - g1, 3, stone); R(g1, 3, 590 - g1, 1, dark); R(0, 186, 590, 4, stone); R(0, 186, 590, 1, top);
   R(0, 0, 3, 190, stone); R(3, 0, 1, 190, dark); R(586, 0, 4, 62, stone); R(586, 104, 4, 86, stone); R(585, 0, 1, 62, dark); R(585, 104, 1, 86, dark);
   for (let x = 1; x < 590; x += 6) { if (x < g0 - 2 || x > g1) R(x, 0, 3, 1, top); R(x, 189, 3, 1, dark); }
-  for (const jx of [g0 - 9, g1 - 1]) { R(jx, 0, 10, 13, stone); R(jx, 0, 10, 1, top); R(jx, 0, 1, 13, top); R(jx + 9, 0, 1, 13, dark); R(jx, 12, 10, 1, dark); R(jx + 2, 3, 6, 6, dark); R(jx + 3, 4, 4, 4, '#a39a84'); for (let q = 0; q < 10; q += 3) R(jx + q, 0, 2, 1, '#f0e8d6'); R(jx + 4, 9, 2, 3, '#3a2e24'); }      // a tower where the town wall meets the arena on either side
+  if (joined) for (const jx of [g0 - 9, g1 - 1]) { R(jx, 0, 10, 13, stone); R(jx, 0, 10, 1, top); R(jx, 0, 1, 13, top); R(jx + 9, 0, 1, 13, dark); R(jx, 12, 10, 1, dark); R(jx + 2, 3, 6, 6, dark); R(jx + 3, 4, 4, 4, '#a39a84'); for (let q = 0; q < 10; q += 3) R(jx + q, 0, 2, 1, '#f0e8d6'); R(jx + 4, 9, 2, 3, '#3a2e24'); }      // a tower where the town wall meets the arena on either side
   for (let y = 4; y < 190; y += 6) { R(0, y, 1, 3, top); if (y < 60 || y > 106) R(589, y, 1, 3, top); }
   // a tower at each corner of the wall
   for (const [wx0, wy0] of [[0, 0], [580, 0], [0, 180], [580, 180]]) {
@@ -518,7 +594,12 @@ function drawVillage(cv, T) {
   for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.6; R(296 + Math.cos(a) * 5, 118 + Math.sin(a) * 3, 2, 1, '#d6ecf8'); }
   R(295, 109 - Math.abs(Math.sin(T * 3)) * 2, 2, 3, '#bfe0f4');
   const f = placeOf('smith'), glow = 0.55 + 0.45 * Math.sin(T * 7);
-  R(f.dx - 5, f.y + 38, 10, 7, `rgba(255,${Math.round(120 + 70 * glow)},40,${(0.55 + 0.3 * glow).toFixed(2)})`); R(f.dx - 2, f.y + 41, 4, 3, '#ffe9a0');
+  // the forge fire, seen through the open door at the back of the dark shop: a bed of coals, and flames standing on it
+  { const fx = f.dx, fy = f.y + 45;
+    R(fx - 6, f.y + 35, 12, 11, `rgba(255,120,40,${(0.1 + 0.08 * glow).toFixed(3)})`);
+    R(fx - 4, fy - 1, 8, 2, '#8a2a14'); for (let i = 0; i < 4; i++) R(fx - 4 + i * 2, fy - 1, 2, 1, (i + Math.floor(T * 5)) % 3 ? '#e2702a' : '#ffd070');
+    for (let i = 0; i < 4; i++) { const hgt = 2 + ((i * 5 + Math.floor(T * 8 + i * 0.7)) % 4); R(fx - 4 + i * 2 + (hgt > 3 ? 1 : 0), fy - 1 - hgt, hgt > 3 ? 1 : 2, hgt, i % 2 ? '#f08a3a' : '#e2702a'); R(fx - 4 + i * 2 + (i % 2), fy - 2, 1, 1, '#ffd070'); R(fx - 4 + i * 2 + (hgt > 3 ? 1 : i % 2), fy - 1 - hgt, 1, 1, '#ffe9a0'); }
+    const sp = (T * 1.3) % 1; if (sp < 0.6) R(fx - 2 + Math.sin(T * 3) * 3, fy - 6 - sp * 7, 1, 1, '#ffe9a0'); }
   for (let i = 0; i < 4; i++) { const p = (T * 0.35 + i * 0.25) % 1; ctx.globalAlpha = 0.5 * (1 - p); R(f.x + f.w - 14 + Math.sin(p * 5 + i) * 3, f.y + 4 - p * 16, 4 + Math.round(p * 3), 3, '#d8d4cc'); }
   ctx.globalAlpha = 1;
   const a = placeOf('arena'), acx = a.x + a.w / 2;
@@ -530,7 +611,7 @@ function drawVillage(cv, T) {
     R(bx, by, 6, 1, '#4a6a2a'); R(bx + 2, by + 1, 2, 2, ['#e3b04a', '#c23b2e', '#f1ead8'][i % 3]);
   }
   if (games) {                                  // games today: bunting over the arena gate
-    for (let i = 0; i < 13; i++) { const bx = acx - 36 + i * 6, by = a.y + a.h - 17 + Math.round(Math.sin(i / 12 * Math.PI) * 3); R(bx, by, 6, 1, '#3a2a1c'); R(bx + 1, by + 1, 4, 2 + (Math.sin(T * 5 + i) > 0 ? 1 : 0), ['#c23b2e', '#e3b04a', '#2f6db8'][i % 3]); }
+    for (let i = 0, nb = [5, 9, 11, 13, 13][arenaGeom().L]; i < nb; i++) { const bx = acx - nb * 3 + 3 + i * 6, by = a.y + a.h - 17 + Math.round(Math.sin(i / (nb - 1) * Math.PI) * 3); R(bx, by, 6, 1, '#3a2a1c'); R(bx + 1, by + 1, 4, 2 + (Math.sin(T * 5 + i) > 0 ? 1 : 0), ['#c23b2e', '#e3b04a', '#2f6db8'][i % 3]); }
   }
   for (const [key, ox] of [['rivals', 12], ['facilities', 62], ['chronicle', 8]]) {          // hearth smoke
     const pl = placeOf(key);
@@ -561,6 +642,7 @@ function drawVillage(cv, T) {
   const folk = vil.npcs.filter((n, i) => !dark || i < 2).map(n => ({ y: n.y, draw: () => vilPerson(ctx, n.x, n.y, n) }));
   const still = (x, y, o) => folk.push({ y, draw: () => vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o)) });
   const notes = [];                    // marks over the heads of people who are waiting for you: [x, y, colour]
+  const talks = [];                    // two with something to say to each other: [one, the other, a name for the pair]
   if (!dark) {                                   // a carter and his mule, coming along the upper street to the gate, every so often
     const cx = ((T * 13) % 900) - 60, cy = 85;
     if (cx > 8 && cx < 560) folk.push({ y: cy, draw: () => {
@@ -606,6 +688,21 @@ function drawVillage(cv, T) {
     });
     if (!G.field) G.roster.filter(g => !g.away && g.injury <= 0 && g.activity === 'rest').slice(0, 3).forEach((g, i) =>      // your own men at liberty, outside the tavern
       still(tv.dx - 17 - i * 7, tv.dy + 3 + (i % 2) * 3, { tunic: '#c23b2e', hair: g.look.hair, skin: g.look.skin, face: i % 2 ? 'right' : 'left' }));
+    // the forum is never empty by day: men reading the board, two stopped to talk under the colonnade, the clerk and
+    // the man he is dealing with, and one walking up and down waiting to be seen. More offers posted, more people.
+    { const fo = placeOf('contracts'), fy = fo.y, n = clamp(3 + (G.contracts || []).length, 3, 6) + (games ? 1 : 0), lean = i => Math.sin(T * 0.6 + i * 2.1) > 0.9 ? 1 : 0;
+      const men = [
+        [fo.dx - 9, fy + 46, { tunic: '#7a7a3a', hair: '#2a1c14', face: 'up' }],
+        [fo.x + 17, fy + 37, { tunic: '#a8763a', hair: '#2a1c14', face: 'right' }], [fo.x + 27, fy + 38, { tunic: '#6a4a7a', hair: '#8a8a8a', skin: '#e3b48f', face: 'left' }],
+        [fo.dx + 6, fy + 47, { tunic: '#4a6a8a', hair: '#6a4a2a', skin: '#c9966c', face: 'up' }],
+        [fo.x + fo.w - 19, fy + 36, { tunic: '#e8dcc0', hair: '#8a8a8a', face: 'left' }], [fo.x + fo.w - 30, fy + 37, { tunic: '#3f7a5a', hair: '#2a1c14', skin: '#8a5a3a', face: 'right' }],
+      ].slice(0, Math.min(6, n));
+      men.forEach(([mx, my, o], i) => still(mx, my - (o.face === 'up' ? lean(i) : 0), o));
+      talks.push([{ x: men[1][0], y: men[1][1] }, { x: men[2][0], y: men[2][1] }, 'forum']);
+      if (men.length >= 6) { talks.push([{ x: men[4][0], y: men[4][1] }, { x: men[5][0], y: men[5][1] }, 'clerk']); folk.push({ y: men[4][1] + 0.1, draw: () => { R(men[4][0] - 6, men[4][1] - 9, 2, 3, '#f8f2e0'); R(men[4][0] - 6, men[4][1] - 9, 2, 1, '#c9b890'); } }); }      // the clerk has his tablets out
+      if (n >= 7) { const u = (T * 0.035) % 2, k = u < 1 ? u : 2 - u; still(fo.x + 22 + k * 56, fy + 26, { tunic: '#8a4a3a', hair: '#6a4a2a', face: u < 1 ? 'right' : 'left', moving: true, walk: T * 7 }); } }
+    // two who meet every morning on the east side of the square, and have never yet run out of things to say
+    still(327, 112, { tunic: '#b06a8a', hair: '#3a2a1c', skin: '#e3b48f', face: 'right' }); still(336, 113, { tunic: '#5a8a9a', hair: '#c9c2b2', face: 'left' }); talks.push([{ x: 327, y: 112 }, { x: 336, y: 113 }, 'square']);
     // children chasing each other round the fountain, and the dog that goes with them
     for (let i = 0; i < 2; i++) { const an = T * 1.3 + i * 0.8, cx = 296 + Math.cos(an) * 24, cy = 124 + Math.sin(an) * 14; folk.push({ y: cy, draw: () => vilChild(ctx, cx, cy, Math.sin(an) > 0 ? 'left' : 'right', T * 16 + i, i ? '#b06a8a' : '#5a8a9a') }); }
     { const an = T * 1.3 - 0.55, dx = 296 + Math.cos(an) * 26, dy = 125 + Math.sin(an) * 15, lf = Math.sin(an) > 0; folk.push({ y: dy, draw: () => { R(dx - 3, dy - 3, 6, 3, '#8a6a4a'); R(dx + (lf ? -5 : 3), dy - 5, 3, 3, '#8a6a4a'); R(dx - 3, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 1 : 0), '#6a4a2a'); R(dx + 2, dy, 1, 1 + (Math.sin(T * 18) > 0 ? 0 : 1), '#6a4a2a'); R(dx + (lf ? 3 : -4), dy - 4, 1, 2, '#8a6a4a'); } }); }
@@ -625,17 +722,25 @@ function drawVillage(cv, T) {
     // going in: up off the step into the doorway, growing small as he goes (a little smaller than the door), and gone
     const p = placeOf(vil.enter ? vil.enter.key : vil.outKey), dx = p.dx, dy = p.y + p.h, s = 1 - (p.kind === 'arena' ? 0.3 : 0.42) * k, x = vil.x + (dx - vil.x) * k, y = vil.y + (dy - vil.y) * k;
     ctx.save(); ctx.globalAlpha = k > 0.82 ? Math.max(0, (1 - k) / 0.18) : 1; ctx.translate(Math.round(x), Math.round(y)); ctx.scale(s, s);
-    vilPerson(ctx, 0, 0, Object.assign(look, vil.enter ? { face: 'up', moving: true, walk: T * 14 } : { face: 'down' }));
+    vilPerson(ctx, 0, 0, Object.assign(look, vil.enter ? { face: 'up', moving: true, walk: T * 14 } : { face: 'down', moving: true, walk: T * 14 }));
     ctx.restore();
   } });
   folk.sort((p, q) => p.y - q.y).forEach(p => p.draw());
-  // two who have stopped near each other have something to say
+  // two who have stopped near each other have something to say; so have those who stand about talking all day. Rest
+  // the mouse on any of them and what they are saying is read out (see the foot of this function): the talk of the town.
   for (let i = 0; i < vil.npcs.length; i++) for (let j = i + 1; j < vil.npcs.length; j++) {
     const p = vil.npcs[i], q = vil.npcs[j];
     if (dark || p.path || q.path || Math.hypot(p.x - q.x, p.y - q.y) > 18) continue;
-    const who = Math.floor(T / 1.4) % 2 ? p : q, n = 1 + Math.floor(T * 3) % 3;
-    R(who.x - 4, who.y - 24, 9, 6, '#f4ecd8'); R(who.x - 1, who.y - 18, 2, 2, '#f4ecd8'); for (let k = 0; k < n; k++) R(who.x - 3 + k * 3, who.y - 22, 1, 2, '#3a2a1c');
+    talks.push([p, q, 'pair' + i + j]);
   }
+  let heard = null;
+  talks.forEach(([p, q, id], ti) => {
+    const who = Math.floor(T / 1.4 + ti * 0.37) % 2 ? p : q, n = 1 + Math.floor(T * 3 + ti) % 3;
+    R(who.x - 4, who.y - 24, 9, 6, '#f4ecd8'); R(who.x - 1, who.y - 18, 2, 2, '#f4ecd8'); for (let k = 0; k < n; k++) R(who.x - 3 + k * 3, who.y - 22, 1, 2, '#3a2a1c');
+    const m = vil.hover; if (m && !heard && [p, q].some(o => Math.abs(m.x - o.x) <= 7 && m.y >= o.y - 26 && m.y <= o.y + 3)) heard = { p, q, id };
+  });
+  if (heard) { for (const o of [heard.p, heard.q]) if (o.wait !== undefined) o.wait = Math.max(o.wait, 1.2); }      // they do not walk off while they are being listened to
+  vil.heard = heard ? heard.id : null;
   for (const [nx, ny, nc] of notes) {                                    // someone here wants a word
     const nb = Math.round(Math.sin(T * 6) * 1.5);
     R(nx - 3, ny - 5 + nb, 7, 9, '#1a110c'); R(nx - 2, ny - 4 + nb, 5, 7, nc); R(nx, ny - 3 + nb, 1, 3, '#fff6e0'); R(nx, ny + 1 + nb, 1, 1, '#fff6e0');
@@ -665,36 +770,42 @@ function drawVillage(cv, T) {
   }
   // PASS 28. leaves turning in the light on every tree
   if (night < 0.6) VIL_TREES.forEach(([tx, ty], i) => { for (let q = 0; q < 2; q++) { const a = T * (1.1 + wx.gust * 3) + i * 1.7 + q * 2.4; if (Math.sin(a * 1.3) > 0.2) R(tx - 3 + Math.cos(a) * 3, ty - 10 + Math.sin(a * 0.7) * 3, 1, 1, 'rgba(200,236,150,.75)'); } });
-  // The arena, alive. On a games day every seat is taken and the crowd rises in a wave that runs round the rings;
-  // two men fight on the sand, the magistrate is in his box, and the awning stirs. On other days two men rake the
-  // sand. At night torches burn round the rim. Its shadow swings out to one side as the sun gets low.
-  { const { p: ar, cx, cy, RX, RY } = arenaGeom(), on = (a2, rr) => [cx + Math.cos(a2) * RX * rr, cy + Math.sin(a2) * RY * rr], hsh = (a2, b2) => { const v = Math.sin(a2 * 127.1 + b2 * 311.7) * 43758.5; return v - Math.floor(v); };
-    if (night < 0.6) {
-      const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * 16);
+  // The arena, alive, at whatever size the games here have grown to. On a games day the seats fill (the bank of a pit
+  // holds few; the great arena, the town) and the crowd rises in a wave that runs round the rings; two men fight on the
+  // sand, the giver of the games is in his place, and the awning stirs. On other days two men rake the sand. At night
+  // torches burn round the rim. Its shadow swings out to one side as the sun gets low.
+  { const { p: ar, cx, cy, RX, RY, L } = arenaGeom(), on = (a2, rr) => [cx + Math.cos(a2) * RX * rr, cy + Math.sin(a2) * RY * rr], hsh = (a2, b2) => { const v = Math.sin(a2 * 127.1 + b2 * 311.7) * 43758.5; return v - Math.floor(v); };
+    if (night < 0.6 && L > 0) {
+      const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, dir = sky.sun && sky.sun[0] > 295 ? -1 : 1, len = Math.round(low * [0, 8, 12, 16, 16][L]);
       if (len > 1) { ctx.fillStyle = `rgba(20,14,6,${(0.1 + low * 0.08).toFixed(3)})`; for (let yy = -RY + 6; yy <= RY + 5; yy += 1) { const hw = Math.round(RX * Math.sqrt(Math.max(0, 1 - ((yy - 4) * (yy - 4)) / ((RY + 1) * (RY + 1))))); if (hw > 0) ctx.fillRect(dir > 0 ? cx + hw : cx - hw - len, cy + yy, len, 1); } }
     }
+    const boxY = Math.round(L === 0 ? cy - RY - 3 : cy - RY * 0.8);
     if (games) {
-      for (let k = 0; k < 7; k++) { const rr = 0.61 + k * 0.047, n = 62 + k * 12;
-        for (let q = 0; q < n; q++) { const a2 = q / n * 6.283 + k * 0.07; if (hsh(q, k) > 0.88) continue;
-          if (rr > 0.72 && a2 > Math.PI + 0.2 && a2 < Math.PI + 0.2 + 9 * 0.305 && ((a2 - Math.PI - 0.2) % 0.305) < 0.24) continue;      // not through the awning
+      const rows = [3, 4, 6, 7, 7][L], r0 = L === 0 ? 0.66 : 0.61, full = [0.4, 0.62, 0.8, 0.88, 0.92][L];
+      for (let k = 0; k < rows; k++) { const rr = r0 + k * (0.94 - r0 - 0.047) / (rows - 1), n = Math.round((62 + k * 84 / rows) * RX / 83);
+        for (let q = 0; q < n; q++) { const a2 = q / n * 6.283 + k * 0.07; if (hsh(q, k) > full) continue;
+          if (L >= 3 && rr > 0.72 && a2 > Math.PI + 0.2 && a2 < Math.PI + 0.2 + 9 * 0.305 && ((a2 - Math.PI - 0.2) % 0.305) < 0.24) continue;      // not through the awning
+          if (L === 0 && Math.abs(a2 - 1.571) < 0.3) continue;                                                                                  // nor in the way down into the pit
           const [sx, sy] = on(a2, rr), wave = Math.sin(a2 * 2 - T * 2.2) > 0.9, cheer = hsh(q + Math.floor(T * 3), k) > 0.93;
           R(sx, sy - (wave || cheer ? 1 : 0), 1, 1 + (wave ? 1 : 0), ['#c23b2e', '#3a6ea8', '#f1ead8', '#e8b545', '#7a5a8a', '#3f7a5a'][Math.floor(hsh(q + 7, k + 3) * 6)]); if (wave) R(sx, sy - 2, 1, 1, '#d9a57c'); } }
       // the bout: they circle, close, and break
-      const ph = (T * 0.35) % 1, close = ph > 0.55 && ph < 0.8, an = T * 0.5, gap = close ? 3 : 8 + Math.sin(T * 1.3) * 2, ax = cx + Math.cos(an) * 8, ay = cy + Math.sin(an) * 3;
+      const ph = (T * 0.35) % 1, close = ph > 0.55 && ph < 0.8, an = T * 0.5, gap = close ? 3 : 8 + Math.sin(T * 1.3) * 2, ax = cx + Math.cos(an) * (L ? 8 : 5), ay = cy + Math.sin(an) * 3;
       for (const s2 of [-1, 1]) { const fx = Math.round(ax + s2 * gap * 0.5), fy = Math.round(ay); R(fx - 1, fy + 1, 4, 1, 'rgba(0,0,0,.25)'); R(fx, fy - 4, 2, 1, '#d9a57c'); R(fx, fy - 3, 2, 3, s2 < 0 ? '#a8261c' : '#2f5a8a'); R(fx + (s2 < 0 ? 2 : -1), fy - 3 - (close && Math.sin(T * 14) > 0 ? 1 : 0), 1, 2, '#d8dce0'); R(fx + (s2 < 0 ? -1 : 2), fy - 3, 1, 3, s2 < 0 ? '#c9a21e' : '#8a8478'); }
       if (close && Math.sin(T * 14) > 0.3) { R(Math.round(ax), Math.round(ay) - 4, 1, 1, '#fff0b0'); R(Math.round(ax) + (Math.sin(T * 30) > 0 ? 1 : -1), Math.round(ay) - 5, 1, 1, '#f5c04a'); }
       for (let q = 0; q < 3; q++) { const p2 = (T * 0.8 + q / 3) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(ax - 4 + q * 4 + Math.sin(p2 * 5 + q) * 2, ay + 1 - p2 * 3, 2, 1, '#f0dcaa'); } ctx.globalAlpha = 1;
-      { const by = Math.round(cy - RY * 0.8); R(cx - 1, by + 1 - (close ? 1 : 0), 2, 1, '#d9a57c'); R(cx - 1, by + 2 - (close ? 1 : 0), 2, 3, '#f1ead8'); R(cx - 5, by + 2, 1, 3, '#c9a21e'); R(cx + 4, by + 2, 1, 3, '#c9a21e'); }
+      { const by = boxY + (L === 0 ? 3 : 0); R(cx - 1, by + 1 - (close ? 1 : 0), 2, 1, '#d9a57c'); R(cx - 1, by + 2 - (close ? 1 : 0), 2, 3, L === 4 ? '#7a3a8e' : '#f1ead8'); if (L === 4) R(cx - 1, by - (close ? 1 : 0), 2, 1, '#e8b545'); if (L >= 3) { R(cx - 5, by + 2, 1, 3, '#c9a21e'); R(cx + 4, by + 2, 1, 3, '#c9a21e'); } }
     } else if (night < 0.5) {
-      for (let q = 0; q < 2; q++) { const a2 = T * 0.2 + q * 3.1, px = cx + Math.cos(a2) * RX * 0.34, py = cy + Math.sin(a2) * RY * 0.24; R(px, py - 4, 2, 1, '#d9a57c'); R(px, py - 3, 2, 3, '#8a6a4a'); R(px + (Math.cos(a2) > 0 ? 2 : -3), py - 1, 3, 1, '#6b4f2c'); R(px - Math.cos(a2) * 5, py, 4, 1, 'rgba(240,220,170,.6)'); }
+      for (let q = 0; q < (L ? 2 : 1); q++) { const a2 = T * 0.2 + q * 3.1, px = cx + Math.cos(a2) * RX * 0.34, py = cy + Math.sin(a2) * RY * 0.24; R(px, py - 4, 2, 1, '#d9a57c'); R(px, py - 3, 2, 3, '#8a6a4a'); R(px + (Math.cos(a2) > 0 ? 2 : -3), py - 1, 3, 1, '#6b4f2c'); R(px - Math.cos(a2) * 5, py, 4, 1, 'rgba(240,220,170,.6)'); }
     }
-    for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305 + 0.12, [ux, uy] = on(a0, 0.85); if (Math.sin(T * (1.4 + wx.gust * 3) + q * 1.1) > 0.3) R(ux - 3, uy, 6, 1, 'rgba(255,250,235,.5)'); }
-    for (const q of [2, 6, 10, 15, 19, 23]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99), wv = Math.sin(T * 5 + q) > 0 ? 1 : 0; R(mx + 1, my - 6 + wv, 4, 2, games ? '#c23b2e' : '#c9a21e'); R(mx + 4, my - 5 - wv + 1, 1, 1, games ? '#a02d22' : '#a8851a'); }
+    if (L >= 3) for (let q = 0; q < 9; q++) { const a0 = Math.PI + 0.2 + q * 0.305 + 0.12, [ux, uy] = on(a0, 0.85); if (Math.sin(T * (1.4 + wx.gust * 3) + q * 1.1) > 0.3) R(ux - 3, uy, 6, 1, 'rgba(255,250,235,.5)'); }
+    for (const q of ARENA_FLAGS[L]) { const [mx, my] = on(q / 26 * 6.283 + 0.12, 0.99), wv = Math.sin(T * 5 + q) > 0 ? 1 : 0, fc = L === 4 ? (games ? '#e8b545' : '#7a3a8e') : games ? '#c23b2e' : '#c9a21e'; R(mx + 1, my - 6 + wv, 4, 2, fc); R(mx + 4, my - 5 - wv + 1, 1, 1, shade(fc, 0.8)); }
+    if (L === 0) { const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(cx + 10, boxY - 4, 1, 5, '#5a4326'); R(cx + 11, boxY - 4 + wv, 3, 2, games ? '#c23b2e' : '#c9a21e'); }      // one rag on a pole over the stand
+    if (L === 4 && Math.sin(T * 2.3) > 0.8) { R(cx - 1, ar.y + ar.h - 28, 1, 1, '#ffffff'); R(cx + 3, boxY - 8, 1, 1, '#ffffff'); }                             // the sun on the eagles
     if (night > 0.3) {
-      const la2 = Math.min(1, (night - 0.3) * 2.5), fl2 = Math.sin(T * 11) > 0 ? 1 : 0;
-      for (let q = 0; q < 14; q++) { const [tx2, ty2] = on(q / 14 * 6.283 + 0.3, 0.99); ctx.globalAlpha = la2; R(tx2, ty2 - 5 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, tx2, ty2 - 4, 8, '255,170,80', 0.28 * la2); }
-      for (const gx of [-11, 11]) { ctx.globalAlpha = la2; R(cx + gx, ar.y + ar.h - 13 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, cx + gx, ar.y + ar.h - 11, 10, '255,170,80', 0.32 * la2); }
-      sceneGlow(ctx, cx, cy, 40, '255,190,110', (games ? 0.16 : 0.05) * la2);
+      const la2 = Math.min(1, (night - 0.3) * 2.5), fl2 = Math.sin(T * 11) > 0 ? 1 : 0, nt = [5, 8, 11, 14, 14][L], gw = L === 0 ? 7 : 11;
+      for (let q = 0; q < nt; q++) { const [tx2, ty2] = on(q / nt * 6.283 + 0.3, 0.99); ctx.globalAlpha = la2; R(tx2, ty2 - 5 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, tx2, ty2 - 4, 8, '255,170,80', 0.28 * la2); }
+      for (const gx of [-gw, gw]) { ctx.globalAlpha = la2; R(cx + gx, ar.y + ar.h - 13 - fl2, 1, 2 + fl2, '#f5c04a'); ctx.globalAlpha = 1; sceneGlow(ctx, cx + gx, ar.y + ar.h - 11, 10, '255,170,80', 0.32 * la2); }
+      sceneGlow(ctx, cx, cy, Math.round(40 * RX / 83), '255,190,110', (games ? 0.16 : 0.05) * la2);
     }
   }
   // PASS 30. men on the north wall, walking their beat, and a flag on each of the lower towers
@@ -748,7 +859,7 @@ function drawVillage(cv, T) {
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 106, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#bcab90'; ctx.fillText('GATE', 590 - w / 2 - 1, 112); }
   for (const p of PLACES) {
-    const label = p.key === 'arena' && typeof daysToGames === 'function' ? (games ? 'ARENA: GAMES TODAY' : `ARENA: GAMES IN ${daysToGames()} DAY${daysToGames() === 1 ? '' : 'S'}`) : p.name.toUpperCase();
+    const label = p.key === 'arena' && typeof daysToGames === 'function' ? (games ? 'ARENA: GAMES TODAY' : `ARENA${typeof arenaShut === 'function' && arenaShut() ? ' SHUT' : ''}: GAMES IN ${daysToGames()} DAY${daysToGames() === 1 ? '' : 'S'}`) : p.name.toUpperCase();
     const on = p.key === ui.tab, w = Math.ceil(ctx.measureText(label).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);
     R(lx, ly, w, 8, on ? '#f5d584' : 'rgba(24,16,10,.82)'); R(lx, ly + 7, w, 1, on ? '#b6832c' : '#000');
     ctx.fillStyle = on ? '#2a1a0c' : p.key === 'arena' && games ? '#f5d584' : '#f2e6cc'; ctx.fillText(label, p.dx, ly + 6);
@@ -758,12 +869,29 @@ function drawVillage(cv, T) {
       R(p.dx - 1, ay, 3, 6, '#f5d584'); R(p.dx - 3, ay + 6, 7, 1, '#f5d584'); R(p.dx - 2, ay + 7, 5, 1, '#f5d584'); R(p.dx - 1, ay + 8, 3, 1, '#f5d584'); R(p.dx, ay + 9, 1, 1, '#f5d584');
     }
   }
+  if (heard) {                                 // what those two are saying, on a slip of parchment over their heads
+    const list = typeof townRumours === 'function' ? townRumours() : [], text = list.length ? '"' + list[(vilWord(heard.id) + G.day * 5) % list.length] + '"' : '';
+    const lines = []; let cur = '';
+    for (const wd of text.split(' ')) { const t = cur ? cur + ' ' + wd : wd; if (cur && ctx.measureText(t).width > 168) { lines.push(cur); cur = wd; } else cur = t; }
+    if (cur) lines.push(cur);
+    if (lines.length) {
+      const mx = (heard.p.x + heard.q.x) / 2, top = Math.min(heard.p.y, heard.q.y) - 27, bw = Math.ceil(Math.max(52, ...lines.map(l => ctx.measureText(l).width))) + 10, bh = lines.length * 8 + 13;
+      const bx = clamp(Math.round(mx - bw / 2), 3, 587 - bw), up = top - bh - 3 >= 2, by = up ? top - bh - 3 : Math.max(heard.p.y, heard.q.y) + 7, tx = clamp(Math.round(mx) - 1, bx + 3, bx + bw - 6);
+      R(bx - 1, by - 1, bw + 2, bh + 2, '#8a5a14'); R(bx, by, bw, bh, '#f4ecd8'); R(bx, by, bw, 1, '#fffaf0'); R(bx, by + bh - 1, bw, 1, '#d8ccb0');
+      if (up) { R(tx - 1, by + bh, 5, 1, '#8a5a14'); R(tx, by + bh, 3, 2, '#f4ecd8'); R(tx, by + bh + 2, 3, 1, '#8a5a14'); } else { R(tx, by - 3, 3, 3, '#f4ecd8'); R(tx, by - 4, 3, 1, '#8a5a14'); }
+      ctx.textAlign = 'left'; ctx.fillStyle = '#8a5a14'; ctx.fillText('THE TALK OF THE TOWN', bx + 5, by + 8); R(bx + 5, by + 10, bw - 10, 1, '#d8ccb0');
+      ctx.fillStyle = '#2a1a0c'; lines.forEach((l, i) => ctx.fillText(l, bx + 5, by + 18 + i * 8)); ctx.textAlign = 'center';
+    }
+  }
   if (vil.hover) {
-    const say = hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hg >= 0 && fountainFolk()[hg] ? (fountainFolk()[hg].owed ? `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS COME TO PAY WHAT IS OWED  -  CLICK TO GO OVER` : `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS WORK FOR YOU  -  CLICK TO HEAR IT`) : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : (fountainFolk().length ? 'CLICK ANYONE WAITING BY THE FOUNTAIN TO HEAR THEM  -  ' : '') + 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE';
+    const say = heard ? 'THE TALK OF THE TOWN: WHAT THESE TWO ARE SAYING TODAY' : hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hg >= 0 && fountainFolk()[hg] ? (fountainFolk()[hg].owed ? `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS COME TO PAY WHAT IS OWED  -  CLICK TO GO OVER` : `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS WORK FOR YOU  -  CLICK TO HEAR IT`) : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : (fountainFolk().length ? 'CLICK ANYONE WAITING BY THE FOUNTAIN TO HEAR THEM  -  ' : '') + 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE';
     const w = Math.ceil(ctx.measureText(say).width) + 10;
-    R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185);
+    R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov || heard ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185);
   }
 }
+
+// A number from a name, the same every time: which of the day's rumours a pair of talkers has got hold of.
+const vilWord = s => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 9973; };
 
 function villageFrame(ts) {
   const cv = document.getElementById('village');

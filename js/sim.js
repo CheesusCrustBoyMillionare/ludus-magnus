@@ -275,7 +275,8 @@ function mercyBonus() { return 0.04 * G.fac.infirmary + 0.03 * staffLvl('medicus
 // ---- what may be asked of a patron, and what a patron may ask of you ----
 // A petition spends favour for something now. One may be put to each patron between one games and the next, and only
 // by a house he knows well enough to listen to.
-const nextGames = () => G.day + (daysToGames() || GAMES_EVERY);
+const nextGames = () => { for (let d = G.day + 1; ; d++) if (gamesOn(d)) return d; };      // the next day there are games, after today
+const nextMarket = () => G.day + (GAMES_EVERY - G.day % GAMES_EVERY);                    // the next market day, after today
 const hottestHouse = () => G.houses.slice().sort((a, b) => b.grudge - a.grudge)[0];
 const PETITIONS = {
   magistrate: [
@@ -284,7 +285,7 @@ const PETITIONS = {
     { id: 'fine', name: 'Have a rival fined', cost: 12, need: 40, desc: 'The house you have the worst feud with loses 25 renown. They will know who asked.',
       block: () => hottestHouse().grudge >= 15 ? '' : 'You have no quarrel worth bringing before him.',
       run: () => { const H = hottestHouse(); H.prestige = Math.max(0, H.prestige - 25); feud(H, 8); return `${houseDef(H.id).name} is found to have broken some ordinance of the games, and pays for it in the forum.`; } },
-    { id: 'levy', name: 'The pick of the prisoners', cost: 15, need: 60, desc: 'A prisoner of war, better than anything on the block, is sent to the market for you at half his price. He goes with the rest at the next games.',
+    { id: 'levy', name: 'The pick of the prisoners', cost: 15, need: 60, desc: 'A prisoner of war, better than anything on the block, is sent to the market for you at half his price. He goes with the rest on the next market day.',
       block: () => (G.market || []).some(m => m.levy) ? 'The man he sent is at the market still.' : '',
       run: () => { const g = makeGladiator(18 + tier() * 8 + rint(8, 11)); g.gear = emptyGear(); g.bg = 'captive'; BACKGROUNDS.captive.make(g); g.hp = maxHp(g); g.levy = true; g.price = Math.max(5, round5(marketPrice(g) * 0.5)); G.market.unshift(g);
         return `A file of prisoners goes through the town to the mines, and one is taken out of it at the Magistrate's word: ${g.name} of ${g.origin}, a ${CLASSES[g.cls].name}. He is at the market, and the dealer has been told the price: ${g.price} denarii.`; } },
@@ -292,8 +293,8 @@ const PETITIONS = {
   guild: [
     { id: 'advance', name: 'An advance', cost: 8, need: 20, desc: () => `${guildAdvance()} denarii now, against the stipend.`,
       run: () => { const n = guildAdvance(); G.denarii += n; return `A clerk counts ${n} denarii onto the table and writes your name in a long book.`; } },
-    { id: 'grain', name: 'Grain at their cost', cost: 10, need: 35, desc: 'Your men eat for nothing until the next games.',
-      run: () => { G.grainUntil = nextGames(); return 'Their carts will stop at your gate first. Until the next games the barley costs you nothing.'; } },
+    { id: 'grain', name: 'Grain at their cost', cost: 10, need: 35, desc: 'Your men eat for nothing until the next market day.',
+      run: () => { G.grainUntil = nextMarket(); return 'Their carts will stop at your gate first. Until the next market day the barley costs you nothing.'; } },
     { id: 'book', name: 'Their book behind your men', cost: 14, need: 60, desc: 'At the next games every wager you win pays half as much again.',
       run: () => { G.bookUntil = nextGames(); return 'The men who make the odds are told whose money to be generous with. At the next games your wagers are written at a better price.'; } },
   ],
@@ -312,7 +313,7 @@ const guildAdvance = () => 60 + tier() * 60 + stipend() * 3;
 const oracleMan = () => G.roster.filter(g => !g.traits.includes('blessed')).sort((a, b) => statSum(b) - statSum(a))[0] || null;
 // Why a petition cannot be put just now, or nothing if it can.
 function petitionBlock(k, P) {
-  if ((G.petitioned || {})[k] === dealCycle()) return 'You have asked something of them since the last games.';
+  if ((G.petitioned || {})[k] === dealCycle()) return 'You have asked something of them since the last market day.';
   if (G.patrons[k] < P.need) return `They do not know you well enough yet: it takes ${P.need} favour.`;
   return P.block ? P.block() : '';
 }
@@ -449,7 +450,7 @@ function rerollPerk(g) {
 const forgetCost = g => 100 + 50 * g.rank;
 function forgetBlock(g, t) {
   if (!g.traits.includes(t) || !perkLearnable(t)) return 'That is not something he was taught.';
-  if (G.forgot === dealCycle()) return 'One man has been set to unlearn something since the last games. It is slow work.';
+  if (G.forgot === dealCycle()) return 'One man has been set to unlearn something since the last market day. It is slow work.';
   if (G.denarii < forgetCost(g)) return `You are ${forgetCost(g) - G.denarii} denarii short.`;
   return '';
 }
@@ -486,6 +487,7 @@ function fixSkills(g) {
 // bring a save from an earlier version up to date
 function migrate() {
   G.staff = G.staff || {};
+  if (G.festival && !gamesOn(G.festival.day)) { G.festQueue = null; scheduleFestival(); }      // a festival promised for a day on which, now, there are no games
   for (const k in FACILITIES) if (G.fac[k] === undefined) G.fac[k] = 0;      // buildings added since this save was made
   if (G.regimen === undefined) G.regimen = 1;
   G.hires = G.hires || [];
@@ -558,8 +560,20 @@ function tier() {
   return t;
 }
 function capacity() { return 3 + 2 * G.fac.barracks; }
-function isGamesDay() { return G.day % GAMES_EVERY === 0; }
-function daysToGames() { return isGamesDay() ? 0 : GAMES_EVERY - (G.day % GAMES_EVERY); }
+// The calendar. Days 1 to 30 are a month of games, 31 to 60 a month with the arena shut, and so on by turns.
+const GAMES_A_MONTH = MONTH / GAMES_EVERY;
+const gamesMonth = d => Math.floor((d - 1) / MONTH) % 2 === 0;                    // is the arena open in the month this day falls in?
+const gamesOn = d => d > 0 && d % GAMES_EVERY === 0 && gamesMonth(d);             // are there games on this day?
+const arenaShut = () => !gamesMonth(G.day);                                       // today
+const isMarketDay = () => G.day % GAMES_EVERY === 0;
+const daysToMarket = () => isMarketDay() ? 0 : GAMES_EVERY - (G.day % GAMES_EVERY);
+function isGamesDay() { return gamesOn(G.day); }
+function daysToGames() { for (let n = 0; n <= MONTH * 2; n++) if (gamesOn(G.day + n)) return n; return 0; }
+// Games days are numbered from the first: how many there have been by a given day, and the day the nth falls on.
+const gamesNo = d => Math.floor(d / (MONTH * 2)) * GAMES_A_MONTH + Math.min(GAMES_A_MONTH, Math.floor((d % (MONTH * 2)) / GAMES_EVERY));
+const gamesDayNo = n => Math.floor((n - 1) / GAMES_A_MONTH) * MONTH * 2 + ((n - 1) % GAMES_A_MONTH + 1) * GAMES_EVERY;
+// When the arena next opens, or shuts: the first day of the month after this one.
+const monthEnds = () => Math.ceil(G.day / MONTH) * MONTH + 1;
 function foodCost() { return G.grainUntil && G.grainUntil > G.day ? 0 : Math.round(G.roster.filter(g => !g.away).length * Math.max(1, RATIONS[G.ration].cost - (boon('grain') ? 1 : 0)) * (1 - 0.1 * facLvl('stores'))); }
 // What the dispensator saves on the day's outgoings.
 function thrift() { return Math.round((foodCost() + wages()) * 0.06 * staffLvl('dispensator')); }
@@ -853,7 +867,7 @@ function dealCost(kind, g) {
 }
 // Why a dealing cannot be had just now, or nothing if it can.
 function dealBlock(H, kind, g) {
-  if (H.dealt === dealCycle()) return 'You have had your dealing with this house since the last games.';
+  if (H.dealt === dealCycle()) return 'You have had your dealing with this house since the last market day.';
   const cost = dealCost(kind, g);
   if (kind === 'gift' && H.grudge <= 0) return 'There is no quarrel to mend.';
   if (kind === 'spar') {
@@ -994,7 +1008,7 @@ function tavernDice(stake) {
 const nightMen = () => G.roster.filter(g => !g.away && g.injury <= 0);
 const nightCost = () => nightMen().length * (NIGHT_HEAD + 4 * tier());
 function nightBlock() {
-  if (tavern().night === dealCycle()) return 'They have had their night since the last games.';
+  if (tavern().night === dealCycle()) return 'They have had their night since the last market day.';
   if (G.field) return 'The school is on the road.';
   if (!nightMen().length) return 'You have nobody fit to send.';
   if (nightCost() > G.denarii) return `You are ${nightCost() - G.denarii} denarii short.`;
@@ -1190,7 +1204,7 @@ function reforgeBlock(it) {
   if (it.relic) return 'No smith living would put a hammer to it.';
   if (it.r >= 6) return 'There is no better steel.';
   if (it.r >= forgeMax()) return `This forge can make nothing better than grade ${RARITY[forgeMax()]}. Improve the forge.`;
-  if (reforgesDone() >= reforgeLimit()) return reforgeLimit() > 1 ? 'He has reforged two pieces since the last games, and that is all even his shop can do.' : 'He has reforged one piece since the last games, and it is slow work.';
+  if (reforgesDone() >= reforgeLimit()) return reforgeLimit() > 1 ? 'He has reforged two pieces since the last market day, and that is all even his shop can do.' : 'He has reforged one piece since the last market day, and it is slow work.';
   if (G.denarii < reforgeCost(it)) return `You are ${reforgeCost(it) - G.denarii} denarii short.`;
   return '';
 }
@@ -1473,18 +1487,20 @@ function storyAfterBout(g, f, foes, win, bout, lines) {
 
 const round5 = v => Math.round(v / 5) * 5;
 
-// The festival to come, and the two after it: the town knows its calendar.
+// The festival to come, and the two after it: the town knows its calendar. A festival is every third games day (which is
+// every fifteenth day while the arena is open, and none at all in a month when it is shut), and every other one the tournament.
+const FEST_GAMES = FESTIVAL_EVERY / GAMES_EVERY;
 function festType(day, prev) {
-  if (day % (FESTIVAL_EVERY * 2) === 0) return 'tourney';
-  if (day === FESTIVAL_EVERY) return 'hunt';
+  if (gamesNo(day) % (FEST_GAMES * 2) === 0) return 'tourney';
+  if (gamesNo(day) === FEST_GAMES) return 'hunt';
   return pick(['hunt', 'melee', 'funeral', 'triumph', 'saturnalia', 'mars'].filter(k => k !== prev));
 }
 function scheduleFestival() {
-  const day = Math.floor(G.day / FESTIVAL_EVERY) * FESTIVAL_EVERY + FESTIVAL_EVERY;
+  const no = Math.floor(gamesNo(G.day) / FEST_GAMES) * FEST_GAMES + FEST_GAMES, day = gamesDayNo(no);
   let q = (G.festQueue || []).filter(x => x.day >= day);
-  if (q.length && q[0].day !== day) q = [];
+  if (q.length && (q[0].day !== day || q.some((x, i) => x.day !== gamesDayNo(no + i * FEST_GAMES)))) q = [];      // (a calendar from before the arena kept its months is drawn up afresh)
   for (let n = q.length; n < 3; n++) {
-    const d = day + n * FESTIVAL_EVERY, before = q.filter(x => x.type !== 'tourney').slice(-1)[0];
+    const d = gamesDayNo(no + n * FEST_GAMES), before = q.filter(x => x.type !== 'tourney').slice(-1)[0];
     q.push({ day: d, type: festType(d, before ? before.type : G.festival && G.festival.type) });
   }
   G.festival = { day, type: q[0].type };
@@ -2174,20 +2190,23 @@ function endDay() {
   if (G.festival.day < G.day) scheduleFestival();
   if (typeof rollAsks === 'function') rollAsks();      // somebody new at the fountain, perhaps (wilds.js)
   if (G.festival.day - G.day === 5) log(`Heralds cry it through the town: ${FESTIVALS[G.festival.type].name}, in five days.`, 'gold');
-  if (isGamesDay()) {
-    for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
-    genRequest();
-    genBouts(); checkWishes(); genMarket(); genHires(); genSmith(); genContracts(); postBounty();
-    (G.annals = G.annals || []).push({ d: G.day, f: G.fame, c: G.denarii, w: G.tally.wins, l: G.tally.losses }); if (G.annals.length > 80) G.annals.shift();      // where the house stood, each games day
-    log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
-  } else { G.bouts = null; G.tourney = null; }
+  // Every fifth day is market day; while the arena is open it is a games day as well.
+  if (isMarketDay()) for (const k in G.patrons) G.patrons[k] = Math.max(0, G.patrons[k] - 1);
+  if (isGamesDay()) { genRequest(); genBouts(); checkWishes(); } else { G.bouts = null; G.tourney = null; }
+  if (isMarketDay()) {
+    genMarket(); genHires(); genSmith(); genContracts(); postBounty();
+    (G.annals = G.annals || []).push({ d: G.day, f: G.fame, c: G.denarii, w: G.tally.wins, l: G.tally.losses }); if (G.annals.length > 80) G.annals.shift();      // where the house stood, each market day
+    if (isGamesDay()) log(G.field ? `Games are held in town today at the ${TIERS[tier()].name}, and your school is not there.` : `Games are held today at the ${TIERS[tier()].name}. Fresh stock at the market.`, G.field ? 'bad' : 'gold');
+    else log('Market day. The arena is shut this month, but there is fresh stock at the market and new work on the board.', 'gold');
+  }
+  if (G.day > 1 && G.day % MONTH === 1) log(arenaShut() ? `The games are over for the month. The arena is shut, and opens again in ${MONTH} days: a month for training, for work, and for the road.` : 'The arena opens again today: a month of games, every fifth day.', 'gold');
 
   if (houseEmpty()) G.over = 'empty';
   if (!G.over && !G.ruin) jobsTick();
   if (!G.over && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
   if (!G.over && !G.ruin) checkDeeds();
   doctoreRound();
-  if (isGamesDay()) backupSlot();
+  if (isMarketDay()) backupSlot();
   save();
 }
 

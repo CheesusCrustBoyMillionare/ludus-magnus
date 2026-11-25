@@ -175,6 +175,9 @@ const FINAL_FAME = 1100;
 // the quickest way to win was to go up for it every games day at any odds: see tools/race.js, the plan finalBold.)
 const FINAL_LOSS = 120, FINAL_WAIT = 20;      // fame lost, and days before Rome will send again
 const GAMES_EVERY = 5;
+// The arena keeps a year of its own: a month of games, then a month in which it is shut. Every fifth day is market day
+// in either (the dealer, the smith, the hiring hall and the board of work all change); in an open month it is a games day too.
+const MONTH = 30;
 
 const ACTIVITIES = { rest: 'Rest', str: 'Train strength', agi: 'Train agility', skl: 'Train skill', spar: 'Spar (needs a doctore)' };
 
