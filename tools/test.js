@@ -1855,6 +1855,13 @@ test('the calendar: a month of games, a month with the arena shut, and market da
   G.day = 31; assert(!isGamesDay() && arenaShut() && daysToGames() === 34 && daysToMarket() === 4 && monthEnds() === 61, 'the arena is shut, and says for how long');
   G.day = 60; assert(isMarketDay() && !isGamesDay() && arenaShut() && daysToGames() === 5, 'market day in a shut month is no games day');
   G.day = 61; assert(!arenaShut() && daysToGames() === 4, 'and then it opens');
+  // the shut month seen coming, for the steward to speak of: when it shuts, when the games are back, and what the wait costs
+  { G.day = 19; const s = shutAhead(), net = upkeep() - stipend();
+    assert(net > 0 && s.left === 12 && s.back === 65 && s.days === 35 && s.cost === net * 35, 'twelve days off: 35 days from the last games to the next, at what a day costs now');
+    G.day = 30; assert(shutAhead().left === 1 && shutAhead().back === 65, 'the day before it shuts');
+    G.day = 31; assert(shutAhead() === null, 'nothing to see coming once it is shut'); G.day = 60; assert(shutAhead() === null, 'to its last day');
+    G.day = 61; assert(shutAhead().left === 30 && shutAhead().back === 125, 'and the next one from the day the arena opens');
+    G.patrons.guild = 100; G.fame = TIERS[3].fame; assert(stipend() >= upkeep() && shutAhead().cost === 0, 'a school the Guild keeps has nothing to find'); G.patrons.guild = 10; G.fame = 0; }
   assert([1, 90, 91, 180, 181, 271, 360, 361].map(seasonNo).join() === '0,0,1,1,2,3,3,0' && SEASONS.length === 4, 'three months to a season, and the year begins again in spring');
   // the day itself: a shut month has its market days, with fresh stock and new work, and no bouts
   newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(26));

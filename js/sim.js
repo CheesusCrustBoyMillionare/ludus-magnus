@@ -574,6 +574,16 @@ const gamesNo = d => Math.floor(d / (MONTH * 2)) * GAMES_A_MONTH + Math.min(GAME
 const gamesDayNo = n => Math.floor((n - 1) / GAMES_A_MONTH) * MONTH * 2 + ((n - 1) % GAMES_A_MONTH + 1) * GAMES_EVERY;
 // When the arena next opens, or shuts: the first day of the month after this one.
 const monthEnds = () => Math.ceil(G.day / MONTH) * MONTH + 1;
+// The shut month, seen coming from a month of games: the days left before the arena shuts, the day of the first games
+// after it, and what the wait will cost at today's rate (food and wages less the stipend, for every day from the last
+// games of this month to those first games). Nothing while the arena is already shut. It is in the shut month that a
+// school is ruined, so the steward speaks of it beforehand (see HINTS in main.js).
+function shutAhead() {
+  if (arenaShut()) return null;
+  const shuts = monthEnds(); let back = shuts; while (!gamesOn(back)) back++;
+  const days = back - shuts + 1;
+  return { left: shuts - G.day, back, days, cost: Math.max(0, upkeep() - stipend()) * days };
+}
 // The seasons, three months to each, for the look of the town and nothing else: the year begins in spring.
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const seasonNo = d => Math.floor(((Math.max(1, d) - 1) % (MONTH * 12)) / (MONTH * 3));

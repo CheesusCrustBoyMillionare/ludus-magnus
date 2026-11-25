@@ -305,11 +305,25 @@ const TUTORIAL = [
 ];
 
 // Things he explains the first time they happen. `when` returns whatever the text needs, or nothing.
+const SHUT_WARN = 12;             // how many days before the arena shuts he speaks of it
+const shutNew = () => !Object.keys(tutorState().seen).some(k => /^shut\d/.test(k));      // has he never yet spoken of a shut month?
 const HINTS = [
   { id: 'debt', when: () => G.denarii < 0,
     text: () => `We are in debt, dominus. If we stay in debt for ${graceDays()} days in a row, the creditors take the house, and morale falls every day we owe money. Sell a man, cut the rations, dismiss staff, or win a purse.` },
   { id: 'thin', when: () => { const net = stipend() - upkeep(); return net < 0 && G.denarii >= 0 && Math.floor(G.denarii / -net) < daysToGames(); },
     text: () => 'At this rate we run out of money before the next games, dominus. <b>Household</b> shows where it goes. Cheaper rations, one wage less, or a contract that pays before then would see us through.' },
+  // The month the arena is shut is where a school is ruined. He speaks of the first one when it is twelve days off, with
+  // three games still to come; of a later one only if the purse will not last it. Each has an id of its own, so that he
+  // can speak again another year.
+  { id: () => 'shut' + Math.ceil(G.day / (MONTH * 2)), when: () => { const s = shutAhead(); return s && s.left <= SHUT_WARN && !G.field && (shutNew() || G.denarii < s.cost) && s; },
+    text: s => {
+      const have = Math.max(0, G.denarii), lack = s.cost - G.denarii, when = `The arena shuts in <b>${s.left} ${s.left === 1 ? 'day' : 'days'}</b>, dominus`;
+      if (!shutNew()) return `${when}. At today's rate the wait until the games on day ${s.back} will cost about <b>${s.cost} denarii</b>, and we have ${have}: <b>${lack} short</b>. Keep the next purses, or find work for the month.`;
+      const money = !s.cost ? 'The Guild\'s stipend covers our food and wages, so the wait costs us nothing.'
+        : lack > 0 ? `At today's rate the wait will cost about <b>${s.cost} denarii</b>, and we have ${have}: <b>${lack} short</b>. Keep the next purses rather than spend them.`
+        : `At today's rate the wait will cost about <b>${s.cost} denarii</b>. We have ${have}, which is enough if it is not spent first.`;
+      return `${when}, and stays shut for a month. There are no games and no purses until day ${s.back}, but food and wages go on. ${money} While it is shut, <b>Contracts</b> and the country beyond the <b>east gate</b> still pay.`;
+    } },
   { id: 'field1', when: () => G.field,
     text: () => 'This is the province, dominus, and the whole school is with you. Move the column with <b>W A S D</b> or by clicking. The map is uncovered as you walk. <b>Marching takes time</b>: the bar at the top left shows how much of today\'s march is left, and when it runs out night falls and a day passes. Point at any spot to see how many days away it is. Once you set out, the days left are counted at the bottom of the map. Going into a place takes a day, and so does making camp (<b>E</b>). <b>M</b> shows the whole map. To go home, walk back in at the town gate.' },
   { id: 'field2', when: () => G.field && tutorState().seen.field1 && wildSites().find(st => siteKnown(st) && !siteDone(st)),
@@ -435,12 +449,13 @@ function renderTutor() {
     return;
   }
   for (const h of HINTS) {
-    if (t.seen[h.id]) continue;
+    const id = typeof h.id === 'function' ? h.id() : h.id;      // most are said once; one that can be said again names itself by when
+    if (t.seen[id]) continue;
     const about = h.when();
     if (!about) continue;
     el.classList.remove('aside');
-    if (ui.stewardSaid !== 'hint' + h.id) { SFX.ui('hint'); ui.stewardSaid = 'hint' + h.id; }
-    el.innerHTML = stewardSays('Your steward', h.text(about), `<button class="primary" data-act="hintok" data-v="${h.id}">Understood</button><button data-act="tutoff" style="margin-left:auto">No more advice</button>`);
+    if (ui.stewardSaid !== 'hint' + id) { SFX.ui('hint'); ui.stewardSaid = 'hint' + id; }
+    el.innerHTML = stewardSays('Your steward', h.text(about), `<button class="primary" data-act="hintok" data-v="${id}">Understood</button><button data-act="tutoff" style="margin-left:auto">No more advice</button>`);
     el.hidden = false;
     return;
   }
