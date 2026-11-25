@@ -821,7 +821,7 @@ function auctionBid(amount) {
   return { ok: false, text: `${def.lanista} tops you without looking round. ${g.name} goes to ${def.name} for ${A.cap} denarii.` };
 }
 
-const ENEMY_BUDGET = [20, 29, 40, 51];
+const ENEMY_BUDGET = [20, 30, 43, 55];
 const FINAL_BUDGET = 62;
 const ENEMY_PERKS = [0, 1, 1, 2, 3];
 const PURSE = [70, 140, 240, 340];

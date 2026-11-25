@@ -197,9 +197,11 @@ for (const k in CONTRACTS) {
   for (const s of STATS) w[s] = rest > 0 ? (w[s] || 0) / rest : 1 / STATS.length;
 }
 
-// The going rate: about a third of what the same men would win at the games over the same days. Work away from the
-// sand keeps a school fed between games; it is not a way to grow rich, or great.
-const JOB_RATE = 0.065;
+// The going rate: between a fifth and a quarter of what the same men would win at the games over the same days. Work
+// away from the sand keeps a school fed between games; it is not a way to grow rich, or great. (At 0.065, and with
+// three to six offers every market day, work paid a school as much as the arena did and no careful player could lose:
+// see tools/race.js.)
+const JOB_RATE = 0.045;
 // What work away from the sand is worth besides the money. It is a living, not a road to glory: a man learns far less
 // on somebody's doorstep than at the post or in the arena, and the town talks of it far less than of a bout.
 const JOB_XP = 1;                 // to each man who comes home from work done better than was asked (a bout won gives 5); nothing otherwise
@@ -269,15 +271,15 @@ const WORK_NAMES = [[85, 'First choice'], [60, 'Sought after'], [35, 'Reliable']
 const workRep = () => G.workRep || 0;
 const workWord = r => WORK_NAMES.find(x => r >= x[0])[1];
 const workPay = r => 1 + r * 0.002;
-const workOffers = (t, r) => (t >= 2 ? 4 : 3) + (r >= 35 ? 1 : 0) + (r >= 85 ? 1 : 0);
+const workOffers = (t, r) => 1 + (r >= 60 ? 1 : 0);      // one offer each market day, and a second for a house that is sought after: work is not always to be had
 function workMove(d) { G.workRep = clamp(workRep() + d, 0, 100); }
 function makeContract(type, t) {
   const D = CONTRACTS[type], days = rint(D.days[0], D.days[1]), diff = rand(0.85, 1.3);
   return {
     id: ++G.nextId, type, patron: D.patron, days, size: D.size, diff, need: jobNeed(t, diff),
     land: D.travel ? pick(ORIGINS).name : null, asked: false,
-    pay: round5(PURSE[t] * JOB_RATE * days * Math.pow(D.size, 0.85) * D.pay * (0.6 + 0.5 * diff) * workPay(workRep())),
-    favor: 2 + Math.round(days / 3),
+    pay: Math.max(5, round5(PURSE[t] * JOB_RATE * days * Math.pow(D.size, 0.85) * D.pay * (0.6 + 0.5 * diff) * workPay(workRep()))),      // never nothing: a day's light work in a village rounds down to it otherwise
+    favor: 1 + Math.round(days / 6),
   };
 }
 // The terms men are sent on. Standard: paid on success. An advance: a third now, a third on success, and the rest

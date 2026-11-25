@@ -13,6 +13,9 @@ const PLANS = {
   wide:      { want: 9, wantT: 0, barracksFirst: true },          // as many men as there are cells, cells first
   plan:      { plan: true },                                      // fills the card as the Fill the card button does
   home:      { noQuests: true, noJobs: true },                    // never leaves town, sends nobody away
+  nowork:    { noJobs: true },                                    // takes no contracts: the games, the quests, and what he has put by
+  spend:     { noSave: true },                                    // puts nothing by for the month the arena is shut
+  idle:      { noJobs: true, noSave: true },                      // neither works nor saves
   quests:    { questBold: 1.25 },                                 // goes out for quests even against the stronger
   favour:    { gifts: true, sponsor: true },                      // buys the Magistrate, and puts his name on festivals
   wagers:    { wager: 0.3 },                                      // bets a third of the purse when favoured
@@ -35,6 +38,7 @@ const rep = (x, y) => { if (bot.split(x).length !== 2) throw new Error('race.js:
 rep(`const good = SKILL === 'good';`, `const good = true, S = JSON.parse(SPEC), SRC = { arena: 0, tourney: 0, quest: 0, eagle: 0, other: 0 }; let fameMark = 0;
 const FIN = [], CAL = {}, RAW = [];
 const credit = k => { SRC[k] += G.fame - fameMark; fameMark = G.fame; };`);
+rep(`function reserve() { return upkeep() * (good ? Math.max(6, putBy()) : 6) + 30; }`, `function reserve() { return upkeep() * (S.noSave ? 6 : Math.max(6, putBy())) + 30; }`);
 rep(`  const want = Math.min(capacity(), 3 + t);`, `  const want = Math.min(capacity(), (S.want !== undefined ? S.want : 3) + t * (S.wantT !== undefined ? S.wantT : 1));
   if (S.regimen !== undefined) G.regimen = S.regimen;
   if (S.barracksFirst && G.fac.barracks < 3 && spare() >= FAC_COST[G.fac.barracks]) { G.denarii -= FAC_COST[G.fac.barracks]; G.fac.barracks++; }
@@ -119,7 +123,7 @@ const tail = bot.indexOf('const runs = []; for (let i = 0; i < RUNS; i++) runs.p
 bot = bot.slice(0, tail) + `const runs = []; for (let i = 0; i < RUNS; i++) { const r = playRun(); credit('other'); runs.push(r); }
 const med = a => { const s = a.filter(x => x !== undefined && x !== null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const won = runs.filter(r => r.result === 'won'), tot = Object.values(SRC).reduce((a, b) => a + b, 0) || 1;
-console.log(JSON.stringify({ plan: S.name, runs: RUNS, won: won.length, medianWinDay: med(won.map(r => r.day)), fastest: won.length ? Math.min(...won.map(r => r.day)) : null,
+console.log(JSON.stringify({ plan: S.name, runs: RUNS, won: won.length, medianWinDay: med(won.map(r => r.day)), winDays: won.map(r => r.day), fastest: won.length ? Math.min(...won.map(r => r.day)) : null,
   finalUnlock: med(runs.map(r => r.finalDay)), tierDays: [1, 2, 3].map(t => med(runs.map(r => r.tierDay[t]))),
   winRate: +(runs.reduce((s, r) => s + r.wins, 0) / Math.max(1, runs.reduce((s, r) => s + r.bouts, 0))).toFixed(2), boutsPerRun: Math.round(runs.reduce((s, r) => s + r.bouts, 0) / RUNS),
   deaths: med(runs.map(r => r.deaths)), raised: med(runs.map(r => r.raised || 0)), heirs: runs.filter(r => r.heirs > 0).length,

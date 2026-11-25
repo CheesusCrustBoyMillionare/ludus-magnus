@@ -1309,7 +1309,7 @@ test('contracts: terms, a name for good work, and asking around', () => game()(f
   // a house with a name is paid more and offered more
   G.workRep = 0; const p0 = makeContract('tutor', 0).pay / 1; G.workRep = 100;
   let more = 0; for (let i = 0; i < 30; i++) { G.workRep = 0; const a = makeContract('granary', 0); G.workRep = 100; const b = makeContract('granary', 0); if (b.pay / b.days / (0.6 + 0.5 * b.diff) > a.pay / a.days / (0.6 + 0.5 * a.diff)) more++; }
-  assert(more >= 27 && workOffers(0, 0) === 3 && workOffers(0, 40) === 4 && workOffers(2, 90) === 6, 'a name for good work pays');
+  assert(more >= 27 && workOffers(0, 0) === 1 && workOffers(3, 59) === 1 && workOffers(0, 60) === 2 && workOffers(3, 100) === 2, 'a name for good work pays');
   // asking around turns up one more offer, once
   G.workRep = 0; G.jobs = []; G.roster.forEach(x => { x.away = null; }); genContracts(); const n = G.contracts.length; G.denarii = 500;
   assert(askAround() && G.contracts.length === n + 1 && askAroundBlock() && !askAround(), 'one more offer, once between games');
@@ -1318,7 +1318,7 @@ test('contracts: terms, a name for good work, and asking around', () => game()(f
 
 test('contracts: the board, who suits the work, going away and coming home', () => game()(function () {
   newGame();
-  assert(G.contracts.length === 3 && G.contracts.every(c => CONTRACTS[c.type].tier === 0 && c.pay > 0 && c.pay % 5 === 0), 'three offers a village lanista can take');
+  assert(G.contracts.length === 1 && G.contracts.every(c => CONTRACTS[c.type].tier === 0 && c.pay > 0 && c.pay % 5 === 0), 'one offer, and one a village lanista can take');
   for (const k in CONTRACTS) {
     const D = CONTRACTS[k];
     assert(Math.abs(STATS.reduce((s, x) => s + (D.w[x] || 0), 0) - 1) < 1e-9, k + ' stat weights add to one');
@@ -1340,7 +1340,7 @@ test('contracts: the board, who suits the work, going away and coming home', () 
   c.size = 1; c.days = 3; c.type = 'tutor'; c.patron = 'magistrate'; c.need = 1; c.asked = false;
   assert(!sendContract(c.id, []) && !sendContract(c.id, [g.id, G.roster[1].id]), 'needs exactly the men it asks for');
   g.injury = 2; assert(!sendContract(c.id, [g.id]), 'an injured man cannot go'); g.injury = 0;
-  assert(sendContract(c.id, [g.id]) && g.away && G.jobs.length === 1 && G.contracts.length === 2, 'he leaves and the offer comes off the board');
+  assert(sendContract(c.id, [g.id]) && g.away && G.jobs.length === 1 && G.contracts.length === 0, 'he leaves and the offer comes off the board');
   assert(!canFight(g) && !canSend(g) && foodCost() < food && !fit().includes(g), 'while away he cannot fight, be sent again, or eat');
   const before = JSON.stringify(g.stats) + g.fatigue;
   g.activity = 'str'; endDay(); G.pendingEvent = null; G.eventQueue = [];
@@ -1376,8 +1376,8 @@ test('contracts: the board, who suits the work, going away and coming home', () 
 
 test('contracts: a living, not a road to glory; and work can be done well, or half done', () => game()(function () {
   assert(Object.keys(CONTRACTS).length === 22 && ['vintage', 'pyre', 'runaway', 'taxchest'].every(k => CONTRACTS[k] && CONTRACTS[k].events.every(e => FIELD_EVENTS[e])), 'twenty-two kinds of work');
-  assert(JOB_XP === 1 && JOB_PROG <= 0.08 && JOB_RATE <= 0.07 && JOB_TRAIT[0] <= 0.12 && JOB_TRAIT[1] < JOB_TRAIT[0] && JOB_WELL <= 0.1 && Math.abs(workPay(100) - 1.2) < 1e-9, 'work away pays a third of the sand, teaches next to nothing, and seldom leaves a man with a new trade');
-  { newGame(); const c = makeContract('caravan', 0); assert(c.favor === 2 + Math.round(c.days / 3) && c.favor <= 4, 'and wins little favour: ' + c.favor); }
+  assert(JOB_XP === 1 && JOB_PROG <= 0.08 && JOB_RATE <= 0.05 && JOB_TRAIT[0] <= 0.12 && JOB_TRAIT[1] < JOB_TRAIT[0] && JOB_WELL <= 0.1 && Math.abs(workPay(100) - 1.2) < 1e-9, 'work away pays a quarter of the sand or less, teaches next to nothing, and seldom leaves a man with a new trade');
+  { newGame(); const c = makeContract('caravan', 0); assert(c.favor === 1 + Math.round(c.days / 6) && c.favor <= 3, 'and wins little favour: ' + c.favor); }
   // the fame of it: a third or less of what a show used to be worth, at every standing
   for (const k in CONTRACTS) { const D = CONTRACTS[k]; if (!D.fame) { assert(contractFame(D) === 0, k + ' is not talked of'); continue; }
     newGame(); const low = contractFame(D); G.fame = 5000; const high = contractFame(D);
@@ -1392,7 +1392,7 @@ test('contracts: a living, not a road to glory; and work can be done well, or ha
   // failed outright: nothing learned, nothing paid
   { const r = go(-9); assert(r.g.xp === 0 && G.denarii === r.money && G.fame === 0 && G.patrons[r.J.patron] < r.fav, 'a failure teaches nothing and pays nothing'); }
   // a near thing: half the pay, and the patron says no more about it
-  { let halves = 0; for (let i = 0; i < 400; i++) { newGame(); const c = makeContract('procession', 0); c.days = 2; G.contracts.push(c); const g = G.roster[0]; sendContract(c.id, [g.id]); const J = G.jobs[0]; J.eventDay = 0;
+  { let halves = 0; for (let i = 0; i < 400; i++) { newGame(); const c = makeContract('procession', 0); c.days = 2; c.pay = 100; G.contracts.push(c); const g = G.roster[0]; sendContract(c.id, [g.id]); const J = G.jobs[0]; J.eventDay = 0;      // a round price, so that half of it is never nothing
       J.edge = -jobOdds(CONTRACTS.procession, J.need, [g], 0, J.land) + 0.0;      // the odds brought to nothing: it cannot succeed, but one time in eight it is a near thing
       const money = G.denarii, fav = G.patrons[J.patron], pay = J.pay; finishJob(J);
       if (G.denarii === money + round5(pay * 0.5)) { halves++; assert(G.patrons[J.patron] === fav && g.xp === 0, 'half done: half paid, no favour either way'); } else assert(G.denarii === money, 'or not paid at all'); }
@@ -2408,18 +2408,43 @@ if (!quick) {
     return `${(Math.min(...out) * 100).toFixed(0)}-${(Math.max(...out) * 100).toFixed(0)}% win rates, ${d['avgTime@22']}s duels`;
   });
 
-  test('a careful player usually wins the campaign', () => {
-    // Measured at about 85% over 60 runs. With 30 runs, chance alone almost never drops it below 18.
-    // With the arena shut every other month the campaign is longer in days than it was: the median victory moved from
-    // about day 285 to about day 365 (the shut months are spent training, on contracts and on the road, so it is not doubled).
-    const r = spawnSync(process.execPath, [path.join(__dirname, 'autoplay.js'), root, '30', 'good'], { encoding: 'utf8', maxBuffer: 1 << 24 });
-    assert(r.status === 0, 'autoplay.js failed: ' + r.stderr.slice(0, 200));
-    const d = JSON.parse(r.stdout), won = d.results.won;
-    assert(won >= 18, `careful auto-player won only ${won} of 30 campaigns; expected at least 18`);
-    assert(d.medianWinDay >= 180 && d.medianWinDay <= 440, 'median victory on day ' + d.medianWinDay + '; allowed 180-440');
-    assert(d.medianTierDay[0] <= 45, 'second arena reached on day ' + d.medianTierDay[0] + '; expected by day 45');
-    assert(d.winRate >= 0.5 && d.winRate <= 0.85, 'bout win rate ' + d.winRate + '; allowed 0.50-0.85');
-    return `${won}/30 campaigns won, median day ${d.medianWinDay}, ${Math.round(d.winRate * 100)}% of bouts`;
+  // The campaign is meant to be won by a careful player most times and not every time, and to be winnable, less
+  // often, by one who takes no contracts. Measured over some 1,600 campaigns each: the careful player wins about 87%, and
+  // the same player taking no contracts about 70% (a campaign not won by day 700 counts as lost). Before these limits
+  // were set the careful player won 199 of 200, and nothing here would have said so: there was a floor and no ceiling.
+  // A hundred and twenty campaigns of each are played, all at once, a process to every twenty. The limits are set
+  // about three of chance's own steps (standard deviations) either side of what was measured, so that chance alone
+  // crosses one of them about once in three hundred runs of the suite. They are wide: they catch a campaign that has
+  // become a different game, not one that has drifted a few points. For that, play more: tools/race.js.
+  const PER = 20, PROCS = 6, N = PER * PROCS;
+  let careful = null, nowork = null, campaignsError = '';
+  {
+    const jobs = [];
+    for (let i = 0; i < PROCS; i++) jobs.push(['autoplay.js', root, String(PER), 'good'], ['race.js', root, String(PER), 'nowork']);
+    const r = spawnSync(process.execPath, [path.join(__dirname, 'together.js'), JSON.stringify(jobs)], { encoding: 'utf8', maxBuffer: 1 << 28 });
+    if (r.status !== 0) campaignsError = 'the campaigns could not be played: ' + String(r.stderr).slice(0, 300);
+    else { const all = JSON.parse(r.stdout); careful = all.filter(d => d.skill === 'good'); nowork = all.filter(d => d.plan === 'nowork'); }
+  }
+  const sum = (a, f) => a.reduce((s, x) => s + f(x), 0), middle = a => { const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+
+  test('a careful player usually wins the campaign, and not always', () => {
+    assert(!campaignsError, campaignsError);
+    const won = sum(careful, d => d.results.won), day = middle([].concat(...careful.map(d => d.winDays))), second = middle(careful.map(d => d.medianTierDay[0])), rate = sum(careful, d => d.winRate) / careful.length;
+    assert(won >= 92, `careful auto-player won only ${won} of ${N} campaigns; expected at least 92`);
+    assert(won <= 115, `careful auto-player won ${won} of ${N} campaigns; expected no more than 115: the campaign has grown too easy`);
+    assert(day >= 340 && day <= 600, 'median victory on day ' + day + '; allowed 340-600');
+    assert(second <= 45, 'second arena reached on day ' + second + '; expected by day 45');
+    assert(rate >= 0.5 && rate <= 0.85, 'bout win rate ' + rate.toFixed(2) + '; allowed 0.50-0.85');
+    return `${won}/${N} campaigns won, median day ${day}, ${Math.round(rate * 100)}% of bouts`;
+  });
+
+  test('a player who takes no contracts can win, less often', () => {
+    assert(!campaignsError, campaignsError);
+    const won = sum(nowork, d => d.won), all = sum(careful, d => d.results.won);
+    assert(won >= 68, `without contracts only ${won} of ${N} campaigns were won; expected at least 68: a school should not need the work to live`);
+    assert(won <= 100, `without contracts ${won} of ${N} campaigns were won; expected no more than 100: the work should be worth taking`);
+    assert(won < all, `without contracts ${won} of ${N} campaigns were won, and with them ${all}: the work should help`);
+    return `${won}/${N} campaigns won, against ${all} with contracts`;
   });
 }
 

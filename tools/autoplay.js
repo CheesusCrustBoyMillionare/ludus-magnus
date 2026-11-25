@@ -14,7 +14,11 @@ let gearSpend = 0;
 const calib = {}; // predicted win chance bucket -> [fights, wins]
 const tierStats = [0,1,2,3,4].map(() => ({ bouts: 0, wins: 0, deaths: 0 }));
 
-function reserve() { return upkeep() * 6 + 30; }
+// The careful player knows the arena shuts for a month. Through the month of games he puts by, a little more each day,
+// what the shut month and the days to its first games will cost; while it is shut he holds what is left to pay.
+// (A bot that kept six days' keep and no more was ruined in the shut month whenever it took no contracts.)
+function putBy() { return arenaShut() ? daysToGames() + 1 : Math.round((MONTH + GAMES_EVERY) * ((G.day - 1) % MONTH + 1) / MONTH); }
+function reserve() { return upkeep() * (good ? Math.max(6, putBy()) : 6) + 30; }
 function spare() { return G.denarii - reserve(); }
 
 function botSpend() {
@@ -262,7 +266,7 @@ const out2 = {
   contracts: { sentPerRun: med(runs.map(r => r.sent || 0)), payOfferedPerRun: med(runs.map(r => r.jobPay || 0)), outingsEnded: med(runs.map(r => r.jobs || 0)) },
   lossDays: runs.filter(r => r.result !== 'won').map(r => r.result[0] + r.day),
   results: { won: count('won'), debt: count('debt'), empty: count('empty'), timeout: count('timeout') },
-  medianWinDay: med(runs.filter(r => r.result === 'won').map(r => r.day)),
+  medianWinDay: med(runs.filter(r => r.result === 'won').map(r => r.day)), winDays: runs.filter(r => r.result === 'won').map(r => r.day),
   medianTierDay: [1, 2, 3].map(t => med(runs.map(r => r.tierDay[t]))),
   reachedTier: [1, 2, 3].map(t => runs.filter(r => r.tierDay[t] !== undefined).length),
   medianFinalUnlockDay: med(runs.map(r => r.finalDay)), reachedFinal: runs.filter(r => r.finalDay !== undefined).length,
