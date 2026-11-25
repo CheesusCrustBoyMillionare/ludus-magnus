@@ -2721,7 +2721,7 @@ const ACTIONS = {
   smithbuy(v) { if (buyItem(v)) { save(); render(); } },
   smithgive(v, w) { const g = byId(w); if (g && buyItem(v)) { equip(g, v); save(); render(); } },      // bought and straight onto a man
   smithsell(v) { if (sellItem(v)) { save(); render(); } },
-  smithup() { if (upgradeSmith()) { save(); render(); } },
+  smithup() { if (upgradeSmith()) { (G.works = G.works || {}).smith = G.day; save(); render(); } },
   reforge(v) { if (reforge(v)) { SFX.ui('gear'); save(); render(); } },
   fit(v, w) { if (fitItem(v, w)) { SFX.ui('gear'); save(); render(); } },
   strip(v) { if (stripFit(v)) { SFX.ui('gear'); save(); render(); } },
@@ -2779,6 +2779,7 @@ const ACTIONS = {
     const l = G.fac[v] || 0;
     if (l >= 3 || G.denarii < FAC_COST[l] || facNeed(v)) return;
     G.denarii -= FAC_COST[l]; G.fac[v] = l + 1; if (v === 'stables') SFX.ui('gate'); else if (v === 'eagle') SFX.ui('discover');
+    (G.works = G.works || {})[v] = G.day;      // it stands in scaffolding until the day is ended (worksTick in yard.js)
     log(`${FACILITIES[v].name} improved to level ${G.fac[v]}.`, 'gold');
     save(); render();
   },

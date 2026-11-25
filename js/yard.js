@@ -39,7 +39,8 @@ function yardWeather(T) {
   const kind = n => {
     if (n <= 0) return 'clear';
     const h = Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453) % 1;
-    return h < 0.5 ? 'clear' : h < 0.7 ? 'cloud' : h < 0.87 ? 'rain' : 'wind';
+    const [a, b, c] = [[0.5, 0.7, 0.87], [0.68, 0.82, 0.9], [0.36, 0.6, 0.86], [0.38, 0.66, 0.88]][sceneSeason()];      // spring as it always was; a dry summer; a wet and windy autumn; a grey winter
+    return h < a ? 'clear' : h < b ? 'cloud' : h < c ? 'rain' : 'wind';
   };
   let k = kind(i), prev = kind(i - 1), amt = k === 'clear' ? 0 : Math.min(1, p / 0.12, (1 - p) / 0.12);
   let wet = Math.max(k === 'rain' ? Math.min(1, p / 0.3) : 0, prev === 'rain' && k !== 'rain' ? Math.max(0, 1 - p / 0.6) : 0);
@@ -256,22 +257,24 @@ function sceneHills(ctx, base, sky, deep, seed, T) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   const S = scenePx(ctx), top = base - 44;      // nothing of them stands higher than that, and the kept canvas runs a little below their foot for a terrace or a house low on the slope
   if (S) {
-    const key = base + '|' + deep + '|' + seed + '|' + S;
+    const se = sceneSeason(), key = base + '|' + deep + '|' + seed + '|' + S + '|' + se;
     let cv = hillsKept.get(key);
-    if (!cv) { const made = sceneKeep(590, 56 + deep, S, top); hillsPaint(made[1], base, deep, seed); cv = made[0]; if (hillsKept.size >= 3) hillsKept.delete(hillsKept.keys().next().value); hillsKept.set(key, cv); }
+    if (!cv) { const made = sceneKeep(590, 56 + deep, S, top); hillsPaint(made[1], base, deep, seed, se); cv = made[0]; if (hillsKept.size >= 3) hillsKept.delete(hillsKept.keys().next().value); hillsKept.set(key, cv); }
     sceneLay(ctx, cv, 0, top, S);
-  } else hillsPaint(ctx, base, deep, seed);
+  } else hillsPaint(ctx, base, deep, seed, sceneSeason());
   if (T != null) { const hx = 60 + (seed * 97) % 440, hy = hillY(2, hx >> 1 << 1, base, seed) + 4; for (let q = 0; q < 3; q++) { const p2 = (T * 0.12 + q / 3) % 1; ctx.globalAlpha = 0.45 * (1 - p2); R(hx + 2 + p2 * 7, hy - 3 - p2 * 12, 2 + Math.round(p2 * 2), 2, '#e4e0d8'); } } ctx.globalAlpha = 1;      // the hearth of the white house, lit
   const hz = ctx.createLinearGradient(0, base - 22, 0, base + 2); hz.addColorStop(0, 'rgba(230,236,228,0)'); hz.addColorStop(1, 'rgba(230,236,228,.3)'); ctx.fillStyle = hz; ctx.fillRect(0, base - 22, 590, 24 + deep);      // PASS 19: haze lying at the foot of the hills
 }
 // The ranges themselves, and what stands on them: none of it moves.
-function hillsPaint(ctx, base, deep, seed) {
-  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+function hillsPaint(ctx, base, deep, seed, se) {
+  const R0 = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, tone = {};
+  const R = (x, y, w, h, c) => R0(x, y, w, h, se ? tone[c] || (tone[c] = seasonHex(c, se, /^#(5f8a5c|76a070|86a494|8fb07e)$/.test(c) ? 1.7 : 1)) : c);      // every green of it turned to the season, the woods most of all
   HILLS.forEach((ly, k) => {
     const ys = [];
     for (let x = 0; x < 590; x += 2) {
       const y = hillY(k, x, base, seed);
       ys.push(y); R(x, y, 2, base - y + deep, ly.c); R(x, y, 2, 1, ly.l); if ((x >> 1) % 3 === 0) R(x, y + 1, 2, 1, ly.l);
+      if (se === 3 && k < 2) { R0(x, y, 2, 2 - k, '#f4f8fa'); if ((x >> 1) % 4 === 0) R0(x, y + 2 - k, 2, 2, 'rgba(244,248,250,.6)'); }      // snow lying on the far ranges
     }
     if (k === 1) for (let x = 6; x < 590; x += 14) { const y = ys[x >> 1]; if (((x * 7 + seed) % 5) < 3) { R(x, y + 3, 5, 2, '#86a494'); R(x + 1, y + 2, 3, 1, '#86a494'); } }      // woods on the middle range
     if (k === 2) {
@@ -364,6 +367,7 @@ function sceneGrade(ctx, sky, wx) {
   if (low > 0.3 && wx.over < 0.7) { ctx.fillStyle = `rgba(255,170,90,${((low - 0.3) * 0.09 * (1 - wx.over)).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }
   if (wx.rain > 0 || wx.over > 0.3) { ctx.fillStyle = `rgba(120,132,152,${(Math.max(wx.rain, wx.over * 0.6) * 0.09).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }
   if (sky.night > 0.5) { ctx.fillStyle = `rgba(40,50,110,${((sky.night - 0.5) * 0.1).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }
+  { const se = sceneSeason(); if (se === 2) { ctx.fillStyle = 'rgba(255,196,120,.05)'; ctx.fillRect(0, 0, 590, 190); } else if (se === 3) { ctx.fillStyle = 'rgba(176,198,230,.075)'; ctx.fillRect(0, 0, 590, 190); } }      // autumn is warm, winter cold
   const g = ctx.createLinearGradient(0, 0, 0, 190); g.addColorStop(0, 'rgba(255,255,255,.03)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.05)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 590, 190);
 }
 // PASS 33. Bunting for a games day: a line of little flags in the town's colours, slung between two points and lifting in the wind.
@@ -569,7 +573,7 @@ function drawYard(cv, T) {
     if (lv >= 3) { for (let xx = x - 2; xx <= x + w - 3; xx += 24) column(xx, GY - 46, 46); R(x - 3, GY - 49, w + 6, 4, '#f0e8d6'); }
     sign(x + w / 2, y - 17, `BARRACKS ${pips(lv, 3)} ${G.roster.length}/${capacity()}`);
     perches.push([x + 22, y - (lv >= 2 ? 12 : 9)], [x + w - 24, y - (lv >= 2 ? 12 : 9)]);
-    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true, fac: 'barracks' });
   }
   // ---- infirmary: a cot under an awning, then a hut, then stone, then columns ----
   {
@@ -591,7 +595,7 @@ function drawYard(cv, T) {
       R(x + w / 2 - 5, y + 6, 10, 10, '#f2ecd8'); R(x + w / 2 - 1, y + 7, 1, 8, '#3f8a3a'); R(x + w / 2 - 2, y + 9, 3, 1, '#3f8a3a'); R(x + w / 2 - 1, y + 12, 3, 1, '#3f8a3a');
     }
     sign(x + w / 2, y - (lv ? (lv >= 2 ? 19 : 16) : 7), 'INFIRMARY ' + pips(lv, 3) + (G.roster.some(g => g.injury > 0 && !g.away) ? ` - ${G.roster.filter(g => g.injury > 0 && !g.away).length} HURT` : ''));
-    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true, fac: 'infirmary' });
   }
   // ---- baths: a trough, then a bathhouse, then a dome, then a grand dome with columns ----
   {
@@ -614,7 +618,7 @@ function drawYard(cv, T) {
       smoke(x + w / 2, y - (lv >= 2 ? 22 : 4), 3 + lv, '#f4f8f8');
     }
     sign(x + w / 2, y - (lv >= 2 ? 32 : lv ? 12 : 7), 'BATHS ' + pips(lv, 3));
-    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true, fac: 'baths' });
   }
   // ---- granary and garden: sacks under a hide, then a store raised off the damp, then beds of greens beside it, then stone and a pig ----
   {
@@ -636,7 +640,7 @@ function drawYard(cv, T) {
       perches.push([x + 16, y - (lv >= 2 ? 12 : 9)]);
     }
     sign(x + (lv ? w / 2 : 30), y - (lv ? (lv >= 2 ? 19 : 16) : 12), 'GRANARY ' + pips(lv, 3));
-    hit(x, y - 12, x + Math.max(w, 60), GY, { tab: 'ludus', school: true });
+    hit(x, y - 12, x + Math.max(w, 60), GY, { tab: 'ludus', school: true, fac: 'stores' });
   }
   // ---- stables: a rail and a trough, then a shed with a mule in it, then stalls and a cart, then a tiled range ----
   {
@@ -660,7 +664,7 @@ function drawYard(cv, T) {
       perches.push([x + w - 12, y - (lv >= 3 ? 12 : 9)]);
     }
     sign(x + w / 2, y - (lv ? (lv >= 3 ? 19 : 16) : 6), 'STABLES ' + pips(lv, 3));
-    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true });
+    hit(x, y - 12, x + w, GY, { tab: 'ludus', school: true, fac: 'stables' });
   }
   // ---- the street gate: the school's own way out into the town. Its banners multiply with the house's fame ----
   {
@@ -696,8 +700,10 @@ function drawYard(cv, T) {
     }
     for (let i = 0; i < 46; i++) {              // grass and weeds where the wall meets the ground
       const x = (i * 131) % 586, tall = i % 5 === 0;
-      R(x, GY - (tall ? 4 : 2), 1, tall ? 5 : 3, '#5f7f3f'); R(x + 1, GY - 1, 1, 2, '#7a9a4b'); if (tall) { R(x - 1, GY - 2, 1, 3, '#4f6f34'); R(x, GY - 5, 1, 1, i % 2 ? '#e8a0a0' : '#f2e6a0'); }
+      const se = sceneSeason(), wc = se >= 2 ? (se === 2 ? '#8a7a3a' : '#7a745a') : '#5f7f3f';
+      R(x, GY - (tall && se < 3 ? 4 : 2), 1, tall && se < 3 ? 5 : 3, wc); R(x + 1, GY - 1, 1, 2, se >= 2 ? shade(wc, 1.2) : '#7a9a4b'); if (tall && se < 2) { R(x - 1, GY - 2, 1, 3, '#4f6f34'); R(x, GY - 5, 1, 1, i % 2 ? '#e8a0a0' : '#f2e6a0'); }
     }
+    sceneLitter(ctx, T, GY, sceneSeason());
     for (let i = 0; i < 26; i++) { const x = (i * 211 + 40) % 580, y = GY + 16 + (i * 29) % 42; R(x, y, 2, 1, '#a8905c'); R(x, y - 1, 1, 1, '#c8b078'); }      // pebbles
   }
   for (let i = 0; i < 90; i++) { const sx = (i * 97) % 588, sy = GY + 6 + (i * 53) % (YARD.H - GY - 8); R(sx, sy, 1 + (i % 3), 1, i % 2 ? '#c9a763' : '#e6c98a'); }
@@ -791,7 +797,9 @@ function drawYard(cv, T) {
   const place = (g, x, y, o) => {
     if (typeof ui !== 'undefined' && g.id === ui.sel) yardSel = { id: g.id, x, y };      // where the man being read stands, for his master to walk over to
     things.push({ y, draw: () => {
-      drawSprite(ctx, Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o));
+      const sp = Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o);
+      if (guestNear(x, y) && !sp.moving && !sp.down && !sp.falling && !sp.windup && !sp.atkAnim) sp.facing = yardGuest.x > x ? 1 : -1;      // a man with nothing in his hands turns to his master when he comes by
+      drawSprite(ctx, sp);
       if (g.id === ui.sel) { R(x - 2, y - 52, 5, 2, '#e8b545'); R(x - 1, y - 50, 3, 1, '#e8b545'); R(x, y - 49, 1, 1, '#e8b545'); }
       // a name is skipped when it would sit on top of one already drawn; the selected fighter always gets his
       const half = g.name.length * 1.9 + 2, clash = names.some(n => Math.abs(n.x - x) < n.half + half && Math.abs(n.y - y) < 8);
@@ -823,6 +831,8 @@ function drawYard(cv, T) {
   const dt = clamp(T - yardPrev, 0, 0.1); yardPrev = T;
   const night = sky.night > 0.6, wetDay = wx.rain > 0.3, folk = [];
   // staff walk a round of stops; at night they keep to the first of them
+  // Is the master of the school standing near this spot? (Then whoever is there, and is not busy, turns to him.)
+  const guestNear = (x, y) => typeof vil !== 'undefined' && vil.inside === 'ludus' && !vil.leaving && Math.abs(yardGuest.x - x) < 44 && Math.abs(yardGuest.x - x) > 3 && Math.abs(yardGuest.y - y) < 26;
   const staffer = (key, look, route, speed) => {
     const a = yardAgent(key, route[0].x, route[0].y);
     if (a.n >= route.length) a.n = 0;
@@ -833,7 +843,7 @@ function drawYard(cv, T) {
     const s = route[a.n];
     if (s.gone && !a.moving) return a;                 // out of the gate on an errand
     folk.push(a);
-    things.push({ y: a.y, draw: () => yardPerson(ctx, Math.round(a.x), Math.round(a.y), a.moving ? a.face : (s.face || a.face),
+    things.push({ y: a.y, draw: () => yardPerson(ctx, Math.round(a.x), Math.round(a.y), a.moving ? a.face : guestNear(a.x, a.y) ? (yardGuest.x > a.x ? 1 : -1) : (s.face || a.face),
       Object.assign({ moving: a.moving, walk: a.walk, item: s.item }, look, s.pose ? s.pose(a) : null)) });
     return a;
   };
@@ -952,6 +962,19 @@ function drawYard(cv, T) {
       if (!moving && who) { const sx = X + d * 3, sy = Y - 26, ax = who.x - d * 6 - sx, ay = who.y - 30 - sy, n = Math.hypot(ax, ay) || 1; for (let q = 0; q <= 9; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > 6 ? '#e3b48f' : '#d9a57c'); }      // a hand out towards him
     } });
   }
+  // building work: whatever was improved today stands in scaffolding, with men on it; when the day is ended it comes down in dust
+  { worksTick();
+    const boxes = yardHits.filter(h => h.fac), of = h => h.fac === 'stables' ? ['stables', 'eagle'] : [h.fac];
+    for (const h of boxes) {
+      const x = Math.round(h.x0), y = Math.round(h.y0), w = Math.round(h.x1 - h.x0), hh = GY - y;
+      if (worksOn(of(h))) things.push({ y: GY + 0.6, draw: () => sceneScaffold(ctx, T, x, y, w, hh, { big: 2, person: (px, py, d, o) => yardPerson(ctx, px, py, d, o) }) });
+      const dp = dustOn(of(h)); if (dp >= 0) things.push({ y: GY + 0.7, draw: () => sceneDust(ctx, dp, x, y, w, hh) });
+    }
+    if (worksOn(['ground'])) things.push({ y: GY + 20, draw: () => {      // the training ground: timber stacked on the sand, and a man setting a new post
+      for (let q = 0; q < 4; q++) { R(276 + q * 2, GY + 17 - q * 2, 26 - q * 4, 2, q % 2 ? '#8a6a3a' : '#a8834a'); }
+      R(318, GY + 2, 3, 18, '#7a5a2a'); R(318, GY + 2, 1, 18, '#a8834a'); yardPerson(ctx, 330, GY + 20, -1, { tunic: '#c9b48a', hair: '#2a1c14', item: 'hammer', swing: (T * 1.6) % 1 }); } });
+    { const dp = dustOn(['ground']); if (dp >= 0) things.push({ y: GY + 20.1, draw: () => sceneDust(ctx, dp, 270, GY - 4, 70, 24) }); }
+  }
   things.sort((a, b) => a.y - b.y).forEach(o => o.draw());
 
   // ---- the light of the hour over everything below the sky, then what glows in the dark ----
@@ -1014,6 +1037,64 @@ function dayTurn(ctx, w, h) {
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   ctx.fillStyle = 'rgba(' + (p < 0.5 ? '44,26,52' : '20,26,56') + ',' + (0.8 * a).toFixed(3) + ')'; ctx.fillRect(0, 0, w, h);      // dusk is warm, the small hours cold
   if (a > 0.6) { ctx.fillStyle = 'rgba(255,250,225,' + ((a - 0.6) * 2).toFixed(3) + ')'; for (let i = 0; i < 26; i++) ctx.fillRect((i * 97 + 31) % w, (i * 53 + 11) % Math.round(h * 0.55), 1, 1); }
+}
+
+// ---------- the season, in the pictures ----------
+// Which season it is (0 spring, 1 summer, 2 autumn, 3 winter: see seasonNo in sim.js), and a colour of the green
+// country turned to it: drier in summer, rust in autumn, pale under frost in winter.
+const sceneSeason = () => typeof seasonNo === 'function' && typeof G !== 'undefined' && G ? seasonNo(G.day) : 0;
+const seasonHex = (c, se, k) => se === 1 ? mixHex(c, '#b8ac5c', 0.14 * (k || 1)) : se === 2 ? mixHex(c, '#b8802f', Math.min(0.8, 0.34 * (k || 1))) : se === 3 ? mixHex(c, '#e2e8ec', Math.min(0.8, 0.42 * (k || 1))) : c;
+// What lies on the ground of a place out of doors, from the foot of its wall (y) down: petals in spring, leaves in
+// autumn with a few still coming down, frost in winter.
+function sceneLitter(ctx, T, y, se) {
+  const R = (x, yy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(yy), w, h); }, deep = Math.max(8, 186 - y);
+  if (se === 0) for (let i = 0; i < 16; i++) R((i * 151 + 40) % 580, y + 6 + (i * 43) % deep, 1, 1, i % 2 ? '#f8e0e8' : '#ffffff');
+  if (se === 2) {
+    for (let i = 0; i < 54; i++) R((i * 109 + 13) % 586, y + 3 + (i * 31) % deep, 2, 1, ['#c9822e', '#a8562a', '#d9a23a', '#8a5a26'][i % 4]);
+    for (let i = 0; i < 6; i++) R((i * 173 + 60) % 560 + 8, y - 1, 3, 1, i % 2 ? '#c9822e' : '#a8562a');                                 // drifted against the wall
+    for (let i = 0; i < 4; i++) { const p = (T * 0.09 + i * 0.27) % 1; R((i * 157 + 70 + p * 60 + Math.sin(p * 9 + i) * 6) % 590, y - 70 + p * (70 + (i * 23) % deep), Math.sin(p * 20 + i) > 0 ? 2 : 1, 1, i % 2 ? '#d08a3a' : '#a8562a'); }      // and a few still coming down
+  }
+  if (se === 3) {
+    R(0, y, 590, 3, 'rgba(240,246,250,.2)'); R(0, y + 3, 590, 3, 'rgba(240,246,250,.09)');
+    for (let i = 0; i < 46; i++) R((i * 127 + 21) % 584, y + 2 + (i * 37) % deep, 3 + (i % 3) * 2, 1, 'rgba(240,246,250,.2)');
+  }
+}
+
+// ---------- building work ----------
+// Whatever was improved today stands in scaffolding until the day is ended (G.works: what, and the day it was begun);
+// then the poles come down in a cloud of dust (ui.dust: what, and when). Looked to once a frame by either picture.
+function worksTick() {
+  if (typeof G === 'undefined' || !G || typeof ui === 'undefined') return {};
+  const W = G.works || (G.works = {}), D = ui.dust || (ui.dust = {}), now = performance.now();
+  for (const k in W) if (W[k] < G.day) { D[k] = now; delete W[k]; }
+  for (const k in D) if (now - D[k] > 1300) delete D[k];
+  return W;
+}
+const worksOn = keys => { const W = (typeof G !== 'undefined' && G && G.works) || {}; return keys.some(k => W[k] !== undefined); };
+const dustOn = keys => { const D = (typeof ui !== 'undefined' && ui.dust) || {}, now = performance.now(); let p = -1; for (const k of keys) if (D[k] !== undefined) p = Math.max(p, 1 - (now - D[k]) / 1300); return p > 0 ? 1 - p : -1; };      // how far gone the dust is, 0 to 1; -1 for none
+// Scaffolding over a box x, y, w, h (its foot at y + h): poles, two stages of planks, braces, a ladder, a sheet, and men at work on it.
+function sceneScaffold(ctx, T, x, y, w, h, o) {
+  const R = (px, py, pw, ph, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(px), Math.round(py), Math.round(pw), Math.round(ph)); }, big = (o && o.big) || 1, gap = 9 * big;
+  for (let px = x; px <= x + w; px += gap) { R(px, y - 3, big, h + 3, '#6b4f2c'); R(px, y - 3, 1, h + 3, '#8a6a3a'); }
+  R(x + w, y - 3, big, h + 3, '#6b4f2c');
+  const stages = [y + Math.round(h * 0.32), y + Math.round(h * 0.66)];
+  for (const sy of stages) { R(x - 1, sy, w + 2 + big, big, '#a8834a'); R(x - 1, sy + big, w + 2 + big, 1, '#5e4426'); }
+  for (let px = x; px + gap <= x + w; px += gap * 2) for (let q = 0; q < gap; q += 2) R(px + q, stages[0] + big + 1 + Math.round(q * (stages[1] - stages[0] - big - 2) / gap), 1, 1, '#7a5a34');      // braces
+  { const lx = x + Math.min(w - 4, gap + 2); R(lx, stages[0], 1, y + h - stages[0], '#8a6a3a'); R(lx + 3 * big, stages[0], 1, y + h - stages[0], '#8a6a3a'); for (let q = stages[0] + 2; q < y + h; q += 3) R(lx, q, 3 * big + 1, 1, '#a8834a'); }      // the ladder
+  R(x + Math.round(w * 0.56), y - 1, Math.round(w * 0.3), Math.round(h * 0.3), 'rgba(232,220,192,.82)'); R(x + Math.round(w * 0.56), y - 1, Math.round(w * 0.3), 1, '#f8f0dc');      // a sheet over the new work
+  if (o && o.men === 0) return;
+  [[0.22, 0, '#c9b48a'], [0.74, 1, '#8a6a4a']].forEach(([u, st, tunic], i) => {      // a man on each stage, one of them hammering
+    const mx = x + Math.round(w * u) + Math.round(Math.sin(T * 0.5 + i * 2) * 2), my = stages[st], hit = Math.sin(T * 9 + i * 2) > 0.2 ? 1 : 0;
+    if (o && o.person) { o.person(mx, my, i ? -1 : 1, { tunic, hair: '#2a1c14', item: 'hammer', swing: (T * 1.6 + i * 0.5) % 1 }); return; }
+    R(mx, my - 4 * big, big, big, '#d9a57c'); R(mx - (big > 1 ? 1 : 0), my - 3 * big, big + (big > 1 ? 1 : 0), 3 * big, tunic); R(mx + (i ? -1 : 1) * big, my - 3 * big - hit, 1, 2, '#3a2a1c');
+  });
+}
+// The dust when the scaffolding comes down: p from 0 (just down) to 1 (settled).
+function sceneDust(ctx, p, x, y, w, h) {
+  if (p < 0 || p >= 1) return;
+  const n = Math.max(5, Math.round(w / 8));
+  for (let i = 0; i < n; i++) { const u = (i + 0.5) / n, r = Math.round((3 + (i % 3) * 2) * (0.5 + p * 1.3)), cx = x + w * u + Math.sin(i * 2.4) * 3, cy = y + h - 2 - p * (6 + (i % 4) * 3) - (i % 2) * h * 0.3 * (1 - p);
+    ctx.fillStyle = 'rgba(214,196,160,' + (0.62 * (1 - p)).toFixed(3) + ')'; for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); ctx.fillRect(Math.round(cx - hw), Math.round(cy + dy), hw * 2 + 1, 1); } }
 }
 
 // ---------- over either picture: what the mouse is on, the doors of a place just come into, the half light of one just left ----------

@@ -45,7 +45,13 @@ function drawPlace(cv, T, tab) {
 
   // Everybody drawn in the place is written down as he is drawn (where his feet are, which way he faces, what he is),
   // so that whoever stands nearer than the master of the house can be drawn again over him (see placeGuest).
-  const folk = [], person = (x, y, d, o) => { folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); };
+  // Whoever is standing about on the ground of the place (not walking by, not at work, not a statue up on its plinth)
+  // turns to the master of the house when he comes near.
+  const host = typeof vil !== 'undefined' && vil.inside === tab && !vil.leaving && sceneGuests[tab] && sceneGuests[tab].x !== undefined ? sceneGuests[tab] : null;
+  const folk = [], person = (x, y, d, o) => {
+    if (host && y >= 140 && !o.moving && o.swing === undefined && o.sweep === undefined && Math.abs(host.x - x) < 46 && Math.abs(host.x - x) > 3 && Math.abs(host.y - y) < 30) { d = host.x > x ? 1 : -1; if (o.face) { o = Object.assign({}, o); delete o.face; } }
+    folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); };
+  const SE = sceneSeason();
   const E = {
     T, R, sky, wx, night: sky.night, games: isGamesDay(), folk,
     P0: (x, y, d, o) => yardPerson(ctx, Math.round(x), Math.round(y), d, o),      // one who is not written down: the master himself
@@ -65,7 +71,8 @@ function drawPlace(cv, T, tab) {
     shaft: pts => shafts.push(pts),                      // daylight (or the moon) coming in: the four corners of where it falls, from the opening round to the floor
     flame: (x, y, h, col) => sceneFlame(ctx, T, x, y, h, col),
     column: (x, y, h) => { R(x, y, 7, h, '#e8e2d2'); R(x + 5, y, 2, h, '#c9c2ae'); R(x + 2, y, 1, h, '#f8f4ea'); R(x + 3, y + 2, 1, h - 4, '#d6cfbc'); R(x - 2, y - 3, 11, 3, '#d8d2c0'); R(x - 3, y - 4, 13, 1, '#f0ebde'); R(x - 2, y, 11, 1, 'rgba(0,0,0,.14)'); R(x - 2, y + h, 11, 3, '#c9c2ae'); R(x - 3, y + h + 2, 13, 1, '#b5ad98'); },
-    tiles: (x, y, w, h) => { R(x, y, w, h, '#b5522e'); for (let i = 0; i < w; i += 6) { R(x + i, y, 1, h, '#963f22'); R(x + i + 1, y, 1, h, '#c66444'); if (i + 3 < w) R(x + i + 2, y + h, 3, 1, '#c9684a'); } R(x, y, w, 1, '#d87650'); if (h > 4) R(x, y + (h >> 1), w, 1, 'rgba(60,20,8,.18)'); R(x, y + h + 1, w, 1, 'rgba(0,0,0,.22)'); },
+    tiles: (x, y, w, h) => { R(x, y, w, h, '#b5522e'); for (let i = 0; i < w; i += 6) { R(x + i, y, 1, h, '#963f22'); R(x + i + 1, y, 1, h, '#c66444'); if (i + 3 < w) R(x + i + 2, y + h, 3, 1, '#c9684a'); } R(x, y, w, 1, '#d87650'); if (h > 4) R(x, y + (h >> 1), w, 1, 'rgba(60,20,8,.18)'); R(x, y + h + 1, w, 1, 'rgba(0,0,0,.22)');
+      if (SE === 3) for (let i = 0; i < w; i += 7) R(x + i + (i * 3) % 4, y + (i % 2), 4, 1, 'rgba(250,252,255,.5)'); },      // frost along the tiles in winter
     // the ground: stones laid in courses that widen toward you, their joints faint, worn pale down the middle where feet go
     paving: (y, c, d) => {
       R(0, y, 590, 190 - y, c);
@@ -74,6 +81,8 @@ function drawPlace(cv, T, tab) {
       for (let i = 0; i < 9; i++) { const ox = 30 + (i * 149) % 520, oy = y + 10 + (i * 37) % Math.max(6, 170 - y), rx = 30 + (i % 4) * 12; for (let dy = -3; dy <= 3; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / 12)); R(ox - w, oy + dy, w * 2, 1, i % 3 ? 'rgba(255,244,205,.06)' : 'rgba(60,40,14,.06)'); } }
       R(0, y, 590, 2, 'rgba(40,24,8,.3)'); R(0, y + 2, 590, 3, 'rgba(40,24,8,.10)');
       for (let i = 0; i < 40; i++) { const wx2 = (i * 131 + 17) % 586, tall = i % 5 === 0; R(wx2, y - (tall ? 3 : 1), 1, tall ? 4 : 2, '#5f7f3f'); R(wx2 + 1, y - 1, 1, 2, '#7a9a4b'); if (tall) R(wx2, y - 4, 1, 1, i % 2 ? '#e8a0a0' : '#f2e6a0'); }      // PASS 34: weeds where the wall meets the ground
+      if (SE >= 2) for (let i = 0; i < 40; i++) { const wx2 = (i * 131 + 17) % 586, tall = i % 5 === 0, wc = SE === 2 ? '#8a7a3a' : '#7a745a'; R(wx2, y - (tall ? 3 : 1), 1, tall ? 4 : 2, wc); R(wx2 + 1, y - 1, 1, 2, shade(wc, 1.2)); if (tall) R(wx2, y - 4, 1, 1, shade(wc, 0.8)); }      // gone brown in autumn, and to stubble in winter
+      sceneLitter(ctx, T, y, SE);
       for (let i = 0; i < 14; i++) { const wx2 = (i * 211 + 60) % 580, wy = y + 12 + (i * 37) % Math.max(6, 170 - y); R(wx2, wy, 1, 2, '#6f8a4a'); R(wx2 + 1, wy + 1, 1, 1, '#84a05a'); }                                                                              // and coming up between the stones
     },
     // PASS 25. the floor of a room: stone flags, boards or tiles, laid so that they widen toward you

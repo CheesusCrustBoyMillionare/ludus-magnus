@@ -690,14 +690,24 @@ function drawVillage(cv, T) {
   if (!open) { R(578, 76, 9, 14, '#5a3c20'); R(578, 76, 9, 1, '#7a5632'); R(582, 76, 1, 14, '#3a2416'); R(578, 82, 9, 2, '#3a2a1c'); }
   R(585, 54, 1, 8, '#5a4326'); R(586, 54 + (Math.sin(T * 4) > 0 ? 0 : 1), 4, 3, '#a02d22');
   if (ui.wayTo === 'gate') { const ay = 56 + Math.round(Math.sin(T * 6) * 2); R(579, ay, 3, 6, '#f5d584'); R(577, ay + 6, 7, 1, '#f5d584'); R(578, ay + 7, 5, 1, '#f5d584'); R(579, ay + 8, 3, 1, '#f5d584'); }
+  // building work: whatever was improved today stands in scaffolding until the day is ended, and comes down in dust
+  { const lu = placeOf('ludus'), sm = placeOf('smith'), AGm = arenaGeom(), ar = AGm.p;
+    if (typeof G !== 'undefined' && G) { if (G.arenaWas !== undefined && AGm.L > G.arenaWas) (G.works = G.works || {}).arena = G.day; G.arenaWas = AGm.L; }      // a greater arena has been raised: it is not finished in a day
+    worksTick();
+    const jobs = [[['barracks', 'infirmary', 'baths'], lu.x, lu.y, lu.w, lu.h], [['ground'], lu.x + 16, lu.y + 8, lu.w - 32, 18], [['stables', 'eagle'], VIL_STABLE.x, VIL_STABLE.y - 4, VIL_STABLE.w, VIL_STABLE.h + 4], [['shrine'], 464, 54, 22, 16], [['stores'], 88, 46, 20, 24], [['smith'], sm.x, sm.y, sm.w, sm.h], [['arena'], ar.x + 8, ar.y + ar.h - 30, ar.w - 16, 28]];
+    for (const [keys, bx, by, bw, bh] of jobs) { if (worksOn(keys)) sceneScaffold(ctx, T, bx, by, bw, bh, keys[0] === 'ground' ? { men: 1 } : null); const dp = dustOn(keys); if (dp >= 0) sceneDust(ctx, dp, bx, by, bw, bh); }
+    if (worksOn(['arena'])) { const kx = ar.x + ar.w - 14, ky = ar.y + ar.h - 2, sw = Math.round(Math.sin(T * 0.6) * 3); R(kx, ky - 40, 2, 40, '#6b4f2c'); R(kx, ky - 40, 1, 40, '#8a6a3a'); R(kx - 16, ky - 40, 18, 2, '#7a5a34'); R(kx - 14 + sw, ky - 38, 1, 12, '#3a2a1c'); R(kx - 16 + sw, ky - 26, 5, 4, '#d8cca8'); R(kx - 6, ky - 34, 6, 1, '#5e4426'); }      // and a crane, swinging a block up
+  }
   // the doorstep of the screen now open, and of wherever the steward is sending you
   const cur = PLACES.find(p => p.key === ui.tab);
   if (cur) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(T * 4); R(cur.dx - 6, cur.dy - 4, 12, 5, '#f5d584'); ctx.globalAlpha = 1; }
 
   // people, the nearer drawn over the farther. By night most of the town is indoors.
   const abroad = dark ? 2 : TOWN_FOLK[townSize()];      // how many of the townsfolk are in the streets: more in a greater town, and hardly any by night
-  const folk = vil.npcs.slice(0, abroad).map(n => ({ y: n.y, draw: () => vilPerson(ctx, n.x, n.y, n) }));
-  const still = (x, y, o) => folk.push({ y, draw: () => vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o)) });
+  // Whoever is standing about, and not walking, turns to the lanista when he comes near.
+  const toHim = (x, y) => !vil.inside && !vil.enter && Math.hypot(vil.x - x, vil.y - y) < 24 && Math.hypot(vil.x - x, vil.y - y) > 3 ? faceOf(vil.x - x, vil.y - y, 'down') : null;
+  const folk = vil.npcs.slice(0, abroad).map(n => ({ y: n.y, draw: () => { const f = n.path ? null : toHim(n.x, n.y); vilPerson(ctx, n.x, n.y, f ? Object.assign({}, n, { face: f }) : n); } }));
+  const still = (x, y, o) => folk.push({ y, draw: () => { const f = o && o.moving ? null : toHim(x, y); vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o, f ? { face: f } : null)); } });
   const notes = [];                    // marks over the heads of people who are waiting for you: [x, y, colour]
   const talks = [];                    // two with something to say to each other: [one, the other, a name for the pair]
   if (!dark) {                                   // a carter and his mule, coming along the upper street to the gate, every so often
