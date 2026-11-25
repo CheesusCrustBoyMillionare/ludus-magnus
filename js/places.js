@@ -114,7 +114,15 @@ function drawPlace(cv, T, tab) {
   // and the master of the house, if he has come in. He is drawn where he stands in the depth of the picture: over
   // whoever is further off, under whoever is nearer; and after the dog, the children and the pigeons that go along the
   // foot of it only if he is nearer than they are.
-  const guest = placeGuest(E, tab), guestFront = !!guest && guest.y >= 180;
+  // PASS 17: a cat, sat where it can see everything; its eyes show in the dark. It is painted before the master of the house
+  // when he stands nearer than it does, so that he is over it, and after him otherwise.
+  const cat = () => {
+    const cx = tab.length % 2 ? 22 + (tab.length * 7) % 30 : 540 + (tab.length * 5) % 30, cy = 150, d = cx < 295 ? 1 : -1, c = ['#3a322c', '#c98a4a', '#e8e2d2', '#8a8478'][tab.length % 4], tail = Math.sin(T * 1.3) > 0.3 ? 1 : 0, F = (px, py, w, hh, col) => R(d > 0 ? cx + px : cx - px - w, cy + py, w, hh, col);
+    R(cx - 4, cy, 9, 1, 'rgba(0,0,0,.2)'); F(-3, -6, 6, 6, c); F(0, -10, 4, 5, c); F(0, -11, 1, 1, c); F(3, -11, 1, 1, c); F(-4 - tail, -2, 2, 1, c); F(-5 - tail, -3 - tail, 1, 2, c); F(-3, -6, 1, 6, shade(c, 0.8));
+    if (sky.night > 0.4) { F(1, -8, 1, 1, '#c8f060'); F(3, -8, 1, 1, '#c8f060'); } else if (Math.sin(T * 0.7) > 0.96) F(1, -8, 3, 1, shade(c, 0.6));
+  };
+  const guest = placeGuest(E, tab), guestFront = !!guest && guest.y >= 180, catFirst = !!guest && guest.y > 150;
+  if (!scene.indoor && catFirst) cat();
   if (guest && !guestFront) guest.draw();
   if (!scene.indoor && sky.night < 0.6 && wx.rain < 0.4) {      // a dog with business of its own goes through, now and then
     const cyc = ((T + tab.length * 17) % 61) / 14;
@@ -125,11 +133,7 @@ function drawPlace(cv, T, tab) {
     const cyc = ((T + tab.length * 29) % 47) / 9;
     if (cyc < 1) { const d = tab.length % 2 ? -1 : 1, cx = d > 0 ? -20 + cyc * 640 : 610 - cyc * 640; sceneChild(ctx, cx, 178, d, T * 14, '#b85a48'); sceneChild(ctx, cx - d * (16 + Math.sin(T * 2) * 5), 181, d, T * 14 + 2, '#5a8a9a'); }
   }
-  if (!scene.indoor) {                          // PASS 17: a cat, sat where it can see everything; its eyes show in the dark
-    const cx = tab.length % 2 ? 22 + (tab.length * 7) % 30 : 540 + (tab.length * 5) % 30, cy = 150, d = cx < 295 ? 1 : -1, c = ['#3a322c', '#c98a4a', '#e8e2d2', '#8a8478'][tab.length % 4], tail = Math.sin(T * 1.3) > 0.3 ? 1 : 0, F = (px, py, w, hh, col) => R(d > 0 ? cx + px : cx - px - w, cy + py, w, hh, col);
-    R(cx - 4, cy, 9, 1, 'rgba(0,0,0,.2)'); F(-3, -6, 6, 6, c); F(0, -10, 4, 5, c); F(0, -11, 1, 1, c); F(3, -11, 1, 1, c); F(-4 - tail, -2, 2, 1, c); F(-5 - tail, -3 - tail, 1, 2, c); F(-3, -6, 1, 6, shade(c, 0.8));
-    if (sky.night > 0.4) { F(1, -8, 1, 1, '#c8f060'); F(3, -8, 1, 1, '#c8f060'); } else if (Math.sin(T * 0.7) > 0.96) F(1, -8, 3, 1, shade(c, 0.6));
-  }
+  if (!scene.indoor && !catFirst) cat();
   if (!scene.indoor && sky.night < 0.5 && wx.rain < 0.3) {      // pigeons, wherever people are
     const up = ((T + tab.length * 17) % 61) / 14, fl = up > 0.05 && up < 0.5 ? (up - 0.05) / 0.45 : 0;      // PASS 35: they go up together when the dog comes through, wheel, and settle again
     for (let i = 0; i < 6; i++) { const px = 60 + ((i * 163 + tab.length * 37) % 470), py = 176 + (i % 2) * 6, peck = Math.sin(T * 5 + i * 1.7) > 0.5 ? 1 : 0; if (fl > 0) { const a = Math.sin(fl * Math.PI), fx = px + Math.sin(fl * 6 + i) * 40 * a, fy = py - a * (70 + i * 6), wg = Math.sin(T * 20 + i) > 0 ? 1 : 0; R(fx, fy - 1, 3, 2, i % 2 ? '#8f97a0' : '#c9d1d9'); R(fx - 2, fy - 1 - wg, 2, 1, '#6f7780'); R(fx + 3, fy - 1 - wg, 2, 1, '#6f7780'); } else { R(px, py - 2, 3, 2, i % 2 ? '#8f97a0' : '#c9d1d9'); R(px + 2, py - 3 + peck, 1, 1, '#6f7780'); R(px, py, 1, 1, '#c98a4a'); R(px - 1, py, 5, 1, 'rgba(0,0,0,.14)'); } }
