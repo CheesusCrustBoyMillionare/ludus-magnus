@@ -49,6 +49,10 @@ function* provLandSteps(fresh, se) {
   // (drawProvince). Painted again it leaves out its shadow and anything else that is only a stain on the ground.
   const overs = [];
   fresh.overs = overs;
+  // Where corn stands, for the wind to go over it (drawProvince): a mark to every five paces of the country each way,
+  // 1 where it is young and green, 2 where it is tall and ripe; and 3 where the ground is under anything else that is
+  // sown or planted, which the wind does not go over as it does over grass.
+  const CORN_W = WILD.TW * 2, corn = fresh.corn = new Uint8Array(CORN_W * WILD.TH * 2);
   fresh.paintOver = (c2, d) => { const keep = ctx; ctx = c2; solid = true; try { d(); } finally { ctx = keep; solid = false; } };
   const TALL = ['The great oak', 'The old arch', 'The beacon', 'The unfinished columns', 'The watchtower', 'The needle', 'The gallows', 'The broken aqueduct', 'The wolf stone', "The giant's table", 'The mill', 'The white temple'];
   const h = (x, y, k) => wildHash(x, y, 91 + k), at = (x, y) => (x < 0 || y < 0 || x >= TW || y >= TH ? T_PEAK : L.t[y * TW + x]);
@@ -539,6 +543,7 @@ function* provLandSteps(fresh, se) {
         // nothing in flower or fruit that is out of its season; the corn cut by autumn; and in winter the corn land, the
         // flax, the beans and the gourds all turned over and lying fallow.
         const PLOT_TURN = [{ 0: 1, 6: 1, 9: 1 }, null, { 1: 6, 4: 10 }, { 0: 2, 1: 2, 6: 2, 4: 2, 5: 2, 9: 2 }][se], c0 = crop(tx, ty), c = PLOT_TURN && PLOT_TURN[c0] !== undefined ? PLOT_TURN[c0] : c0, mid = tx % 4 === 2 && ty % 3 === 1, pl = h(Math.floor(tx / 4), Math.floor(ty / 3), 73);
+        { const v = c === 1 ? 1 : (c === 0 || c === 6) && se === 1 ? 2 : c <= 9 ? 3 : 0, j = ty * 2 * CORN_W + tx * 2; if (v) corn[j] = corn[j + 1] = corn[j + CORN_W] = corn[j + CORN_W + 1] = v; }      // (standing corn, or a plot of something else: see corn, above)
         if (c === 0) { R(x, y, 10, 10, '#c9b25a'); for (let q = 1; q < 10; q += 3) R(x, y + q, 10, 1, '#b39a44'); if (a > 0.9) { R(x + 4, y + 3, 3, 4, '#e0c868'); R(x + 5, y + 2, 1, 1, '#e0c868'); R(x + 4, y + 7, 3, 1, '#8f7a30'); } }      // wheat, and a stook
         else if (c === 1) { R(x, y, 10, 10, '#8fae52'); for (let q = 1; q < 10; q += 3) R(x, y + q, 10, 1, '#7b9a44'); }                                    // green corn
         else if (c === 2) { R(x, y, 10, 10, '#8a6a44'); for (let q = 0; q < 10; q += 2) R(x, y + q, 10, 1, '#74583a'); if (a > 0.92) { R(x + 3, y + 4, 2, 1, '#1c1310'); R(x + 6, y + 6, 2, 1, '#1c1310'); R(x + 4, y + 3, 1, 1, '#1c1310'); } }      // fallow, and crows on it
@@ -669,6 +674,7 @@ function* provLandSteps(fresh, se) {
     const lie = lieOf(wv);
     const wm = (ax, ay) => { const j = clT(ay, TH) * TW + clT(ax, TW); return wetV[j] | mereV[j]; }, lieM = lieOf(wm);      // (the same, with the marsh's own pools counted as water: a pool lying against a lake is one water with it, and there is no shore between them)
     fresh.wetLie = lie;      // (kept: the chart of the whole province draws its coasts by it too)
+    fresh.wetLieM = lieM;    // (and with the meres: for what is seen in the water, at the end of the painting, and the light on it)
     const surf = fresh.surf = [];      // and where the open sea meets the land, with which way the sea lies from there: four numbers to a spot, for the waves to come in at
     // Ground against ground, the same way and by the same wandering line, before the water's edge is drawn over it: where
     // sand, the floor of a wood or the marsh meets other dry ground, each lends the other a corner, and the border between
@@ -1545,6 +1551,7 @@ function* provLandSteps(fresh, se) {
             continue;
           }
           const row = hz ? ly : lx, across = hz ? lx : ly, n1 = lmV(px * 13 + py * 7, 947 + sd), shade2 = (ly === hh - 1 || lx === w - 1) && (crop === 'wheat' || crop === 'barley' || crop === 'green');
+          if (crop !== 'ley') { const j = Math.floor(py / 5) * CORN_W + Math.floor(px / 5); if (j >= 0 && j < corn.length) corn[j] = crop === 'green' ? 1 : crop === 'wheat' || crop === 'barley' ? 2 : 3; }
           if (crop === 'ley') { if (n1 > 0.9) R(px, py, 1, 1, n1 > 0.96 ? '#f4f4f0' : '#8fb85a'); continue; }      // grass put down to rest: clover, and daisies in it
           let c;
           if (crop === 'wheat') c = shade2 ? '#a8924c' : n1 > 0.985 ? '#c8432e' : n1 > 0.9 ? '#e6d28c' : (row >> 1) % 2 ? '#d4bd6c' : '#cab262';             // ears catching the light, and a poppy here and there
@@ -2419,6 +2426,56 @@ function* provLandSteps(fresh, se) {
   feats.sort((p1, p2) => p1.y - p2.y);
   { let n = 0; for (const ft of feats) { ft.d(); if (!(++n & 31)) yield; } }
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) if (at(tx, ty) === T_FOREST && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood') R(tx * 10, ty * 10 - 4, 10, 12, 'rgba(128,132,136,.16)');      // an old wood, gone grey
+  // What stands at the water's edge is seen in it. Every tree, tower and pier with water at its foot is painted once
+  // more upside down below itself, shorter than it stands (the water is looked at from above), paler and bluer, broken
+  // by the ripple into lines, and only where there is water to hold it: not on the strand, nor on the surf at its edge.
+  // It is done last, and once, into the land itself: it costs nothing while the map is shown.
+  // The corn, looked at again now that everything is painted: a barn, a farmhouse or a road may stand where a plot was
+  // marked, and the wind does not go over a roof. Where the paint is no longer the colour of corn the mark is taken off.
+  if (typeof document !== 'undefined') {
+    let ax = 1e9, ay = 1e9, bx = -1, by = -1;
+    for (let j = 0; j < corn.length; j++) if (corn[j] === 1 || corn[j] === 2) { const qx = j % CORN_W, qy = (j - qx) / CORN_W; if (qx < ax) ax = qx; if (qx > bx) bx = qx; if (qy < ay) ay = qy; if (qy > by) by = qy; }
+    if (bx >= ax) {
+      // (It is read off a copy of that corner of the land, not off the land itself: a canvas that has once been read from
+      // is kept where it is slow to draw from, and the land is drawn from at every frame.)
+      const iw = (bx - ax + 1) * 5, ih = (by - ay + 1) * 5, copy = Object.assign(document.createElement('canvas'), { width: iw, height: ih }), cc = copy.getContext('2d', { willReadFrequently: true }), whole = cv;
+      cc.drawImage(whole, ax * 5, ay * 5, iw, ih, 0, 0, iw, ih);
+      const D = cc.getImageData(0, 0, iw, ih).data;
+      for (let qy = ay; qy <= by; qy++) for (let qx = ax; qx <= bx; qx++) {
+        const v = corn[qy * CORN_W + qx]; if (v !== 1 && v !== 2) continue;
+        let hit = 0;
+        for (let py = 0; py < 5; py++) for (let px = 0; px < 5; px++) { const k = (((qy - ay) * 5 + py) * iw + (qx - ax) * 5 + px) * 4, r = D[k], g = D[k + 1], b = D[k + 2]; if (v === 2 ? r >= g && g > r * 0.75 && r - b > 60 && r > 140 : g > r && g - b > 40) hit++; }
+        if (hit < 17) corn[qy * CORN_W + qx] = 3;
+      }
+    }
+    yield;
+  }
+  if (typeof document !== 'undefined') {
+    const SW = 96, SH = 56, SQ = 0.6, sc = Object.assign(document.createElement('canvas'), { width: SW, height: SH }), s2 = sc.getContext('2d'), wet = fresh.wetLieM;
+    let n = 0;
+    for (const o of overs) {
+      const base = Math.round(o.base), mx = (o.x0 + o.x1) >> 1;
+      const x0 = o.x0 - 2, w = Math.min(SW, o.x1 - o.x0 + 4), rh = Math.min(SH, Math.ceil(Math.min(90, base - o.y0) * SQ) + 1), y0 = base + 1;
+      if (o.wet) continue;
+      { let near = false; for (let r = 3; r < rh && !near; r += 3) near = wet(mx + 0.5, base + r + 0.5) > 0.13; if (!near) continue; }      // (a tree a little way back from the water shows the top of itself in it, and no more)
+      s2.globalCompositeOperation = 'source-over'; s2.globalAlpha = 1; s2.clearRect(0, 0, SW, SH);
+      const mir = { fillStyle: '#000', globalAlpha: 1, fillRect(x, y, ww, hh) {      // a slate that sets down whatever is painted on it the other way up
+        x = Math.round(x); y = Math.round(y);
+        const r0 = Math.max(0, Math.round((base - y - hh) * SQ)), r1 = Math.round((base - y) * SQ);
+        if (r1 > r0) { s2.globalAlpha = this.globalAlpha; s2.fillStyle = this.fillStyle; s2.fillRect(x - x0, r0, ww, r1 - r0); }
+      } };
+      try { fresh.paintOver(mir, o.d); } catch (e) { continue; }      // (something in it that is not plain paint: it is not seen in the water)
+      s2.globalAlpha = 1; s2.globalCompositeOperation = 'source-atop'; s2.fillStyle = 'rgba(40,84,124,.3)'; s2.fillRect(0, 0, w, rh);
+      s2.globalCompositeOperation = 'destination-out'; s2.fillStyle = '#000';
+      for (let r = 0; r < rh; r++) {
+        if ((y0 + r) % 3 === 0) { s2.globalAlpha = 0.5; s2.fillRect(0, r, w, 1); s2.globalAlpha = 1; }
+        for (let q = 0; q < w; q++) if (!(wet(x0 + q + 0.5, y0 + r + 0.5) > 0.13) || at(Math.floor((x0 + q) / 10), Math.floor((y0 + r) / 10)) === T_BRIDGE) s2.fillRect(q, r, 1, 1);      // (nor on the planks of a bridge)
+      }
+      s2.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.62; ctx.drawImage(sc, 0, 0, w, rh, x0, y0, w, rh); ctx.globalAlpha = 1;
+      if (!(++n & 15)) yield;
+    }
+  }
   fresh.land = cv;
   return fresh;
 }
@@ -2429,7 +2486,12 @@ function provLandStep() {
   const it = prov.making || (prov.making = provLandSteps({}, sceneSeason()));
   let r;
   try { r = it.next(); } catch (e) { prov.making = null; throw e; }      // begun again from nothing, if it is asked for again
-  if (r.done) { prov.making = null; Object.assign(prov, r.value); }
+  if (r.done) {
+    prov.making = null;
+    // (The land of the season before is kept a few moments, and the new comes up through it: see drawProvince.)
+    if (prov.land && r.value.land !== prov.land && typeof performance !== 'undefined') { prov.landWas = prov.land; prov.landTurn = performance.now(); }
+    Object.assign(prov, r.value);
+  }
 }
 function provLand() {
   while (!prov.land) provLandStep();
@@ -2471,7 +2533,7 @@ const provRec = (() => {
   let n = 0, gn = 0, cur = null, tx = 0, ty = 0, sc = 1, alpha = 1, style = '#000', clip = null, path = null;
   const open = (x, y, wide, kind) => {
     const g = groups[gn] || (groups[gn] = {});
-    g.i = gn++; g.x = x; g.y = y; g.wide = wide || 6; g.ink = kind === 'ink' || kind === 'sign'; g.flat = kind === 'flat' || kind === 'sign'; g.from = g.to = n; g.over = null; g.lamp = 0; g.folk = false;
+    g.i = gn++; g.x = x; g.y = y; g.wide = wide || 6; g.ink = kind === 'ink' || kind === 'sign'; g.flat = kind === 'flat' || kind === 'sign'; g.from = g.to = n; g.over = null; g.lamp = 0; g.folk = false; g.afloat = false;
     return (cur = g);
   };
   const ctx = {
@@ -2552,6 +2614,26 @@ const provRec = (() => {
         }
         to.globalAlpha = sun.a; to.drawImage(sheet, ox, oy); to.globalAlpha = 1;
       }
+      // What floats is seen in the water under it: hull, mast and sail the other way up below the waterline, shorter than
+      // they stand, pale, and shaken a dot from side to side by the ripple. On a sheet of its own first, like the shadows,
+      // so that where the sail lies over the mast it is no stronger.
+      if (list.some(g => g.afloat)) {
+        const pad = 40, lw = PROV.VW + pad * 2, lh = PROV.VH + pad * 2, ox = camX - pad, oy = camY - pad, SQ = 0.6;
+        const sheet = prov.mirrorCv || (prov.mirrorCv = Object.assign(document.createElement('canvas'), { width: lw, height: lh })), mr = sheet.getContext('2d');
+        mr.clearRect(0, 0, lw, lh);
+        const shake = Math.floor(performance.now() / 260);
+        for (const g of list) {
+          if (!g.afloat) continue;
+          const line = Math.round(g.y) + 2;      // her waterline
+          for (let i = g.from; i < g.to; i++) {
+            if (!solid(i)) continue;
+            const yb = Math.round(Y[i]), r0 = Math.max(0, Math.round((line - yb - H[i]) * SQ)), r1 = Math.round((line - yb) * SQ);
+            mr.fillStyle = C[i];
+            for (let r = r0; r < r1; r++) mr.fillRect(Math.round(X[i]) + (((r + shake) % 4) === 0 ? 1 : ((r + shake) % 4) === 2 ? -1 : 0) - ox, line + 1 + r - oy, W[i], 1);
+          }
+        }
+        to.globalAlpha = 0.3; to.drawImage(sheet, ox, oy); to.globalAlpha = 1;
+      }
       let al = 1;
       for (const g of order) {
         if (g.over) { if (al !== g.a) to.globalAlpha = al = g.a; prov.paintOver(to, g.over.d); continue; }
@@ -2579,6 +2661,38 @@ function provRows(o) {
   const rows = [];      // (taken three heights at a time: a shadow is not looked at so closely, and there are a great many trees)
   for (let up = 1; up < lo.length; up += 3) { let a = 1e9, b = -1e9; for (let q = up; q < up + 3; q++) if (lo[q] !== undefined) { if (lo[q] < a) a = lo[q]; if (hi[q] > b) b = hi[q]; } if (b > a) rows.push(up + 1, a, b - a); }
   return (o.rows = rows);
+}
+// The wind. It crosses the province from the west in fronts, a gust and then a lull, the fronts bowed a little and
+// never quite the same way twice; and this is how hard it blows at a spot, from 0 (still) to 1. On a windy day (gust:
+// see yardWeather) the gusts come faster, last longer, and leave less lull between them. Whatever the wind moves asks
+// here: the trees, the grass and the corn (drawProvince).
+function provWind(x, y, T, gust) {
+  const s = 0.86 * Math.sin(x * 0.016 + y * 0.006 - T * (0.8 + gust * 0.9) + 2.2 * Math.sin(y * 0.011 - x * 0.003 + T * 0.05)) + 0.14 * Math.sin(x * 0.047 - y * 0.019 - T * 2.3);
+  const lull = 0.6 - gust * 0.7;
+  return s > lull ? Math.min(1, (s - lull) / (1 - lull)) : 0;
+}
+const SEASON_TURN = 5000;      // how long the land of one season takes to give way to the next, in thousandths of a second
+// The sun's road on the water, and the moon's. Open water throws the light back at whoever looks across it toward the
+// light: a road of sparks from where he stands to under the sun, which goes with him as he walks. Faint and white at
+// noon, when the sun is overhead; long and the colour of the sun when it is low; silver under the moon. (east: 1 if the
+// light stands to the north-east of him, -1 to the north-west, which is where the sun always is here: every shadow on
+// this map falls to the south-east. k: how bright, 0 to 1.)
+function provGlitter(ctx, T, camX, camY, F, east, col, k) {
+  if (!(k > 0.04)) return;
+  const wet = prov.wetLieM, HALF = 56;
+  for (let y = camY - (camY & 1); y < camY + PROV.VH; y += 2) {
+    const up = F.y - y, mid = F.x + up * 2 * east; if (mid < camX - HALF || mid > camX + PROV.VW + HALF) continue;
+    const fade = up >= 0 ? 1 : 1 + up / 18; if (fade <= 0) continue;      // (to his feet, and a step past them, and then no more)
+    for (let q = 0; q < 9; q++) {
+      const u = T * 2.4 + q * 0.37 + (y % 7) * 0.13, slot = Math.floor(u), p = u - slot, off = wildHash(y, q + slot * 7, 2350) * 2 - 1;
+      const x = Math.round(mid + off * Math.abs(off) * HALF);
+      if (x < camX || x >= camX + PROV.VW || wildTile(x, y) !== T_WATER || !wildSeen(x, y) || (wet && !(wet(x + 0.5, y + 0.5) > 0.2))) continue;
+      const a = Math.min(1, Math.sin(p * Math.PI) * 1.25) * k * fade * (1 - Math.abs(off) * 0.4), w = off * off < 0.03 ? 5 : off * off < 0.2 ? 3 : 2;      // (longest and brightest down the middle of the road)
+      ctx.globalAlpha = Math.round(a * 8) / 8; ctx.fillStyle = col; ctx.fillRect(x, y, w, 1);
+      if (a > 0.5) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 1, y, w - 2 || 1, 1); }
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 // How the sun throws a shadow at this hour, under this sky: see provRec.paint.
 function provSun(sky, wx) {
@@ -4511,7 +4625,7 @@ function provMovers(ctx, T, R, inView) {
     if (U && U.d) (prov.heads || (prov.heads = {}))[bi] = U.d;
     const bx0 = U ? U.x : hx, by0 = U ? U.y : hy, hd = (prov.heads && prov.heads[bi]) || 1;
     if (!inView(bx0, by0, 60) || !wildSeen(bx0, by0)) return;
-    provAt(bx0, by0, 16, 'flat').lamp = ship && U ? 12 : 0;      // a ship under way shows a lamp after dark
+    { const bg = provAt(bx0, by0, 16, 'flat'); bg.lamp = ship && U ? 12 : 0; bg.afloat = true; }      // a ship under way shows a lamp after dark; and whatever floats is seen in the water (provRec.paint)
     if (bk) {
       const sd = wildHash(hx, hy, 660), s2 = wildHash(hy, hx, 661), bob = Math.sin(T * 1.4 + hx) > 0 ? 1 : 0;
       if (bk === 'galley' || bk === 'warship') {            // a ship under oar and sail, beating up and down the coast
@@ -4607,6 +4721,23 @@ function drawProvince(cv, T) {
   const LU = clamp(10 / (6 * ((cv.clientWidth || PROV.VW * 2) / PROV.VW)), 1, 2);
   // the same hour and the same weather as over the town
   const sky = provSky(), wx = yardWeather(sceneClock());
+  // The wind in the trees. Where it is blowing (provWind) the head of every tree leans a dot downwind, two in a gale,
+  // and comes back when the gust has gone by; at the edge of a gust it shivers. It is done with the land as it was
+  // painted: the top of the tree, with the ground about it, is laid down again a dot to the east, and the eye takes
+  // that for the tree giving. The trunk stays where it is.
+  if (prov.overs) { const land = provLand(), gust = wx.gust || 0, x1 = camX + PROV.VW + 4, y1 = camY + PROV.VH + 2;
+    for (const o of prov.overs) {
+      if (!o.tree || o.x1 < camX - 4 || o.x0 > x1 || o.base < camY - 2 || o.y0 > y1) continue;
+      const g = provWind(o.x0, o.base, T, gust); if (g <= 0.12) continue;
+      const lean = g > 0.75 && gust > 0.3 ? 2 : g > 0.4 || Math.sin(T * 8 + o.x0 * 1.3) > 0 ? 1 : 0; if (!lean) continue;
+      const h = o.base - o.y0, top = Math.max(2, Math.round(h * 0.55)), x = o.x0 - 2, w = o.x1 - o.x0 + 4, y = o.y0 - 1;
+      ctx.drawImage(land, x, y, w, top, x + lean, y, w, top);
+      if (lean > 1) { const mid = Math.max(1, Math.round(h * 0.2)); ctx.drawImage(land, x, y + top, w, mid, x + 1, y + top, w, mid); }
+    } }
+  // When the season turns, the land that was shows a few moments longer and the new one comes up through it.
+  if (prov.landWas) { const k = (performance.now() - prov.landTurn) / SEASON_TURN;
+    if (!(k < 1)) prov.landWas = null;
+    else { ctx.globalAlpha = 1 - k * k * (3 - 2 * k); ctx.drawImage(prov.landWas, camX, camY, PROV.VW, PROV.VH, camX, camY, PROV.VW, PROV.VH); ctx.globalAlpha = 1; } }
   provSeason(ctx, camX, camY, PROV.VW, PROV.VH, 7, wx);
   const inView =(x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
   const M = wildMap();
@@ -4623,11 +4754,26 @@ function drawProvince(cv, T) {
     }
   }
   provTracks(ctx, R, inView);
-  // the wind going over the meadows: a lighter streak that travels
-  for (let i = 0; i < 14; i++) {
-    const wx2 = camX + ((i * 71 + T * 26) % (PROV.VW + 40)) - 20, wy2 = camY + (i * 47 + Math.floor(T * 0.5 + i) * 13) % PROV.VH, kk = wildTile(wx2, wy2);
-    if (kk === T_MEADOW || kk === T_GRASS) { R(wx2, wy2, 7, 1, 'rgba(255,255,220,.16)'); R(wx2 + 2, wy2 + 2, 5, 1, 'rgba(255,255,220,.10)'); }
-  }
+  // The wind going over the open ground. It comes across in fronts (provWind), and where a front is passing the grass
+  // shows it: blades here and there turned to the light, each for as long as the gust is on it, so that the eye follows
+  // the front over the meadow. Standing corn shows it far more, and all of it: a pale line where the ears are bent over
+  // and a dark one behind, where they stand again (prov.corn: young corn in its own green, ripe corn in its gold). Not
+  // under snow.
+  if (!(wx.white > 0.3)) { const gust = wx.gust || 0, CW = 12, CH = 6, corn = prov.corn, cornW = WILD.TW * 2;
+    for (let gy = Math.floor(camY / CH) * CH; gy < camY + PROV.VH; gy += CH) for (let gx = Math.floor(camX / CW) * CW; gx < camX + PROV.VW; gx += CW) {
+      const g = provWind(gx + 6, gy + 3, T, gust); if (g <= 0.06) continue;      // (asked first, and of the middle of the square: most of the country is in a lull at any moment)
+      const hs = wildHash(gx, gy, 2340), x = gx + Math.floor(hs * (CW - 4)), y = gy + Math.floor(wildHash(gy, gx, 2341) * CH);
+      const cn = corn ? corn[Math.floor(y / 5) * cornW + Math.floor(x / 5)] : 0;
+      if (cn === 3) continue;
+      if (cn) { if (!wildSeen(x, y)) continue;
+        const xs = Math.floor(x / 5) * 5;      // (the width of the mark, and within it)
+        ctx.globalAlpha = Math.round(g * 0.6 * 16) / 16; R(xs, y, 5, 1, cn > 1 ? '#f8ecb0' : '#cfe890');
+        if (y % 5 < 4) { ctx.globalAlpha = Math.round(g * 0.4 * 16) / 16; R(xs, y + 1, 5, 1, cn > 1 ? '#8f7a30' : '#5a7a34'); } continue; }
+      if (hs > 0.5) continue;
+      const kk = wildTile(x, y); if ((kk !== T_MEADOW && kk !== T_GRASS) || !wildSeen(x, y)) continue;
+      ctx.globalAlpha = Math.round(g * (kk === T_MEADOW ? 0.34 : 0.24) * 16) / 16; R(x, y, 4 + Math.floor(hs * 6), 1, '#fffbd6');
+    }
+    ctx.globalAlpha = 1; }
   // The river runs. Along every stretch of it light moves on the water the way the current goes, down from the fells to
   // the bay: each streak born at the upstream edge of its piece of river, carried across it, and gone at the other, with
   // a darker thread beside it where the water is deep. It runs faster where the river is narrow.
@@ -4657,6 +4803,8 @@ function drawProvince(cv, T) {
         else if (crest < -0.5) { ctx.globalAlpha = Math.round((-crest - 0.5) * 0.4 * 16) / 16; R(x, y + 1, 4 + Math.floor(hs * 3), 1, '#0c3460'); }
       }
       ctx.globalAlpha = 1; }
+    // and the sun's road across it (provGlitter): by how low the sun stands, and how much of it the sky lets through
+    { const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0; provGlitter(ctx, T, camX, camY, G.field, -1, sky.sunCol || '#fbeab0', Math.min(1, (provSun(sky, wx).a / 0.36) * (0.4 + 0.9 * low))); }
   }
 
   // The sea comes in. Along every open shore (prov.surf: see the shore, in provLand) a line of white rides in from a
@@ -4783,6 +4931,7 @@ function drawProvince(cv, T) {
   if (camped) provGlow(ctx, F.x + 10, F.y - 1, 30, '255,150,60', (0.09 * camped).toFixed(3));
   else if (lamps) provGlow(ctx, F.x, F.y - Math.round(8 * PROV.FIG), 24, '255,170,80', (0.08 * lamps).toFixed(3));
   provNight(ctx, camX, camY, provGloom(sky), T);
+  if (dark > 0.3 && !(wx.over > 0.6)) provGlitter(ctx, T * 0.6, camX, camY, F, 1, '#dbe6f6', Math.min(0.7, (dark - 0.3) * 1.4) * (1 - (wx.over || 0)));      // the moon's road on the water: over the dark, which it is the one thing to break
   if (dark > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
   if (lamps && !camped) { const fk = PROV.FIG, bx = F.x + (prov.face === 'left' ? -1 : 1) * Math.round(5 * fk); ctx.globalAlpha = lamps; R(bx, F.y - Math.round(13 * fk) - fl, 2, 3 + fl, '#e2702a'); R(bx, F.y - Math.round(10 * fk), 1, Math.round(4 * fk), '#3a2a1c'); ctx.globalAlpha = 1; }
   ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
