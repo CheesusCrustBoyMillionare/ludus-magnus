@@ -2523,7 +2523,7 @@ function* provLandSteps(fresh, se) {
   // running water: see drawAnglers). Open grass or sand at the edge of a lake or the river, not the sea; the spot is
   // walked out to the shore as it is really drawn (wetLie), with clear water beyond it for the float to lie in; no two
   // are close together, none is by a place or under a tree, and there is one at the end of the ferry's jetty. In winter
-  // the still water is under ice, and only the river is fished.
+  // the still water is under ice: the river is fished from its bank as ever, and the lakes through a hole in the ice.
   { const fish = fresh.fish = [], lie = fresh.wetLie, flow = wildFlow(), places = wildSites(), lms = fresh.marks || [];
     const clear = (px, py) => !fish.some(f => Math.hypot(f.x - px, f.y - py) < 70) && !places.some(s => Math.hypot(s.x - px, s.y - py) < 40) && Math.hypot(WILD.TOWN.x - px, WILD.TOWN.y - py) > 110
       && !lms.some(mk => px > mk.x - 14 && px < mk.x + mk.r * 2 + 14 && py > mk.y - mk.r * 1.6 - 6 && py < mk.y + 20) && !overs.some(o => px + 6 > o.x0 && px - 6 < o.x1 && py + 4 > o.y0 && py - 14 < o.base);
@@ -2533,9 +2533,10 @@ function* provLandSteps(fresh, se) {
         const k = L.t[ty * TW + tx]; if ((k !== T_GRASS && k !== T_MEADOW && k !== T_SAND) || h(tx, ty, 2420) > 0.7 || farm(tx, ty) || grove(tx, ty)) continue;
         for (const d of h(tx, ty, 2421) > 0.5 ? [1, -1] : [-1, 1]) {
           const j = ty * TW + tx + d; if (L.t[j] !== T_WATER || L.t[j + d] !== T_WATER || seaAt(tx + d, ty) || seaAt(tx + d * 2, ty)) continue;
-          const run = flow.has(j) || flow.has(j + d) ? 1 : 0; if (se === 3 && !run) continue;
+          const run = flow.has(j) || flow.has(j + d) ? 1 : 0;
           const py = ty * 10 + 6; let px = tx * 10 + 5, n = 0; while (n < 12 && !(lie(px + d * 3 + 0.5, py + 0.5) > 0)) { px += d; n++; }
           if (n >= 12 || lie(px + 0.5, py + 0.5) > 0 || lie(px + 0.5, py - 2.5) > 0 || !(lie(px + d * 10 + 0.5, py + 1.5) > 0.2 && lie(px + d * 14 + 0.5, py + 1.5) > 0.2) || !clear(px, py)) continue;
+          if (se === 3 && !run) continue;      // (still water, in winter: nobody on its bank. Whoever fishes it is out on the ice: see where the ice is laid, below.)
           fish.push({ x: px, y: py, d, run, seed: tx * 211 + ty * 13 }); break;
         }
       }
@@ -2563,6 +2564,20 @@ function* provLandSteps(fresh, se) {
     const sA = new Float32Array(W), cA = new Float32Array(W), sB = new Float32Array(W), cB = new Float32Array(W);
     for (let X = 0; X < W; X++) { sA[X] = Math.sin(X * 0.043); cA[X] = Math.cos(X * 0.043); sB[X] = Math.sin(X * 0.019 + 1.3); cB[X] = Math.cos(X * 0.019 + 1.3); }
     const SR = [250, 240, 222], SG = [251, 244, 231], SB = [254, 250, 243];
+    // Whoever fishes a lake in winter does it through the ice (fresh.fish, those marked ice: see drawAnglers). He is
+    // set down a little way out from the bank, where there is ice under him, under his hole and all round him, and well
+    // back from its edge (shelf: how far inside the edge of the ice a dot is, in tiles, as the shelf is reckoned below);
+    // no two of them near each other, none by a place, and none where a tree on the bank would stand over him.
+    { const shelf = (X, Y) => { X = Math.max(0, Math.min(W - 1, Math.round(X))); Y = Math.max(0, Math.min(H - 1, Math.round(Y))); if (L.t[Math.min(TH - 1, Math.floor(Y / 10)) * TW + Math.min(TW - 1, Math.floor(X / 10))] !== T_WATER) return -1; const open = between(fromOpen, X, Y); if (!(open > 0.8)) return -1;
+        return (1.63 + 0.4 * (sA[X] * Math.cos(Y * 0.027) + cA[X] * Math.sin(Y * 0.027)) + 0.25 * (sB[X] * Math.cos(Y * 0.051) - cB[X] * Math.sin(Y * 0.051))) * Math.min(1, (open - 0.8) / 2) - between(fromLand, X, Y); };
+      const fish = fresh.fish || (fresh.fish = []), places = wildSites();
+      for (let ty = 3; ty < TH - 3; ty++) for (let tx = 18; tx < TW - 3; tx++) {
+        const i = ty * TW + tx; if (L.t[i] !== T_WATER || fromLand[i] > 2 || h(tx, ty, 2425) > 0.6) continue;
+        const X = tx * 10 + 5, Y = ty * 10 + 5, d = fromLand[i + 1] >= fromLand[i - 1] ? 1 : -1;
+        if (![[0, 0], [d * 6, 1], [-d * 4, 0], [d * 3, -5], [d * 3, 5]].every(([ox, oy]) => shelf(X + ox, Y + oy) > 0.2)) continue;
+        if (fish.some(f => Math.hypot(f.x - X, f.y - Y) < 130) || places.some(st => Math.hypot(st.x - X, st.y - Y) < 40) || overs.some(o => X + 6 > o.x0 && X - 6 < o.x1 && Y + 4 > o.y0 && Y - 14 < o.base)) continue;
+        fish.push({ x: X, y: Y, d, run: 0, ice: true, seed: tx * 211 + ty * 13 });
+      } }
     const hashOf = (x, y) => { let v = Math.imul(x, 374761393) + Math.imul(y, 668265263); v = Math.imul(v ^ (v >>> 13), 1274126177); return (v ^ (v >>> 16)) >>> 0; };      // (a grain to it, with no pattern in it)
     for (let y0 = 0; y0 < H; y0 += STRIP) {
       const hh = Math.min(STRIP, H - y0), top = y0 > 0 ? 1 : 0;      // (with the row above it, to know what is over each dot)
@@ -2771,7 +2786,22 @@ const provAt = (x, y, wide, kind) => provRec.at(x, y, wide, kind);
 // out here he stood twice the height of a house and three times that of a cow. Whatever he is drawn into on the slate
 // is marked, and is painted at PROV.FIG of its size (provRec.paint): three-quarters, which sets him beside a mule, a
 // cart and a farmhouse door about as he should be.
-function provMan(ctx, x, y, o) { const g = provRec.here(); if (g && ctx === provRec.ctx) g.folk = true; vilPerson(ctx, x, y, o); }
+function provMan(ctx, x, y, o) { const g = provRec.here(); if (g && ctx === provRec.ctx) g.folk = true; vilPerson(ctx, x, y, o); provBreath(ctx, x, y, o); }
+// Breath, in the cold. In winter whoever is out in the province breathes a little cloud: it comes from his mouth,
+// goes up and forward and is gone, and comes again; quicker from a man walking than from one standing. Not seen from
+// behind him. (Each has his own time for it, by what he wears, so that a file of men do not all breathe together.)
+function provBreath(ctx, x, y, o) {
+  if (prov.landSe !== 3 || o.face === 'up') return;
+  const key = (o.tunic || '') + (o.hair || ''); let seed = 0; for (let i = 0; i < key.length; i++) seed += key.charCodeAt(i) * (i + 3);
+  const t = o.t !== undefined ? o.t : performance.now() / 1000, u = t * (o.moving ? 0.6 : 0.38) + seed * 0.0731 + (o.moving ? 0 : x * 0.013), p = (u - Math.floor(u)) / 0.5; if (p > 1) return;
+  // a small cloud that grows as it goes: white, with a grey underside to it, since it has to show against snow as
+  // well as against a dark wood
+  const side = o.face === 'left' || o.face === 'right', d = o.face === 'left' ? -1 : 1, was = ctx.globalAlpha, w = p < 0.25 ? 1 : p < 0.6 ? 2 : 3, hh = p < 0.25 ? 1 : 2;
+  const bx = Math.round(side ? x + d * 3 + d * p * 5 - (d < 0 ? w - 1 : 0) : x + 1 + p * 2), by = Math.round(y - 11 - p * 5) - hh + 1;
+  ctx.globalAlpha = was * 0.7 * (1 - p * p); ctx.fillStyle = '#7d90aa'; ctx.fillRect(bx, by + 1, w, hh);
+  ctx.globalAlpha = was * 0.9 * (1 - p * p); ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, w, hh);
+  ctx.globalAlpha = was;
+}
 // The outline of something that stands tall (a tree, a tower, a pier of the aqueduct: see overs, in provLand), for its
 // shadow: how far it reaches to left and right at each height above its foot, three numbers to a height. It is found the
 // first time it is wanted, by having the thing painted once on a slate that only takes note of where the paint went.
@@ -3001,13 +3031,27 @@ function provFlush(x, y) {
 // (prov.fish: where, set down as the land is painted). He stands with his rod out over the water and his creel by
 // him; the float lies and nods, and on the river goes down with the stream until it is cast again. At the end of
 // each cast it goes under, the rod comes up, and there is a fish on the line or there is not. Not every bank is
-// fished on a given day, and nobody is out after dark or in the rain.
+// fished on a given day, and nobody is out after dark or in the rain. In winter the lakes are fished through the ice.
 function drawAnglers(ctx, T, R, inView) {
   const fish = prov.fish; if (!fish || !fish.length || (prov.darkNow || 0) > 0.3 || prov.rainy) return;
   const day = Math.floor((typeof G !== 'undefined' && G.day) || 0), wood = '#6b4f2c', gut = 'rgba(240,240,228,.62)', summer = typeof sceneSeason === 'function' && sceneSeason() === 1;
   for (let j = 0; j < fish.length; j++) {
     const A = fish[j], hv = q => wildHash(A.seed, q + day * 7, 1950);
     if (hv(1) > (A.pier ? 0.75 : 0.6) || !inView(A.x, A.y, 30) || !wildSeen(A.x, A.y)) continue;
+    if (A.ice) {      // in winter, on a lake: out on the ice with a hole cut in it, a short stick and a line down the hole; hooded against the cold, and what he has caught lying by him
+      if (prov.landSe !== 3) continue;
+      const x = A.x, y = A.y, d = A.d, hx = x + d * 6, u = T / (15 + hv(2) * 12) + hv(3) * 9, cast = Math.floor(u), f = u - cast, luck = wildHash(A.seed, cast, 1951), up = f > 0.88, jig = !up && Math.sin(T * 2.6 + A.seed) > 0.5 ? 1 : 0;
+      const wool = ['#6a5a4a', '#5a5046', '#7a6a52', '#4f5a5a'][Math.floor(hv(4) * 4)];
+      provAt(x, y + 1, 7);
+      R(hx - 3, y - 1, 7, 4, '#f4f8fb'); R(hx - 4, y, 1, 2, '#f4f8fb'); R(hx + 4, y, 1, 2, '#f4f8fb'); R(hx - 2, y, 5, 2, '#27425c'); R(hx - 1, y, 2, 1, '#4f7396'); R(hx - 3, y + 3, 7, 1, '#b9cbdb');      // the hole, and the ice chipped out of it heaped round
+      for (let q = 0, n = hv(6) > 0.65 ? 2 : hv(6) > 0.3 ? 1 : 0; q < n; q++) { const fx = x - d * (7 + q * 4); R(fx, y + q, 3, 1, '#6f8496'); R(fx + 1, y + q, 1, 1, '#b9c6d2'); R(fx + (d > 0 ? -1 : 3), y + q, 1, 1, '#46586a'); }      // his catch, on the ice behind him (dark, to be seen on it)
+      provMan(ctx, x, y + 1, { face: d > 0 ? 'right' : 'left', t: T, walk: 0, moving: false, tunic: wool, hair: hv(5) > 0.5 ? '#8a8a8a' : '#3a2a1c', hood: shade(wool, 0.68) });
+      R(x + d * 3, y - 8 - jig, 1, 1, wood); R(x + d * 4, y - 9 - jig, 1, 1, wood); R(x + d * 5, y - 10 - jig, 1, 1, wood);      // the stick
+      const cord = 'rgba(58,66,78,.7)';      // (a dark line: a pale one would not show against the ice)
+      if (up) { for (let q = 0; q < 5; q++) R(hx, y - 10 + q, 1, 1, cord); if (luck > 0.4) { const wag = Math.sin(T * 18) > 0 ? 1 : 0; R(hx - (d > 0 ? 0 : 1), y - 5, 2, 3, '#6f8496'); R(hx - (d > 0 ? 0 : 1), y - 5, 1, 3, '#b9c6d2'); R(hx - 1 + wag, y - 2, 2, 1, '#46586a'); } }      // drawn up, and what is on it
+      else for (let q = 0; q < 10 + jig; q++) R(hx, y - 10 - jig + q, 1, 1, cord);
+      continue;
+    }
     const x = A.x, y = A.y, d = A.d, u = T / (13 + hv(2) * 12) + hv(3) * 9, cast = Math.floor(u), f = u - cast, luck = wildHash(A.seed, cast, 1951), bite = f > 0.86, up = f > 0.9;
     const tunic = ['#8a6a4a', '#5a6a7a', '#7a6a4a', '#6a7a4a', '#9a8a6a'][Math.floor(hv(4) * 5)], hair = hv(5) > 0.6 ? '#8a8a8a' : hv(5) > 0.3 ? '#3a2a1c' : '#6a4a2a';
     provAt(x, y, 6);
@@ -3985,7 +4029,8 @@ function drawOccasion(ctx, T, R, W, P, kind, seed, inView) {
   }
 }
 // A beast of the roads, feet at bx, by: a mule or an ox (big), from the side or end on, stepping by the ground it covers.
-function roadBeast(R, bx, by, c, big, d, face, gait) { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, gait === 0 ? 1 : gait === 2 ? 2 : 0); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); beastLegs(R, d > 0 ? bx - (w >> 1) : bx + (w >> 1) - 1, d > 0 ? bx + (w >> 1) - 1 : bx - (w >> 1), by - 2, 3, shade(c, 0.6), d, gait, big ? shade(c, 0.42) : null); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); }
+function roadBeast(R, bx, by, c, big, d, face, gait) { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, gait === 0 ? 1 : gait === 2 ? 2 : 0); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); beastLegs(R, d > 0 ? bx - (w >> 1) : bx + (w >> 1) - 1, d > 0 ? bx + (w >> 1) - 1 : bx - (w >> 1), by - 2, 3, shade(c, 0.6), d, gait, big ? shade(c, 0.42) : null); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); if (prov.landSe === 3) { const u = performance.now() / 2600 + bx * 0.017, p = (u - Math.floor(u)) / 0.45; if (p < 1) { const qx = Math.round(d > 0 ? bx + (w >> 1) + 3 + p * 3 : bx - (w >> 1) - 4 - p * 3), qy = Math.round(by - (big ? 7 : 5) - p * 3), qw = p < 0.25 ? 1 : p < 0.6 ? 2 : 3, qh = p < 0.25 ? 1 : 2; R(d > 0 ? qx : qx - qw + 1, qy - qh + 2, qw, qh, 'rgba(125,144,170,' + (0.7 * (1 - p * p)).toFixed(2) + ')'); R(d > 0 ? qx : qx - qw + 1, qy - qh + 1, qw, qh, 'rgba(255,255,255,' + (0.9 * (1 - p * p)).toFixed(2) + ')'); } }      // (its breath, in the cold: see provBreath)
+}
 function drawTraffic(ctx, T, R, inView) {
   const occ = provOccasion();
   (prov.ways || []).forEach((way, wi) => {
@@ -4462,7 +4507,7 @@ function drawTrade(ctx, T, R, inView) {
 // who: 0 the lanista (his horse is the best of them), 1.. the men, each on a beast of a different coat.
 const HORSE_COATS = ['#d8d2c4', '#7a4a2a', '#5a3a22', '#8a5a34', '#3a2a22', '#a8703c'];
 function provRider(ctx, X, Y, o, lvl, who) {
-  if (!lvl) { vilPerson(ctx, X, Y, o); if (o.kit) provKit(ctx, X, Y, o); return; }      // (drawn straight: the column marks its own groups as men, where it sets them down)
+  if (!lvl) { vilPerson(ctx, X, Y, o); if (o.kit) provKit(ctx, X, Y, o); if (typeof provBreath === 'function') provBreath(ctx, X, Y, o); return; }      // (drawn straight: the column marks its own groups as men, where it sets them down)
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); };
   const coat = HORSE_COATS[who % HORSE_COATS.length], dk = shade(coat, 0.72), lt = shade(coat, 1.18), mane = who === 0 ? '#f4f0e6' : '#2a1c14';
   // A horse walks in four beats, as a man now walks in four moments (vilPerson): near hind, near fore, off hind, off fore,
