@@ -2787,21 +2787,9 @@ const provAt = (x, y, wide, kind) => provRec.at(x, y, wide, kind);
 // is marked, and is painted at PROV.FIG of its size (provRec.paint): three-quarters, which sets him beside a mule, a
 // cart and a farmhouse door about as he should be.
 function provMan(ctx, x, y, o) { const g = provRec.here(); if (g && ctx === provRec.ctx) g.folk = true; vilPerson(ctx, x, y, o); provBreath(ctx, x, y, o); }
-// Breath, in the cold. In winter whoever is out in the province breathes a little cloud: it comes from his mouth,
-// goes up and forward and is gone, and comes again; quicker from a man walking than from one standing. Not seen from
-// behind him. (Each has his own time for it, by what he wears, so that a file of men do not all breathe together.)
-function provBreath(ctx, x, y, o) {
-  if (prov.landSe !== 3 || o.face === 'up') return;
-  const key = (o.tunic || '') + (o.hair || ''); let seed = 0; for (let i = 0; i < key.length; i++) seed += key.charCodeAt(i) * (i + 3);
-  const t = o.t !== undefined ? o.t : performance.now() / 1000, u = t * (o.moving ? 0.6 : 0.38) + seed * 0.0731 + (o.moving ? 0 : x * 0.013), p = (u - Math.floor(u)) / 0.5; if (p > 1) return;
-  // a small cloud that grows as it goes: white, with a grey underside to it, since it has to show against snow as
-  // well as against a dark wood
-  const side = o.face === 'left' || o.face === 'right', d = o.face === 'left' ? -1 : 1, was = ctx.globalAlpha, w = p < 0.25 ? 1 : p < 0.6 ? 2 : 3, hh = p < 0.25 ? 1 : 2;
-  const bx = Math.round(side ? x + d * 3 + d * p * 5 - (d < 0 ? w - 1 : 0) : x + 2 + p * 3), by = Math.round(y - (side ? 11 : 9) - p * 5) - hh + 1;      // (from in front it starts below his eyes and to one side, so that it does not lie over his face)
-  ctx.globalAlpha = was * 0.7 * (1 - p * p); ctx.fillStyle = '#7d90aa'; ctx.fillRect(bx, by + 1, w, hh);
-  ctx.globalAlpha = was * 0.9 * (1 - p * p); ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, w, hh);
-  ctx.globalAlpha = was;
-}
+// Breath, in the cold: in winter whoever is out in the province breathes a little cloud (vilBreath, in village.js:
+// the same that the people of the town breathe).
+function provBreath(ctx, x, y, o) { if (prov.landSe === 3 && typeof vilBreath === 'function') vilBreath(ctx, x, y, o); }
 // The outline of something that stands tall (a tree, a tower, a pier of the aqueduct: see overs, in provLand), for its
 // shadow: how far it reaches to left and right at each height above its foot, three numbers to a height. It is found the
 // first time it is wanted, by having the thing painted once on a slate that only takes note of where the paint went.
@@ -4547,6 +4535,7 @@ function provRider(ctx, X, Y, o, lvl, who) {
   ctx.save(); ctx.beginPath(); ctx.rect(Math.round(X - 8), Math.round(Y - 30), 16, 26 - sit - bob); ctx.clip();
   vilPerson(ctx, X + (side ? -d : 0), Y - sit - bob, Object.assign({}, o, { moving: false }));
   ctx.restore();
+  if (typeof provBreath === 'function') provBreath(ctx, X + (side ? -d : 0), Y - sit - bob, o);      // (a man on a horse breathes as one on foot does)
   if (o.kit) provKit(ctx, X + (side ? -d : 0), Y - sit - bob, Object.assign({}, o, { moving: false }));
   if (side) {
     const F = (x, y, w, h, c) => R(d > 0 ? x : -x - w, y, w, h, c);

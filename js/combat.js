@@ -1997,7 +1997,11 @@ function renderWild(B) {
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
   const h = i => Math.abs(Math.sin((i + seed) * 127.1 + 311.7) * 43758.5453) % 1;
   const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
-  const ground = { forest: '#6f8a45', rock: '#8f8a78', camp: '#8a7650', ruin: '#7f8a55' }[k] || '#6f8a45';
+  // The ground a fight is fought on keeps the year, as the province round it does (se: 0 spring, 1 summer, 2 autumn,
+  // 3 winter): the grass fresher or drier or gone to straw, the trees lighter in spring and some of them in blossom,
+  // turned in autumn, and bare in winter but for the firs in the wood behind.
+  const se = typeof sceneSeason === 'function' ? sceneSeason() : 0;
+  const ground = ({ forest: ['#6f8a45', '#788a44', '#857a46', '#77805c'], rock: ['#8f8a78', '#908a76', '#8f8674', '#8c8a80'], camp: ['#8a7650', '#8e7a50', '#8a704c', '#857a62'], ruin: ['#7f8a55', '#888a52', '#8a7e50', '#7c8262'] }[k] || ['#6f8a45', '#788a44', '#857a46', '#77805c'])[se];
   const gD = shade(ground, 0.84), gL = shade(ground, 1.14);
 
   // ---- sky: paler toward the horizon, a low sun, a few clouds ----
@@ -2014,21 +2018,44 @@ function renderWild(B) {
   for (let n = 0; n < 620; n++) R(h(n) * 426, 84 + h(n + 900) * 154, 1 + Math.round(h(n + 5) * 2), 1, n % 2 ? gD : gL);
   const tuft = (x, y, c) => { R(x, y - 3, 1, 3, c); R(x + 1, y - 2, 1, 2, shade(c, 1.2)); R(x + 2, y - 4, 1, 4, c); R(x - 1, y - 1, 1, 1, c); };
   const stone = (x, y, w, c) => { R(x, y - 3, w, 3, c); R(x + 1, y - 4, w - 2, 1, c); R(x + 1, y - 4, w - 3, 1, shade(c, 1.25)); R(x, y - 1, w, 1, shade(c, 0.7)); R(x - 1, y, w + 3, 1, 'rgba(0,0,0,.2)'); };
+  const MASSES = [[0, -30, 15, 0], [-9, -22, 11, 1], [9, -24, 12, 2], [-2, -34, 9, 3]];      // where a tree's leaf is, about its trunk: four masses of it
   const tree = (x, y, sc, dark) => {
-    const tk = dark ? '#3a2a1c' : '#4a3320', pal = dark ? ['#27432a', '#2c4c2f', '#223b26', '#33562f'] : ['#2f5226', '#35602b', '#2a4a22', '#4a7a36'];
+    const tk = dark ? '#3a2a1c' : '#4a3320', tv = h(Math.round(x) + 1300), fir = dark && tv > 0.45;      // (fir: one of the wood behind that keeps its dark all the year)
+    let pal = dark ? ['#27432a', '#2c4c2f', '#223b26', '#33562f'] : ['#2f5226', '#35602b', '#2a4a22', '#4a7a36'], tips = ['#5a8c40', '#56883e'];
+    if (se === 0 && !dark) { pal = ['#3a6a2a', '#427a30', '#346028', '#5a9040']; tips = ['#74a850', '#6ea24c']; }
+    if (se === 2 && !fir) {      // turned: rust, gold, red, or one that holds its green
+      const q = Math.floor(tv * 3.99);
+      pal = dark ? [['#5a4222', '#6a4c26', '#4e3a1e', '#7a5a2a'], ['#6a5a26', '#7a6a2c', '#5a4c20', '#8a7a32'], ['#5a3a20', '#6a4424', '#4e321c', '#7a5028'], ['#27432a', '#2c4c2f', '#223b26', '#33562f']][q] : [['#a8622a', '#b8702e', '#8f5226', '#d08a3a'], ['#b08a2e', '#c09a36', '#96762a', '#dcae4a'], ['#8f4a26', '#a05a2c', '#7a4022', '#bf6e34'], ['#4a6a2a', '#547a30', '#405c26', '#7a9a3a']][q];
+      tips = [shade(pal[3], 1.18), shade(pal[3], 1.1)];
+    }
     R(x - 2 * sc, y - 16 * sc, 4 * sc, 16 * sc, tk); R(x - 2 * sc, y - 16 * sc, sc, 16 * sc, shade(tk, 0.7)); R(x + sc, y - 12 * sc, sc, 3 * sc, shade(tk, 1.3));
-    for (const [ox, oy, r, ci] of [[0, -30, 15, 0], [-9, -22, 11, 1], [9, -24, 12, 2], [-2, -34, 9, 3]]) blob(x + ox * sc, y + oy * sc, r * sc, r * sc, pal[ci]);
-    if (!dark) { blob(x - 5 * sc, y - 37 * sc, 5 * sc, 3 * sc, '#5a8c40'); blob(x + 6 * sc, y - 31 * sc, 4 * sc, 2 * sc, '#56883e'); }
+    if (se === 3 && !fir) {      // bare: a bough out from the head of the trunk to where each mass of leaf was, and the twigs off the end of it
+      const bt = dark ? '#33261a' : tk;
+      for (const [ox, oy, r] of MASSES) {
+        const x0 = x, y0 = y - 16 * sc, x1 = x + ox * sc, y1 = y + (oy + r * 0.4) * sc, n = Math.max(4, Math.round(Math.hypot(x1 - x0, y1 - y0)));
+        for (let q = 0; q <= n; q++) R(x0 + (x1 - x0) * q / n, y0 + (y1 - y0) * q / n, q < n * 0.5 && sc >= 1 ? 2 : 1, 1, bt);
+        for (let t = 0; t < 4; t++) { const a = (t - 1.5) * 0.62 + (ox < 0 ? -0.35 : ox > 0 ? 0.35 : 0), len = Math.round(r * 0.75 * sc); for (let q = 1; q <= len; q++) R(x1 + Math.sin(a) * q, y1 - Math.cos(a) * q, 1, 1, q > len * 0.6 ? shade(bt, 1.25) : bt); }
+      }
+      return;
+    }
+    for (const [ox, oy, r, ci] of MASSES) blob(x + ox * sc, y + oy * sc, r * sc, r * sc, pal[ci]);
+    if (!dark) { blob(x - 5 * sc, y - 37 * sc, 5 * sc, 3 * sc, tips[0]); blob(x + 6 * sc, y - 31 * sc, 4 * sc, 2 * sc, tips[1]); }
+    if (se === 0 && !dark && tv > 0.55) for (let q = 0; q < 9; q++) R(x + (h(q * 3 + Math.round(x)) - 0.5) * 26 * sc, y - (20 + h(q * 5 + Math.round(x) + 9) * 20) * sc, 1, 1, q % 2 ? '#f8e0e8' : '#ffffff');      // in blossom
   };
-  const bush = (x, y, c) => { blob(x, y - 3, 7, 4, c); blob(x - 4, y - 1, 5, 3, shade(c, 0.86)); blob(x + 2, y - 5, 4, 2, shade(c, 1.2)); };
+  // (frame: one of the dark growth along the near edge, which stays dark whatever the season)
+  const bush = (x, y, c, frame) => {
+    if (se === 2) c = frame ? '#4c4222' : h(Math.round(x) + 77) > 0.5 ? '#8a7436' : '#6f7a34';
+    if (se === 3) { const tw = frame ? '#33291c' : '#5a4e3a'; blob(x, y - 2, 6, 3, frame ? '#3a3024' : '#665a44'); for (let q = 0; q < 6; q++) R(x - 6 + q * 2.4, y - 5 - (q % 3), 1, 4 + (q % 2), tw); return; }      // in winter a bush is its twigs
+    blob(x, y - 3, 7, 4, c); blob(x - 4, y - 1, 5, 3, shade(c, 0.86)); blob(x + 2, y - 5, 4, 2, shade(c, 1.2));
+  };
 
   if (k === 'forest') {
     for (let n = 0; n < 22; n++) tree(n * 20 + h(n + 200) * 12, 76 + h(n + 210) * 4, 0.7, true);                      // the wood behind, dark and close
     for (let n = 0; n < 15; n++) tree(8 + n * 30 + h(n) * 12, 82 + h(n + 3) * 8, 1, false);
-    for (let n = 0; n < 5; n++) { const x = 30 + n * 90 + h(n + 77) * 40; ctx.fillStyle = 'rgba(255,248,200,.07)'; for (let q = 0; q < 70; q++) ctx.fillRect(Math.round(x + q * 0.5), 14 + q, 12, 1); }      // light coming down through the leaves
+    if (se !== 3) for (let n = 0; n < 5; n++) { const x = 30 + n * 90 + h(n + 77) * 40; ctx.fillStyle = 'rgba(255,248,200,.07)'; for (let q = 0; q < 70; q++) ctx.fillRect(Math.round(x + q * 0.5), 14 + q, 12, 1); }      // light coming down through the leaves
     for (let n = 0; n < 24; n++) bush(h(n + 60) * 428, 86 + h(n + 70) * 7, n % 3 ? '#3f6a30' : '#4a7a36');
     const lx = 60 + h(1) * 260; R(lx, 100, 44, 6, '#5a4026'); R(lx, 100, 44, 2, '#74552f'); R(lx - 2, 100, 3, 6, '#8a6a3a'); R(lx - 1, 102, 1, 2, '#5a4026'); R(lx + 12, 97, 2, 4, '#5a4026'); for (let q = 0; q < 4; q++) R(lx + 6 + q * 9, 104, 4, 2, '#4f7a3a');      // a fallen trunk, mossed over
-    for (let n = 0; n < 160; n++) R(h(n + 400) * 426, 92 + h(n + 410) * 146, 2, 1, ['#8a6a3a', '#a8762e', '#6a5a2a'][n % 3]);          // last year's leaves
+    for (let n = 0; n < (se === 2 ? 420 : 160); n++) R(h(n + 400) * 426, 92 + h(n + 410) * 146, 2, 1, (se === 2 ? ['#c9822e', '#a8562a', '#d9a23a'] : ['#8a6a3a', '#a8762e', '#6a5a2a'])[n % 3]);          // last year's leaves; and in autumn this year's, coming down
     for (let n = 0; n < 9; n++) { const x = h(n + 500) * 420, y = 100 + h(n + 510) * 120; R(x, y - 2, 1, 2, '#e8dcc0'); R(x - 1, y - 3, 3, 1, n % 2 ? '#b8452e' : '#c9a763'); }      // mushrooms
   } else if (k === 'rock') {
     for (let x = 0; x < 428; x += 3) {           // the cliff: banded, ledged, cracked
@@ -2079,10 +2106,10 @@ function renderWild(B) {
     for (let n = 0; n < 10; n++) bush(h(n + 60) * 428, 88 + h(n + 70) * 6, '#57863a');
   }
   // ---- grass and stones about the place, and darker growth along the near edge to frame the fight ----
-  const tc = k === 'rock' ? '#7a8456' : k === 'camp' ? '#7f8a4a' : '#4f7a34';
+  const tc = se === 3 ? '#8c8862' : se === 2 ? '#8a8440' : k === 'rock' ? '#7a8456' : k === 'camp' ? '#7f8a4a' : '#4f7a34';      // (grass: gone to straw by autumn, and paler still in winter)
   for (let n = 0; n < (k === 'camp' ? 40 : 90); n++) tuft(h(n + 1000) * 424, 94 + h(n + 1010) * 142, n % 4 ? tc : shade(tc, 1.2));
   for (let n = 0; n < (k === 'rock' ? 0 : 9); n++) stone(h(n + 1100) * 410, 104 + h(n + 1110) * 126, 5 + Math.round(h(n + 1120) * 5), '#8a8371');
-  for (let n = 0; n < 26; n++) { const x = n * 17 + h(n + 1200) * 10; bush(x, 240 + h(n + 1210) * 3, shade(tc, 0.6)); }
+  for (let n = 0; n < 26; n++) { const x = n * 17 + h(n + 1200) * 10; bush(x, 240 + h(n + 1210) * 3, shade(tc, 0.6), true); }
   for (let n = 0; n < 5; n++) R(0, 78 + n * 4, 428, 4, `rgba(20,30,10,${(0.3 * (1 - n / 5)).toFixed(3)})`);
   for (let n = 0; n < 4; n++) R(0, 224 + n * 4, 428, 4, `rgba(15,20,8,${(0.06 + n * 0.05).toFixed(3)})`);
   return cv;

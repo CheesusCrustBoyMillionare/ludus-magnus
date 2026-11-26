@@ -95,6 +95,7 @@ function yardPerson(ctx, X, Y, d, o) {
     if (hsh % 3 === 0) U(-4, -12, 8, 1, shade(o.tunic, 1.3));
     if (hsh % 6 === 3) { U(-5, -27, 3, 13, shade(o.tunic, 0.58)); U(-5, -27, 9, 2, shade(o.tunic, 0.58)); }
   }
+  if (sceneCold) sceneBreath(ctx, X + d * 4, Y - 30 - ub, d, hsh, !!o.moving);      // in winter, out of doors, he breathes a cloud
 }
 
 // The yard turns through a day every four minutes: a long day, a short dusk, night, and dawn.
@@ -166,6 +167,17 @@ function sceneRain(ctx, w, h, T, amt, n) {
 }
 
 // ---------- the sky, the far country, the light and the air, shared by every scene that has them ----------
+let sceneCold = false;      // winter, and out of doors: whoever is drawn in the scene that is drawing breathes a cloud (sceneBreath). The scene sets it.
+// Breath in the cold, for the people of the yard and of the places, who are drawn twice the size of those in the town
+// (whose breath is vilBreath, in village.js). From a mouth at x, y, going the way he faces (d): a small cloud that
+// grows as it goes, white with a grey underside, and is gone; quicker from a man at work than from one standing.
+function sceneBreath(ctx, x, y, d, seed, moving) {
+  const u = performance.now() / 1000 * (moving ? 0.6 : 0.38) + seed * 0.0731, p = (u - Math.floor(u)) / 0.5; if (p > 1) return;
+  const w = p < 0.25 ? 2 : p < 0.6 ? 4 : 5, hh = p < 0.25 ? 2 : 3, bx = Math.round(d > 0 ? x + p * 9 : x - p * 9 - w + 1), by = Math.round(y - p * 9) - hh + 1, was = ctx.globalAlpha;
+  ctx.globalAlpha = was * 0.7 * (1 - p * p); ctx.fillStyle = '#7d90aa'; ctx.fillRect(bx, by + 1, w, hh);
+  ctx.globalAlpha = was * 0.9 * (1 - p * p); ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, w, hh);
+  ctx.globalAlpha = was;
+}
 let sceneSun = 1;      // which way shadows fall: 1 to the right (the light is in the east, on the left), -1 to the left
 let sceneLow = 0;      // how low the sun stands, 0 at noon to 1 at the horizon: the scene that is drawing sets it, and shadows lengthen by it
 
@@ -500,6 +512,7 @@ function drawYard(cv, T) {
   const signs = [], sign = (x, y, text) => { if (!signs.length) late.push(() => { signsApart(signs); for (const q of signs) sceneSign(ctx, q.x, q.y, q.text, false); }); signs.push({ x, y, text }); };
   const sky = yardSky(T), lights = [], fires = [], perches = [];
   const wx = yardWeather(T);
+  sceneCold = sceneSeason() === 3;      // (winter: everybody in the yard breathes a cloud: see sceneBreath)
   // Snow lying (wx.white: how much of it, 0 to 1). It lies on whatever has a top to hold it: snowOn lays it along one,
   // so many lines deep and whole (solid), and then ragged below that, deeper in some places than others (ragged).
   const snowK = Math.min(1, (wx.white || 0) * 1.5);
@@ -875,6 +888,7 @@ function drawYard(cv, T) {
       const sp = Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o);
       if (guestNear(x, y) && !sp.moving && !sp.down && !sp.falling && !sp.windup && !sp.atkAnim) sp.facing = yardGuest.x > x ? 1 : -1;      // a man with nothing in his hands turns to his master when he comes by
       drawSprite(ctx, sp);
+      if (sceneCold && !sp.down && !sp.falling && !g.beast) sceneBreath(ctx, x + sp.facing * 5, y - 40, sp.facing, g.id * 37 + 11, !!sp.moving || !!sp.atkAnim);      // and the men at their training
       if (g.id === ui.sel) { R(x - 2, y - 52, 5, 2, '#e8b545'); R(x - 1, y - 50, 3, 1, '#e8b545'); R(x, y - 49, 1, 1, '#e8b545'); }
       // a name is skipped when it would sit on top of one already drawn; the selected fighter always gets his
       const half = g.name.length * 1.9 + 2, clash = names.some(n => Math.abs(n.x - x) < n.half + half && Math.abs(n.y - y) < 8);

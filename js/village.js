@@ -283,6 +283,23 @@ function vilPerson(ctx, X, Y, o) {
     B(-3, -16, 7, 2, o.hood); B(-3, -14, 1, 3, o.hood); B(3, -14, 1, 3, o.hood); B(-3, -10, 7, 1, o.hood);
     if (f === 'up') B(-2, -14, 5, 4, o.hood); else if (f === 'left') B(1, -14, 2, 3, o.hood); else if (f === 'right') B(-2, -14, 2, 3, o.hood);
   }
+  if (vil.cold) vilBreath(ctx, X, Y, o);      // (in the town, in winter: see drawVillage. Out in the province it is asked for by whoever draws him there: provBreath)
+}
+// Breath, in the cold. In winter whoever is out of doors breathes a little cloud: it comes from his mouth, goes up
+// and forward and is gone, and comes again; quicker from a man walking than from one standing. Not seen from behind
+// him. (Each has his own time for it, by what he wears, so that a file of men do not all breathe together.) Feet at
+// x, y; o as vilPerson takes it.
+function vilBreath(ctx, x, y, o) {
+  if (o.face === 'up') return;
+  const key = (o.tunic || '') + (o.hair || ''); let seed = 0; for (let i = 0; i < key.length; i++) seed += key.charCodeAt(i) * (i + 3);
+  const t = o.t !== undefined ? o.t : performance.now() / 1000, u = t * (o.moving ? 0.6 : 0.38) + seed * 0.0731 + (o.moving ? 0 : x * 0.013), p = (u - Math.floor(u)) / 0.5; if (p > 1) return;
+  // a small cloud that grows as it goes: white, with a grey underside to it, since it has to show against snow as
+  // well as against a dark wood
+  const side = o.face === 'left' || o.face === 'right', d = o.face === 'left' ? -1 : 1, was = ctx.globalAlpha, w = p < 0.25 ? 1 : p < 0.6 ? 2 : 3, hh = p < 0.25 ? 1 : 2;
+  const bx = Math.round(side ? x + d * 3 + d * p * 5 - (d < 0 ? w - 1 : 0) : x + 2 + p * 3), by = Math.round(y - (side ? 11 : 9) - p * 5) - hh + 1;      // (from in front it starts below his eyes and to one side, so that it does not lie over his face)
+  ctx.globalAlpha = was * 0.7 * (1 - p * p); ctx.fillStyle = '#7d90aa'; ctx.fillRect(bx, by + 1, w, hh);
+  ctx.globalAlpha = was * 0.9 * (1 - p * p); ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, w, hh);
+  ctx.globalAlpha = was;
 }
 
 // Everything that does not move, drawn once.
@@ -891,7 +908,9 @@ function drawVillage(cv, T) {
     vilPerson(ctx, 0, 0, Object.assign(look, vil.enter ? { face: 'up', moving: true, walk: T * 14 } : { face: 'down', moving: true, walk: T * 14 }));
     ctx.restore();
   } });
+  vil.cold = (typeof seasonNo === 'function' ? seasonNo(G.day) : 0) === 3;      // in winter everybody in the streets breathes a little cloud (vilBreath)
   folk.sort((p, q) => p.y - q.y).forEach(p => p.draw());
+  vil.cold = false;
   // two who have stopped near each other have something to say; so have those who stand about talking all day. Rest
   // the mouse on any of them and what they are saying is read out (see the foot of this function): the talk of the town.
   for (let i = 0; i < abroad; i++) for (let j = i + 1; j < abroad; j++) {

@@ -54,6 +54,7 @@ function drawPlace(cv, T, tab) {
   let ctx = main;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   const sky = yardSky(T), wx = yardWeather(T), late = [], lamps = [], fires = [], shafts = [];
+  sceneCold = !scene.indoor && sceneSeason() === 3;      // (winter, and out of doors: whoever is in the picture breathes a cloud: see sceneBreath, in yard.js)
   const snowK = scene.indoor ? 0 : Math.min(1, (wx.white || 0) * 1.5);      // snow lying out of doors: on the ground (see paving, below), on the hills, and on the top of whatever stands there (placeSnowCaps)
   if (wx.over > 0) {
     const grey = mixHex('#8d98a3', '#1a2030', sky.night);
