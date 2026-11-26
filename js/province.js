@@ -891,6 +891,14 @@ function* provLandSteps(fresh) {
     olive: ['#557a50', '#74986a', '#90b084'], yew: ['#21402a', '#2d5236', '#3a6442'], gold: ['#b0842a', '#d4a43a', '#ecc85c'], russet: ['#8f4422', '#b45f2c', '#cf8040'] };
   const tree = (cx, cy, kind, sz, f) => {
     const C = c => tint(c, f);
+    // A tree is something to go behind. As it is painted it is kept, with the ground it covers, so that the map can paint
+    // it again over whoever is north of the foot of it (provRec.paint): thinly, if that is the column or a roaming band,
+    // so that they are seen through the leaves and never lost in a wood.
+    if (!solid) {
+      const spire = kind === 'cypress' || kind === 'poplar', needle = kind === 'pine' || kind === 'fir' || kind === 'larch', bare = kind === 'dead' || kind === 'burnt', broad = !spire && !needle && !bare && kind !== 'stone' && kind !== 'birch' && kind !== 'willow';
+      const wd = spire ? 1 : bare ? 3 : broad ? Math.ceil(sz * 1.7) : sz + 1, up = spire ? sz * 2 + 8 : needle ? 6 + (2 + Math.floor(sz / 2)) * 2 : broad ? 4 + Math.ceil(sz * 1.8) : sz + 6;
+      overs.push({ x0: cx - wd, x1: cx + wd + 1, y0: cy - up, base: cy + 1, tree: true, d: () => tree(cx, cy, kind, sz, f) });
+    }
     R(cx - sz - 1, cy + 1, sz * 2 + 3, 2, 'rgba(0,0,0,.2)');
     if (kind === 'pine' || kind === 'fir' || kind === 'larch') {
       const dk = kind === 'fir' ? '#27483a' : kind === 'larch' ? '#5a7a34' : '#2c5230', lt = kind === 'fir' ? '#3c6450' : kind === 'larch' ? '#84a04c' : '#437046', tiers = 2 + Math.floor(sz / 2);
@@ -2327,7 +2335,8 @@ function provLandAhead() {
     const until = performance.now() + clamp(dl && dl.timeRemaining ? dl.timeRemaining() : 0, 6, 10);      // six at least: some browsers own to almost no idle time, and the job must still get done
     try { while (!prov.land) { provLandStep(); if (performance.now() >= until) break; } }      // (it may have been finished at the gate meanwhile)
     catch (e) { console.error(e); prov.ahead = -1; return; }      // not tried again here: provLand will, and will say why, when the map is wanted
-    if (prov.land) prov.ahead = 0; else wait();
+    if (prov.land) { prov.ahead = 0; const soon = () => { try { provChart(FOG_CHART, true); } catch (e) { console.error(e); } }; if (idle) requestIdleCallback(soon, { timeout: 2000 }); else setTimeout(soon, 200); }      // and the chart that lies under the fog, while nobody is waiting for it
+    else wait();
   };
   wait();
 }
@@ -2387,7 +2396,9 @@ const provRec = (() => {
       const order = list.slice();
       if (prov.overs && prov.paintOver) for (const o of prov.overs) {
         if (o.x1 < camX - 40 || o.x0 > camX + PROV.VW + 40 || o.base < camY - 40 || o.y0 > camY + PROV.VH + 40) continue;
-        for (const g of list) if (g.y < o.base && g.y > o.y0 - 2 && g.x + g.wide > o.x0 && g.x - g.wide < o.x1) { order.push({ y: o.base, i: 1e9, over: o }); break; }
+        let hit = false, seen = false;      // (a tree with the column or a band behind it is painted thinly: see the tree, in provLand)
+        for (const g of list) if (g.y < o.base && g.y > o.y0 - 2 && g.x + g.wide > o.x0 && g.x - g.wide < o.x1) { hit = true; if (!o.tree) break; if (g.ink) { seen = true; break; } }
+        if (hit) order.push({ y: o.base, i: 1e9, over: o, a: seen ? 0.45 : 1 });
       }
       order.sort((a, b) => a.y - b.y || a.i - b.i);
       if (sun && sun.a > 0.01) {      // the shadows: all on one sheet, so that where two cross it is no darker, and the sheet laid on the ground
@@ -2407,7 +2418,7 @@ const provRec = (() => {
       }
       let al = 1;
       for (const g of order) {
-        if (g.over) { if (al !== 1) to.globalAlpha = al = 1; prov.paintOver(to, g.over.d); continue; }
+        if (g.over) { if (al !== g.a) to.globalAlpha = al = g.a; prov.paintOver(to, g.over.d); continue; }
         if (g.ink) { if (al !== 1) to.globalAlpha = al = 1; to.fillStyle = PROV_INK; for (let i = g.from; i < g.to; i++) if (solid(i)) { to.fillRect(X[i] - 1, Y[i], W[i] + 2, H[i]); to.fillRect(X[i], Y[i] - 1, W[i], H[i] + 2); } }
         for (let i = g.from; i < g.to; i++) { if (A[i] !== al) to.globalAlpha = al = A[i]; to.fillStyle = C[i]; to.fillRect(X[i], Y[i], W[i], H[i]); }
       }
@@ -2719,12 +2730,17 @@ function drawTown(ctx, T, R, tx, ty, tr, night) {
 // What moves at the landmarks. The land is painted once; these are drawn over it each frame: the beacon's fire, the
 // mill wheel going round, steam off the hot spring, a flag on the watchtower, men at their work. After dark the
 // windows of every house out in the country show a light.
-function drawMarks(ctx, T, R, inView, night, smoke) {
-  const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => provGlow(ctx, gx, gy, r, c, a);
-  const man = (mx, my, o) => vilPerson(ctx, mx, my, Object.assign({ face: 'right', walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c' }, o));
+// It draws on the slate (provRec), with everything else that moves. Whoever goes about a landmark stands for himself
+// there (man, beast): he is put in his turn among the travellers and the column, throws a shadow, and puts his hood up
+// in the rain. The rest of a landmark's dressing (a flag, a window, a wheel) is one thing, standing just south of where
+// its people walk, so that it is painted after them as it always was. Its lamps are lit on the map itself (light).
+function drawMarks(ctx, T, R, inView, night, smoke, light) {
+  const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => provGlow(light || ctx, gx, gy, r, c, a);
+  const apart = (x, y, wide, draw) => { const back = provRec.here(); provAt(x, y, wide); draw(); if (back) provAt(back.x, back.y, back.wide, 'flat'); };      // one of them, and then the dressing goes on
+  const man = (mx, my, o) => apart(mx, my, 6, () => vilPerson(ctx, mx, my, Object.assign({ face: 'right', walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c', hood: prov.rainy ? '#5a4a38' : null }, o)));
   const pace = (x0, x1, sp, ph) => { const u = (T * sp + ph) % 2, f = u < 1 ? u : 2 - u; return { x: Math.round(x0 + (x1 - x0) * f), face: (u < 1) === (x1 > x0) ? 'right' : 'left' }; };
   // more that moves, and what is lit after dark, for the landmarks that had little of either
-  const beast = (bx, by, c, d) => { R(bx - 1, by + 3, 6, 1, 'rgba(0,0,0,.2)'); R(bx, by, 5, 3, c); R(d > 0 ? bx + 4 : bx - 2, by - 1 + (Math.sin(T * 1.7 + bx) > 0.3 ? 2 : 0), 3, 2, c); R(bx + 1, by + 3, 1, 1, '#2a1c14'); R(bx + 3, by + 3, 1, 1, '#2a1c14'); };
+  const beast = (bx, by, c, d) => apart(bx + 2, by + 4, 5, () => { R(bx - 1, by + 3, 6, 1, 'rgba(0,0,0,.2)'); R(bx, by, 5, 3, c); R(d > 0 ? bx + 4 : bx - 2, by - 1 + (Math.sin(T * 1.7 + bx) > 0.3 ? 2 : 0), 3, 2, c); R(bx + 1, by + 3, 1, 1, '#2a1c14'); R(bx + 3, by + 3, 1, 1, '#2a1c14'); });
   const win = (wx, wy, w, hh) => { if (!lit) return; R(wx, wy, w, hh, '#f5c04a'); glow(wx + 1, wy + 1, 9, '255,180,90', 0.06); };
   const MORE = {
     'The fallen colossus': (x, y) => { const pc = pace(x + 8, x + 34, 0.03, 0.2); beast(pc.x, y + 13, '#f1ead8', pc.face === 'right' ? 1 : -1); beast(x + 44, y + 12, '#e8e0cc', -1); const dz = Math.floor(T * 0.4) % 3; R(x + 3 + dz * 4, y - 3, 2, 1, '#5f8f3a'); R(x + 5 + dz * 4, y - 3, 1, 1, '#7aa84a'); for (let q = 0; q < 2; q++) { const an = T * 1.6 + q * 3; R(x + 24 + Math.cos(an) * 6, y + Math.sin(an * 1.4) * 4, 1, 1, q ? '#f4f4f0' : '#e8c040'); } },      // sheep grazing round it, a lizard on its brow, butterflies
@@ -2783,6 +2799,7 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
   };
   for (const m of (prov.marks || [])) {
     if (!inView(m.x, m.y, 70) || !wildSeen(m.x + m.r, m.y)) continue;
+    provAt(m.x + m.r, m.y + 20, m.r + 20, 'flat');      // its dressing: see above
     if (!m.dw && AFTER[m.name]) AFTER[m.name](m.x + m.r, m.y + 14, m);
     if (m.dw) {                                // somebody about the yard, or the hens, or the dog: each dwelling has its own
       if (m.name === 'A windmill') {             // the sails, going round as fast as the wind over that hill
@@ -2872,6 +2889,7 @@ function drawMarks(ctx, T, R, inView, night, smoke) {
   }
   if (lit) {                                     // lights in the windows, out in the country
     const la = Math.min(1, (night - 0.3) * 3);
+    provAt(0, -1e6, 0, 'flat');      // under whoever is abroad
     for (const l of (prov.lights || [])) { if (!inView(l.x, l.y, 20) || !wildSeen(l.x, l.y) || wildHash(l.x, l.y, 1330) < 0.2) continue; ctx.globalAlpha = la; R(l.x - 1, l.y - 1, 2, 2, wildHash(l.y, l.x, 1331) > 0.5 ? '#f5c04a' : '#e8a040'); ctx.globalAlpha = 1; glow(l.x, l.y, 9, '255,180,90', (0.05 * la).toFixed(3)); }
   }
 }
@@ -4264,6 +4282,20 @@ function provSeason(ctx, x0, y0, w, h, step, wx) {
     else if (k === T_PEAK || k === T_HILL ? v > 0.25 : k === T_FOREST ? v > 0.6 : (k === T_GRASS || k === T_MEADOW || k === T_ROAD) && v > 0.82) { ctx.fillStyle = k === T_PEAK || k === T_HILL ? 'rgba(250,252,255,.8)' : 'rgba(244,248,252,.6)'; ctx.fillRect(px, py, k === T_PEAK || k === T_HILL ? 3 : 2, 1); }
   }
 }
+// A place that is marked for you is gone round with the dark line the column has, so that it is picked out among the
+// rest at a glance. Its picture is not made of plain paint as a man is (it has lamps that add their light, and stains),
+// so the line is found another way: the picture is drawn once on a slip of its own, and wherever there is nothing next
+// to something the line goes.
+function provInkIcon(ctx, s, T) {
+  const N = 80, ox = 40, oy = 50, slip = prov.inkCv || (prov.inkCv = Object.assign(document.createElement('canvas'), { width: N, height: N })), c = slip.getContext('2d', { willReadFrequently: true }), lit = prov.lit;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, N, N);
+  prov.lit = null;      // its lamps are counted when it is painted in earnest, not here
+  try { c.translate(ox - Math.round(s.x), oy - Math.round(s.y)); provIcon(c, s, T, false); }
+  finally { prov.lit = lit; c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
+  const d = c.getImageData(0, 0, N, N).data, on = (x, y) => x >= 0 && y >= 0 && x < N && y < N && d[(y * N + x) * 4 + 3] > 200, X0 = Math.round(s.x) - ox, Y0 = Math.round(s.y) - oy;
+  ctx.fillStyle = PROV_INK;
+  for (let y = 0; y < N; y++) { let from = -1; for (let x = 0; x <= N; x++) { const edge = x < N && !on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)); if (edge) { if (from < 0) from = x; } else if (from >= 0) { ctx.fillRect(X0 + from, Y0 + y, x - from, 1); from = -1; } } }
+}
 // Everything that moves, set down on the slate (see provRec) for drawProvince to paint in one turn: the boats, the
 // herds, whoever is on the roads, the roaming bands and the column.
 function provMovers(ctx, T, R, inView) {
@@ -4404,11 +4436,13 @@ function drawProvince(cv, T) {
     if (lamps) for (const [lx, ly, lr] of [[-31, -12, 20], [-12, -16, 18], [-30, 4, 18], [-8, 2, 20], [10, -6, 16], [22, 3, 9]]) provGlow(ctx, tx + lx, ty + ly, lr, '255,180,90', (0.035 * lamps).toFixed(3)); }      // the town, lit: its streets, and a torch at the east gate
   // places: the ones you have come upon, and anything a clue has marked
   const sites = wildSites();
-  for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; provIcon(ctx, s, T, siteDone(s)); }
+  for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; if (M.marks[s.id] && !siteDone(s)) provInkIcon(ctx, s, T); provIcon(ctx, s, T, siteDone(s)); }
   // Everything that moves: north to south, so that whoever is nearer is in front, each with its shadow under it, and
   // whatever stands tall painted again over those behind it (provRec).
+  // smoke: from the town's hearths, and from any hearth or camp you can see
+  const smoke = (sx, sy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(sx + Math.sin(q * 5 + i) * 3 + q * 6, sy - q * 22, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
   prov.rainy = wx.rain > 0.25 || wx.snow > 0.25; prov.dry = !prov.rainy && !(wx.wet > 0.25) && !(wx.white > 0.2);      // hoods go up in the one, and dust rises off the roads in the other
-  provRec.begin(); provMovers(provRec.ctx, T, provRec.R, inView);
+  provRec.begin(); provMovers(provRec.ctx, T, provRec.R, inView); drawMarks(provRec.ctx, T, provRec.R, inView, dark, smoke, ctx);
   provRec.paint(ctx, camX, camY, provSun(sky, wx));
   if (lamps) provRec.lamps(g => {      // those who carry a light: the flame of it, and its round on the ground
     const lx = Math.round(g.x) + 4, ly = Math.round(g.y) - 11, fl = Math.sin(T * 11 + g.x) > 0 ? 1 : 0;
@@ -4424,7 +4458,6 @@ function drawProvince(cv, T) {
     ctx.globalAlpha = 0.5 + 0.4 * Math.sin(T * 6); R(e.x - 3, e.y - 1, 7, 2, '#f5d584'); R(e.x - 1, e.y - 3, 2, 7, '#f5d584'); ctx.globalAlpha = 1;
   }
   // smoke from the town's hearths, and from any camp you can see
-  const smoke = (sx, sy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(sx + Math.sin(q * 5 + i) * 3 + q * 6, sy - q * 22, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
   if (inView(tx, ty, 70)) { smoke(tx + 12, ty + 1, 4); smoke(tx - 18, ty + 2, 3); smoke(tx - 6, ty - 22, 3); }
   // the water running in the aqueduct, down from the hills to the town: light travelling along the channel
   if (prov.aqLine) { const L2 = prov.aqLine, lens = []; let tot = 0; for (let q = 0; q < L2.length - 1; q++) { lens.push(Math.hypot(L2[q + 1][0] - L2[q][0], L2[q + 1][1] - L2[q][1])); tot += lens[q]; }
@@ -4437,7 +4470,6 @@ function drawProvince(cv, T) {
       R(gx - 1, gy - 10, steep ? 1 : 2, steep ? 2 : 1, q % 3 ? '#b4d6ea' : '#e6f3fa'); if (q % 4 === 0) R(steep ? gx : gx + 2, steep ? gy - 8 : gy - 10, 1, 1, '#9ccbe8');
     }
   }
-  drawMarks(ctx, T, R, inView, dark, smoke);
   for (const sm of (prov.smokes || [])) if (inView(sm.x, sm.y, 30) && wildSeen(sm.x, sm.y)) smoke(sm.x, sm.y, 3);      // every hearth out in the country
   // the smoke of a place stands up over it and can be seen a long way: thin and pale from a hearth, thick and dark
   // from the fires of a camp, and the more men in the camp the higher it goes
@@ -4458,33 +4490,33 @@ function drawProvince(cv, T) {
     for (let yy = -ry; yy <= ry; yy += 3) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 3); }
   }
 
-  // fog: parchment over whatever you have not walked, with a faint sketch of what the old maps say is there
-  const Fg = WILD.FOG, L = wildLand(), ink = '#6b5334';
-  for (let fy = Math.floor(camY / Fg); fy <= Math.floor((camY + PROV.VH) / Fg); fy++) for (let fx = Math.floor(camX / Fg); fx <= Math.floor((camX + PROV.VW) / Fg); fx++) {
-    if (fogAt(fx, fy)) continue;
-    const cl = fogAt(fx - 1, fy), cr = fogAt(fx + 1, fy), cu = fogAt(fx, fy - 1), cd = fogAt(fx, fy + 1), x = fx * Fg, y = fy * Fg, v = wildHash(fx, fy, 7);
-    ctx.fillStyle = v > 0.66 ? '#d9c8a0' : v > 0.33 ? '#d7c59c' : '#d5c299';
-    if (!(cl || cr || cu || cd)) {
-      ctx.fillRect(x, y, Fg, Fg);
-      if (v > 0.8) R(x + Math.floor(v * 97) % 14, y + Math.floor(v * 53) % 14, 5, 1, '#cdb98f');
-      ctx.globalAlpha = 0.4;
-      const k = L.t[Math.min(WILD.TH - 1, fy * 2 + 1) * WILD.TW + Math.min(WILD.TW - 1, fx * 2 + 1)];
-      if (k === T_FOREST) { R(x + 9, y + 6, 1, 8, ink); R(x + 6, y + 7, 7, 1, ink); R(x + 7, y + 5, 5, 1, ink); R(x + 8, y + 9, 3, 1, ink); }
-      else if (k === T_PEAK || k === T_HILL) { for (let i = 0; i < 5; i++) { R(x + 5 + i, y + 13 - i * (k === T_PEAK ? 2 : 1), 1, 1, ink); R(x + 14 - i, y + 13 - i * (k === T_PEAK ? 2 : 1), 1, 1, ink); } }
-      else if (k === T_WATER) { R(x + 3, y + 8, 5, 1, ink); R(x + 8, y + 9, 5, 1, ink); R(x + 5, y + 13, 5, 1, ink); }
-      else if (k === T_MARSH) { R(x + 4, y + 10, 4, 1, ink); R(x + 11, y + 12, 4, 1, ink); R(x + 6, y + 6, 1, 4, ink); }
-      else if (k === T_ROAD) { R(x + 2, y + 9, 3, 1, ink); R(x + 8, y + 9, 3, 1, ink); R(x + 14, y + 9, 3, 1, ink); }
-      ctx.globalAlpha = 1;
-      continue;
-    }
-    // at the edge of what you have walked the parchment frays: each quarter of the square is whole, half or nearly gone
-    for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
-      const open = (qx ? cr : cl ? 1 : 0) + (qy ? cd : cu ? 1 : 0), X = x + qx * 10, Y = y + qy * 10;
-      if (!open) { ctx.fillRect(X, Y, 10, 10); continue; }
-      for (let py = 0; py < 10; py += 2) for (let px = 0; px < 10; px += 2) {
-        const near = Math.min(qx ? (cr ? 8 - px : 99) : (cl ? px : 99), qy ? (cd ? 8 - py : 99) : (cu ? py : 99));       // how far in from the open side
-        if (wildHash(X + px, Y + py, 3) * 9 < near + (open > 1 ? -1 : 1.5)) ctx.fillRect(X + px, Y + py, 2, 2);
+  // Fog. Over whatever you have not walked lies what the old maps say of it: the chart of the province itself (provChart),
+  // close to and faint, where there used to be the same few marks set out in rows. At the edge of what you have walked it
+  // frays: each quarter of a square is whole, half or nearly gone. The shape of it is laid down first on a sheet of its
+  // own, the chart is let through that shape and nowhere else, and the sheet is laid over the country.
+  { const Fg = WILD.FOG, sheet = prov.fogCv || (prov.fogCv = Object.assign(document.createElement('canvas'), { width: PROV.VW, height: PROV.VH })), fc = sheet.getContext('2d'); let any = false;
+    fc.globalCompositeOperation = 'source-over'; fc.clearRect(0, 0, PROV.VW, PROV.VH); fc.fillStyle = '#000';
+    for (let fy = Math.floor(camY / Fg); fy <= Math.floor((camY + PROV.VH) / Fg); fy++) for (let fx = Math.floor(camX / Fg); fx <= Math.floor((camX + PROV.VW) / Fg); fx++) {
+      if (fogAt(fx, fy)) continue;
+      any = true;
+      const cl = fogAt(fx - 1, fy), cr = fogAt(fx + 1, fy), cu = fogAt(fx, fy - 1), cd = fogAt(fx, fy + 1), x = fx * Fg - camX, y = fy * Fg - camY;
+      if (!(cl || cr || cu || cd)) { fc.fillRect(x, y, Fg, Fg); continue; }
+      for (let qy = 0; qy < 2; qy++) for (let qx = 0; qx < 2; qx++) {
+        const open = (qx ? cr : cl ? 1 : 0) + (qy ? cd : cu ? 1 : 0), X = x + qx * 10, Y = y + qy * 10;
+        if (!open) { fc.fillRect(X, Y, 10, 10); continue; }
+        for (let py = 0; py < 10; py += 2) for (let px = 0; px < 10; px += 2) {
+          const near = Math.min(qx ? (cr ? 8 - px : 99) : (cl ? px : 99), qy ? (cd ? 8 - py : 99) : (cu ? py : 99));       // how far in from the open side
+          if (wildHash(X + camX + px, Y + camY + py, 3) * 9 < near + (open > 1 ? -1 : 1.5)) fc.fillRect(X + px, Y + py, 2, 2);
+        }
       }
+    }
+    if (any) {
+      const chart = provChart(FOG_CHART, true), q = chart.width / WILD.W;
+      fc.imageSmoothingEnabled = false; fc.globalCompositeOperation = 'source-in';
+      fc.drawImage(chart, camX * q, camY * q, PROV.VW * q, PROV.VH * q, 0, 0, PROV.VW, PROV.VH);
+      fc.globalCompositeOperation = 'source-atop'; fc.fillStyle = 'rgba(220,202,162,.32)'; fc.fillRect(0, 0, PROV.VW, PROV.VH);      // old ink, gone pale
+      fc.globalCompositeOperation = 'source-over';
+      ctx.drawImage(sheet, camX, camY);
     }
   }
   ctx.globalAlpha = 1;
@@ -4601,9 +4633,11 @@ const town = F => Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y);
 // of small trees, hills and mountains drawn as hills and mountains, the marsh in tufts, the roads in brown ink, a rose
 // for the north and a bar for a day's march. It is drawn once for the size it is wanted at (w: across, in the canvas's
 // own dots) and kept; the coast is the same wandering line the country itself has (prov.wetLie).
-function provChart(w) {
-  const key = w + ':' + Math.round(marchDay());
-  if (prov.chart && prov.chartKey === key) return prov.chart;
+// (bare: the country and nothing else, as it lies under the fog close to: no border, no rose, and none of what stands
+// in the country, which is for whoever goes there to find.)
+function provChart(w, bare) {
+  const key = bare ? w + ':bare' : w + ':' + Math.round(marchDay()), kept = prov.charts || (prov.charts = {});
+  if (kept[key]) return kept[key];
   provLand();
   const L = wildLand(), TW = WILD.TW, TH = WILD.TH, p = Math.max(2, Math.round(w / TW)), W = TW * p, H = TH * p, g = Math.max(1, Math.round(p / 4));      // p: dots to a tile; g: how thick a line of ink is
   const chart = document.createElement('canvas'); chart.width = W; chart.height = H;
@@ -4683,15 +4717,15 @@ function provChart(w) {
   // the aqueduct, a dotted line down from the hills
   if (prov.aqLine) for (let q = 0; q < prov.aqLine.length - 1; q++) { const A = prov.aqLine[q], B = prov.aqLine[q + 1], n = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1]) / 10 * p / (3 * g))); for (let i = 0; i <= n; i++) R(Math.round((A[0] + (B[0] - A[0]) * i / n) / 10 * p), Math.round((A[1] + (B[1] - A[1]) * i / n - 8) / 10 * p), g, g + 1, '#6a5648'); }
   // whatever stands in the country: a roof
-  for (const m of (prov.marks || [])) { const x = Math.round((m.x + (m.dw ? 6 : 14)) / 10 * p), y = Math.round((m.y + (m.dw ? 4 : 8)) / 10 * p); R(x - g, y - g, 3 * g, 2 * g, INK); R(x - g, y - 2 * g, 3 * g, g, '#8a3a26'); }
+  if (!bare) for (const m of (prov.marks || [])) { const x = Math.round((m.x + (m.dw ? 6 : 14)) / 10 * p), y = Math.round((m.y + (m.dw ? 4 : 8)) / 10 * p); R(x - g, y - g, 3 * g, 2 * g, INK); R(x - g, y - 2 * g, 3 * g, g, '#8a3a26'); }
   // the edge of the sheet: a ruled border, barred light and dark
-  { const b = 2 * g, t = 2 * g, step = 10 * p;
+  if (!bare) { const b = 2 * g, t = 2 * g, step = 10 * p;
     R(b, b, W - 2 * b, t, INK); R(b, H - b - t, W - 2 * b, t, INK); R(b, b, t, H - 2 * b, INK); R(W - b - t, b, t, H - 2 * b, INK);
     for (let x = b; x < W - b; x += step * 2) { R(x, b, Math.min(step, W - b - x), t, '#dccaa2'); R(x, H - b - t, Math.min(step, W - b - x), t, '#dccaa2'); }
     for (let y = b; y < H - b; y += step * 2) { R(b, y, t, Math.min(step, H - b - y), '#dccaa2'); R(W - b - t, y, t, Math.min(step, H - b - y), '#dccaa2'); }
     c.strokeStyle = INK; c.lineWidth = Math.max(1, g / 2); c.strokeRect(b + 0.5, b + 0.5, W - 2 * b - 1, H - 2 * b - 1); c.strokeRect(b + t - 0.5, b + t - 0.5, W - 2 * (b + t) + 1, H - 2 * (b + t) + 1); }
   // a rose for the north, out in the sea; and under it how far a day's march goes over open ground
-  { const cx = 15 * p, cy = 156 * p, r = 6.5 * p, pt = (an, len, wide) => { const ux = Math.cos(an), uy = Math.sin(an), vx = -uy * wide, vy = ux * wide; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + vx, cy + vy); c.lineTo(cx + ux * len, cy + uy * len); c.closePath(); c.fillStyle = INK; c.fill(); c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - vx, cy - vy); c.lineTo(cx + ux * len, cy + uy * len); c.closePath(); c.fillStyle = '#eadbb6'; c.fill(); c.strokeStyle = INK; c.lineWidth = Math.max(1, g / 2); c.stroke(); };
+  if (!bare) { const cx = 15 * p, cy = 156 * p, r = 6.5 * p, pt = (an, len, wide) => { const ux = Math.cos(an), uy = Math.sin(an), vx = -uy * wide, vy = ux * wide; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + vx, cy + vy); c.lineTo(cx + ux * len, cy + uy * len); c.closePath(); c.fillStyle = INK; c.fill(); c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - vx, cy - vy); c.lineTo(cx + ux * len, cy + uy * len); c.closePath(); c.fillStyle = '#eadbb6'; c.fill(); c.strokeStyle = INK; c.lineWidth = Math.max(1, g / 2); c.stroke(); };
     c.strokeStyle = 'rgba(74,53,32,.7)'; c.lineWidth = Math.max(1, g / 2); c.beginPath(); c.arc(cx, cy, r * 0.72, 0, Math.PI * 2); c.stroke();
     for (let q = 0; q < 4; q++) pt(Math.PI / 4 + q * Math.PI / 2, r * 0.55, r * 0.12);
     for (let q = 0; q < 4; q++) pt(-Math.PI / 2 + q * Math.PI / 2, r, r * 0.16);
@@ -4699,9 +4733,11 @@ function provChart(w) {
     const len = Math.round(marchDay() / 10 * p), x0 = 5 * p, y0 = 174 * p, th = Math.max(2, g * 2);
     R(x0 - 1, y0 - 1, len + 2, th + 2, INK); for (let q = 0; q < 4; q++) R(x0 + Math.round(len * q / 4), y0, Math.round(len * (q + 1) / 4) - Math.round(len * q / 4), th, q % 2 ? INK : '#eadbb6');
     c.font = 'bold ' + Math.round(2.9 * p) + 'px Cinzel, Georgia, serif'; c.textAlign = 'left'; c.fillText("A DAY'S MARCH", x0, y0 - 0.9 * p); }
-  prov.chartKey = key;
-  return (prov.chart = chart);
+  return (kept[key] = chart);
 }
+// The chart as it lies under the fog in the country itself: a dot of it to two of the country's, so that its ink is of
+// a weight with everything else there.
+const FOG_CHART = 1200;
 
 // The whole province on the table: everything you have walked, everything marked, and a click to set out for it.
 function drawOverview(cv, T) {
