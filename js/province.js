@@ -3,7 +3,8 @@
 // The rules of what is out there are in wilds.js; this file draws it and walks the column about it.
 // The map is 2400 by 1800 units; the window shows 480 by 360 of it, at 2 canvas pixels per unit.
 
-const PROV = { VW: 480, VH: 360, S: 2, SPEED: 88 };
+// FIG: how large a man is drawn out here, against the size he is drawn in the town (1). See provMan.
+const PROV = { VW: 480, VH: 360, S: 2, SPEED: 88, FIG: 0.75 };
 // The eagle over the column: how fast she flies, how far behind the column's own movements she is (seconds), and how
 // slowly she comes round to a new heading (the share of the old heading she still has after a second).
 const EAGLE = { speed: 104, lag: 0.55, turn: 0.07 };
@@ -2470,7 +2471,7 @@ const provRec = (() => {
   let n = 0, gn = 0, cur = null, tx = 0, ty = 0, sc = 1, alpha = 1, style = '#000', clip = null, path = null;
   const open = (x, y, wide, kind) => {
     const g = groups[gn] || (groups[gn] = {});
-    g.i = gn++; g.x = x; g.y = y; g.wide = wide || 6; g.ink = kind === 'ink' || kind === 'sign'; g.flat = kind === 'flat' || kind === 'sign'; g.from = g.to = n; g.over = null; g.lamp = 0;
+    g.i = gn++; g.x = x; g.y = y; g.wide = wide || 6; g.ink = kind === 'ink' || kind === 'sign'; g.flat = kind === 'flat' || kind === 'sign'; g.from = g.to = n; g.over = null; g.lamp = 0; g.folk = false;
     return (cur = g);
   };
   const ctx = {
@@ -2507,6 +2508,14 @@ const provRec = (() => {
     // sun: how far a shadow runs east and south for each unit of height (kx, ky), and how dark it lies (a)
     paint(to, camX, camY, sun) {
       const list = []; for (let i = 0; i < gn; i++) if (groups[i].to > groups[i].from) list.push(groups[i]);
+      // Whatever has a man in it (provMan) is brought to the size men are drawn at out here, about the spot it stands on:
+      // the man, what he carries, the horse under him. It is done here, to what was drawn, so that nothing that draws a
+      // man has to know of it; and in whole dots, as at a gate.
+      if (PROV.FIG !== 1) for (const g of list) {
+        if (!g.folk) continue;
+        const k = PROV.FIG, gx = Math.round(g.x), gy = Math.round(g.y);
+        for (let i = g.from; i < g.to; i++) { const x0 = Math.round(gx + (X[i] - gx) * k), y0 = Math.round(gy + (Y[i] - gy) * k), x1 = Math.round(gx + (X[i] + W[i] - gx) * k), y1 = Math.round(gy + (Y[i] + H[i] - gy) * k); X[i] = x0; Y[i] = y0; W[i] = Math.max(1, x1 - x0); H[i] = Math.max(1, y1 - y0); }
+      }
       const order = list.slice();
       if (prov.overs && prov.paintOver) for (const o of prov.overs) {
         if (o.x1 < camX - 40 || o.x0 > camX + PROV.VW + 40 || o.base < camY - 40 || o.y0 > camY + PROV.VH + 40) continue;
@@ -2554,6 +2563,11 @@ const provRec = (() => {
   };
 })();
 const provAt = (x, y, wide, kind) => provRec.at(x, y, wide, kind);
+// A man, out in the province. He is the figure of the town (vilPerson), and in the town he is the measure of everything;
+// out here he stood twice the height of a house and three times that of a cow. Whatever he is drawn into on the slate
+// is marked, and is painted at PROV.FIG of its size (provRec.paint): three-quarters, which sets him beside a mule, a
+// cart and a farmhouse door about as he should be.
+function provMan(ctx, x, y, o) { const g = provRec.here(); if (g && ctx === provRec.ctx) g.folk = true; vilPerson(ctx, x, y, o); }
 // The outline of something that stands tall (a tree, a tower, a pier of the aqueduct: see overs, in provLand), for its
 // shadow: how far it reaches to left and right at each height above its foot, three numbers to a height. It is found the
 // first time it is wanted, by having the thing painted once on a slate that only takes note of where the paint went.
@@ -2736,7 +2750,7 @@ function drawHerds(ctx, T, R, inView) {
     if ((K === 'sheep' || K === 'pigs' || K === 'geese') && hv(5) > 0.45 && H.n >= 4) {
       const sx = Math.round(cx - (vx >= 0 ? 16 : -16)), sy = Math.round(cy + 6), mv = Math.abs(vx) > 0.9;
       provAt(sx, sy, 6).lamp = abed ? 9 : 0;      // he watches by a lantern
-      vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', t: T, walk: T * 6, moving: mv && !abed, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14', hood: prov.rainy ? '#5a4a38' : null });
+      provMan(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', t: T, walk: T * 6, moving: mv && !abed, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14', hood: prov.rainy ? '#5a4a38' : null });
       R(sx + (vx >= 0 ? 5 : -5), sy - 16, 1, 16, '#6b4f2c'); R(sx + (vx >= 0 ? 5 : -6), sy - 17, 2, 1, '#6b4f2c');      // his crook
       if (K === 'sheep' && hv(8) > 0.35) { const an = Th * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; provAt(dx, dy, 5); R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
     }
@@ -2886,7 +2900,7 @@ function drawTown(ctx, T, R, tx, ty, tr, night) {
 function drawMarks(ctx, T, R, inView, night, smoke, light) {
   const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => provGlow(light || ctx, gx, gy, r, c, a);
   const apart = (x, y, wide, draw) => { const back = provRec.here(); provAt(x, y, wide); draw(); if (back) provAt(back.x, back.y, back.wide, 'flat'); };      // one of them, and then the dressing goes on
-  const man = (mx, my, o) => apart(mx, my, 6, () => vilPerson(ctx, mx, my, Object.assign({ face: 'right', t: T, walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c', hood: prov.rainy ? '#5a4a38' : null }, o)));
+  const man = (mx, my, o) => apart(mx, my, 6, () => provMan(ctx, mx, my, Object.assign({ face: 'right', t: T, walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c', hood: prov.rainy ? '#5a4a38' : null }, o)));
   const pace = (x0, x1, sp, ph) => { const u = (T * sp + ph) % 2, f = u < 1 ? u : 2 - u; return { x: Math.round(x0 + (x1 - x0) * f), face: (u < 1) === (x1 > x0) ? 'right' : 'left' }; };
   // more that moves, and what is lit after dark, for the landmarks that had little of either
   const beast = (bx, by, c, d) => apart(bx + 2, by + 4, 5, () => { R(bx - 1, by + 3, 6, 1, 'rgba(0,0,0,.2)'); R(bx, by, 5, 3, c); R(d > 0 ? bx + 4 : bx - 2, by - 1 + (Math.sin(T * 1.7 + bx) > 0.3 ? 2 : 0), 3, 2, c); R(bx + 1, by + 3, 1, 1, '#2a1c14'); R(bx + 3, by + 3, 1, 1, '#2a1c14'); });
@@ -3346,7 +3360,7 @@ function drawTraffic(ctx, T, R, inView) {
       if (!gk) lead.lamp = 10;      // a lantern, for the road after dusk
       const face = C.face, d = C.dir, walk = T * 9 + j * 3, step = C.moving && Math.sin(walk) > 0 ? 1 : 0;
       const row = rowOf(ctx, d, face, C.along);
-      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, t: T, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
+      const man = (ox, oy, tunic, hair, extra) => provMan(ctx, x + ox, y + oy, Object.assign({ face, t: T, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
       const beast = (bx, by, c, big) => { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, step); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
       if (kind === 'cart') {
         const cx = x - d * 12; row.link(-12, cx + d * 5, y - 4, 0, x - d * 3, y - 4, '#6b4f2c'); row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 14);
@@ -3433,7 +3447,7 @@ function drawMillCart(ctx, T, R, inView) {
   R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
   R(d > 0 ? bx + 3 : bx - 4, y - 9, 1, 2, '#6a5c4a'); R(bx - 3 + step, y - 2, 1, 3, '#5c5244'); R(bx + 3 - step, y - 2, 1, 3, '#5c5244'); R(d > 0 ? bx - 4 : bx + 4, y - 4, 1, 3, '#5c5244');
   }, 10);
-  row.part(8, () => vilPerson(ctx, x + d * 8, y + 1, { face: C.face, t: T, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c', hood: prov.rainy ? '#8a7c62' : null }), 20);
+  row.part(8, () => provMan(ctx, x + d * 8, y + 1, { face: C.face, t: T, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c', hood: prov.rainy ? '#8a7c62' : null }), 20);
   row.draw();
 }
 
@@ -3575,7 +3589,7 @@ function drawTrade(ctx, T, R, inView) {
   const W = tradeWays();
   const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => { tface = C.face; return rowOf(ctx, C.dir, C.face, C.along); };
   let tface = 'right';      // which way whoever is being drawn is going: a beast going up or down the map is drawn end on
-  const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, t: T, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null });
+  const man = (x, y, face, moving, tunic, hair) => provMan(ctx, x, y, { face, t: T, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null });
   const beast = (bx, by, c, d, big, step) => { if (tface === 'up' || tface === 'down') return beastEnd(R, bx, by, c, tface === 'up', big, step); const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
     R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
     if (big) { R(d > 0 ? bx + (w >> 1) + 2 : bx - (w >> 1) - 4, by - h - 6, 2, 1, '#f1ead8'); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - h - 6, 2, 1, '#f1ead8'); } };
@@ -3808,7 +3822,7 @@ function drawTrade(ctx, T, R, inView) {
 // who: 0 the lanista (his horse is the best of them), 1.. the men, each on a beast of a different coat.
 const HORSE_COATS = ['#d8d2c4', '#7a4a2a', '#5a3a22', '#8a5a34', '#3a2a22', '#a8703c'];
 function provRider(ctx, X, Y, o, lvl, who) {
-  if (!lvl) { vilPerson(ctx, X, Y, o); return; }
+  if (!lvl) { vilPerson(ctx, X, Y, o); return; }      // (drawn straight: the column marks its own groups as men, where it sets them down)
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); };
   const coat = HORSE_COATS[who % HORSE_COATS.length], dk = shade(coat, 0.72), lt = shade(coat, 1.18), mane = who === 0 ? '#f4f0e6' : '#2a1c14';
   // A horse walks in four beats, as a man now walks in four moments (vilPerson): near hind, near fore, off hind, off fore,
@@ -4558,7 +4572,7 @@ function provMovers(ctx, T, R, inView) {
         R(p.x + ox - 3, p.y + oy - 2, 1, 2 - b, c[2]); R(p.x + ox + 2, p.y + oy - 2, 1, 1 + b, c[2]); }
     } else {                                   // as many men as will be fought, each in what he stole, and one carrying their rag of a banner
       const tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
-      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; provAt(p.x + ox, p.y + oy, 6, 'ink').lamp = q ? 0 : 12; vilPerson(ctx, p.x + ox, p.y + oy, { face: eyes ? faceOf(F.x - p.x, F.y - p.y, p.face || 'down') : p.face || 'down', t: T, walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
+      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; provAt(p.x + ox, p.y + oy, 6, 'ink').lamp = q ? 0 : 12; provMan(ctx, p.x + ox, p.y + oy, { face: eyes ? faceOf(F.x - p.x, F.y - p.y, p.face || 'down') : p.face || 'down', t: T, walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
       if (pv(3) > 0.4) { const [ox, oy] = spots[n - 1]; provAt(p.x + ox + 4, p.y + oy + 0.1, 6, 'ink'); R(p.x + ox + 4, p.y + oy - 20, 1, 14, '#3a2a1c'); R(p.x + ox + 5, p.y + oy - 20, 5, 3, ['#5a5a4a', '#7a2a20', '#2a3a5a'][Math.floor(pv(4) * 3)]); R(p.x + ox + 5, p.y + oy - 17, 2, 1, '#3a2a1c'); }
     }
     provAt(p.x, p.y + 0.2, 6, 'sign');      // the mark over them
@@ -4576,7 +4590,7 @@ function provMovers(ctx, T, R, inView) {
   folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: easy ? 'down' : prov.face, t: T, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
   // The column goes out at the gate and in at it as everybody on the roads does (gateEnter): small in the arch, and its
   // full size a few steps out. A man does not stand as tall as the temple under the town's own wall.
-  for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink'); const gk = gateEnter(ctx, f.x, f.y); if (gk >= 0) { f.draw(); gateLeave(ctx, gk); } }
+  for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink').folk = true; const gk = gateEnter(ctx, f.x, f.y); if (gk >= 0) { f.draw(); gateLeave(ctx, gk); } }      // (its cart is of a size with its men)
   if (prov.dry && prov.moving && tr.length > 3 && wildTile(cart.x, cart.y) === T_ROAD) { const ux = cart.x - F.x, uy = cart.y - F.y, n = Math.hypot(ux, uy) || 1; provDust(R, off => ({ x: cart.x - ux / n * off, y: cart.y - uy / n * off }), 8, T, 1); }      // the column's own, behind its cart
 }
 function drawProvince(cv, T) {
@@ -4684,7 +4698,7 @@ function drawProvince(cv, T) {
   provRec.begin(); provMovers(provRec.ctx, T, provRec.R, inView); drawMarks(provRec.ctx, T, provRec.R, inView, dark, smoke, ctx);
   provRec.paint(ctx, camX, camY, prov.sunNow);
   if (lamps) provRec.lamps(g => {      // those who carry a light: the flame of it, and its round on the ground
-    const lx = Math.round(g.x) + 4, ly = Math.round(g.y) - 11, fl = Math.sin(T * 11 + g.x) > 0 ? 1 : 0;
+    const fk = g.folk ? PROV.FIG : 1, lx = Math.round(g.x) + Math.round(4 * fk), ly = Math.round(g.y) - Math.round(11 * fk), fl = Math.sin(T * 11 + g.x) > 0 ? 1 : 0;
     if (!inView(lx, ly, 30)) return;
     ctx.globalAlpha = lamps; R(lx, ly - fl, 1, 2 + fl, '#f5c04a'); R(lx, ly - 1 - fl, 1, 1, '#fff0b0'); ctx.globalAlpha = 1;
     provGlow(ctx, lx, ly + 4, g.lamp, '255,180,90', (0.06 * lamps).toFixed(3));
@@ -4767,10 +4781,10 @@ function drawProvince(cv, T) {
   // The column's own light: the brand the lanista carries once the lamps are lit, and the fire when camp is made.
   const camp = (performance.now() - (prov.night || -1e9)) / 1700, camped = camp >= 0 && camp < 1 ? Math.sin(camp * Math.PI) : 0, fl = Math.sin(T * 11) > 0 ? 1 : 0;
   if (camped) provGlow(ctx, F.x + 10, F.y - 1, 30, '255,150,60', (0.09 * camped).toFixed(3));
-  else if (lamps) provGlow(ctx, F.x, F.y - 8, 24, '255,170,80', (0.08 * lamps).toFixed(3));
+  else if (lamps) provGlow(ctx, F.x, F.y - Math.round(8 * PROV.FIG), 24, '255,170,80', (0.08 * lamps).toFixed(3));
   provNight(ctx, camX, camY, provGloom(sky), T);
   if (dark > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
-  if (lamps && !camped) { ctx.globalAlpha = lamps; R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 10, 1, 4, '#3a2a1c'); ctx.globalAlpha = 1; }
+  if (lamps && !camped) { const fk = PROV.FIG, bx = F.x + (prov.face === 'left' ? -1 : 1) * Math.round(5 * fk); ctx.globalAlpha = lamps; R(bx, F.y - Math.round(13 * fk) - fl, 2, 3 + fl, '#e2702a'); R(bx, F.y - Math.round(10 * fk), 1, Math.round(4 * fk), '#3a2a1c'); ctx.globalAlpha = 1; }
   ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
 
   // names, and marks that show even through the fog
