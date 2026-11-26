@@ -545,8 +545,14 @@ function* provLandSteps(fresh, se) {
         else if (c === 4) { R(x, y, 10, 10, '#86a45a'); for (let q = 0; q < 6; q++) R(x + Math.floor(h(tx, ty, 180 + q) * 10), y + Math.floor(h(tx, ty, 186 + q) * 10), 1, 1, q % 3 ? '#7fa0e0' : '#a8c0f0'); }                                // flax in flower
         else if (c === 5) { R(x, y, 10, 10, '#8aa052'); for (let q = 1; q < 10; q += 3) { R(x + q, y + 1, 1, 8, '#6b4f2c'); R(x + q - 1, y + 2, 3, 2, '#55803a'); R(x + q - 1, y + 5, 3, 2, '#55803a'); } }                                        // beans on their poles
         else if (c === 6) { R(x, y, 10, 10, '#d8c880'); for (let q = 0; q < 10; q += 2) R(x + ((q + ty) % 3), y + q, 8, 1, '#c2b068'); }
-        else if (c === 7) { R(x, y, 10, 10, '#8a7a52'); for (let q = 1; q < 10; q += 4) { R(x, y + q + 1, 10, 1, '#6b4f2c'); for (let i = 0; i < 10; i += 3) { R(x + i, y + q - 1, 2, 2, '#4f7a3a'); if (h(tx + i, ty + q, 1100) > 0.5) R(x + i + 1, y + q + 1, 1, 1, '#6a3a7a'); } } }      // vines on their wires, the grapes dark
-        else if (c === 8) { R(x, y, 10, 10, '#86a45a'); const ox = x + 2 + (ty % 2) * 3, oy = y + 6; R(ox - 1, oy + 1, 5, 1, 'rgba(0,0,0,.18)'); R(ox + 1, oy - 2, 1, 3, '#5a3f26'); R(ox - 1, oy - 5, 5, 3, '#4c7f38'); R(ox, oy - 6, 3, 1, '#4c7f38'); R(ox - 1, oy - 5, 2, 1, '#69a04a'); R(ox + (tx % 3), oy - 4, 1, 1, h(Math.floor(tx / 4), Math.floor(ty / 3), 1101) > 0.5 ? '#d8382a' : '#e8c040'); }      // an orchard: apples, or pears
+        else if (c === 7) { R(x, y, 10, 10, '#8a7a52'); for (let q = 1; q < 10; q += 4) { R(x, y + q + 1, 10, 1, '#6b4f2c'); for (let i = 0; i < 10; i += 3) { if (se === 3) R(x + i, y + q - 1, 1, 2, '#5a4632'); else R(x + i, y + q - 1, 2, 2, '#4f7a3a'); if ((se === 1 || se === 2) && h(tx + i, ty + q, 1100) > 0.5) R(x + i + 1, y + q + 1, 1, 1, '#6a3a7a'); } } }      // vines on their wires, the grapes dark (in summer and at the vintage; in winter only the stocks)
+        else if (c === 8) { R(x, y, 10, 10, '#86a45a'); const ox = x + 2 + (ty % 2) * 3, oy = y + 6; R(ox - 1, oy + 1, 5, 1, 'rgba(0,0,0,.18)');
+          // (a fruit tree keeps the year like any other that sheds its leaf: blossom in spring, fruit in summer and autumn, its leaf turning then, and bare boughs in winter)
+          if (se === 3) { R(ox + 1, oy - 5, 1, 6, '#5a3f26'); R(ox - 1, oy - 4, 2, 1, '#5a3f26'); R(ox - 1, oy - 5, 1, 1, '#5a3f26'); R(ox + 2, oy - 5, 2, 1, '#5a3f26'); R(ox + 3, oy - 6, 1, 1, '#5a3f26'); R(ox, oy - 2, 1, 1, '#5a3f26'); }
+          else { const lf = se === 2 ? ['#8a7a2e', '#b09a3a'] : se === 0 ? ['#5a8f42', '#7ab25a'] : ['#4c7f38', '#69a04a'];
+            R(ox + 1, oy - 2, 1, 3, '#5a3f26'); keep = true; R(ox - 1, oy - 5, 5, 3, lf[0]); R(ox, oy - 6, 3, 1, lf[0]); R(ox - 1, oy - 5, 2, 1, lf[1]); keep = false;
+            if (se === 0) { R(ox + (tx % 3), oy - 4, 1, 1, '#f4d0d8'); R(ox + 2 - (tx % 3), oy - 5, 1, 1, '#ffffff'); R(ox + 1, oy - 6, 1, 1, '#f4d0d8'); }
+            else R(ox + (tx % 3), oy - 4, 1, 1, h(Math.floor(tx / 4), Math.floor(ty / 3), 1101) > 0.5 ? '#d8382a' : '#e8c040'); } }      // an orchard: apples, or pears
         else if (c === 9) { R(x, y, 10, 10, '#7f8f4a'); for (let q = 0; q < 3; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 1102 + q) * 7), gy = y + 1 + Math.floor(h(tx, ty, 1105 + q) * 7); R(gx, gy, 2, 2, '#d8802a'); R(gx, gy, 1, 1, '#f0a040'); R(gx + 2, gy + 1, 2, 1, '#55803a'); } }      // gourds lying among their leaves
         else { R(x, y, 10, 10, '#8fb05a'); if (a > 0.7) { R(x + 2 + Math.floor(b * 5), y + 4, 1, 3, '#7a9a48'); R(x + 3 + Math.floor(b * 5), y + 3, 1, 2, '#a8c468'); } if (mid) { R(x + 2, y + 5, 6, 2, '#6b4f2c'); R(x + 3, y + 5, 4, 1, '#6fa8c8'); } }      // a paddock kept for grazing, and the trough in it                                 // barley, bending
         // the bounds of the plot: a hedge, or a wall of field stones with a gap for the gate
@@ -859,12 +865,17 @@ function* provLandSteps(fresh, se) {
           for (let q = 0, n = 2 + Math.floor(v1 * 3); q < n; q++) { const ox = 1 + Math.floor(h(tx, ty, 500 + q) * 7), oy = 2 + Math.floor(h(tx, ty, 504 + q) * 6), r = 1 + Math.floor(h(tx, ty, 508 + q) * 2); R(x + ox - r, y + oy, r * 2 + 1, 2, '#6f8a5a'); R(x + ox - r, y + oy - 1, r + 1, 1, '#9ab284'); R(x + ox, y + oy + 2, 1, 1, '#4a3320'); }
         } else if (plot > 0.78) {              // vines: the rows run one way on one plot and the other way on the next
           R(x, y, 10, 10, 'rgba(138,116,66,.72)'); const grape = pv > 0.6 ? '#7a3a6a' : pv > 0.3 ? '#9aa83a' : '#5a2a4a';
-          if (pv * 7 % 1 > 0.5) for (let q = 1; q < 10; q += 3) { R(x, y + q, 10, 2, '#557a36'); for (let u = 1 + (q % 2); u < 10; u += 3) R(x + u, y + q, 1, 1, grape); R(x + (tx % 3 === 0 ? 0 : 9), y + q - 1, 1, 3, '#6b4f2c'); }
-          else for (let q = 1; q < 10; q += 3) { R(x + q, y, 2, 10, '#557a36'); for (let u = 1 + (q % 2); u < 10; u += 3) R(x + q, y + u, 1, 1, grape); }
+          // (by the season: the grapes hang in summer and at the vintage, and in winter the rows are bare stocks on their wire)
+          const hung = se === 1 || se === 2, bare = se === 3;
+          if (pv * 7 % 1 > 0.5) for (let q = 1; q < 10; q += 3) { if (bare) { R(x, y + q + 1, 10, 1, '#6b5a40'); for (let u = 1; u < 10; u += 3) R(x + u, y + q, 1, 2, '#5a4632'); } else R(x, y + q, 10, 2, '#557a36'); if (hung) for (let u = 1 + (q % 2); u < 10; u += 3) R(x + u, y + q, 1, 1, grape); R(x + (tx % 3 === 0 ? 0 : 9), y + q - 1, 1, 3, '#6b4f2c'); }
+          else for (let q = 1; q < 10; q += 3) { if (bare) { R(x + q, y, 1, 10, '#6b5a40'); for (let u = 1; u < 10; u += 3) R(x + q, y + u, 2, 1, '#5a4632'); } else R(x + q, y, 2, 10, '#557a36'); if (hung) for (let u = 1 + (q % 2); u < 10; u += 3) R(x + q, y + u, 1, 1, grape); }
           fray(tx, ty, (ax, ay) => grove(ax, ay) === 2);
         } else {                               // an orchard, in blossom or in fruit
           R(x, y, 10, 10, 'rgba(120,160,70,.3)');
-          for (let q = 0, n = 1 + Math.floor(v1 * 2); q < n; q++) { const ox = 2 + Math.floor(h(tx, ty, 512 + q) * 6), oy = 3 + q * 4; R(x + ox - 2, y + oy - 2, 5, 3, '#4c7f38'); R(x + ox - 1, y + oy - 3, 3, 1, '#69a04a'); R(x + ox, y + oy + 1, 1, 2, '#4a3320'); R(x + ox - 1 + Math.floor(v2 * 3), y + oy - 2, 1, 1, pv > 0.5 ? '#f4d0d8' : '#c23b2e'); R(x + ox + 1, y + oy - 1, 1, 1, pv > 0.5 ? '#ffffff' : '#e3b04a'); }
+          for (let q = 0, n = 1 + Math.floor(v1 * 2); q < n; q++) { const ox = 2 + Math.floor(h(tx, ty, 512 + q) * 6), oy = 3 + q * 4; if (se === 3) { R(x + ox, y + oy - 3, 1, 6, '#4a3320'); R(x + ox - 2, y + oy - 2, 2, 1, '#4a3320'); R(x + ox - 2, y + oy - 3, 1, 1, '#4a3320'); R(x + ox + 1, y + oy - 1, 2, 1, '#4a3320'); R(x + ox + 2, y + oy - 2, 1, 1, '#4a3320'); continue; }      // (bare, in winter)
+            keep = true; R(x + ox - 2, y + oy - 2, 5, 3, se === 2 ? '#8a7a2e' : '#4c7f38'); R(x + ox - 1, y + oy - 3, 3, 1, se === 2 ? '#b09a3a' : '#69a04a'); keep = false; R(x + ox, y + oy + 1, 1, 2, '#4a3320');
+            if (se === 0) { R(x + ox - 1 + Math.floor(v2 * 3), y + oy - 2, 1, 1, '#f4d0d8'); R(x + ox + 1, y + oy - 1, 1, 1, '#ffffff'); }      // blossom in spring, and fruit after
+            else { R(x + ox - 1 + Math.floor(v2 * 3), y + oy - 2, 1, 1, pv > 0.5 ? '#e3b04a' : '#c23b2e'); R(x + ox + 1, y + oy - 1, 1, 1, pv > 0.5 ? '#c23b2e' : '#e3b04a'); } }
         }
       }
     }
@@ -1500,8 +1511,8 @@ function* provLandSteps(fresh, se) {
     if (kind === 'vines') {                                  // rows of vines on their stakes, in blocks with a cart-way between
       for (let ry2 = -30; ry2 <= 28; ry2 += 5) for (let dx = -RX; dx <= RX; dx += 3) {
         const px = cx + dx, py = cy + ry2, col = Math.floor((dx + RX) / 3); if (col % 11 === 5 || !ok(px, py)) continue;
-        R(px, py + 2, 3, 1, 'rgba(110,84,48,.34)'); R(px, py, 2, 2, lmV(col + ry2 * 7, 92 + sd) > 0.5 ? '#4f7a3a' : '#5f8f3a');
-        if (lmV(col * 3 + ry2, 93 + sd) > 0.8) R(px, py + 1, 1, 1, '#6a2a5a'); if (col % 4 === 0) R(px, py - 1, 1, 3, '#6b4f2c'); }
+        R(px, py + 2, 3, 1, 'rgba(110,84,48,.34)'); if (se === 3) R(px, py, 1, 2, '#5a4632'); else R(px, py, 2, 2, lmV(col + ry2 * 7, 92 + sd) > 0.5 ? '#4f7a3a' : '#5f8f3a');      // (in winter only the stocks; and the grapes hang in summer and at the vintage)
+        if ((se === 1 || se === 2) && lmV(col * 3 + ry2, 93 + sd) > 0.8) R(px, py + 1, 1, 1, '#6a2a5a'); if (col % 4 === 0) R(px, py - 1, 1, 3, '#6b4f2c'); }
     } else if (kind === 'quarry') {                          // the hill cut back in benches, spoil thrown down, blocks squared and waiting, the ruts of the stone carts
       wash('rgba(208,200,178,.4)', 0.85);
       for (let bch = 0; bch < 3; bch++) { const yy = cy - 12 - bch * 7, half = RX - 6 - bch * 9; for (let dx = -half; dx <= half; dx++) { const px = cx + dx; if (!ok(px, yy)) continue; R(px, yy, 1, 4, bch % 2 ? '#d8d2c0' : '#cfc8b4'); R(px, yy, 1, 1, '#f0ece0'); R(px, yy + 4, 1, 1, 'rgba(60,54,44,.3)'); if ((dx + 200) % 6 === 0) R(px, yy + 1, 1, 3, '#b8b2a0'); } }
@@ -3800,16 +3811,20 @@ function provRider(ctx, X, Y, o, lvl, who) {
   if (!lvl) { vilPerson(ctx, X, Y, o); return; }
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); };
   const coat = HORSE_COATS[who % HORSE_COATS.length], dk = shade(coat, 0.72), lt = shade(coat, 1.18), mane = who === 0 ? '#f4f0e6' : '#2a1c14';
-  const gait = o.moving ? (Math.sin(o.walk) > 0 ? 1 : 0) : -1, bob = gait === 1 ? 1 : 0, f = o.face, side = f === 'left' || f === 'right', d = f === 'left' ? -1 : 1;
+  // A horse walks in four beats, as a man now walks in four moments (vilPerson): near hind, near fore, off hind, off fore,
+  // each lifted and set a little forward in its turn, and the beast rising a dot between the pairs. Standing, it flicks
+  // its tail now and then (given the time, o.t).
+  const ph = o.moving ? Math.floor((((o.walk % 6.2832) + 6.2832) % 6.2832) / 1.5708) & 3 : -1, bob = ph === 1 || ph === 3 ? 1 : 0, f = o.face, side = f === 'left' || f === 'right', d = f === 'left' ? -1 : 1;
+  const flick = ph < 0 && o.t !== undefined && Math.sin(o.t * 1.3 + who * 2.1) > 0.92 ? 1 : 0;
   const cloth = who === 0 ? '#7a2a8a' : '#a8261c', gold = '#e8b545', leather = '#6b4424';
   R(-7, 0, 15, 2, 'rgba(0,0,0,.26)');
   if (side) {
     const F = (x, y, w, h, c) => R(d > 0 ? x : -x - w, y, w, h, c);
     // legs, two and two, stepping
-    F(-5, -4 + (gait === 1 ? -1 : 0), 1, 4, dk); F(-3, -4 + (gait === 0 ? -1 : 0), 1, 4, coat); F(3, -4 + (gait === 0 ? -1 : 0), 1, 4, dk); F(5, -4 + (gait === 1 ? -1 : 0), 1, 4, coat);
+    F(-5 + (ph === 0 ? 1 : 0), -4 + (ph === 0 ? -1 : 0), 1, 4, dk); F(-3 + (ph === 2 ? 1 : 0), -4 + (ph === 2 ? -1 : 0), 1, 4, coat); F(3 + (ph === 1 ? 1 : 0), -4 + (ph === 1 ? -1 : 0), 1, 4, dk); F(5 + (ph === 3 ? 1 : 0), -4 + (ph === 3 ? -1 : 0), 1, 4, coat);
     F(-6, -9 - bob, 12, 5, coat); F(-6, -9 - bob, 12, 1, lt); F(-6, -5 - bob, 12, 1, dk);                         // the barrel of it
     F(5, -12 - bob, 3, 4, coat); F(7, -13 - bob, 3, 3, coat); F(9, -12 - bob, 1, 1, dk); F(7, -14 - bob, 1, 1, dk);      // neck, head, an ear
-    F(5, -13 - bob, 1, 4, mane); F(-7, -8 - bob, 1, 4 + (gait === 1 ? 1 : 0), mane);                              // mane and tail
+    F(5, -13 - bob, 1, 4, mane); F(-7 - flick, -8 - bob, 1 + flick, 4 + bob - flick, mane);                              // mane and tail
     if (lvl === 1) { F(-3, -9 - bob, 6, 3, '#b8a67c'); F(-3, -9 - bob, 6, 1, '#d8c9a0'); F(7, -12 - bob, 2, 1, '#8a6a3a'); }      // a blanket, a rope halter
     if (lvl >= 2) { F(-4, -9 - bob, 8, 4, cloth); F(-4, -6 - bob, 8, 1, shade(cloth, 0.7)); F(-2, -10 - bob, 5, 2, leather); F(-2, -10 - bob, 1, 1, '#8a6a3a'); F(2, -11 - bob, 1, 2, leather);      // saddle-cloth, saddle, pommel
       F(6, -11 - bob, 1, 3, leather); F(8, -12 - bob, 2, 1, leather); F(8, -11 - bob, 1, 1, gold); F(-6, -8 - bob, 2, 1, leather); }                                                                // bridle with its bronze, and the crupper
@@ -3817,9 +3832,9 @@ function provRider(ctx, X, Y, o, lvl, who) {
       F(-2, -10 - bob, 5, 2, leather); F(2, -11 - bob, 1, 2, gold); F(7, -13 - bob, 2, 2, '#c9a23a'); F(7, -13 - bob, 2, 1, '#f5d584'); F(6, -16 - bob, 1, 3, who === 0 ? '#f4f0e6' : '#c23b2e'); }      // gilded pommel, face-plate, plume
   } else {
     const up = f === 'up';
-    R(-3, -4 + (gait === 1 ? -1 : 0), 1, 4, dk); R(2, -4 + (gait === 0 ? -1 : 0), 1, 4, dk);                    // seen end on: two legs showing
+    R(-3, -4 + (ph === 0 ? -1 : 0), 1, 4, dk); R(2, -4 + (ph === 2 ? -1 : 0), 1, 4, dk);                    // seen end on: two legs showing
     R(-3, -10 - bob, 7, 7, coat); R(-3, -10 - bob, 1, 7, lt); R(3, -10 - bob, 1, 7, dk);
-    if (up) { R(-1, -6 - bob, 2, 4 + (gait === 1 ? 1 : 0), mane); }                                               // its tail toward you
+    if (up) { R(-1 + flick, -6 - bob, 2, 4 + bob, mane); }                                               // its tail toward you
     else { R(-2, -8 - bob, 5, 5, lt); R(0, -8 - bob, 1, 4, who === 0 ? '#ffffff' : shade(coat, 1.45)); R(-2, -10 - bob, 1, 2, dk); R(2, -10 - bob, 1, 2, dk); R(-1, -5 - bob, 1, 1, '#1c1310'); R(1, -5 - bob, 1, 1, '#1c1310'); R(-1, -8 - bob, 3, 1, mane); }      // its head toward you
     if (lvl === 1) { R(-3, -10 - bob, 7, 2, '#b8a67c'); }
     if (lvl >= 2) { R(-4, -10 - bob, 9, 3, cloth); R(-4, -8 - bob, 9, 1, shade(cloth, 0.7)); if (!up) { R(-2, -7 - bob, 5, 1, leather); R(0, -7 - bob, 1, 1, gold); } }
