@@ -3764,7 +3764,7 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
 // Those who use the roads: carters, pilgrims, a file of soldiers, a merchant with his donkey, a man in a hurry on a
 // horse. Each keeps to one road and goes up and down it for ever; where he is comes from the clock, like the herds.
 const TRAVEL_HALT = 5;      // seconds a traveller stands at the end of his road before he turns back
-const TRAVEL_SPEED = { rider: 3.4, runner: 2.8, cart: 1.1, oxwagon: 0.8, litter: 1.2, soldiers: 1.8 };      // road tiles a second; anybody else, 1.4 (see drawTraffic, and provRuts)
+const TRAVEL_SPEED = { rider: 3.4, runner: 2.8, cart: 1.1, oxwagon: 0.8, litter: 1.2, soldiers: 1.8, wedding: 1, funeral: 0.7, rite: 0.8 };      // road tiles a second; anybody else, 1.4 (see drawTraffic, and provRuts)
 const TRAVELLERS = ['cart', 'pilgrim', 'soldiers', 'merchant', 'rider', 'herdsman', 'litter', 'mules', 'woodman', 'oxwagon', 'runner', 'family'];
 // The town's gates, as doorways. Whoever comes up a road to the town goes in at a gate as the lanista goes in at a door
 // in the town itself (village.js): up to the arch, growing small in it (a little smaller than the gateway), and gone;
@@ -3894,12 +3894,79 @@ function beastEnd(R, bx, by, c, up, big, step) {
   if (up) { R(x0 + 1, top - 1, w - 2, 1, c); R(bx, top + 2, 1, h - 1, dk); }                    // the poll between them; the tail toward you
   else { R(x0 + 1, top, w - 2, h - 1, lt); R(x0 + 1, top + 1, 1, 1, '#1c1310'); R(x0 + w - 2, top + 1, 1, 1, '#1c1310'); R(x0 + 1, top + h - 2, w - 2, 1, dk); }      // its face: eyes, and a dark muzzle
 }
+// ---------- occasions on the roads ----------
+// Not everybody on a road is going to market. On about two days in five one road of the province has an occasion on
+// it, the same one all that day: a wedding party bringing the bride home, a funeral going out to the tombs, or a
+// procession taking a white ox to be sacrificed. (provOccasion: which, and on which road; nothing of it is kept in the
+// save, and nothing comes of it: it is there to be met.) There is no wedding in winter.
+function provOccasion() {
+  const ways = prov.ways; if (!ways || !ways.length) return null;
+  const day = Math.floor((typeof G !== 'undefined' && G && G.day) || 0);
+  if (prov.occ && prov.occ.day === day && prov.occ.n === ways.length) return prov.occ.it;
+  let it = null;
+  if (wildHash(day, 3, 1710) < 0.42) {
+    const k = wildHash(day, 5, 1711), winter = typeof sceneSeason === 'function' && sceneSeason() === 3;
+    it = { kind: k < 0.4 ? (winter ? 'rite' : 'wedding') : k < 0.7 ? 'funeral' : 'rite', wi: Math.floor(wildHash(day, 7, 1712) * ways.length) % ways.length, phase: wildHash(day, 9, 1713), seed: day };
+  }
+  prov.occ = { day, n: ways.length, it };
+  return it;
+}
+// And the occasion itself. Everybody in it is set on the road at his own place behind whoever leads (C.along), as the
+// men of the column follow the lanista, so that it goes round a bend as a file and each of them is behind a tree or
+// before it for himself. C: where the leader is, which way he faces, and the road (see shuttleAt).
+function drawOccasion(ctx, T, R, C, kind, seed, inView) {
+  const d = C.dir, face = C.face, side = face === 'left' || face === 'right', gait = gaitOf(C), fl = Math.sin(T * 13) > 0 ? 1 : 0, skin = '#d9a57c', wood = '#6b4f2c';
+  const hv = q => wildHash(seed, q, 1720), pick = (list, q) => list[Math.floor(hv(q) * list.length) % list.length];
+  // one of them, so far along the road from the leader (behind him: less than nothing); fn draws him with his feet at px, py
+  const ahead = C.along(8), behind = C.along(-8), run = Math.abs(ahead.x - behind.x) + Math.abs(ahead.y - behind.y), apart = 1 + 0.4 * (run > 0.01 ? Math.abs(ahead.y - behind.y) / run : 0);      // (on a road that runs up or down the map they go further apart, a man being taller than he is wide)
+  const at = (off, wide, fn, lamp) => { const p = C.along(off * apart), px = Math.round(p.x), py = Math.round(p.y); if (!inView(px, py, 24) || inTownWalls(px, py) || !wildSeen(px, py)) return; const g = provAt(px, py, wide); g.folk = lamp !== 'beast'; if (lamp === true) g.lamp = 10; fn(px, py); };      // (a beast is drawn at its own size, as the herds are; whoever walks, at the size men are out here)
+  const man = (px, py, tunic, hair, extra) => provMan(ctx, px, py, Object.assign({ face, t: T, walk: T * 7 + px * 0.9 + py * 0.6, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
+  const hairs = ['#3a2a1c', '#6a4a2a', '#2a1c14', '#8a8a8a'];
+  const pipes = (px, py) => { if (face === 'up') return; R(px + (side ? d * 3 : -1), py - 12, side ? 4 : 1, side ? 1 : 4, '#c9a763'); R(px + (side ? d * 3 : 1), py - 11, side ? 3 : 1, side ? 1 : 4, '#a8853f'); };      // the double pipe, at his mouth
+  const basket = (px, py, c) => { R(px - 2, py - 20, 5, 3, '#c9a763'); R(px - 2, py - 20, 5, 1, '#a8853f'); R(px - 1, py - 21, 3, 1, c); };      // carried on the head
+  if (kind === 'wedding') {
+    // a piper before them, a boy with the torch of whitethorn, the bride under her flame-coloured veil with the groom beside
+    // her in a wreath, and the guests after, in whatever they have that is bright, throwing nuts and flowers
+    const gay = ['#b93a2e', '#2f6db8', '#c9a21e', '#7a2a8a', '#3f7a5a', '#d8763a'];
+    at(0, 6, (px, py) => { man(px, py, '#3f7a5a', '#3a2a1c'); pipes(px, py); }, true);
+    at(-9, 6, (px, py) => { man(px, py, '#e8e2d2', '#6a4a2a'); const tx = px + (side ? d * 4 : 4); R(tx, py - 19, 1, 10, wood); R(tx - (fl ? 1 : 0), py - 22 - fl, 2, 3 + fl, '#e2702a'); R(tx, py - 21, 1, 2, '#f5c04a'); });
+    at(-19, 6, (px, py) => { man(px, py, '#f6f1e4', '#3a2a1c', { hood: '#e8792e' });
+      for (let q = 0; q < 9; q++) { const p = (T * 0.7 + q / 9) % 1; ctx.globalAlpha = 1 - p * p; R(px - 10 + ((q * 7 + Math.floor(T * 0.7 + q / 9) * 5) % 21), py - 28 + p * 24, q % 2 ? 2 : 1, 1, q % 3 === 0 ? '#ffffff' : q % 3 === 1 ? '#f4c0cc' : '#e8d070'); } ctx.globalAlpha = 1; });      // what is thrown over her, coming down
+    at(-27, 6, (px, py) => { man(px, py, '#f1ead8', '#3a2a1c', { stripe: '#7a2a8a' }); R(px - 2, py - 15, 5, 1, '#6f9a4a'); R(px - 1, py - 15, 1, 1, '#f4c0cc'); R(px + 2, py - 15, 1, 1, '#ffffff'); });
+    for (let q = 0; q < 5; q++) at(-37 - q * 8, 6, (px, py) => { const c = gay[(q + Math.floor(hv(3) * 6)) % 6], up = Math.sin(T * 3.1 + q * 1.9) > 0.3; man(px, py, c, hairs[(q + 1) % 4]);
+      if (q === 2) basket(px, py, '#f4c0cc'); else if (up) { R(px + (side ? d * 3 : 3), py - 17, 1, 5, skin); if (q % 2) R(px - (side ? d * 3 : 3), py - 16, 1, 4, skin); } });      // an arm up, throwing
+  } else if (kind === 'funeral') {
+    // the horn before; the women who are paid to wail, their arms up; the bier on four shoulders, the dead under a
+    // white cloth with a wreath on it; and the household after, in dark wool with their heads covered
+    const dark = ['#3a3836', '#4a4642', '#2e2c2a', '#55504a'], veil = '#242220';
+    at(0, 6, (px, py) => { man(px, py, dark[0], '#8a8a8a'); if (face !== 'up') { const hx = px + (side ? d * 3 : 2); R(hx, py - 12, 2, 1, '#c9a21e'); R(hx + (side ? d : 1), py - 16, 1, 4, '#c9a21e'); R(hx + (side ? 0 : 0), py - 17, 2, 1, '#e3b04a'); } }, true);
+    for (let q = 0; q < 2; q++) at(-9 - q * 7, 6, (px, py) => { man(px, py, dark[1 + q], '#3a2a1c', { hood: veil }); if (Math.sin(T * 2.2 + q * 2.4) > -0.2) { R(px - 3, py - 18, 1, 5, skin); R(px + 3, py - 18, 1, 5, skin); } });
+    at(-34, 12, (px, py) => {
+      if (side) { for (const o of [9, -9]) man(px + d * o, py, dark[o > 0 ? 0 : 3], hairs[o > 0 ? 0 : 2]); R(px - 11, py - 12, 23, 1, wood); R(px - 7, py - 13, 15, 1, '#8a6a3a'); R(px - 6, py - 16, 13, 3, '#efe8d8'); R(px - 6, py - 16, 13, 1, '#ffffff'); R(px + d * 4 - 1, py - 17, 3, 1, '#efe8d8'); R(px - d * 2 - 1, py - 17, 3, 1, '#4f7a3a'); R(px - d * 2, py - 17, 1, 1, '#c23b2e'); }
+      else { man(px - 4, py - 7, dark[0], hairs[0]); man(px + 4, py - 7, dark[3], hairs[2]); R(px - 4, py - 13, 9, 1, '#8a6a3a'); R(px - 3, py - 19, 7, 6, '#efe8d8'); R(px - 3, py - 19, 7, 1, '#ffffff'); R(px - 1, py - (face === 'down' ? 15 : 19), 3, 1, '#4f7a3a'); man(px - 4, py + 4, dark[1], hairs[1]); man(px + 4, py + 4, dark[2], hairs[3]); }
+    });
+    for (let q = 0; q < 5; q++) at(-54 - q * 8, 6, (px, py) => { man(px, py, dark[q % 4], hairs[q % 4], q % 2 ? { hood: veil } : null); if (q === 4) R(px + (side ? d * 4 : 4), py - 14, 1, 14, wood); });      // (the last of them old, on a stick)
+  } else {
+    // a rite: the god's image carried before on a pole, the priest with his head covered, the white ox with gilded
+    // horns and a garland on its neck, the man with the axe behind it, a piper, and the worshippers in wreaths
+    at(10, 6, (px, py) => { man(px, py, '#e8e2d2', '#6a4a2a'); const sx = px + (side ? d * 4 : 4); R(sx, py - 27, 1, 21, wood); R(sx - 2, py - 33, 5, 6, '#e3b04a'); R(sx - 1, py - 32, 3, 4, '#f5d584'); R(sx, py - 31, 1, 2, '#a8782a'); R(sx - 2, py - 27, 5, 1, '#a02d22'); });
+    at(0, 6, (px, py) => man(px, py, '#f4f0e6', '#c9c2b2', { hood: '#f4f0e6', stripe: '#7a2a8a' }), true);
+    at(-12, 9, (px, py) => { roadBeast(R, px, py, '#f1ead8', true, d, face, gait); if (side) { R(d > 0 ? px + 3 : px - 5, py - 7, 3, 1, '#c23b2e'); R(d > 0 ? px + 2 : px - 3, py - 6, 2, 1, '#4f7a3a'); R(d > 0 ? px + 4 : px - 5, py - 6, 2, 1, '#f2e06a'); R(d > 0 ? px + 5 : px - 6, py - 12, 2, 1, '#e3b04a'); } else { R(px - 3, py - (face === 'down' ? 7 : 9), 7, 1, '#c23b2e'); R(px - 1, py - (face === 'down' ? 6 : 8), 3, 1, '#4f7a3a'); } }, 'beast');
+    at(-25, 6, (px, py) => { man(px, py, '#8a6a4a', '#2a1c14'); const ax = px + (side ? d * 4 : 4); R(ax, py - 20, 1, 12, wood); R(ax - (side && d < 0 ? 2 : 0), py - 21, 3, 3, '#c1c7cc'); });
+    at(-33, 6, (px, py) => { man(px, py, '#3f7a5a', '#3a2a1c'); pipes(px, py); });
+    for (let q = 0; q < 5; q++) at(-42 - q * 8, 6, (px, py) => { man(px, py, pick(['#e8e2d2', '#d8cfb8', '#c9b890', '#e8d8b0'], 10 + q), hairs[q % 4]); R(px - 2, py - 15, 5, 1, '#6f9a4a'); if (q === 1) basket(px, py, '#c23b2e'); else if (q === 3) { R(px + (side ? d * 3 : 3), py - 9, 3, 2, '#b8703c'); R(px + (side ? d * 3 : 3), py - 10, 3, 1, '#8a4a22'); } });      // a wreath on every head; one with a basket of fruit, one with a jar of wine
+  }
+}
+// A beast of the roads, feet at bx, by: a mule or an ox (big), from the side or end on, stepping by the ground it covers.
+function roadBeast(R, bx, by, c, big, d, face, gait) { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, gait === 0 ? 1 : gait === 2 ? 2 : 0); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); beastLegs(R, d > 0 ? bx - (w >> 1) : bx + (w >> 1) - 1, d > 0 ? bx + (w >> 1) - 1 : bx - (w >> 1), by - 2, 3, shade(c, 0.6), d, gait, big ? shade(c, 0.42) : null); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); }
 function drawTraffic(ctx, T, R, inView) {
+  const occ = provOccasion();
   (prov.ways || []).forEach((way, wi) => {
-    const len = way.length - 1, n = len > 60 ? 3 : 2;
+    const len = way.length - 1, n0 = len > 60 ? 3 : 2, n = n0 + (occ && occ.wi === wi ? 1 : 0);
     for (let j = 0; j < n; j++) {
-      const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)];
+      const feast = j === n0, hv = q => wildHash(wi * 17 + j, q, 680), kind = feast ? occ.kind : TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)];      // (feast: the day's occasion, which has this road: see provOccasion)
       const speed = TRAVEL_SPEED[kind] || 1.4;      // road tiles a second
+      if (feast) { const P = shuttleAt(lineOf(way), T, speed * 10, TRAVEL_HALT, occ.phase); if (inView(P.x, P.y, 130)) drawOccasion(ctx, T, R, P, kind, occ.seed, inView); continue; }
       const C = giveWay(shuttleAt(lineOf(way), T, speed * 10, TRAVEL_HALT, hv(2))), x = C.x, y = C.y;      // up the road and down it, with a halt at each end
       if (!inView(x, y, 30) || !wildSeen(x, y) || inTownWalls(x, y)) continue;
       const lead = provAt(x, y, 8);
@@ -3908,7 +3975,7 @@ function drawTraffic(ctx, T, R, inView) {
       const face = C.face, d = C.dir, walk = T * 9 + j * 3, gait = gaitOf(C), step = gait >= 0 && (gait & 1) ? 1 : 0, roll = rollOf(C);
       const row = rowOf(ctx, d, face, C.along);
       const man = (ox, oy, tunic, hair, extra) => provMan(ctx, x + ox, y + oy, Object.assign({ face, t: T, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
-      const beast = (bx, by, c, big) => { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, gait === 0 ? 1 : gait === 2 ? 2 : 0); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); beastLegs(R, d > 0 ? bx - (w >> 1) : bx + (w >> 1) - 1, d > 0 ? bx + (w >> 1) - 1 : bx - (w >> 1), by - 2, 3, shade(c, 0.6), d, gait, big ? shade(c, 0.42) : null); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
+      const beast = (bx, by, c, big) => roadBeast(R, bx, by, c, big, d, face, gait);
       if (kind === 'cart') {
         const cx = x - d * 12; row.link(-12, cx + d * 5, y - 4, 0, x - d * 3, y - 4, '#6b4f2c'); row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); cartWheel(R, cx - 4, y - 2, roll, d); cartWheel(R, cx + 1, y - 2, roll + 2, d); }, 14);
         row.part(0, () => beast(x, y, hv(4) > 0.5 ? '#8a6a4a' : '#6f5a48'), 10); row.part(8, () => man(d * 8, 1, hv(5) > 0.5 ? '#7a6a4a' : '#8a4a3a'), 20);
@@ -5076,13 +5143,14 @@ const RUT_REACH = 84, RUT_FADE = 9;
 function provRuts(ctx, T, R, inView) {
   const white = prov.white || 0; if (!(white > 0.2) || !prov.ways) return;
   const deep = Math.min(1, white * 1.6) * 0.75;
+  const occ = provOccasion();
   prov.ways.forEach((way, wi) => {
-    const W = lineOf(way), n = way.length - 1 > 60 ? 3 : 2;
+    const W = lineOf(way), n0 = way.length - 1 > 60 ? 3 : 2, n = n0 + (occ && occ.wi === wi ? 1 : 0);
     for (let j = 0; j < n; j++) {
-      const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)], sp = (TRAVEL_SPEED[kind] || 1.4) * 10;
-      const C = shuttleAt(W, T, sp, TRAVEL_HALT, hv(2)); if (!inView(C.x, C.y, RUT_REACH + 16)) continue;
+      const feast = j === n0, hv = q => wildHash(wi * 17 + j, q, 680), kind = feast ? occ.kind : TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)], sp = (TRAVEL_SPEED[kind] || 1.4) * 10;
+      const C = shuttleAt(W, T, sp, TRAVEL_HALT, feast ? occ.phase : hv(2)); if (!inView(C.x, C.y, RUT_REACH + 16)) continue;
       const since = C.leg === 1 ? C.d : C.leg === 3 ? W.total - C.d : 1e9, old = C.moving ? Math.max(0, 1 - since / sp / RUT_FADE) : 0;
-      const wheels = kind === 'cart' || kind === 'oxwagon', many = wheels || kind === 'mules' || kind === 'soldiers' || kind === 'herdsman' || kind === 'litter' || kind === 'family';
+      const wheels = kind === 'cart' || kind === 'oxwagon', many = wheels || feast || kind === 'mules' || kind === 'soldiers' || kind === 'herdsman' || kind === 'litter' || kind === 'family';
       const mark = (off, a) => {      // one step of it, so far along his road from where he is (behind him: less than nothing)
         const p = C.along(off), q = C.along(off - 2), dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy); if (d < 0.01 || !inView(p.x, p.y, 6) || inTownWalls(p.x, p.y) || !wildSeen(p.x, p.y)) return;
         const k = wildTile(p.x, p.y); if (k === T_BRIDGE || k === T_WATER) return;
