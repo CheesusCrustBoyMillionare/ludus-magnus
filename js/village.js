@@ -271,6 +271,10 @@ function vilPerson(ctx, X, Y, o) {
   else if (f === 'down') { R(-1, -12, 1, 1, '#1c1310'); R(1, -12, 1, 1, '#1c1310'); }
   else { R(f === 'left' ? -2 : 2, -12, 1, 1, '#1c1310'); R(f === 'left' ? 2 : -2, -14, 1, 3, hair); }
   if (o.laurel) { R(-2, -15, 5, 1, '#e3b04a'); }
+  if (o.hood) {                                                                                         // a hood up against the weather, and the cloak's edge on the shoulders
+    R(-3, -16, 7, 2, o.hood); R(-3, -14, 1, 3, o.hood); R(3, -14, 1, 3, o.hood); R(-3, -10, 7, 1, o.hood);
+    if (f === 'up') R(-2, -14, 5, 4, o.hood); else if (f === 'left') R(1, -14, 2, 3, o.hood); else if (f === 'right') R(-2, -14, 2, 3, o.hood);
+  }
 }
 
 // Everything that does not move, drawn once.

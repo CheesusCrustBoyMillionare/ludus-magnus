@@ -122,6 +122,7 @@ function* provLandSteps(fresh) {
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], n) => {
       const o = at(tx + dx, ty + dy);
       if (o === T_ROAD || o === T_BRIDGE || k === T_ROAD || k === T_BRIDGE) return;
+      if (wet(o) !== wet(k)) return;      // where land meets water the line between them is drawn all in one piece, later (the shore, below)
       const oc = col(o, tx + dx, ty + dy);
       if (o === k) {                             // the same ground in another shade: the two run together
         if (oc === base || k === T_WATER) return;
@@ -211,6 +212,28 @@ function* provLandSteps(fresh) {
   const seaM = new Uint8Array(TW * TH);
   { let cur = []; for (let ty = 0; ty < TH; ty++) if (L.t[ty * TW] === T_WATER) { seaM[ty * TW] = 1; cur.push(ty * TW); }
     while (cur.length) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (!seaM[j] && L.t[j] === T_WATER && shoreD[j] >= 2) { seaM[j] = 1; nx.push(j); } } } cur = nx; } }
+  // How deep the water lies at each tile, shelving: how far it is from the shore, taken over the tiles round about with
+  // a little noise. It is kept for the whole map, so that the colour of the water can be shaded across a tile from its
+  // own depth toward its neighbours', and no square of the sea is one blue and the next another.
+  const sdS = new Float32Array(TW * TH), clT = (v, n) => (v < 0 ? 0 : v >= n ? n - 1 : v);
+  for (let ty = 0; ty < TH; ty++) { if (!(ty & 15)) yield; for (let tx = 0; tx < TW; tx++) { let sum = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) sum += Math.min(9, shoreD[clT(ty + dy, TH) * TW + clT(tx + dx, TW)]); sdS[ty * TW + tx] = sum / 25 + (wildNoise(tx / 4, ty / 4, 1030) - 0.5) * 1.6; } }
+  // (the same between tiles: u and v in tiles, a tile's own depth at the middle of it)
+  const sdAt = (u, v) => { const x0 = Math.floor(u), y0 = Math.floor(v), fu = u - x0, fv = v - y0, g = (ax, ay) => sdS[clT(ay, TH) * TW + clT(ax, TW)]; return (g(x0, y0) * (1 - fu) + g(x0 + 1, y0) * fu) * (1 - fv) + (g(x0, y0 + 1) * (1 - fu) + g(x0 + 1, y0 + 1) * fu) * fv; };
+  const seaAt = (tx, ty) => tx < 16 || !!seaM[ty * TW + tx] || wildRegion(tx * 10 + 5, ty * 10 + 5) === 'The Salt Shore';
+  const COLD = ['The High Fells', 'The Barrow Downs', 'The Quarry Hills'];
+  // The colour of water so deep, in that country: blue, darker as it shelves, the bottom showing green through the
+  // shallows, and going dark over the deeps. (stained: with what the country does to its water laid on too, the peat of
+  // Blackmere or the cold of the high ground. Where a whole tile of water is painted that is laid over it afterwards.)
+  const waterRGB = (depth, sea, reg, stained) => {
+    const dt = Math.max(0, Math.min(1, (depth - 1.7) / 2.4)), c = [90 - 27 * dt, 156 - 31 * dt, 198 - 27 * dt], mix = (r, g, b2, f) => { c[0] += (r - c[0]) * f; c[1] += (g - c[1]) * f; c[2] += (b2 - c[2]) * f; };
+    if (depth < 1.6 && reg !== 'Blackmere') { const f = Math.min(1, (1.6 - depth) / 1.2) * (sea ? 0.22 : 0.14); if (sea) mix(130, 228, 206, f); else mix(170, 218, 200, f); }
+    else if (depth > 2.6) mix(8, 24, 70, Math.min(0.26, (depth - 2.6) * 0.05));
+    if (stained) { if (reg === 'Blackmere') mix(58, 62, 28, 0.32); else if (!sea && COLD.includes(reg)) mix(214, 228, 242, 0.14); }
+    return c;
+  };
+  const hexOf = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  const waterHexes = {};      // (in steps of a quarter, so that the colours stay few)
+  const waterHex = (depth, sea, reg, stained) => { const q = Math.round(Math.max(0, Math.min(9.5, depth)) * 4), key = q + (sea ? 's' : 'f') + (reg === 'Blackmere' ? 'b' : stained && !sea && COLD.includes(reg) ? 'c' : '') + (stained ? 1 : 0); return waterHexes[key] || (waterHexes[key] = hexOf(waterRGB(q / 4, sea, reg, stained))); };
   // ---- the roads, each laid as one ribbon ----
   // A road is not a row of squares. The middle of each stretch is drawn a little toward its neighbours, so that a road
   // climbing across the grain of the map runs straight up the slant instead of in steps, and a corner is rounded; then
@@ -328,15 +351,18 @@ function* provLandSteps(fresh) {
     } else if (k === T_WATER) {
       const dp = deep(tx, ty), nz = wildNoise(tx / 6, ty / 6, 311), reg = wildRegion(x + 5, y + 5), sea = tx < 16 || reg === 'The Salt Shore' || !!seaM[ty * TW + tx];
       const sd = Math.min(9, shoreD[ty * TW + tx]);
-      let sdA = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const ax = Math.max(0, Math.min(TW - 1, tx + dx)), ay = Math.max(0, Math.min(TH - 1, ty + dy)); sdA += Math.min(9, shoreD[ay * TW + ax]); }
-      sdA = sdA / 25 + (wildNoise(tx / 4, ty / 4, 1030) - 0.5) * 1.6;      // the depth, smoothed, so that it shelves and does not step
-      if (sd >= 2) { const dt = Math.max(0, Math.min(1, (sdA - 1.7) / 2.4)); R(x, y, 10, 10, `rgb(${Math.round(90 - 27 * dt)},${Math.round(156 - 31 * dt)},${Math.round(198 - 27 * dt)})`); }
+      const sdA = sdS[ty * TW + tx];      // the depth, smoothed, so that it shelves and does not step
+      // Its colour is shaded across the tile toward the depths of the tiles round it, a little at a time and unevenly, so
+      // that the water darkens out from the shore and no square of it shows. (Where it is all one depth, it is one colour.)
+      { let lo = 99, hi = -99; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const q = sdS[clT(ty + dy, TH) * TW + clT(tx + dx, TW)]; if (q < lo) lo = q; if (q > hi) hi = q; }
+        if (hi - lo < 0.2 || lo > 7.9) R(x, y, 10, 10, waterHex(sdA, sea, reg, false));
+        else for (let sy = 0; sy < 5; sy++) for (let sx = 0; sx < 5; sx++) R(x + sx * 2, y + sy * 2, 2, 2, waterHex(sdAt(tx + (sx * 2 + 1) / 10 - 0.5, ty + (sy * 2 + 1) / 10 - 0.5) + (h(tx * 5 + sx, ty * 5 + sy, 1931) - 0.5) * 0.35, sea, reg, false)); }
       R(x, y, 10, 10, nz > 0.5 ? `rgba(255,255,255,${((nz - 0.5) * 0.14).toFixed(3)})` : `rgba(0,20,60,${((0.5 - nz) * 0.14).toFixed(3)})`);      // light and dark, so that no reach of it is one flat blue
       for (let q = 0, n = 1 + Math.floor(a * 3); q < n; q++) R(x + Math.floor(h(tx, ty, 312 + q) * 7), y + 1 + Math.floor(h(tx, ty, 316 + q) * 8), 2 + Math.floor(h(tx, ty, 320 + q) * 4), 1, dp ? '#5a9cc6' : '#8fc3e0');
       if (reg === 'Blackmere') R(x, y, 10, 10, 'rgba(58,62,28,.32)');                                                      // peat water, brown as tea
       else if (!sea && (reg === 'The High Fells' || reg === 'The Barrow Downs' || reg === 'The Quarry Hills')) R(x, y, 10, 10, 'rgba(214,228,242,.14)');      // cold water off the high ground
-      if (sdA < 1.6 && reg !== 'Blackmere') { R(x, y, 10, 10, `rgba(${sea ? '130,228,206' : '170,218,200'},${(Math.min(1, (1.6 - sdA) / 1.2) * (sea ? 0.22 : 0.14)).toFixed(3)})`); for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 987 + q) * 8), y + Math.floor(h(tx, ty, 990 + q) * 9), 2, 1, sea ? 'rgba(226,210,150,.3)' : 'rgba(190,200,150,.25)'); }      // the bottom showing through the shallows
-      else if (sdA > 2.6) { R(x, y, 10, 10, `rgba(8,24,70,${Math.min(0.26, (sdA - 2.6) * 0.05).toFixed(3)})`); for (let q = 0; q < 4; q++) R(x + Math.floor(h(tx, ty, 993 + q) * 8), y + Math.floor(h(tx, ty, 997 + q) * 9), 3, 2, q % 2 ? 'rgba(8,24,70,.05)' : 'rgba(120,170,210,.05)'); }      // and going dark over the deeps
+      if (sdA < 1.6 && reg !== 'Blackmere') { for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 987 + q) * 8), y + Math.floor(h(tx, ty, 990 + q) * 9), 2, 1, sea ? 'rgba(226,210,150,.3)' : 'rgba(190,200,150,.25)'); }      // the bottom showing through the shallows
+      else if (sdA > 2.6) { for (let q = 0; q < 4; q++) R(x + Math.floor(h(tx, ty, 993 + q) * 8), y + Math.floor(h(tx, ty, 997 + q) * 9), 3, 2, q % 2 ? 'rgba(8,24,70,.05)' : 'rgba(120,170,210,.05)'); }      // and going dark over the deeps
       if (b > 0.8) R(x + 5, y + 7, 3, 1, '#35709c');
       const e = h(tx, ty, 324), narrow = !sea && ((!wet(at(tx - 2, ty)) && !wet(at(tx + 2, ty))) || (!wet(at(tx, ty - 2)) && !wet(at(tx, ty + 2))));
       if (narrow && e > 0.9 && e <= 0.972) { for (let q = 0; q < 4; q++) R(x + 1 + Math.floor(h(tx, ty, 620 + q) * 6), y + 1 + q * 2 + Math.floor(h(tx, ty, 624 + q) * 2), 2 + Math.floor(h(tx, ty, 628 + q) * 3), 1, '#e6f3fa'); R(x + 3, y + 5, 2, 2, '#7d7a72'); }      // white water over stones
@@ -364,16 +390,7 @@ function* provLandSteps(fresh) {
         if (wet(at(tx - 1, ty)) && wet(at(tx + 1, ty))) R(x + Math.floor(w1 * 5), y + 2 + Math.floor(w2 * 6), 4 + Math.floor(w1 * 20) % 3, 1, 'rgba(224,242,252,.3)');
         else R(x + 2 + Math.floor(w2 * 6), y + Math.floor(w1 * 5), 1, 4 + Math.floor(w1 * 20) % 3, 'rgba(224,242,252,.3)');
       }
-      // surf along the shore
-      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], n) => {
-        if (tx + dx < 0 || ty + dy < 0 || tx + dx >= TW || ty + dy >= TH) return;      // the sea runs off the edge of the map: no surf there
-        const o = at(tx + dx, ty + dy);
-        if (wet(o) || o === T_BRIDGE) return;
-        // white where the sea breaks; on a river or a mere only the water lying a little paler against the bank
-        // (nor in a creek or among islets, where land is on more than one side: there the white made a scribble)
-        const open = sea && [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ex, ey]) => { const o2 = at(tx + ex, ty + ey); return !wet(o2) && o2 !== T_BRIDGE; }).length === 1;
-        for (let i = 0; i < (open ? 2 : 1); i++) { const q = 1 + Math.floor(h(tx, ty, 50 + n * 2 + i) * 6); R(dx ? x + (dx > 0 ? 7 : 2) : x + q, dy ? y + (dy > 0 ? 7 : 2) : y + q, dx ? 1 : 3, dx ? 3 : 1, open ? '#e6f3fa' : 'rgba(190,224,240,.4)'); }
-      });
+      // (the surf along the shore is drawn with the shore itself, below)
     }
     else if (k === T_SAND) {
       const v = h(tx, ty, 330);
@@ -413,7 +430,7 @@ function* provLandSteps(fresh) {
         if (d1 > 0.994) { R(x + 2, y + 7, 7, 1, 'rgba(0,0,0,.18)'); R(x + 3, y + 3, 4, 4, '#c9a763'); R(x + 4, y + 2, 2, 1, '#c9a763'); R(x + 3, y + 4, 4, 1, '#a8853f'); R(x + 3, y + 6, 4, 1, '#a8853f'); R(x + 4, y + 6, 1, 1, '#2a1c14'); }      // a skep of bees
         else if (d1 > 0.988) { R(x + 3, y + 4, 4, 3, '#4f86ae'); R(x + 4, y + 3, 2, 1, '#4f86ae'); R(x + 4, y + 4, 2, 1, '#8fc0de'); R(x + 6, y + 6, 1, 4, '#4f86ae'); R(x + 2, y + 3, 1, 2, '#8a9a4a'); R(x + 3, y + 7, 2, 1, '#a39a8a'); }                        // a spring, and the trickle running off
         else if (dz === 0 && d1 < 0.7) { const mown = wildNoise(tx / 3, ty / 3, 1054) > 0.5; if (mown) { R(x, y + 1 + (ty % 2) * 2, 10, 1, tint(base, 0.9)); R(x, y + 6 + (ty % 2), 10, 1, tint(base, 0.9)); R(x + Math.floor(d2 * 6), y + 2 + (ty % 2) * 2, 4, 1, '#cdb866'); R(x + Math.floor(d3 * 6), y + 7 + (ty % 2), 3, 1, '#cdb866'); if (d2 > 0.86) { R(x + 3, y + 3, 4, 3, '#d9c070'); R(x + 4, y + 2, 2, 1, '#e6d088'); R(x + 3, y + 6, 5, 1, 'rgba(0,0,0,.16)'); } } else for (let q = 0; q < 5; q++) { const gx = x + q * 2 + Math.floor(d2 * 2), gy = y + 2 + Math.floor(h(tx, ty, 1055 + q) * 5); R(gx, gy, 1, 4, tint(base, q % 2 ? 0.86 : 1.1)); R(gx, gy - 1, 1, 1, '#d8c880'); } }      // hay: cut and lying in rows, or standing ready
-        else if (dz === 1 && d1 < 0.75) for (let q = 0, n = 5 + Math.floor(d2 * 6); q < n; q++) { const fx = x + Math.floor(h(tx, ty, 1060 + q) * 10), fy = y + Math.floor(h(tx, ty, 1071 + q) * 10); R(fx, fy, 1 + (q % 3 === 0 ? 1 : 0), 1, q % 4 ? '#d0382a' : '#e8604a'); if (q % 3 === 0) R(fx, fy + 1, 1, 1, '#4f7a3a'); }                                                    // poppies, thick as a carpet
+        else if (dz === 1 && d1 < 0.75) for (let q = 0, n = 5 + Math.floor(d2 * 6); q < n; q++) { const fx = x + Math.floor(h(tx, ty, 1060 + q) * 10), fy = y + Math.floor(h(tx, ty, 1071 + q) * 10); R(fx, fy, 1 + (q % 3 === 0 ? 1 : 0), 1, q % 4 ? '#c4584a' : '#d8806a'); if (q % 3 === 0) R(fx, fy + 1, 1, 1, '#4f7a3a'); }                                                    // poppies, thick as a carpet (a soft red: the hard reds are kept for men's tunics and for what warns)
         else if (dz === 2 && d1 < 0.6) for (let q = 0, n = 2 + Math.floor(d2 * 4); q < n; q++) { const fx = x + 1 + Math.floor(h(tx, ty, 1060 + q) * 8), fy = y + 2 + Math.floor(h(tx, ty, 1071 + q) * 5), sp = [['#b070c0', '#d098dc'], ['#e07898', '#f0a8bc'], ['#6f80d8', '#98a8f0'], ['#f0e070', '#f8f0a0']][Math.floor(wildNoise(tx / 2.5, ty / 2.5, 1056) * 3.999)]; R(fx, fy + 3, 1, 2, '#4f7a3a'); R(fx, fy, 1, 3, sp[0]); R(fx, fy, 1, 1, sp[1]); }      // foxglove, lupin, mullein: tall spires, each colour in its own stand
         else if (dz === 3 && d1 < 0.7) { R(x + Math.floor(d2 * 4), y + 1 + Math.floor(d3 * 4), 6, 5, tint(base, 1.06)); for (let q = 0; q < 8; q++) R(x + Math.floor(h(tx, ty, 1060 + q) * 10), y + Math.floor(h(tx, ty, 1071 + q) * 10), 1, 1, q % 3 ? '#f8f8f4' : '#f0d840'); }      // daisies and buttercups, on short turf
         else if (dz === 4 && d1 < 0.4) { const bx = x + 1 + Math.floor(d2 * 5), by = y + 3 + Math.floor(d3 * 3), bc = d2 > 0.5 ? ['#b9a0e0', '#d8c8f0'] : ['#e8a0c0', '#f4d0e0']; R(bx, by + 3, 5, 1, 'rgba(0,0,0,.14)'); R(bx, by, 4, 3, '#5f8a4a'); R(bx + 1, by - 1, 2, 1, '#5f8a4a'); for (let q = 0; q < 4; q++) R(bx + (q % 2) * 2 + Math.floor(d3 * 2), by - 1 + q, 1, 1, bc[q % 2]); if (d3 > 0.7) R(bx + 5, by - 2, 1, 1, '#2a1c14'); }      // bee pasture: lavender and thyme in clumps, and a bee over them
@@ -522,7 +539,7 @@ function* provLandSteps(fresh) {
         for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 145 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 150 + q) * 5); R(gx, gy, 1, 3, gc); R(gx + lean, gy - 1, 1, 1, gc); }
       }
       else if (a > 0.82) {                     // a drift of flowers, in the colours of that part of the country
-        const reg = wildRegion(x + 5, y + 5), fc = reg === 'The Long Meadows' ? ['#f2e6a0', '#f4f4f0'] : reg === 'The Home Fields' ? ['#c23b2e', '#f2e6a0'] : reg === 'Greywood' ? ['#b9a0e0', '#f4f4f0'] : reg === 'The Salt Shore' ? ['#e8a0c0', '#f4f4f0'] : ['#e8a0a0', '#b9a0e0'];
+        const reg = wildRegion(x + 5, y + 5), fc = reg === 'The Long Meadows' ? ['#f2e6a0', '#f4f4f0'] : reg === 'The Home Fields' ? ['#c4584a', '#f2e6a0'] : reg === 'Greywood' ? ['#b9a0e0', '#f4f4f0'] : reg === 'The Salt Shore' ? ['#e8a0c0', '#f4f4f0'] : ['#e8a0a0', '#b9a0e0'];
         for (let q = 0; q < 4 + Math.floor(b * 4); q++) R(x + Math.floor(h(tx, ty, 155 + q) * 9), y + Math.floor(h(tx, ty, 163 + q) * 9), 1, 1, fc[q % 2]);
       }
       else if (a < 0.012) {                    // a tree standing by itself
@@ -590,13 +607,96 @@ function* provLandSteps(fresh) {
     }
     else if ((k === T_GRASS || k === T_MEADOW || k === T_SAND || k === T_ROAD) && (n === T_HILL || w === T_HILL)) { R(x, y, 10, 5, 'rgba(18,20,40,.07)'); R(x, y, 5, 10, 'rgba(18,20,40,.05)'); }
     else if ((k === T_GRASS || k === T_MEADOW || k === T_ROAD) && (n === T_FOREST || w === T_FOREST)) { if (n === T_FOREST) R(x, y, 10, 4, 'rgba(10,30,10,.12)'); if (w === T_FOREST) R(x, y, 3, 10, 'rgba(10,30,10,.09)'); }
-    if (k === T_GRASS || k === T_MEADOW || k === T_HILL) {          // a strand of sand or shingle wherever the land meets water
-      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy], q) => {
-        if (!wet(at(tx + dx, ty + dy))) return;
-        for (let i = 0; i < 10; i += 2) { if (h(tx * 3 + i, ty * 3 + q, 80) < 0.22) continue; const d = 1 + Math.floor(h(tx + i, ty + q, 81) * 2); R(dx ? x + (dx > 0 ? 10 - d - 1 : 1) : x + i, dy ? y + (dy > 0 ? 10 - d - 1 : 1) : y + i, dx ? d : 2, dy ? d : 2, i % 4 ? '#d2c08a' : '#bfae78'); }
-      });
-    }
   } }
+  // ---- the shore ----
+  // Where land meets water, the line between them is not the sides of the squares the land is laid out in. It is drawn
+  // here, over what the tiles have painted. How wet a spot is, is taken between the middles of the four tiles round it
+  // (so that a coast running in steps is one slant, and a corner is rounded) from a place a little to one side of the
+  // spot, further in some stretches than in others (so that a bank wanders, and a straight shore is not ruled). Where
+  // that makes water of a corner of land it is painted as water, and where it makes land of a corner of water, as the
+  // land beside it. Then the edge itself: a strand of sand or shingle on grass, wet sand, a dark bank under trees or
+  // rock; and on the water white where the open sea breaks, and elsewhere only the water lying paler against the bank.
+  // Nothing of this is known to the rules: the column walks by the tiles, and may have a foot in the water's edge.
+  // It is left as the tiles have it beside a bridge, by the marsh's own pools, and under the town.
+  yield;
+  { const wetV = new Uint8Array(TW * TH), mereV = new Uint8Array(TW * TH), STRAND = [T_GRASS, T_MEADOW, T_HILL], openOf = new Map();
+    for (let i = 0; i < TW * TH; i++) { const k = L.t[i], ax = i % TW, ay = (i - ax) / TW; wetV[i] = k === T_WATER || k === T_BRIDGE ? 1 : 0; mereV[i] = k === T_MARSH && ax >= 30 && zq(wildNoise(ax / 7, ay / 7, 1040), 6) === 0 && h(ax, ay, 1041) < 0.7 && wildRegion(ax * 10 + 5, ay * 10 + 5) !== 'The Salt Shore' ? 1 : 0; }      // (a pool of the marsh: as the marsh itself has it, above)
+    const wv = (ax, ay) => wetV[clT(ay, TH) * TW + clT(ax, TW)];
+    const lieOf = wv => (px, py) => {      // more than nothing: water
+      const u = px / 10 - 0.5 + (wildNoise(px / 34, py / 34, 1901) - 0.5) * 0.62 + (wildNoise(px / 7, py / 7, 1903) - 0.5) * 0.22, v = py / 10 - 0.5 + (wildNoise(px / 34, py / 34, 1902) - 0.5) * 0.62 + (wildNoise(px / 7, py / 7, 1904) - 0.5) * 0.22;
+      const x0 = Math.floor(u), y0 = Math.floor(v), fu = u - x0, fv = v - y0;
+      return (wv(x0, y0) * (1 - fu) + wv(x0 + 1, y0) * fu) * (1 - fv) + (wv(x0, y0 + 1) * (1 - fu) + wv(x0 + 1, y0 + 1) * fu) * fv - 0.46;
+    };
+    const lie = lieOf(wv);
+    fresh.wetLie = lie;      // (kept: the chart of the whole province draws its coasts by it too)
+    // what is known of a tile of water: whether it is the sea, whether the sea is open there (land on one side of it at most), and its country
+    const waterOf = j => { let o = openOf.get(j); if (!o) { const ax = j % TW, ay = (j - ax) / TW, sea = seaAt(ax, ay); let land = 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!wv(ax + dx, ay + dy)) land++; openOf.set(j, o = { sea, open: sea && land <= 1, reg: wildRegion(ax * 10 + 5, ay * 10 + 5) }); } return o; };
+    for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
+      const i = ty * TW + tx, k = L.t[i], w = wetV[i];
+      if (k === T_ROAD || k === T_BRIDGE || mereV[i] || inTown(tx, ty, 2)) continue;
+      let edge = false, held = false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = clT(ty + dy, TH) * TW + clT(tx + dx, TW); if (wetV[j] !== w) edge = true; if (mereV[j] || L.t[j] === T_BRIDGE) held = true; }
+      if (!edge || held) continue;
+      const x = tx * 10, y = ty * 10;
+      // the nearest tile of the other kind (want: 1 water, 0 land) to a spot of this one
+      const pick = (px, py, want) => {
+        const sx = px < 5 ? -1 : 1, sy = py < 5 ? -1 : 1, byX = Math.min(px, 9 - px) <= Math.min(py, 9 - py);
+        for (const [dx, dy] of byX ? [[sx, 0], [0, sy], [sx, sy], [-sx, 0], [0, -sy], [sx, -sy], [-sx, sy], [-sx, -sy]] : [[0, sy], [sx, 0], [sx, sy], [0, -sy], [-sx, 0], [-sx, sy], [sx, -sy], [-sx, -sy]]) { const j = clT(ty + dy, TH) * TW + clT(tx + dx, TW); if (wetV[j] === want && !(want === 0 && L.t[j] === T_BRIDGE)) return j; }
+        return -1;
+      };
+      for (let py = 0; py < 10; py++) {
+        let from = 0, was = null;
+        for (let px = 0; px <= 10; px++) {
+          let c = null;
+          if (px < 10) {
+            const X = x + px, Y = y + py, f = lie(X + 0.5, Y + 0.5);
+            if (f > 0) {                           // water here
+              const j = w ? i : pick(px, py, 1), W = j < 0 ? null : waterOf(j);
+              if (W) {
+                if (f < 0.1 && W.open && h(Math.floor(X / 3), Math.floor(Y / 2), 1913) > 0.42) c = '#e6f3fa';      // the sea breaking
+                else if (f < 0.13 && h(X, Y, 1914) > 0.3) c = w ? 'rgba(190,224,240,.4)' : hexOf(waterRGB(sdS[j], W.sea, W.reg, true).map((v, q) => v + ([190, 224, 240][q] - v) * 0.4));
+                else if (!w) c = waterHex(sdS[j], W.sea, W.reg, true);
+              }
+            } else if (w || f > -0.14) {           // land here: come in over the water, or the edge of it
+              const j = w ? pick(px, py, 0) : i;
+              if (j >= 0) {
+                const o = L.t[j], ax = j % TW, ay = (j - ax) / TW, near = f > -0.14;
+                if (STRAND.includes(o)) { if (near && h(X, Y, 1915) > 0.2) c = h(X >> 1, Y >> 1, 1916) > 0.5 ? '#d2c08a' : '#bfae78'; else if (w) c = col(o, ax, ay); }
+                else if (near) c = tint(col(o, ax, ay), o === T_SAND ? 0.9 : 0.84);
+                else if (w) c = col(o, ax, ay);
+              }
+            }
+          }
+          if (c !== was) { if (was) R(x + from, y + py, px - from, 1, was); from = px; was = c; }
+        }
+      }
+    } }
+    // The marsh's own pools (a tile of marsh that is open water: see the marsh, above) are rounded the same way, in
+    // their own dark water: marsh where the line cuts a corner off a pool, pool where it runs out into the ground beside
+    // it, and a darker rim along it. A pool lying against a lake or the river is one water with it, and has no line there.
+    const wm = (ax, ay) => { const j = clT(ay, TH) * TW + clT(ax, TW); return wetV[j] | mereV[j]; }, lieM = lieOf(wm);
+    for (let ty = 0; ty < TH; ty++) { if (ty & 1) yield; for (let tx = 30; tx < TW; tx++) {
+      const i = ty * TW + tx, k = L.t[i], me = mereV[i];
+      if (wetV[i] || k === T_ROAD || inTown(tx, ty, 2)) continue;
+      let by = !!me; if (!by) for (let dy = -1; dy <= 1 && !by; dy++) for (let dx = -1; dx <= 1; dx++) if (mereV[clT(ty + dy, TH) * TW + clT(tx + dx, TW)]) { by = true; break; }
+      if (!by) continue;
+      const x = tx * 10, y = ty * 10, pw = wildRegion(x + 5, y + 5) === 'Blackmere' ? ['#34504a', '#44665e'] : ['#3d5a52', '#4f7470'], ground = col(k, tx, ty);
+      const oW = me && !wm(tx - 1, ty), oE = me && !wm(tx + 1, ty), oN = me && !wm(tx, ty - 1), oS = me && !wm(tx, ty + 1);      // the sides on which the pool was painted with a margin of ground and a rim: those are painted out where the water now runs on past them
+      for (let py = 0; py < 10; py++) {
+        let from = 0, was = null;
+        for (let px = 0; px <= 10; px++) {
+          let c = null;
+          if (px < 10) {
+            const f = lieM(x + px + 0.5, y + py + 0.5);
+            if (f <= 0) { if (me) c = ground; }
+            else if (f < 0.12) c = pw[0];
+            else if (!me || (oW && px < 3) || (oE && px > 6) || (oN && py < 3) || (oS && py > 6)) c = pw[1];
+          }
+          if (c !== was) { if (was) R(x + from, y + py, px - from, 1, was); from = px; was = c; }
+        }
+      }
+    } }
+  }
   // ---- each part of the country has its own look ----
   const farmland = (tx, ty) => farm(tx, ty) || Math.hypot(tx - tx0, ty - ty0) < 3 || inTown(tx, ty, 4);
   fresh.boats = [];
@@ -2232,6 +2332,167 @@ function provLandAhead() {
   wait();
 }
 
+// ---------- whatever moves, painted in one turn ----------
+// Beasts, travellers, carts, boats, roaming bands and the column do not paint themselves on the map as each is come
+// to. Each draws on a slate (provRec.ctx, which takes the few orders a canvas is given by them, and provRec.R), saying
+// first where it stands (provAt). When all have drawn, provRec.paint puts them on the map from the north of the view
+// to the south, so that whoever is nearer is in front, whatever kind of thing he is, and whatever stands tall (an
+// arch, the aqueduct) is painted again over those behind it. Before any of them it lays every shadow on the ground,
+// thrown south and east as the land's own shadows are, short at noon and long when the sun is low. And it goes round
+// those that must be picked out at a glance (the column, a roaming band) with a dark line.
+//   kind: 'ink' to be gone round with the line; 'flat' to throw no shadow (a boat, a bee); 'sign' for both.
+// provAt hands back what it has opened, so that whoever carries a light after dark can say so (lamp).
+const PROV_INK = '#1a110b', PROV_SHADE = '#0e0a06';
+const provRec = (() => {
+  const X = [], Y = [], W = [], H = [], A = [], C = [], groups = [], stack = [];      // every rectangle drawn this frame, and whose it is
+  let n = 0, gn = 0, cur = null, tx = 0, ty = 0, sc = 1, alpha = 1, style = '#000', clip = null, path = null;
+  const open = (x, y, wide, kind) => {
+    const g = groups[gn] || (groups[gn] = {});
+    g.i = gn++; g.x = x; g.y = y; g.wide = wide || 6; g.ink = kind === 'ink' || kind === 'sign'; g.flat = kind === 'flat' || kind === 'sign'; g.from = g.to = n; g.over = null; g.lamp = 0;
+    return (cur = g);
+  };
+  const ctx = {
+    get fillStyle() { return style; }, set fillStyle(v) { style = v; },
+    get globalAlpha() { return alpha; }, set globalAlpha(v) { alpha = v; },
+    fillRect(x, y, w, h) {
+      if (!cur) return;
+      if (w < 0) { x += w; w = -w; } if (h < 0) { y += h; h = -h; }
+      x = x * sc + tx; y = y * sc + ty; w *= sc; h *= sc;
+      if (clip) { const x1 = Math.min(x + w, clip[2]), y1 = Math.min(y + h, clip[3]); x = Math.max(x, clip[0]); y = Math.max(y, clip[1]); w = x1 - x; h = y1 - y; }
+      if (!(w > 0 && h > 0)) return;
+      if (sc !== 1) cur.flat = true;      // growing small in a gateway: under the wall, and its shadow with it
+      X[n] = x; Y[n] = y; W[n] = w; H[n] = h; A[n] = alpha; C[n] = style; cur.to = ++n;
+    },
+    save() { stack.push({ tx, ty, sc, alpha, style, clip }); },
+    restore() { const s = stack.pop(); if (s) ({ tx, ty, sc, alpha, style, clip } = s); },
+    translate(a, b) { tx += a * sc; ty += b * sc; },
+    scale(a) { sc *= a; },
+    beginPath() { path = null; },
+    rect(x, y, w, h) { path = [x * sc + tx, y * sc + ty, (x + w) * sc + tx, (y + h) * sc + ty]; },
+    clip() { if (path) clip = clip ? [Math.max(clip[0], path[0]), Math.max(clip[1], path[1]), Math.min(clip[2], path[2]), Math.min(clip[3], path[3])] : path; },
+  };
+  const solid = i => A[i] >= 1 && C[i].charCodeAt(0) === 35;      // paint, and not a stain or a glint
+  return {
+    ctx, at: open,
+    R: (x, y, w, h, c) => { style = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); },
+    begin() { n = gn = 0; cur = null; tx = ty = 0; sc = 1; alpha = 1; clip = path = null; stack.length = 0; },
+    here: () => cur,
+    // whoever carries a light after dark (lamp: how far it reaches), for it to be lit once they are all painted
+    lamps(fn) { for (let i = 0; i < gn; i++) if (groups[i].lamp) fn(groups[i]); },
+    // one of several things that go together (the mule of a cart, the man behind it): standing so far from the first
+    sub(base, dx, dy, kind) { const g = open(base.x + dx, base.y + dy, 8, kind); g.ink = g.ink || base.ink; return g; },
+    // sun: how far a shadow runs east and south for each unit of height (kx, ky), and how dark it lies (a)
+    paint(to, camX, camY, sun) {
+      const list = []; for (let i = 0; i < gn; i++) if (groups[i].to > groups[i].from) list.push(groups[i]);
+      const order = list.slice();
+      if (prov.overs && prov.paintOver) for (const o of prov.overs) {
+        if (o.x1 < camX - 40 || o.x0 > camX + PROV.VW + 40 || o.base < camY - 40 || o.y0 > camY + PROV.VH + 40) continue;
+        for (const g of list) if (g.y < o.base && g.y > o.y0 - 2 && g.x + g.wide > o.x0 && g.x - g.wide < o.x1) { order.push({ y: o.base, i: 1e9, over: o }); break; }
+      }
+      order.sort((a, b) => a.y - b.y || a.i - b.i);
+      if (sun && sun.a > 0.01) {      // the shadows: all on one sheet, so that where two cross it is no darker, and the sheet laid on the ground
+        const pad = 40, lw = PROV.VW + pad * 2, lh = PROV.VH + pad * 2, ox = camX - pad, oy = camY - pad, fat = Math.max(0, Math.ceil(sun.kx) - 1);
+        const sheet = prov.shadeCv || (prov.shadeCv = Object.assign(document.createElement('canvas'), { width: lw, height: lh })), sh = sheet.getContext('2d');
+        sh.clearRect(0, 0, lw, lh); sh.fillStyle = PROV_SHADE;
+        for (const g of list) {
+          if (g.flat) continue;
+          const foot = Math.round(g.y);
+          for (let i = g.from; i < g.to; i++) {
+            if (!solid(i)) continue;
+            const x = Math.round(X[i]), w = Math.ceil(W[i]) + fat, bot = Math.min(foot, Math.round(Y[i] + H[i]));
+            for (let yy = Math.round(Y[i]); yy < bot; yy++) { const up = foot - yy; sh.fillRect(x + Math.round(up * sun.kx) - ox, foot + Math.round(up * sun.ky) - oy, w, 1); }
+          }
+        }
+        to.globalAlpha = sun.a; to.drawImage(sheet, ox, oy); to.globalAlpha = 1;
+      }
+      let al = 1;
+      for (const g of order) {
+        if (g.over) { if (al !== 1) to.globalAlpha = al = 1; prov.paintOver(to, g.over.d); continue; }
+        if (g.ink) { if (al !== 1) to.globalAlpha = al = 1; to.fillStyle = PROV_INK; for (let i = g.from; i < g.to; i++) if (solid(i)) { to.fillRect(X[i] - 1, Y[i], W[i] + 2, H[i]); to.fillRect(X[i], Y[i] - 1, W[i], H[i] + 2); } }
+        for (let i = g.from; i < g.to; i++) { if (A[i] !== al) to.globalAlpha = al = A[i]; to.fillStyle = C[i]; to.fillRect(X[i], Y[i], W[i], H[i]); }
+      }
+      to.globalAlpha = 1;
+    },
+  };
+})();
+const provAt = (x, y, wide, kind) => provRec.at(x, y, wide, kind);
+// How the sun throws a shadow at this hour, under this sky: see provRec.paint.
+function provSun(sky, wx) {
+  const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, k = 0.3 + low * 0.9;
+  return { kx: k * 0.9, ky: k * 0.45, a: 0.36 * (1 - ((wx && wx.over) || 0) * 0.6) * clamp(1 - sky.night * 3, 0, 1) };
+}
+
+// ---------- the dark, and what lifts it ----------
+// After dusk, and through the short night when camp is made, the dark is laid over the country as a sheet (provNight),
+// and lifted in a round about every light: a lamp in a window, a hearth, a watch fire, the brand the lanista carries,
+// the lantern of a man still on the road. Whoever lights anything says so with provGlow, which lays its warmth on the
+// ground and remembers where it is (prov.lit: x, y and how far it reaches, three numbers to a light) for the sheet.
+// A light is round, in steps, wider than it is tall as it lies on the ground.
+function provDisc(ctx, x, y, rx, ry) {
+  for (let dy = -ry; dy <= ry; dy++) { const hw = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry + 0.5))); if (hw > 0) ctx.fillRect(x - hw, y + dy, hw * 2, 1); }
+}
+function provGlow(ctx, x, y, r, rgb, a) {
+  if (prov.lit) prov.lit.push(x, y, r);
+  ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(${rgb},${a})`;
+  for (let q = 0; q < 3; q++) { const rr = r - q * (r / 3.5); provDisc(ctx, Math.round(x), Math.round(y), Math.round(rr), Math.round(rr * 0.7)); }
+  ctx.globalCompositeOperation = 'source-over';
+}
+// How dark the sheet lies at this hour, 0 to 1: a little at dawn, deepening through dusk, and nearly whole in the night.
+function provGloom(sky) { const nk = (performance.now() - (prov.night || -1e9)) / 1700; return Math.max(sky.night * 1.7, nk >= 0 && nk < 1 ? Math.sin(nk * Math.PI) * 0.86 : 0); }
+function provNight(ctx, camX, camY, a, T) {
+  if (a < 0.02) return;
+  const W = PROV.VW, H = PROV.VH, veil = prov.veil || (prov.veil = Object.assign(document.createElement('canvas'), { width: W, height: H })), v = veil.getContext('2d'), L = prov.lit || [];
+  v.globalCompositeOperation = 'source-over'; v.globalAlpha = 1; v.fillStyle = '#080a1e'; v.fillRect(0, 0, W, H);
+  v.globalCompositeOperation = 'destination-out'; v.fillStyle = '#000';
+  for (let i = 0; i < L.length; i += 3) {
+    const x = Math.round(L[i] - camX), y = Math.round(L[i + 1] - camY), r = L[i + 2] * 1.5 + 6 + (Math.sin(T * 9 + L[i] * 0.7) > 0.3 ? 1 : 0);      // it reaches further than its warmth does, and wavers
+    if (x < -r || y < -r || x > W + r || y > H + r) continue;
+    for (let q = 0; q < 4; q++) { const rr = Math.round(r * (1 - q * 0.22)); v.globalAlpha = 0.3 + q * 0.1; provDisc(v, x, y, rr, Math.round(rr * 0.75)); }
+  }
+  v.globalAlpha = 1; v.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = a; ctx.drawImage(veil, camX, camY); ctx.globalAlpha = 1;
+}
+
+// ---------- what the column does to those it passes ----------
+// A flock opens to let the column through, and closes again behind it: each beast stands off from it, the further the
+// nearer the column is, and runs while the column is moving. (Deer do more than that: see drawHerds.) Where a beast
+// stands is still worked out and not remembered: this is how far the column, where it is now, has put it from there.
+const HERD_ROOM = { sheep: 30, goats: 30, geese: 26, pigs: 22, cattle: 16, horses: 38, cranes: 34 };
+function herdShy(kind, x, y) {
+  const F = G.field, room = HERD_ROOM[kind]; if (!F || !room) return null;
+  const dx = x - F.x, dy = y - F.y, d = Math.hypot(dx, dy); if (d >= room) return null;
+  const k = (room - d) / room, u = d || 1;
+  return { x: dx / u * k * room * 0.6, y: dy / u * k * room * 0.45, right: dx >= 0, run: !!prov.moving };
+}
+// Whoever is on a road draws to the side of it as the column comes by, and back when it has gone: C is where the road
+// has him (shuttleAt, millCartAt), and is given back moved over. Not where there is no side to draw to (a bridge).
+const WAY_ROOM = 30;
+function giveWay(C) {
+  const F = G.field; if (!F || !C || !C.along) return C;
+  const d = Math.hypot(C.x - F.x, C.y - F.y); if (d >= WAY_ROOM) return C;
+  const a = C.along(-6), b = C.along(6), hx = b.x - a.x, hy = b.y - a.y, n = Math.hypot(hx, hy) || 1, px = -hy / n, py = hx / n;
+  const side = (C.x - F.x) * px + (C.y - F.y) * py >= 0 ? 1 : -1, k = Math.min(1, (WAY_ROOM - d) / (WAY_ROOM * 0.5));
+  const nx = Math.round(C.x + px * side * 7 * k), ny = Math.round(C.y + py * side * 5 * k);
+  if (!wildWalk(nx, ny)) return C;
+  C.x = nx; C.y = ny; return C;
+}
+// Dust, off a dry road, behind wheels and hooves: so far back along the way (tail), and hanging a moment before it goes.
+function provDust(R, along, tail, T, quick) {
+  const p0 = along(-tail); provAt(p0.x, p0.y - 0.5, 6, 'flat');
+  for (let i = 0; i < 4; i++) { const q = (T * 0.8 * quick + i / 4) % 1, p = along(-tail - q * 12 * quick); R(p.x - 2 + Math.sin(q * 5 + i * 2) * 2, p.y - 1 - q * 7, 2 + Math.round(q * 2), 1 + Math.round(q * 1.4), 'rgba(242,232,206,' + (0.6 * (1 - q)).toFixed(2) + ')'); }      // paler than the road it comes off, or it would not be seen against it
+}
+// Birds put up by the column as it goes: out of a wood, a covey out of the long grass, duck off the marsh. They are
+// remembered (prov.flush) for the few seconds they are in sight: where they rose, when, and which way they went.
+function provFlush(x, y) {
+  const list = prov.flush || (prov.flush = []); if (list.length > 5) return;
+  for (let tries = 0; tries < 6; tries++) {
+    const fx = x + (Math.random() - 0.5) * 56, fy = y + (Math.random() - 0.5) * 40, k = wildTile(fx, fy);
+    const kind = k === T_FOREST ? 'wood' : k === T_MEADOW ? 'covey' : k === T_MARSH ? 'duck' : null; if (!kind) continue;
+    list.push({ x: fx, y: fy, t: performance.now() / 1000, kind, n: kind === 'wood' ? 4 + Math.floor(Math.random() * 4) : kind === 'covey' ? 3 + Math.floor(Math.random() * 3) : 2, seed: Math.floor(Math.random() * 1000), away: fx >= x ? 1 : -1 });
+    return;
+  }
+}
+
 // ---------- flocks, herds and birds: alive on the map ----------
 // A herd wanders round its home, slowly, by a path that is the same for everyone and for every time it is looked at:
 // where it stands is worked out from the clock, not remembered. Sheep graze and drift, with a shepherd and his dog
@@ -2262,11 +2523,14 @@ function drawHerds(ctx, T, R, inView) {
       const own = Math.cos(T * (0.22 + b3 * 0.16) + b1 * 20), moving = bolt > 0.1 || Math.abs(vx) > 1.1 || Math.abs(own) > 0.6;
       const right = bolt > 0.1 ? (F ? cx > F.x : true) : Math.abs(vx) > 1.1 ? vx > 0 : own > 0;
       const graze = !moving && Math.sin(T * 0.45 + b2 * 30) > 0.1, step = moving && Math.sin(T * 9 + i * 2) > 0 ? 1 : 0;
-      beasts.push({ x: Math.round(x), y: Math.round(y), right, graze, step, moving, b1, b2, b3, i });
+      const shy = K === 'deer' ? null : herdShy(K, x, y);      // the column among them: they give it room
+      if (shy) beasts.push({ x: Math.round(x + shy.x), y: Math.round(y + shy.y), right: shy.right, graze: false, step: shy.run && Math.sin(T * 12 + i * 2) > 0 ? 1 : 0, moving: shy.run, b1, b2, b3, i });
+      else beasts.push({ x: Math.round(x), y: Math.round(y), right, graze, step, moving, b1, b2, b3, i });
     }
     beasts.sort((p, q) => p.y - q.y);
     for (const B of beasts) {
       const { x, y, right, graze, step, moving } = B, d = right ? 1 : -1;
+      provAt(x, y, 6);
       if (K === 'sheep') {
         const black = B.b3 > 0.88, lamb = B.b3 < 0.16, wool = black ? '#3a322c' : B.b1 > 0.5 ? '#f1ead8' : '#e6dcc4', w = lamb ? 3 : 5, hh = lamb ? 2 : 3, lying = !moving && B.b2 > 0.82;
         R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - hh, w, hh, wool); R(x - (w >> 1) + 1, y - hh - 1, w - 2, 1, wool);
@@ -2312,11 +2576,30 @@ function drawHerds(ctx, T, R, inView) {
     // the shepherd and his dog, with the larger flocks
     if ((K === 'sheep' || K === 'pigs' || K === 'geese') && hv(5) > 0.45 && H.n >= 4) {
       const sx = Math.round(cx - (vx >= 0 ? 16 : -16)), sy = Math.round(cy + 6), mv = Math.abs(vx) > 0.9;
-      vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', walk: T * 6, moving: mv, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14' });
+      provAt(sx, sy, 6);
+      vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', walk: T * 6, moving: mv, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14', hood: prov.rainy ? '#5a4a38' : null });
       R(sx + (vx >= 0 ? 5 : -5), sy - 16, 1, 16, '#6b4f2c'); R(sx + (vx >= 0 ? 5 : -6), sy - 17, 2, 1, '#6b4f2c');      // his crook
-      if (K === 'sheep' && hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
+      if (K === 'sheep' && hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; provAt(dx, dy, 5); R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
     }
-    for (const B of beasts) provUnder(ctx, B.x, B.y, 6);      // whichever of them are behind an arch or under the aqueduct
+  }
+}
+// What is on the wing: over everything that goes on the ground, and painted after it.
+function drawBirds(ctx, T, R, inView) {
+  if (prov.flush && prov.flush.length) {         // what the column has just put up: away low and fast, or up over the trees, and gone
+    const now = performance.now() / 1000; prov.flush = prov.flush.filter(f => now - f.t < 2.6);
+    for (const f of prov.flush) {
+      if (!inView(f.x, f.y, 90)) continue;
+      const age = now - f.t, low = f.kind === 'covey', c = f.kind === 'wood' ? '#2a2118' : low ? '#7a5a3a' : '#3f5a48';
+      for (let i = 0; i < f.n; i++) {
+        const h1 = wildHash(i, f.seed, 2990), h2 = wildHash(f.seed, i, 2991), a = age - h1 * 0.3; if (a < 0) continue;
+        const gx = f.x + (h2 - 0.5) * 12 + f.away * (14 + h2 * 22) * (low ? 2 : 1) * a, gy = f.y + (h1 - 0.5) * 6, up = (low ? 9 : 24 + h1 * 14) * a * (1 - a * 0.1) + 5;
+        const x = Math.round(gx), y = Math.round(gy - up + Math.sin(a * 9 + i) * 1.5), flap = Math.sin(now * (low ? 34 : 24) + i * 2) > 0 ? 1 : 0;
+        ctx.globalAlpha = clamp((2.6 - age) / 0.6, 0, 1);
+        R(x - 1, y - flap, 1, 1, c); R(x + 1, y - flap, 1, 1, c); R(x, y, 1, 1, c); if (f.kind !== 'wood') { R(x - 2, y - flap, 1, 1, c); R(x + 2, y - flap, 1, 1, c); R(x + f.away, y, 1, 1, low ? '#c9a763' : '#2f6a3a'); }
+        R(x - 1, Math.round(gy), 3, 1, 'rgba(0,0,0,.10)');
+      }
+    }
+    ctx.globalAlpha = 1;
   }
   { const span = WILD.W + 400, run = T * 16, lap = Math.floor(run / span), gx = (run % span) - 200, gy = 150 + wildHash(lap, 7, 694) * (WILD.H - 300) + Math.sin(T * 0.2) * 20;      // wild geese going over, high up, from one side of the province to the other
     if (inView(gx, gy, 60)) for (let i = 0; i < 9; i++) { const k2 = Math.abs(i - 4), x = Math.round(gx - k2 * 5), y = Math.round(gy + (i - 4) * 4), fl = Math.sin(T * 6 + i) > 0 ? 1 : 0; if (!wildSeen(Math.max(5, Math.min(WILD.W - 5, x)), Math.max(5, Math.min(WILD.H - 5, y)))) continue; R(x - 2, y - fl, 2, 1, '#8a8478'); R(x + 1, y - fl, 2, 1, '#8a8478'); R(x, y, 2, 1, '#5a544a'); R(x + 2, y, 1, 1, '#3a342e'); R(x - 1, y + 34, 3, 1, 'rgba(0,0,0,.08)'); } }
@@ -2437,7 +2720,7 @@ function drawTown(ctx, T, R, tx, ty, tr, night) {
 // mill wheel going round, steam off the hot spring, a flag on the watchtower, men at their work. After dark the
 // windows of every house out in the country show a light.
 function drawMarks(ctx, T, R, inView, night, smoke) {
-  const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(${c},${a})`; for (let q = 0; q < 3; q++) { const rr = r - q * (r / 3.5); ctx.fillRect(Math.round(gx - rr), Math.round(gy - rr * 0.7), Math.round(rr * 2), Math.round(rr * 1.4)); } ctx.globalCompositeOperation = 'source-over'; };
+  const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => provGlow(ctx, gx, gy, r, c, a);
   const man = (mx, my, o) => vilPerson(ctx, mx, my, Object.assign({ face: 'right', walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c' }, o));
   const pace = (x0, x1, sp, ph) => { const u = (T * sp + ph) % 2, f = u < 1 ? u : 2 - u; return { x: Math.round(x0 + (x1 - x0) * f), face: (u < 1) === (x1 > x0) ? 'right' : 'left' }; };
   // more that moves, and what is lit after dark, for the landmarks that had little of either
@@ -2774,15 +3057,6 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
 // horse. Each keeps to one road and goes up and down it for ever; where he is comes from the clock, like the herds.
 const TRAVEL_HALT = 5;      // seconds a traveller stands at the end of his road before he turns back
 const TRAVELLERS = ['cart', 'pilgrim', 'soldiers', 'merchant', 'rider', 'herdsman', 'litter', 'mules', 'woodman', 'oxwagon', 'runner', 'family'];
-// Whatever stands tall (an arch, the aqueduct: see overs in provLand) is painted again over anybody who has just
-// been drawn north of the line it stands on, so that travellers, herds and roaming bands pass behind and under it
-// as the column does.
-function provUnder(ctx, x, y, w) {
-  if (!prov.overs || !prov.paintOver) return;
-  let hit = null;
-  for (const o of prov.overs) if (y < o.base && y > o.y0 - 2 && x + w > o.x0 && x - w < o.x1) (hit = hit || []).push(o);
-  if (hit) hit.sort((a, b) => a.base - b.base).forEach(o => prov.paintOver(ctx, o.d));
-}
 // The town's gates, as doorways. Whoever comes up a road to the town goes in at a gate as the lanista goes in at a door
 // in the town itself (village.js): up to the arch, growing small in it (a little smaller than the gateway), and gone;
 // and whoever leaves comes out of it the same way. A gate stands only where a road comes in, as the town is drawn.
@@ -2855,12 +3129,16 @@ function rowOf(ctx, d, face, along) {
           parts.sort((a, b) => a.ty - b.ty);
         }
       }
+      // on the slate each of them stands for itself, to be put in its turn among whatever else is on the road; and what
+      // joins them goes down before the first of them
+      const rec = ctx === provRec.ctx ? provRec : null, base = rec && rec.here();
+      if (base && links.length) rec.sub(base, 0, Math.min(...parts.map(q => q.ty)) - 0.01, 'flat');
       for (const l of links) {
         const a = parts.find(q => q.off === l.offA), b = parts.find(q => q.off === l.offB); if (!a || !b) continue;
         const x0 = l.xa + a.tx, y0 = l.ya + a.ty, x1 = l.xb + b.tx, y1 = l.yb + b.ty, n = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
         ctx.fillStyle = l.c; for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), 1, 1);
       }
-      parts.forEach(q => { ctx.save(); ctx.translate(q.tx, q.ty); q.fn(); ctx.restore(); });
+      parts.forEach(q => { if (base) rec.sub(base, q.tx + d * q.off, q.ty); ctx.save(); ctx.translate(q.tx, q.ty); q.fn(); ctx.restore(); });
     },
   };
 }
@@ -2894,12 +3172,14 @@ function drawTraffic(ctx, T, R, inView) {
     for (let j = 0; j < n; j++) {
       const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)];
       const speed = kind === 'rider' ? 3.4 : kind === 'runner' ? 2.8 : kind === 'cart' ? 1.1 : kind === 'oxwagon' ? 0.8 : kind === 'litter' ? 1.2 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
-      const C = shuttleAt(lineOf(way), T, speed * 10, TRAVEL_HALT, hv(2)), x = C.x, y = C.y;      // up the road and down it, with a halt at each end
+      const C = giveWay(shuttleAt(lineOf(way), T, speed * 10, TRAVEL_HALT, hv(2))), x = C.x, y = C.y;      // up the road and down it, with a halt at each end
       if (!inView(x, y, 30) || !wildSeen(x, y) || inTownWalls(x, y)) continue;
+      const lead = provAt(x, y, 8);
       const gk = gateEnter(ctx, x, y); if (gk < 0) continue;      // in at the gate, or coming out of it
+      if (!gk) lead.lamp = 10;      // a lantern, for the road after dusk
       const face = C.face, d = C.dir, walk = T * 9 + j * 3, step = C.moving && Math.sin(walk) > 0 ? 1 : 0;
       const row = rowOf(ctx, d, face, C.along);
-      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c' }, extra));
+      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
       const beast = (bx, by, c, big) => { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, step); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
       if (kind === 'cart') {
         const cx = x - d * 12; row.link(-12, cx + d * 5, y - 4, 0, x - d * 3, y - 4, '#6b4f2c'); row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 14);
@@ -2939,8 +3219,8 @@ function drawTraffic(ctx, T, R, inView) {
       else if (kind === 'family') { row.part(0, () => man(0, 0, ['#7a6a4a', '#5a6a8a', '#8a4a3a'][Math.floor(hv(3) * 3)]), 20); row.part(-8, () => { man(-d * 8, 1, ['#b8703c', '#8a2a6a', '#3f7a5a', '#c9b25a'][Math.floor(hv(4) * 4)], hv(5) > 0.5 ? '#6a4a2a' : '#2a1c14'); R(x - d * 8 - 2, y - 21, 5, 3, '#c9a763'); }, 23); const dg = x - d * 16; row.part(-16, () => { R(dg - 2, y + 3, 5, 1, 'rgba(0,0,0,.2)'); R(dg - 2, y, 4, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(d > 0 ? dg + 2 : dg - 3, y - 1, 2, 2, hv(6) > 0.5 ? '#8a6a4a' : '#e8e2d2'); R(dg - 2 + step, y + 2, 1, 1, '#2a1c14'); R(dg + 1, y + 2, 1, 1, '#2a1c14'); }, 6); }      // a man and a woman with a basket on her head, and their dog
       else { row.part(0, () => { man(0, 0, '#8a6a4a', '#6a4a2a'); R(x + d * 5, y - 14, 1, 14, '#6b4f2c'); }, 20); for (let q = 0; q < 3; q++) { const gx = x + d * (9 + q * 5), gy = y + (q % 2) * 3; row.part(9 + q * 5, () => { R(gx - 2, gy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 4, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(d > 0 ? gx + 2 : gx - 3, gy - 4, 2, 2, q === 1 ? '#8a7a66' : '#e8e2d2'); R(gx - 2 + step, gy - 1, 1, 2, '#3a2a22'); R(gx + 1 - step, gy - 1, 1, 2, '#3a2a22'); }, 6); } }      // a herdsman driving goats to market
       row.draw();
+      if (prov.dry && C.moving && !gk && wildTile(x, y) === T_ROAD) { const tail = kind === 'cart' ? 20 : kind === 'oxwagon' ? 30 : kind === 'mules' ? 34 : kind === 'rider' ? 5 : 0; if (tail) provDust(R, C.along, tail, T + j, kind === 'rider' ? 1.6 : 1); }
       gateLeave(ctx, gk);
-      provUnder(ctx, x, y, 26);
     }
   });
 }
@@ -2962,10 +3242,11 @@ function millCartAt(T) {
     face: Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up') };
 }
 function drawMillCart(ctx, T, R, inView) {
-  const C = millCartAt(T); if (!C) return;
+  const C = giveWay(millCartAt(T)); if (!C) return;
   const { x, y } = C;
   if (!inView(x, y, 30) || !wildSeen(x, y)) return;
   const d = C.face === 'left' ? -1 : 1, walk = T * 8, step = C.moving && Math.sin(walk) > 0 ? 1 : 0, jog = C.moving && Math.sin(walk * 0.5) > 0.6 ? 1 : 0;
+  provAt(x, y, 8).lamp = C.moving ? 10 : 0;
   const cx = x - d * 12, cy = y - jog, row = rowOf(ctx, d, C.face, C.along);
   row.part(-12, () => {
   R(cx - 7, y + 1, 15, 2, 'rgba(0,0,0,.25)');
@@ -2985,9 +3266,8 @@ function drawMillCart(ctx, T, R, inView) {
   R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
   R(d > 0 ? bx + 3 : bx - 4, y - 9, 1, 2, '#6a5c4a'); R(bx - 3 + step, y - 2, 1, 3, '#5c5244'); R(bx + 3 - step, y - 2, 1, 3, '#5c5244'); R(d > 0 ? bx - 4 : bx + 4, y - 4, 1, 3, '#5c5244');
   }, 10);
-  row.part(8, () => vilPerson(ctx, x + d * 8, y + 1, { face: C.face, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c' }), 20);
+  row.part(8, () => vilPerson(ctx, x + d * 8, y + 1, { face: C.face, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c', hood: prov.rainy ? '#8a7c62' : null }), 20);
   row.draw();
-  provUnder(ctx, x, y, 26);
 }
 
 // ---------- vessels under way ----------
@@ -3128,39 +3408,39 @@ function drawTrade(ctx, T, R, inView) {
   const W = tradeWays();
   const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => { tface = C.face; return rowOf(ctx, C.dir, C.face, C.along); };
   let tface = 'right';      // which way whoever is being drawn is going: a beast going up or down the map is drawn end on
-  const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c' });
+  const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null });
   const beast = (bx, by, c, d, big, step) => { if (tface === 'up' || tface === 'down') return beastEnd(R, bx, by, c, tface === 'up', big, step); const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
     R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
     if (big) { R(d > 0 ? bx + (w >> 1) + 2 : bx - (w >> 1) - 4, by - h - 6, 2, 1, '#f1ead8'); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - h - 6, 2, 1, '#f1ead8'); } };
   // ---- the stone wagon, quarry to kiln
   if (W.stone) {
-    const struck = kilnState() !== 'burning', C = struck ? Object.assign(shuttleAt(W.stone, 0, 6, 1e9, 0), { moving: false, leg: 0 }) : shuttleAt(W.stone, T, 6, 12, 0.3);
-    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, wx = C.x - d * 17, loaded = C.leg === 1 || C.leg === 2;
+    const struck = kilnState() !== 'burning', C = struck ? Object.assign(shuttleAt(W.stone, 0, 6, 1e9, 0), { moving: false, leg: 0 }) : giveWay(shuttleAt(W.stone, T, 6, 12, 0.3));
+    if (shown(C.x, C.y)) { provAt(C.x, C.y, 8).lamp = C.moving ? 10 : 0; const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, wx = C.x - d * 17, loaded = C.leg === 1 || C.leg === 2;
       const row = rowC(C); row.part(-17, () => { R(wx - 9, C.y + 1, 19, 2, 'rgba(0,0,0,.25)'); R(wx - 8, C.y - 6, 17, 5, '#7a5a34'); R(wx - 8, C.y - 7, 17, 1, '#a8834a'); R(wx - 8, C.y - 2, 17, 1, '#5e4426');
       if (loaded) { R(wx - 6, C.y - 12, 6, 5, '#d6ccb8'); R(wx - 6, C.y - 12, 6, 1, '#f0e8d6'); R(wx + 1, C.y - 11, 6, 4, '#c9c0aa'); R(wx + 1, C.y - 11, 6, 1, '#e4dcc8'); R(wx - 3, C.y - 16, 6, 4, '#d6ccb8'); R(wx - 3, C.y - 16, 6, 1, '#f0e8d6'); }
       for (const ox of [-6, 3]) { R(wx + ox, C.y - 3, 5, 5, '#3a2a1c'); R(wx + ox + 1, C.y - 2, 3, 3, '#8a6a3a'); R(wx + ox + 2, C.y - 1, 1, 1, '#3a2a1c'); } }, 20);
       row.link(-17, wx + d * 9, C.y - 5, 0, C.x - d * 4, C.y - 5, '#5e4426');
       row.part(0, () => beast(C.x, C.y, '#8a6444', d, true, step), 12);
       row.part(10, () => { if (!struck) man(C.x + d * 10, C.y + 1, C.face, C.moving, '#8a7a5a'); else { R(C.x + d * 9, C.y - 3, 4, 3, '#8a7a5a'); R(C.x + d * 9, C.y - 6, 3, 3, '#d9a57c'); } }, 20); row.draw();      // on strike, the carter sits by his ox
-      provUnder(ctx, C.x, C.y, 28); }
+      }
   }
   // ---- fish in a handcart, huts to salt pans; fewer loads when half the boats are drawn up
   if (W.fish) {
-    const C = shuttleAt(W.fish, T, 9, taleEnd('whale') === 'carted' ? 60 : 12, 0.1);
-    if (shown(C.x, C.y)) { const d = C.dir, loaded = C.leg === 1 || C.leg === 2, cx = C.x + d * 7;
+    const C = giveWay(shuttleAt(W.fish, T, 9, taleEnd('whale') === 'carted' ? 60 : 12, 0.1));
+    if (shown(C.x, C.y)) { provAt(C.x, C.y, 8); const d = C.dir, loaded = C.leg === 1 || C.leg === 2, cx = C.x + d * 7;
       const row = rowC(C); row.part(7, () => { R(cx - 5, C.y + 1, 11, 2, 'rgba(0,0,0,.22)'); R(cx - 4, C.y - 6, 9, 4, '#8a6a3a'); R(cx - 4, C.y - 7, 9, 1, '#a8834a'); R(cx - 1, C.y - 3, 4, 4, '#3a2a1c'); R(cx, C.y - 2, 2, 2, '#8a6a3a'); R(cx - d * 5, C.y - 6, -d * 4, 1, '#6b4f2c');
       if (loaded) { R(cx - 3, C.y - 9, 7, 3, '#b8c6d0'); R(cx - 2, C.y - 9, 2, 1, '#e6f0f6'); R(cx + 1, C.y - 8, 2, 1, '#8fa2b0'); if (Math.sin(T * 3) > 0.8) R(cx + 2, C.y - 10, 1, 1, '#ffffff'); } }, 14);
       row.part(-3, () => man(C.x - d * 3, C.y + 1, C.face, C.moving, '#4a6a8a'), 20); row.draw();
-      provUnder(ctx, C.x, C.y, 18); }
+      }
   }
   // ---- salt fish on a mule, salt pans to the town gate
   if (W.salt) {
-    const C = shuttleAt(W.salt, T, 11, 16, 0.55);
-    if (shown(C.x, C.y)) { const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+    const C = giveWay(shuttleAt(W.salt, T, 11, 16, 0.55));
+    if (shown(C.x, C.y)) { const lead = provAt(C.x, C.y, 8); const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { lead.lamp = !gk && C.moving ? 10 : 0; const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
       const row = rowC(C); row.part(-9, () => { beast(mx, C.y, '#9a8a72', d, false, step);
       if (loaded) { R(mx - 3, C.y - 9, 7, 4, '#e8e2d2'); R(mx - 3, C.y - 9, 7, 1, '#fbf6ea'); R(mx - 3, C.y - 6, 7, 1, '#b8b0a0'); R(mx, C.y - 9, 1, 4, '#6b4f2c'); } else { R(mx - 2, C.y - 7, 5, 1, '#6b4f2c'); } }, 13);
       row.part(0, () => man(C.x, C.y, C.face, C.moving, '#b8b0a0', '#5a4326'), 20); row.draw();
-      gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 18); } }
+      gateLeave(ctx, gk); } }
   }
   // ---- the flock, out to the hill with the morning and home with the evening, the dog behind
   if (W.flock) {
@@ -3178,66 +3458,66 @@ function drawTrade(ctx, T, R, inView) {
           let sx, sy;
           if (!grazing) { const at = wayAt(W.flock, d0 - sgn * (9 + i * 5)); sx = at.x + (h1 - 0.5) * 10; sy = at.y + (h2 - 0.5) * 8 + 2; }
           else { sx = lead.x + (h1 - 0.5) * 46 + Math.sin(T * 0.11 + i * 2) * 4; sy = lead.y + (h2 - 0.5) * 26 + 4; }
-          sx = Math.round(sx); sy = Math.round(sy);
+          { const shy = herdShy('sheep', sx, sy); if (shy) { sx += shy.x; sy += shy.y; } }
+          sx = Math.round(sx); sy = Math.round(sy); provAt(sx, sy, 5);
           const bob = moving && Math.sin(T * 7 + i) > 0 ? 1 : 0, graze = !moving && Math.sin(T * 0.8 + i * 1.7) > 0.2 ? 1 : 0, sd = !grazing ? dir : (h1 > 0.5 ? 1 : -1);
           R(sx - 2, sy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(sx - 2, sy - 3 - bob, 5, 3, i === 5 ? '#8a7a66' : '#f1ead8'); R(sx - 1, sy - 4 - bob, 3, 1, i === 5 ? '#9a8a76' : '#fbf6ea');
           R(sd > 0 ? sx + 3 : sx - 4, sy - 3 - bob + graze, 2, 2, '#3a322c'); R(sx - 1, sy, 1, 1, '#3a322c'); R(sx + 1, sy, 1, 1, '#3a322c');
         }
         const sh = !grazing ? wayAt(W.flock, d0 + sgn * 9) : { x: lead.x + 26, y: lead.y - 6 };      // the shepherd goes in front, and stands off on his crook while they graze
-        man(Math.round(sh.x), Math.round(sh.y), face, moving, '#8a6a4a', '#8a8a8a'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 15, 1, 15, '#6b4f2c'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 16, 2, 1, '#6b4f2c');
+        provAt(Math.round(sh.x), Math.round(sh.y), 6); man(Math.round(sh.x), Math.round(sh.y), face, moving, '#8a6a4a', '#8a8a8a'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 15, 1, 15, '#6b4f2c'); R(Math.round(sh.x) + dir * 4, Math.round(sh.y) - 16, 2, 1, '#6b4f2c');
         { const at = !grazing ? wayAt(W.flock, d0 - sgn * 54) : { x: lead.x - 28, y: lead.y + 8 }, wv = moving ? Math.sin(T * 2.2) * 8 : 0, gx = Math.round(at.x + wv * 0.4), gy = Math.round(at.y + wv), c = white ? '#f1ead8' : '#8a6a4a', run = moving && Math.sin(T * 9) > 0 ? 1 : 0, wag = Math.sin(T * 8) > 0 ? 1 : 0;      // the dog behind, working from side to side
-          R(gx - 3, gy + 1, 7, 1, 'rgba(0,0,0,.2)'); R(gx - 3, gy - 3, 6 + (white ? 1 : 0), white ? 3 : 2, c); R(dir > 0 ? gx + 3 : gx - 5, gy - 5, 2, 3, c); R(dir > 0 ? gx - 4 : gx + 3, gy - 4 - wag, 1, 2, c);
+          provAt(gx, gy, 5); R(gx - 3, gy + 1, 7, 1, 'rgba(0,0,0,.2)'); R(gx - 3, gy - 3, 6 + (white ? 1 : 0), white ? 3 : 2, c); R(dir > 0 ? gx + 3 : gx - 5, gy - 5, 2, 3, c); R(dir > 0 ? gx - 4 : gx + 3, gy - 4 - wag, 1, 2, c);
           R(gx - 2 + run, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - run, gy - 1, 1, 2, shade(c, 0.7)); if (!moving) R(dir > 0 ? gx + 4 : gx - 5, gy - 4, 1, 1, '#1c1310'); }
-        provUnder(ctx, lead.x, lead.y, 30);
       }
     }
   }
   // ---- charcoal for the town's hearths and forges, on a mule
   if (W.coal) {
-    const C = shuttleAt(W.coal, T, 11, 14, 0.8);
-    if (shown(C.x, C.y)) { const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+    const C = giveWay(shuttleAt(W.coal, T, 11, 14, 0.8));
+    if (shown(C.x, C.y)) { const lead = provAt(C.x, C.y, 8); const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { lead.lamp = !gk && C.moving ? 10 : 0; const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
       const row = rowC(C); row.part(-9, () => { beast(mx, C.y, '#6f5a48', d, false, step);
       if (loaded) { R(mx - 4, C.y - 10, 4, 6, '#2a2420'); R(mx + 1, C.y - 10, 4, 6, '#2a2420'); R(mx - 4, C.y - 10, 4, 1, '#4a4038'); R(mx + 1, C.y - 10, 4, 1, '#4a4038'); R(mx - 3, C.y - 11, 2, 1, '#8a6a3a'); R(mx + 2, C.y - 11, 2, 1, '#8a6a3a'); } else R(mx - 2, C.y - 7, 5, 1, '#6b4f2c'); }, 13);
       row.part(0, () => man(C.x, C.y, C.face, C.moving, '#4a4038', '#2a1c14'), 20); row.draw();
-      gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 18); } }
+      gateLeave(ctx, gk); } }
   }
   // ---- a log dragged in from the woodcutter's, to be stacked and burned
   if (W.logs) {
-    const C = shuttleAt(W.logs, T, 7, 10, 0.45);
-    if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1, mx = C.x - d * 9;
+    const C = giveWay(shuttleAt(W.logs, T, 7, 10, 0.45));
+    if (shown(C.x, C.y)) { provAt(C.x, C.y, 8); const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1, mx = C.x - d * 9;
       const row = rowC(C); if (loaded) row.link(-9, mx - d * 4, C.y - 1, -24, mx - d * 10, C.y - 1, '#6b4f2c'); row.part(-24, () => { if (loaded) { const lx = mx - d * 15; R(lx - 6, C.y - 2, 12, 3, '#7a5a34'); R(lx - 6, C.y - 2, 12, 1, '#94703f'); R(d > 0 ? lx - 6 : lx + 5, C.y - 2, 1, 3, '#d8c090'); R(lx - 6, C.y + 1, 13, 1, 'rgba(0,0,0,.2)'); if (C.moving && Math.sin(T * 9) > 0.4) R(lx - d * 8, C.y, 1, 1, '#c8b078'); } }, 8);
       row.part(-9, () => beast(mx, C.y, '#8a6a4a', d, false, step), 10);
       row.part(0, () => { man(C.x, C.y, C.face, C.moving, '#6a5a3a', '#6a4a2a'); R(C.x - d * 4, C.y - 14, 1, 8, '#6b4f2c'); R(C.x - d * 4 - (d > 0 ? 2 : 0), C.y - 15, 3, 2, '#b8c0c8'); }, 20); row.draw();      // his axe over his shoulder
-      provUnder(ctx, C.x, C.y, 26); }
+      }
   }
   // ---- the vintage: pickers down from the vineyard houses with their baskets, for the month it lasts
   if (isVintage()) (W.pick || []).forEach((way, wi) => { for (let k = 0; k < 2; k++) {
-    const C = shuttleAt(way, T, 9, 6, 0.2 + wi * 0.31 + k * 0.5);
+    const C = giveWay(shuttleAt(way, T, 9, 6, 0.2 + wi * 0.31 + k * 0.5));
     if (!shown(C.x, C.y)) continue;
     const d = C.dir, full = C.leg === 1 || C.leg === 2;
+    provAt(C.x, C.y, 8);
     man(C.x, C.y, C.face, C.moving, k ? '#8a4a6a' : '#7a7a4a', k ? '#3a2a1c' : '#6a4a2a');
     R(C.x - d * 4 - 2, C.y - 15, 5, 4, '#b89a5a'); R(C.x - d * 4 - 2, C.y - 15, 5, 1, '#d0b46e'); if (full) { R(C.x - d * 4 - 2, C.y - 17, 5, 2, '#6a2a6a'); R(C.x - d * 4 - 1, C.y - 18, 2, 1, '#8a4a8a'); R(C.x - d * 4 + 1, C.y - 17, 1, 1, '#4a8a3a'); }      // the basket on the shoulder, heaped going down and empty coming back
-    provUnder(ctx, C.x, C.y, 14);
   } });
   // ---- wine for the town, in jars bedded in straw
   if (W.jars) {
-    const C = shuttleAt(W.jars, T, 9, 18, 0.65);
-    if (shown(C.x, C.y)) { const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, cx = C.x - d * 14;
+    const C = giveWay(shuttleAt(W.jars, T, 9, 18, 0.65));
+    if (shown(C.x, C.y)) { const lead = provAt(C.x, C.y, 8); const gk = gateEnter(ctx, C.x, C.y); if (gk >= 0) { lead.lamp = !gk && C.moving ? 10 : 0; const d = C.dir, step = C.moving && Math.sin(T * 5) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, cx = C.x - d * 14;
       const row = rowC(C); row.part(-14, () => { R(cx - 7, C.y + 1, 15, 2, 'rgba(0,0,0,.25)'); R(cx - 6, C.y - 6, 12, 5, '#8a6a3a'); R(cx - 6, C.y - 7, 12, 1, '#a8834a'); R(cx - 6, C.y - 2, 12, 1, '#6b4f2c');
       if (loaded) { R(cx - 5, C.y - 8, 10, 2, '#d9c070'); for (let q = 0; q < 3; q++) { const jx = cx - 5 + q * 4; R(jx, C.y - 12, 3, 5, '#b8703c'); R(jx + 1, C.y - 14, 1, 2, '#b8703c'); R(jx, C.y - 12, 1, 5, '#d08a54'); R(jx + 1, C.y - 15, 1, 1, '#6b4f2c'); } }
       for (const ox of [-5, 2]) { R(cx + ox, C.y - 2, 4, 4, '#3a2a1c'); R(cx + ox + 1, C.y - 1, 2, 2, '#8a6a3a'); } }, 18);
       row.link(-14, cx + d * 6, C.y - 5, 0, C.x - d * 3, C.y - 5, '#6b4f2c'); row.part(0, () => beast(C.x, C.y, '#9a8a72', d, false, step), 10);
       row.part(8, () => man(C.x + d * 8, C.y + 1, C.face, C.moving, '#7a4a6a'), 20); row.draw();
-      gateLeave(ctx, gk); provUnder(ctx, C.x, C.y, 24); } }
+      gateLeave(ctx, gk); } }
   }
   // ---- the watch: a supply mule to the tower, and every third day the relief out in the morning and the old watch home after noon
   if (W.watch) {
-    { const C = shuttleAt(W.watch, T, 10, 22, 0.05);
-      if (shown(C.x, C.y)) { const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
+    { const C = giveWay(shuttleAt(W.watch, T, 10, 22, 0.05));
+      if (shown(C.x, C.y)) { provAt(C.x, C.y, 8); const d = C.dir, step = C.moving && Math.sin(T * 6) > 0 ? 1 : 0, loaded = C.leg === 1 || C.leg === 2, mx = C.x - d * 9;
         const row = rowC(C); row.part(-9, () => { beast(mx, C.y, '#8a6a4a', d, false, step);
         if (loaded) { R(mx - 4, C.y - 9, 4, 4, '#b8703c'); R(mx + 1, C.y - 9, 4, 4, '#c9a763'); R(mx - 4, C.y - 9, 9, 1, '#3a2a1c'); } else R(mx - 2, C.y - 7, 5, 1, '#a8261c'); }, 13);
         row.part(0, () => man(C.x, C.y, C.face, C.moving, '#8a3a2a', '#2a1c14'), 20); row.draw();
-        provUnder(ctx, C.x, C.y, 18); } }
+        } }
     if (watchRelief()) {
       const u = dayPart(), e = taleEnd('watch'), n = e === 'gone' || e === 'oath' ? 1 : 2;      // one man short, if Rufio never came back to it
       // Where the hour would have them on the road, and where they have got to: they march at a walk (FLOCK_PACE, the pace of
@@ -3251,9 +3531,8 @@ function drawTrade(ctx, T, R, inView) {
           const d0 = clamp(f * W.watch.total - sgn * k * 9, 0, W.watch.total), at = wayAt(W.watch, d0), on = wayAt(W.watch, d0 + sgn * 5), dx = on.x - at.x, dy = on.y - at.y, x = Math.round(at.x), y = Math.round(at.y) + (k % 2);
           if (!shown(x, y)) continue;
           const face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = dx >= 0 ? 1 : -1;
-          man(x, y, face, onRoad, '#a8261c', '#2a1c14');
+          provAt(x, y, 8); man(x, y, face, onRoad, '#a8261c', '#2a1c14');
           R(x + d * 4, y - 21, 1, 17, '#6b4f2c'); R(x + d * 4, y - 23, 1, 2, '#c1c7cc'); R(x - d * 4 - 1, y - 13, 3, 7, '#8a2a20'); R(x - d * 4, y - 11, 1, 2, '#c9a21e'); R(x - 1, y - 20, 3, 1, '#c1c7cc');      // spear, shield and helmet
-          provUnder(ctx, x, y, 14);
         } }
     }
   }
@@ -3263,7 +3542,7 @@ function drawTrade(ctx, T, R, inView) {
     const go = W.ferry.total / 7, cyc = (go + 9) * 2, trip = Math.floor(T / cyc), C = runs ? shuttleAt(W.ferry, T, 7, 9, 0) : Object.assign(shuttleAt(W.ferry, 0, 7, 1e9, 0), { moving: false, leg: 0 });
     if (inView(C.x, C.y, 30) && wildSeen(C.x, C.y)) {
       const bob = Math.sin(T * 1.5) > 0 ? 1 : 0, x = C.x, y = C.y + bob, d = C.dir, fares = runs && (C.leg === 1 || C.leg === 3) ? 1 + Math.floor(wildHash(trip, C.leg, 2901) * 2.2) : 0, dip = C.moving && Math.sin(T * 1.6) > 0 ? 1 : 0;
-      R(x - 8, y + 2, 17, 1, 'rgba(20,40,60,.3)'); R(x - 8, y - 1, 16, 3, '#6b4f2c'); R(x - 8, y - 1, 16, 1, '#8a6a3a'); R(x - 9, y - 2, 1, 2, '#5e4426'); R(x + 8, y - 2, 1, 2, '#5e4426'); R(x - 7, y - 4, 1, 3, '#5e4426'); R(x + 6, y - 4, 1, 3, '#5e4426'); R(x - 7, y - 4, 14, 1, '#7a5a34');
+      provAt(x, y, 10, 'flat'); R(x - 8, y + 2, 17, 1, 'rgba(20,40,60,.3)'); R(x - 8, y - 1, 16, 3, '#6b4f2c'); R(x - 8, y - 1, 16, 1, '#8a6a3a'); R(x - 9, y - 2, 1, 2, '#5e4426'); R(x + 8, y - 2, 1, 2, '#5e4426'); R(x - 7, y - 4, 1, 3, '#5e4426'); R(x + 6, y - 4, 1, 3, '#5e4426'); R(x - 7, y - 4, 14, 1, '#7a5a34');
       R(x - d * 5 - 1, y - 8, 2, 3, '#d9a57c'); R(x - d * 5 - 1, y - 5, 2, 4, '#5a6a8a'); R(x - d * 7 - (d > 0 ? 0 : 0), y - 11 + dip, 1, 13, '#8a7a5c');      // the ferryman at his pole
       for (let q = 0; q < fares; q++) { const px = x + d * (1 + q * 4); R(px, y - 7, 2, 2, '#d9a57c'); R(px, y - 5, 2, 4, ['#8a4a3a', '#7a7a3a', '#e8e2d2'][(trip + q) % 3]); }
       if (!runs) { R(x - d * 9, y - 1, -d * 5, 1, '#c9b890'); R(x - d * 14, y - 4, 1, 5, '#5e4426'); }      // made fast to its post
@@ -3272,6 +3551,7 @@ function drawTrade(ctx, T, R, inView) {
   }
   // ---- bees, between the garden and the press all the daylight hours
   if (W.bees && dayPart() > 0.06 && dayPart() < 0.9) {
+    provAt(0, 1e6, 0, 'flat');      // in the air, over whatever is on the ground
     for (let q = 0; q < 14; q++) { const sp = 26 + (q % 4) * 5, back = q % 2, f = ((T * sp + q * 97) % W.bees.total) / W.bees.total, at = wayAt(W.bees, (back ? 1 - f : f) * W.bees.total);
       const x = Math.round(at.x + Math.sin(T * 5 + q * 1.9) * 3 + (q % 3 - 1) * 5), y = Math.round(at.y + Math.cos(T * 6.3 + q * 2.3) * 3 + ((q >> 1) % 3 - 1) * 4);
       if (!inView(x, y, 6) || !wildSeen(x, y)) continue;
@@ -3280,20 +3560,20 @@ function drawTrade(ctx, T, R, inView) {
   // ---- and, where it ended in a supper, the vintner himself going over in the evening with a jar
   if (W.court && taleEnd('vintner') === 'supper') { const u = dayPart(), f = (u - 0.62) / 0.3;
     if (f > 0 && f < 1) { const d0 = f * W.court.total, at = wayAt(W.court, d0), on = wayAt(W.court, d0 + 5), dx = on.x - at.x, dy = on.y - at.y, x = Math.round(at.x), y = Math.round(at.y);
-      if (shown(x, y)) { const face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = dx >= 0 ? 1 : -1; man(x, y, face, true, '#f4f0e4', '#5a4326'); R(x + d * 4, y - 9, 2, 4, '#8a4a3a'); R(x + d * 4, y - 10, 2, 1, '#b8703c'); provUnder(ctx, x, y, 14); } } }
+      if (shown(x, y)) { const face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = dx >= 0 ? 1 : -1; provAt(x, y, 8); man(x, y, face, true, '#f4f0e4', '#5a4326'); R(x + d * 4, y - 9, 2, 4, '#8a4a3a'); R(x + d * 4, y - 10, 2, 1, '#b8703c'); } } }
   // ---- the hunters: out with spears and dogs, home with a deer on a pole
   if (W.hunt) {
-    const C = shuttleAt(W.hunt, T, 12, 22, 0.35);
+    const C = giveWay(shuttleAt(W.hunt, T, 12, 22, 0.35));
     if (shown(C.x, C.y) && C.leg !== 2) {      // in the wood, they are not to be seen
       const d = C.dir, home = C.leg === 3, step = C.moving && Math.sin(T * 8) > 0 ? 1 : 0;
       const dog = (gx, gy, c) => { R(gx - 3, gy + 1, 6, 1, 'rgba(0,0,0,.2)'); R(gx - 2, gy - 3, 5, 2, c); R(d > 0 ? gx + 3 : gx - 4, gy - 4, 2, 2, c); R(d > 0 ? gx - 3 : gx + 3, gy - 4, 1, 2, c); R(gx - 2 + step, gy - 1, 1, 2, shade(c, 0.7)); R(gx + 2 - step, gy - 1, 1, 2, shade(c, 0.7)); };
       const a = { x: C.x, y: C.y }, b = { x: C.x - d * 12, y: C.y + 1 };
+      provAt(C.x, C.y, 8);
       const row = rowC(C);
       if (home) row.link(-12, b.x, C.y - 13, 0, a.x, C.y - 13, '#6b4f2c').part(-6, () => { const mx = Math.round((a.x + b.x) / 2); R(mx - 4, C.y - 12, 8, 4, '#a8703c'); R(mx - 4, C.y - 9, 8, 1, '#8a5a2c'); R(mx - 3, C.y - 14, 1, 2, '#a8703c'); R(mx + 2, C.y - 14, 1, 2, '#a8703c'); R(d > 0 ? mx - 6 : mx + 4, C.y - 11, 2, 3, '#a8703c'); R(d > 0 ? mx - 7 : mx + 5, C.y - 13, 1, 2, '#d8c8a0'); }, 8);      // the deer, slung by its feet
       row.part(-12, () => { man(b.x, b.y, C.face, C.moving, '#5a6a3a', '#6a4a2a'); if (!home) { R(b.x - d * 3, b.y - 16, 1, 9, '#6b4f2c'); R(b.x - d * 4, b.y - 15, 1, 7, '#c9b890'); } }, 20);      // a bow
       row.part(0, () => { man(a.x, a.y, C.face, C.moving, '#6a5a3a', '#2a1c14'); if (!home) { R(a.x + d * 4, a.y - 20, 1, 16, '#6b4f2c'); R(a.x + d * 4, a.y - 22, 1, 2, '#c1c7cc'); } }, 20);      // a boar-spear
       const o1 = home ? -26 : 14, o2 = home ? -32 : 20; row.part(o1, () => dog(C.x + d * o1, C.y + 3, '#8a6a4a'), 6); row.part(o2, () => dog(C.x + d * o2, C.y - 2, '#3a2e24'), 6); row.draw();
-      provUnder(ctx, C.x, C.y, 26);
     }
   }
   // ---- the marsh people's punts, poled between the huts and the peat
@@ -3301,7 +3581,7 @@ function drawTrade(ctx, T, R, inView) {
     const C = shuttleAt(W.punt, T, 6, 12, k * 0.5);
     if (!inView(C.x, C.y, 24) || !wildSeen(C.x, C.y)) continue;
     const x = C.x, y = C.y + (Math.sin(T * 1.4 + k) > 0 ? 1 : 0), d = C.dir, dip = C.moving && Math.sin(T * 1.2 + k) > 0 ? 1 : 0, laden = !W.punt.idle && (C.leg === 3 || C.leg === 0);
-    R(x - 5, y + 1, 11, 1, 'rgba(20,40,60,.3)'); R(x - 5, y - 1, 10, 2, '#4a3a2a'); R(x - 5, y - 1, 10, 1, '#6b5a40'); R(x - 6, y - 1, 1, 1, '#4a3a2a'); R(x + 5, y - 1, 1, 1, '#4a3a2a');
+    provAt(x, y, 8, 'flat'); R(x - 5, y + 1, 11, 1, 'rgba(20,40,60,.3)'); R(x - 5, y - 1, 10, 2, '#4a3a2a'); R(x - 5, y - 1, 10, 1, '#6b5a40'); R(x - 6, y - 1, 1, 1, '#4a3a2a'); R(x + 5, y - 1, 1, 1, '#4a3a2a');
     R(x - d * 3, y - 7, 2, 3, '#b8946c'); R(x - d * 3, y - 4, 2, 3, k ? '#5a6a4a' : '#6a5a3a'); R(x - d * 5, y - 9 + dip, 1, 11, '#8a7a5c');
     if (laden) { R(x + d * 0 - 1, y - 4, 5, 3, '#3a2c20'); R(x - 1, y - 4, 5, 1, '#5a4630'); R(x, y - 6, 3, 2, '#3a2c20'); }      // peat, cut and stacked amidships
   }
@@ -3314,7 +3594,9 @@ function drawTrade(ctx, T, R, inView) {
       const along = (T * speed + hv(2) * len) % len, idx = townEnd === 0 ? len - along : along, i0 = clamp(Math.floor(idx), 0, len - 1), fr = idx - i0, a = way[i0], b = way[i0 + 1];
       const x = Math.round(a[0] + (b[0] - a[0]) * fr), y = Math.round(a[1] + (b[1] - a[1]) * fr);
       if (!shown(x, y)) continue;
+      const lead = provAt(x, y, 8);
       const gk = gateEnter(ctx, x, y); if (gk < 0) continue;
+      if (!gk) lead.lamp = 10;
       const sg = townEnd === 0 ? -1 : 1, dx = (b[0] - a[0]) * sg, dy = (b[1] - a[1]) * sg, face = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'down' : 'up'), d = face === 'left' ? -1 : 1, step = Math.sin(T * 6 + j) > 0 ? 1 : 0, ML = lineOf(way), far = ML.len[i0] + (ML.len[i0 + 1] - ML.len[i0]) * fr, row = (tface = face, rowOf(ctx, d, face, off => wayOn(ML, far + sg * off)));
       if (kind === 0) {                             // a cart of stuff to sell, under a cloth
         const cx = x - d * 12, cloth = ['#b93a2e', '#2f6db8', '#c9b25a', '#5a8a4a'][Math.floor(hv(3) * 4)];
@@ -3332,7 +3614,6 @@ function drawTrade(ctx, T, R, inView) {
       }
       row.draw();
       gateLeave(ctx, gk);
-      provUnder(ctx, x, y, 26);
     }
   });
   // ---- the fishers' boats: out with the day, in with the dusk
@@ -3344,7 +3625,7 @@ function drawTrade(ctx, T, R, inView) {
       const bx = Math.round(S.x + dx * far + Math.sin(T * 0.09 + i * 2) * 3), by = Math.round(S.y + dy * far + Math.sin(T * 1.5 + i) * 1);
       if (!inView(bx, by, 30) || !wildSeen(bx, by)) continue;
       const hull = ['#6b4f2c', '#4a5a6a', '#7a4a3a'][i], sail = out > 0.05 && out < 1, tilt = Math.sin(T * 1.2 + i) > 0 ? 1 : 0;
-      R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); R(bx - 5, by - 2, 10, 3, hull); R(bx - 4, by + 1, 8, 1, shade(hull, 0.7)); R(bx - 5, by - 2, 10, 1, shade(hull, 1.25));
+      provAt(bx, by, 8, 'flat'); R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); R(bx - 5, by - 2, 10, 3, hull); R(bx - 4, by + 1, 8, 1, shade(hull, 0.7)); R(bx - 5, by - 2, 10, 1, shade(hull, 1.25));
       R(bx - 2, by - 4, 2, 2, '#d9a57c'); R(bx - 2, by - 3, 2, 2, '#4a6a8a');
       R(bx + 1, by - 10, 1, 8, '#3a2a1c'); if (sail) { R(bx + 2, by - 9 + tilt, 5, 6, '#e8dcc0'); R(bx + 2, by - 9 + tilt, 5, 1, '#fbf6ea'); } else R(bx + 1, by - 9, 2, 5, '#c9bfa8');      // sail set on the way out and home; furled at the nets and at the mooring
       if (out >= 1) for (let q = 0; q < 5; q++) R(bx - 8 - q * 3, by + 1 + (q % 2), 1, 1, '#d8d2c0');      // the floats of the net, astern
@@ -3421,7 +3702,7 @@ function provClick(cv, e) {
 // mules would, by the road where one serves and slower over rough ground; wolves keep to the woods and the hills for
 // choice, and shun a road. What a band is doing from one moment to the next (its way, and the trail its leader has
 // left for the rest to follow) is kept here and not in the save: a band that is loaded again picks a new way.
-const PACK = { roam: 70, far: 240, near: 95, plan: 0.5, trail: 16 };
+const PACK = { roam: 70, far: 240, near: 95, plan: 0.5, trail: 16, sight: 150, scent: 70 };      // sight, scent: how far off outlaws, and wolves, show that they have marked you (they do nothing about it until you are nearer)
 const packCost = kind => { if (kind !== 'wolves') return null; if (!PACK.wolf) { const c = []; c[T_GRASS] = 1; c[T_MEADOW] = 1.1; c[T_SAND] = 1.2; c[T_FOREST] = 0.7; c[T_HILL] = 0.85; c[T_MARSH] = 1.6; c[T_ROAD] = 1.8; c[T_BRIDGE] = 1.3; PACK.wolf = c; } return PACK.wolf; };
 function packMind(p) {
   const M = prov.minds || (prov.minds = new Map());
@@ -3501,6 +3782,7 @@ function provStep(dt) {
     prov.known = Object.keys(wildMap().seen).length;
     if (knew !== undefined && prov.known > knew) SFX.ui('discover');
     prov.stepT = (prov.stepT || 0) - dt; if (prov.stepT <= 0) { prov.stepT = 0.34; SFX.ui('march'); }
+    prov.flushIn = (prov.flushIn === undefined ? 30 : prov.flushIn) - moved; if (prov.flushIn <= 0) { prov.flushIn = 50 + Math.random() * 70; provFlush(F.x, F.y); }      // every so often it puts something up
   }
   // roaming bands: they wander their own ground; outlaws come for you if you stray close
   for (const p of F.packs) packStep(p, dt);
@@ -3799,7 +4081,7 @@ function provIcon(ctx, s, T, done) {
     // ---- what every site of a kind has in common: how dangerous it is, the country it lies in, the hour, who is there ----
     const reg = wildRegion(s.x, s.y), nightNow = typeof provDark === 'function' ? provDark() : 0, lit2 = nightNow > 0.3;
     const hostile2 = k === 'camp' || k === 'slavers' || k === 'chief' || k === 'bounty', homely2 = ['hamlet', 'healer', 'deserter', 'master', 'merchant'].includes(k) || !['lair', 'camp', 'slavers', 'chief', 'bounty', 'ruin', 'battlefield', 'barrow', 'shrine', 'vow', 'quarry', 'cache', 'herb', 'hermit'].includes(k) && !k.startsWith('errand');
-    const glowAt = (ox, oy, r) => { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,170,80,.07)'; for (let q = 0; q < 3; q++) { const rr = r - q * (r / 3.5); ctx.fillRect(Math.round(s.x + (flip ? -ox : ox) - rr), Math.round(s.y + oy - rr * 0.7), Math.round(rr * 2), Math.round(rr * 1.4)); } ctx.globalCompositeOperation = 'source-over'; };
+    const glowAt = (ox, oy, r) => provGlow(ctx, s.x + (flip ? -ox : ox), s.y + oy, r, '255,170,80', 0.07);
     const fig = (ox, oy, tunic, spear) => { R(ox, oy + 1, 3, 1, 'rgba(0,0,0,.22)'); R(ox, oy - 5, 2, 2, '#d9a57c'); R(ox, oy - 6, 2, 1, '#3a2a1c'); R(ox, oy - 3, 2, 3, tunic); R(ox, oy, 1, 1, '#3a2a1c'); R(ox + 1, oy, 1, 1, '#3a2a1c'); if (spear) { R(ox + 2, oy - 8, 1, 9, '#6b4f2c'); R(ox + 2, oy - 9, 1, 1, '#c1c7cc'); } };
     const beat = (x0, x1, sp) => { const u = (T * sp + sd * 0.13) % 2; return Math.round(x0 + (x1 - x0) * (u < 1 ? u : 2 - u)); };
     // the way in: a track worn to it from the south
@@ -3982,20 +4264,10 @@ function provSeason(ctx, x0, y0, w, h, step, wx) {
     else if (k === T_PEAK || k === T_HILL ? v > 0.25 : k === T_FOREST ? v > 0.6 : (k === T_GRASS || k === T_MEADOW || k === T_ROAD) && v > 0.82) { ctx.fillStyle = k === T_PEAK || k === T_HILL ? 'rgba(250,252,255,.8)' : 'rgba(244,248,252,.6)'; ctx.fillRect(px, py, k === T_PEAK || k === T_HILL ? 3 : 2, 1); }
   }
 }
-function drawProvince(cv, T) {
-  if (prov.big) return drawOverview(cv, T);
-  const F = G.field, ctx = cv.getContext('2d'), S = PROV.S = cv.width / PROV.VW;      // a whole number, chosen for the screen (see fitScenes in main.js)
-  const camX = prov.camX = clamp(Math.round(F.x - PROV.VW / 2), 0, WILD.W - PROV.VW), camY = prov.camY = clamp(Math.round(F.y - PROV.VH / 2), 0, WILD.H - PROV.VH);
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(provLand(), camX, camY, PROV.VW, PROV.VH, 0, 0, PROV.VW * S, PROV.VH * S);
-  ctx.setTransform(S, 0, 0, S, -camX * S, -camY * S);
-  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  // How large the words on this map must be written to be read: as they are on a wide screen, larger on a small one.
-  const LU = clamp(10 / (6 * ((cv.clientWidth || PROV.VW * 2) / PROV.VW)), 1, 2);
-  provSeason(ctx, camX, camY, PROV.VW, PROV.VH, 7, typeof yardWeather === 'function' ? yardWeather(sceneClock()) : null);
-  const inView = (x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
-  const M = wildMap();
-
+// Everything that moves, set down on the slate (see provRec) for drawProvince to paint in one turn: the boats, the
+// herds, whoever is on the roads, the roaming bands and the column.
+function provMovers(ctx, T, R, inView) {
+  const F = G.field;
   // boats off the Salt Shore, riding the swell: each its own hull and sail, some under oars, one or two with a net out
   (prov.boats || []).forEach(([hx, hy, bk], bi) => {
     // some lie at their nets; the ships, and most of the fishing boats, are under way
@@ -4004,6 +4276,7 @@ function drawProvince(cv, T) {
     if (U && U.d) (prov.heads || (prov.heads = {}))[bi] = U.d;
     const bx0 = U ? U.x : hx, by0 = U ? U.y : hy, hd = (prov.heads && prov.heads[bi]) || 1;
     if (!inView(bx0, by0, 60) || !wildSeen(bx0, by0)) return;
+    provAt(bx0, by0, 16, 'flat').lamp = ship && U ? 12 : 0;      // a ship under way shows a lamp after dark
     if (bk) {
       const sd = wildHash(hx, hy, 660), s2 = wildHash(hy, hx, 661), bob = Math.sin(T * 1.4 + hx) > 0 ? 1 : 0;
       if (bk === 'galley' || bk === 'warship') {            // a ship under oar and sail, beating up and down the coast
@@ -4035,13 +4308,71 @@ function drawProvince(cv, T) {
     if (U) for (let q = 0; q < 2; q++) { const wq = (T * 0.9 + q * 0.5) % 1; ctx.globalAlpha = 0.45 * (1 - wq); R(bx - hd * (half + 2 + wq * 7) - (hd > 0 ? 2 : 0), by + 1 + q, 2, 1, '#e6f3fa'); } ctx.globalAlpha = 1;      // a boat under sail leaves a wake
   });
   drawHerds(ctx, T, R, inView);
-  // Whoever is on the roads close under the walls is drawn after the town, not before it: the worn ground about the walls
-  // is laid over the land, and would be laid over them too.
-  const byTown = (x, y) => x > WILD.TOWN.x - 76 && x < WILD.TOWN.x + 44 && y > WILD.TOWN.y - 50 && y < WILD.TOWN.y + 38, inOut = (x, y, m) => inView(x, y, m) && !byTown(x, y), inBy = (x, y, m) => inView(x, y, m) && byTown(x, y);
-  drawTraffic(ctx, T, R, inOut);
-  drawMillCart(ctx, T, R, inOut);
-  drawTrade(ctx, T, R, inOut);
-  drawAmbient(ctx, T, R, camX, camY, false);
+  drawTraffic(ctx, T, R, inView);
+  drawMillCart(ctx, T, R, inView);
+  drawTrade(ctx, T, R, inView);
+  // roaming bands: each of them gone round with a line, as the column is, so that they are seen for what they are
+  for (const p of F.packs) {
+    if (!inView(p.x, p.y, 20) || !wildSeen(p.x, p.y)) continue;
+    // each of them where the leader was a little while ago, as the men of the column follow the lanista, and a step to one side of it
+    // A band that has seen the column shows it before anything comes of it: its mark turns to a question, and standing, it
+    // turns to face you. When outlaws come on (packStep) the mark is the cry itself. Wolves do not come on: they hold their
+    // ground, and it is for you to keep off it.
+    const pv = n => wildHash(p.id, n, 640), pm = packMind(p), near = Math.hypot(p.x - F.x, p.y - F.y), wary = !pm.chasing && near < (p.kind === 'wolves' ? PACK.scent : PACK.sight), eyes = wary && !pm.moving;
+    const pface = eyes ? (F.x < p.x ? 'left' : 'right') : pm.dir < 0 ? 'left' : 'right';
+    const n = packSize(p), spots = [...Array(n).keys()].map(q => { if (!q) return [0, 0]; const t = pm.trail[Math.min(pm.trail.length - 1, q * 2 + (p.kind === 'wolves' ? 0 : 1))]; return [Math.round(t.x - p.x) + (q % 2 ? 2 : -2), Math.round(t.y - p.y) + (q % 2 ? 2 : -1)]; });
+    if (p.kind === 'wolves') {                 // as many as will be fought, grey, black or brown, one bigger than the rest
+      const coats = [['#77777a', '#8a8a8e', '#55555a'], ['#3a3a40', '#4a4a52', '#26262a'], ['#7a6a52', '#8f7e62', '#57493a'], ['#9a9a9e', '#b0b0b4', '#6a6a70']];
+      const kinds = packBeasts(p).slice().sort((a, b) => (a === 'wolf' ? 0 : 1) - (b === 'wolf' ? 0 : 1));      // what will be fought: the wolves in front, and any boars that run with them behind
+      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q], c = coats[Math.floor(pv(10 + q) * (q ? 4 : 3))], big = q === 0 ? 1 : 0, b = pm.moving && Math.sin((p.walk || 0) + q * 1.9) > 0 ? 1 : 0;
+        provAt(p.x + ox, p.y + oy, 6, 'ink');
+        if (kinds[q] === 'boar') {             // a boar: low and thick, dark, a ridge of bristles down its back and a tusk showing
+          const X = p.x + ox, Y = p.y + oy, lf = pface === 'left', hide = pv(40 + q) > 0.5 ? '#4a3a2c' : '#3e3430', dk = '#2a211a';
+          R(X - 4, Y - 1, 9, 2, 'rgba(0,0,0,.25)'); R(X - 4, Y - 6, 8, 4, hide); R(X - 3, Y - 7, 5, 1, dk); R(X - 4, Y - 3, 8, 1, shade(hide, 0.8));
+          R(X + (lf ? -7 : 4), Y - 5, 3, 3, shade(hide, 0.85)); R(X + (lf ? -8 : 7), Y - 4, 1, 2, '#6a5444'); R(X + (lf ? -7 : 6), Y - 3, 1, 1, '#f1ead8'); R(X + (lf ? -5 : 4), Y - 6, 1, 1, dk);
+          R(X + (lf ? 4 : -5), Y - 6, 1, 2, dk); R(X - 3, Y - 2, 1, 2 - b, dk); R(X + 2, Y - 2, 1, 1 + b, dk);
+          continue;
+        }
+        R(p.x + ox - 4, p.y + oy - 1, 8 + big, 2, 'rgba(0,0,0,.25)'); R(p.x + ox - 4, p.y + oy - 5 - big, 7 + big, 3 + big, c[0]); R(p.x + ox + (pface === 'left' ? -6 : 3 + big), p.y + oy - 6 - big, 3, 3, c[1]); R(p.x + ox + (pface === 'left' ? 3 + big : -5), p.y + oy - 5 - big, 2, 1, c[2]);
+        R(p.x + ox - 3, p.y + oy - 2, 1, 2 - b, c[2]); R(p.x + ox + 2, p.y + oy - 2, 1, 1 + b, c[2]); }
+    } else {                                   // as many men as will be fought, each in what he stole, and one carrying their rag of a banner
+      const tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
+      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; provAt(p.x + ox, p.y + oy, 6, 'ink').lamp = q ? 0 : 12; vilPerson(ctx, p.x + ox, p.y + oy, { face: eyes ? faceOf(F.x - p.x, F.y - p.y, p.face || 'down') : p.face || 'down', walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
+      if (pv(3) > 0.4) { const [ox, oy] = spots[n - 1]; provAt(p.x + ox + 4, p.y + oy + 0.1, 6, 'ink'); R(p.x + ox + 4, p.y + oy - 20, 1, 14, '#3a2a1c'); R(p.x + ox + 5, p.y + oy - 20, 5, 3, ['#5a5a4a', '#7a2a20', '#2a3a5a'][Math.floor(pv(4) * 3)]); R(p.x + ox + 5, p.y + oy - 17, 2, 1, '#3a2a1c'); }
+    }
+    provAt(p.x, p.y + 0.2, 6, 'sign');      // the mark over them
+    if (pm.chasing) { const b = Math.sin(T * 14) > 0 ? 1 : 0; R(p.x - 1, p.y - 28 - b, 2, 6, '#ff4a36'); R(p.x - 1, p.y - 28 - b, 1, 5, '#ffb09a'); R(p.x - 1, p.y - 21 - b, 2, 2, '#ff4a36'); }      // they are coming
+    else if (wary) { const c = '#f5c04a', y0 = p.y - 27 + (Math.sin(T * 4) > 0 ? 1 : 0); R(p.x - 1, y0, 3, 1, c); R(p.x - 2, y0 + 1, 1, 1, c); R(p.x + 2, y0 + 1, 1, 2, c); R(p.x + 1, y0 + 3, 1, 1, c); R(p.x, y0 + 4, 1, 1, c); R(p.x, y0 + 6, 1, 1, c); }      // they have seen you
+    else { R(p.x - 1, p.y - 22, 3, 3, '#c23b2e'); R(p.x, p.y - 18, 1, 1, '#c23b2e'); }
+  }
+  // the column: the men strung out behind, the mule cart last, you in front
+  const men = G.roster.filter(g => !g.away).slice(0, 4), tr = prov.trail;
+  const cart = tr[Math.min(tr.length - 1, 4 + men.length * 2)] || { x: F.x - 14, y: F.y };
+  const folk = [];
+  if (tr.length > 3) folk.push({ x: cart.x, y: cart.y, wide: 8, draw: () => { R(cart.x - 6, cart.y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cart.x - 5, cart.y - 6, 10, 5, '#8a6a3a'); R(cart.x - 5, cart.y - 7, 10, 1, '#a8834a'); R(cart.x - 4, cart.y - 10, 8, 3, '#d9c9a0'); R(cart.x - 5, cart.y - 1, 3, 3, '#3a2a1c'); R(cart.x + 2, cart.y - 1, 3, 3, '#3a2a1c'); } });
+  const mounts = (G.fac && G.fac.stables) | 0;      // with stables the school rides: and the better the stables, the better the horses are turned out
+  men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: prov.face, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null }, mounts, 1 + i) }); });
+  folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: prov.face, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
+  for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink'); f.draw(); }
+  if (prov.dry && prov.moving && tr.length > 3 && wildTile(cart.x, cart.y) === T_ROAD) { const ux = cart.x - F.x, uy = cart.y - F.y, n = Math.hypot(ux, uy) || 1; provDust(R, off => ({ x: cart.x - ux / n * off, y: cart.y - uy / n * off }), 8, T, 1); }      // the column's own, behind its cart
+}
+function drawProvince(cv, T) {
+  (prov.lit || (prov.lit = [])).length = 0;      // the lights of this frame: see provNight
+  if (prov.big) return drawOverview(cv, T);
+  const F = G.field, ctx = cv.getContext('2d'), S = PROV.S = cv.width / PROV.VW;      // a whole number, chosen for the screen (see fitScenes in main.js)
+  const camX = prov.camX = clamp(Math.round(F.x - PROV.VW / 2), 0, WILD.W - PROV.VW), camY = prov.camY = clamp(Math.round(F.y - PROV.VH / 2), 0, WILD.H - PROV.VH);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(provLand(), camX, camY, PROV.VW, PROV.VH, 0, 0, PROV.VW * S, PROV.VH * S);
+  ctx.setTransform(S, 0, 0, S, -camX * S, -camY * S);
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  // How large the words on this map must be written to be read: as they are on a wide screen, larger on a small one.
+  const LU = clamp(10 / (6 * ((cv.clientWidth || PROV.VW * 2) / PROV.VW)), 1, 2);
+  // the same hour and the same weather as over the town
+  const sky = provSky(), wx = yardWeather(sceneClock());
+  provSeason(ctx, camX, camY, PROV.VW, PROV.VH, 7, wx);
+  const inView =(x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
+  const M = wildMap();
+
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
     const wx2 = camX + ((i * 71 + T * 26) % (PROV.VW + 40)) - 20, wy2 = camY + (i * 47 + Math.floor(T * 0.5 + i) * 13) % PROV.VH, kk = wildTile(wx2, wy2);
@@ -4068,49 +4399,25 @@ function drawProvince(cv, T) {
 
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
-  if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), provDark()); drawTraffic(ctx, T, R, inBy); drawMillCart(ctx, T, R, inBy); drawTrade(ctx, T, R, inBy); }
+  const dark = provDark(), lamps = dark > 0.3 ? Math.min(1, (dark - 0.3) * 3) : 0;      // how dark it is, and how far the lamps are lit (as the windows are: see drawMarks)
+  if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), dark);
+    if (lamps) for (const [lx, ly, lr] of [[-31, -12, 20], [-12, -16, 18], [-30, 4, 18], [-8, 2, 20], [10, -6, 16], [22, 3, 9]]) provGlow(ctx, tx + lx, ty + ly, lr, '255,180,90', (0.035 * lamps).toFixed(3)); }      // the town, lit: its streets, and a torch at the east gate
   // places: the ones you have come upon, and anything a clue has marked
   const sites = wildSites();
   for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; provIcon(ctx, s, T, siteDone(s)); }
-  // roaming bands
-  for (const p of F.packs) {
-    if (!inView(p.x, p.y, 20) || !wildSeen(p.x, p.y)) continue;
-    // each of them where the leader was a little while ago, as the men of the column follow the lanista, and a step to one side of it
-    const pv = n => wildHash(p.id, n, 640), pm = packMind(p), pface = pm.dir < 0 ? 'left' : 'right';
-    const n = packSize(p), spots = [...Array(n).keys()].map(q => { if (!q) return [0, 0]; const t = pm.trail[Math.min(pm.trail.length - 1, q * 2 + (p.kind === 'wolves' ? 0 : 1))]; return [Math.round(t.x - p.x) + (q % 2 ? 2 : -2), Math.round(t.y - p.y) + (q % 2 ? 2 : -1)]; });
-    if (p.kind === 'wolves') {                 // as many as will be fought, grey, black or brown, one bigger than the rest
-      const coats = [['#77777a', '#8a8a8e', '#55555a'], ['#3a3a40', '#4a4a52', '#26262a'], ['#7a6a52', '#8f7e62', '#57493a'], ['#9a9a9e', '#b0b0b4', '#6a6a70']];
-      const kinds = packBeasts(p).slice().sort((a, b) => (a === 'wolf' ? 0 : 1) - (b === 'wolf' ? 0 : 1));      // what will be fought: the wolves in front, and any boars that run with them behind
-      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q], c = coats[Math.floor(pv(10 + q) * (q ? 4 : 3))], big = q === 0 ? 1 : 0, b = pm.moving && Math.sin((p.walk || 0) + q * 1.9) > 0 ? 1 : 0;
-        if (kinds[q] === 'boar') {             // a boar: low and thick, dark, a ridge of bristles down its back and a tusk showing
-          const X = p.x + ox, Y = p.y + oy, lf = pface === 'left', hide = pv(40 + q) > 0.5 ? '#4a3a2c' : '#3e3430', dk = '#2a211a';
-          R(X - 4, Y - 1, 9, 2, 'rgba(0,0,0,.25)'); R(X - 4, Y - 6, 8, 4, hide); R(X - 3, Y - 7, 5, 1, dk); R(X - 4, Y - 3, 8, 1, shade(hide, 0.8));
-          R(X + (lf ? -7 : 4), Y - 5, 3, 3, shade(hide, 0.85)); R(X + (lf ? -8 : 7), Y - 4, 1, 2, '#6a5444'); R(X + (lf ? -7 : 6), Y - 3, 1, 1, '#f1ead8'); R(X + (lf ? -5 : 4), Y - 6, 1, 1, dk);
-          R(X + (lf ? 4 : -5), Y - 6, 1, 2, dk); R(X - 3, Y - 2, 1, 2 - b, dk); R(X + 2, Y - 2, 1, 1 + b, dk);
-          continue;
-        }
-        R(p.x + ox - 4, p.y + oy - 1, 8 + big, 2, 'rgba(0,0,0,.25)'); R(p.x + ox - 4, p.y + oy - 5 - big, 7 + big, 3 + big, c[0]); R(p.x + ox + (pface === 'left' ? -6 : 3 + big), p.y + oy - 6 - big, 3, 3, c[1]); R(p.x + ox + (pface === 'left' ? 3 + big : -5), p.y + oy - 5 - big, 2, 1, c[2]);
-        R(p.x + ox - 3, p.y + oy - 2, 1, 2 - b, c[2]); R(p.x + ox + 2, p.y + oy - 2, 1, 1 + b, c[2]); }
-    } else {                                   // as many men as will be fought, each in what he stole, and one carrying their rag of a banner
-      const tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
-      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; vilPerson(ctx, p.x + ox, p.y + oy, { face: p.face || 'down', walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
-      if (pv(3) > 0.4) { const [ox, oy] = spots[n - 1]; R(p.x + ox + 4, p.y + oy - 20, 1, 14, '#3a2a1c'); R(p.x + ox + 5, p.y + oy - 20, 5, 3, ['#5a5a4a', '#7a2a20', '#2a3a5a'][Math.floor(pv(4) * 3)]); R(p.x + ox + 5, p.y + oy - 17, 2, 1, '#3a2a1c'); }
-    }
-    R(p.x - 1, p.y - 22, 3, 3, '#c23b2e'); R(p.x, p.y - 18, 1, 1, '#c23b2e');
-    provUnder(ctx, p.x, p.y + 7, 14);
-  }
-  // the column: the men strung out behind, the mule cart last, you in front
-  const men = G.roster.filter(g => !g.away).slice(0, 4), tr = prov.trail;
-  const cart = tr[Math.min(tr.length - 1, 4 + men.length * 2)] || { x: F.x - 14, y: F.y };
-  const folk = [];
-  if (tr.length > 3) folk.push({ x: cart.x, y: cart.y, wide: 8, draw: () => { R(cart.x - 6, cart.y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cart.x - 5, cart.y - 6, 10, 5, '#8a6a3a'); R(cart.x - 5, cart.y - 7, 10, 1, '#a8834a'); R(cart.x - 4, cart.y - 10, 8, 3, '#d9c9a0'); R(cart.x - 5, cart.y - 1, 3, 3, '#3a2a1c'); R(cart.x + 2, cart.y - 1, 3, 3, '#3a2a1c'); } });
-  const mounts = (G.fac && G.fac.stables) | 0;      // with stables the school rides: and the better the stables, the better the horses are turned out
-  men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: prov.face, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin }, mounts, 1 + i) }); });
-  folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: prov.face, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
-  // whatever stands tall near them is painted again in its turn, so that a man north of an arch or under the
-  // aqueduct is behind it, and a man south of it is in front
-  if (prov.overs) { const who = folk.slice(); for (const o of prov.overs) if (who.some(m => m.y < o.base && m.y > o.y0 - 2 && m.x + (m.wide || 5) > o.x0 && m.x - (m.wide || 5) < o.x1)) folk.push({ y: o.base, draw: () => prov.paintOver(ctx, o.d) }); }
-  folk.sort((a, b) => a.y - b.y).forEach(f => f.draw());
+  // Everything that moves: north to south, so that whoever is nearer is in front, each with its shadow under it, and
+  // whatever stands tall painted again over those behind it (provRec).
+  prov.rainy = wx.rain > 0.25 || wx.snow > 0.25; prov.dry = !prov.rainy && !(wx.wet > 0.25) && !(wx.white > 0.2);      // hoods go up in the one, and dust rises off the roads in the other
+  provRec.begin(); provMovers(provRec.ctx, T, provRec.R, inView);
+  provRec.paint(ctx, camX, camY, provSun(sky, wx));
+  if (lamps) provRec.lamps(g => {      // those who carry a light: the flame of it, and its round on the ground
+    const lx = Math.round(g.x) + 4, ly = Math.round(g.y) - 11, fl = Math.sin(T * 11 + g.x) > 0 ? 1 : 0;
+    if (!inView(lx, ly, 30)) return;
+    ctx.globalAlpha = lamps; R(lx, ly - fl, 1, 2 + fl, '#f5c04a'); R(lx, ly - 1 - fl, 1, 1, '#fff0b0'); ctx.globalAlpha = 1;
+    provGlow(ctx, lx, ly + 4, g.lamp, '255,180,90', (0.06 * lamps).toFixed(3));
+  });
+  drawBirds(ctx, T, R, inView);
+  drawAmbient(ctx, T, R, camX, camY, false);
   if (prov.path && prov.path.length) {         // the way he means to go, dotted, and a mark where it ends
     const e = prov.path[prov.path.length - 1];
     for (let i = 1; i < prov.path.length - 1; i += 2) R(prov.path[i].x - 1, prov.path[i].y - 1, 2, 2, 'rgba(245,213,132,.75)');
@@ -4130,7 +4437,7 @@ function drawProvince(cv, T) {
       R(gx - 1, gy - 10, steep ? 1 : 2, steep ? 2 : 1, q % 3 ? '#b4d6ea' : '#e6f3fa'); if (q % 4 === 0) R(steep ? gx : gx + 2, steep ? gy - 8 : gy - 10, 1, 1, '#9ccbe8');
     }
   }
-  drawMarks(ctx, T, R, inView, provDark(), smoke);
+  drawMarks(ctx, T, R, inView, dark, smoke);
   for (const sm of (prov.smokes || [])) if (inView(sm.x, sm.y, 30) && wildSeen(sm.x, sm.y)) smoke(sm.x, sm.y, 3);      // every hearth out in the country
   // the smoke of a place stands up over it and can be seen a long way: thin and pale from a hearth, thick and dark
   // from the fires of a camp, and the more men in the camp the higher it goes
@@ -4182,19 +4489,17 @@ function drawProvince(cv, T) {
   }
   ctx.globalAlpha = 1;
 
-  // the same hour and the same weather as over the town: the colour of the light, a brand in the dark, rain
-  const sky = provSky(), wx = yardWeather(sceneClock());
+  // the hour and the weather on all of it: the colour of the light, a brand in the dark, rain
   drawSky(ctx, T, camX, camY, sky, wx);
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
   if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
-  if (provDark() > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
-  if (sky.night > 0.25) {
-    const la = Math.min(1, (sky.night - 0.25) * 2), fl = Math.sin(T * 11) > 0 ? 1 : 0;
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 5; i++) { const r = 26 - i * 5; ctx.fillStyle = `rgba(255,170,80,${(0.07 * la).toFixed(3)})`; ctx.fillRect(Math.round(F.x - r), Math.round(F.y - 8 - r * 0.7), r * 2, Math.round(r * 1.4)); }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = la; R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 10, 1, 4, '#3a2a1c'); ctx.globalAlpha = 1;
-  }
+  // The column's own light: the brand the lanista carries once the lamps are lit, and the fire when camp is made.
+  const camp = (performance.now() - (prov.night || -1e9)) / 1700, camped = camp >= 0 && camp < 1 ? Math.sin(camp * Math.PI) : 0, fl = Math.sin(T * 11) > 0 ? 1 : 0;
+  if (camped) provGlow(ctx, F.x + 10, F.y - 1, 30, '255,150,60', (0.09 * camped).toFixed(3));
+  else if (lamps) provGlow(ctx, F.x, F.y - 8, 24, '255,170,80', (0.08 * lamps).toFixed(3));
+  provNight(ctx, camX, camY, provGloom(sky), T);
+  if (dark > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
+  if (lamps && !camped) { ctx.globalAlpha = lamps; R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(F.x + (prov.face === 'left' ? -5 : 5), F.y - 10, 1, 4, '#3a2a1c'); ctx.globalAlpha = 1; }
   ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
 
   // names, and marks that show even through the fog
@@ -4215,7 +4520,7 @@ function drawProvince(cv, T) {
   // the regions' names, written across the country in old ink
   ctx.font = 'bold 11px Cinzel, Georgia, serif';
   // ink with a pale edge, so a name reads over forest and fell as it does over open ground
-  for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 0.6, r.y + oy * 0.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); }
+  for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(); ctx.globalAlpha = 1 - 0.8 * Math.min(1, provGloom(sky)); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 0.6, r.y + oy * 0.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); ctx.globalAlpha = 1; }
 
   // on the glass: where you are, and how to move
   ctx.setTransform(S * LU, 0, 0, S * LU, 0, 0);
@@ -4270,10 +4575,8 @@ function drawProvince(cv, T) {
   const nk = (performance.now() - prov.night) / 1700;
   if (nk >= 0 && nk < 1) {
     const a = Math.sin(nk * Math.PI);
-    ctx.fillStyle = `rgba(8,10,30,${(a * 0.86).toFixed(3)})`; ctx.fillRect(0, 0, PROV.VW, PROV.VH);
-    const fx = F.x - camX + 10, fy = F.y - camY + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0;
+    const fx = F.x - camX + 10, fy = F.y - camY + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0;      // (the dark itself, and the fire's light in it, are laid with the rest: provNight)
     ctx.globalAlpha = a;
-    for (let i = 0; i < 5; i++) { ctx.fillStyle = `rgba(255,150,60,${(0.07).toFixed(3)})`; ctx.fillRect(fx - 26 + i * 4, fy - 20 + i * 3, 52 - i * 8, 34 - i * 6); }
     ctx.fillStyle = '#3a2a1c'; ctx.fillRect(fx - 4, fy, 8, 2); ctx.fillStyle = '#e2702a'; ctx.fillRect(fx - 2, fy - 5 - fl, 4, 5 + fl); ctx.fillStyle = '#f5c04a'; ctx.fillRect(fx - 1, fy - 3 - fl, 2, 3);
     ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('NIGHT', PROV.VW / 2, 40);
     ctx.globalAlpha = 1; ctx.font = 'bold 7px Consolas, monospace';
@@ -4292,21 +4595,129 @@ function drawProvince(cv, T) {
 }
 const town = F => Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y);
 
+// ---------- the chart ----------
+// The whole province is not the country itself made small. It is a chart of it, drawn in ink on parchment as the old
+// maps are that show through the fog: the sea a pale wash with the coast inked and lined again offshore, woods a scatter
+// of small trees, hills and mountains drawn as hills and mountains, the marsh in tufts, the roads in brown ink, a rose
+// for the north and a bar for a day's march. It is drawn once for the size it is wanted at (w: across, in the canvas's
+// own dots) and kept; the coast is the same wandering line the country itself has (prov.wetLie).
+function provChart(w) {
+  const key = w + ':' + Math.round(marchDay());
+  if (prov.chart && prov.chartKey === key) return prov.chart;
+  provLand();
+  const L = wildLand(), TW = WILD.TW, TH = WILD.TH, p = Math.max(2, Math.round(w / TW)), W = TW * p, H = TH * p, g = Math.max(1, Math.round(p / 4));      // p: dots to a tile; g: how thick a line of ink is
+  const chart = document.createElement('canvas'); chart.width = W; chart.height = H;
+  const c = chart.getContext('2d'), R = (x, y, ww, hh, col) => { c.fillStyle = col; c.fillRect(x, y, ww, hh); };
+  const cl = (v, n) => (v < 0 ? 0 : v >= n ? n - 1 : v), at = (tx, ty) => L.t[cl(ty, TH) * TW + cl(tx, TW)], wetK = k => k === T_WATER || k === T_BRIDGE, hh = (x, y, n) => wildHash(x, y, 2100 + n);
+  const INK = '#4a3520', lie = prov.wetLie;
+  // what is water, dot by dot: by the tile where it is all one thing, and by the line of the shore where land and water meet
+  const wet = new Uint8Array(W * H);
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const k0 = wetK(at(tx, ty)); let mixed = false;
+    if (lie) for (let dy = -1; dy <= 1 && !mixed; dy++) for (let dx = -1; dx <= 1; dx++) if (wetK(at(tx + dx, ty + dy)) !== k0) { mixed = true; break; }
+    for (let py = 0; py < p; py++) for (let px = 0; px < p; px++) wet[(ty * p + py) * W + tx * p + px] = mixed ? (lie((tx * p + px + 0.5) * 10 / p, (ty * p + py + 0.5) * 10 / p) > 0 ? 1 : 0) : (k0 ? 1 : 0);
+  }
+  // how far each dot is from the shore, in thirds of a dot: over the water, and (far enough for the inked line) over the land
+  const far = (inWater) => {
+    const d = new Uint16Array(W * H), BIG = 60000;
+    for (let i = 0; i < W * H; i++) d[i] = (wet[i] === 1) === inWater ? BIG : 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; let v = d[i]; if (!v) continue; if (x > 0) v = Math.min(v, d[i - 1] + 3); if (y > 0) { v = Math.min(v, d[i - W] + 3); if (x > 0) v = Math.min(v, d[i - W - 1] + 4); if (x < W - 1) v = Math.min(v, d[i - W + 1] + 4); } d[i] = v; }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; let v = d[i]; if (!v) continue; if (x < W - 1) v = Math.min(v, d[i + 1] + 3); if (y < H - 1) { v = Math.min(v, d[i + W] + 3); if (x < W - 1) v = Math.min(v, d[i + W + 1] + 4); if (x > 0) v = Math.min(v, d[i + W - 1] + 4); } d[i] = v; }
+    return d;
+  };
+  const off = far(true), inl = far(false);
+  // the parchment: not one colour from edge to edge
+  R(0, 0, W, H, '#dccaa2');
+  for (let y = 0; y < H; y += 6 * g) for (let x = 0; x < W; x += 6 * g) { const n = wildNoise(x / (70 * g), y / (70 * g), 2101) + (wildNoise(x / (17 * g), y / (17 * g), 2102) - 0.5) * 0.5 - 0.5; if (Math.abs(n) > 0.06) R(x, y, 6 * g, 6 * g, n > 0 ? 'rgba(255,246,220,' + Math.min(0.16, n * 0.4).toFixed(3) + ')' : 'rgba(120,90,50,' + Math.min(0.12, -n * 0.3).toFixed(3) + ')'); }
+  // a wash of colour under each kind of country
+  const WASH = []; WASH[T_FOREST] = 'rgba(86,112,58,.22)'; WASH[T_HILL] = 'rgba(160,124,64,.15)'; WASH[T_PEAK] = 'rgba(124,112,100,.24)'; WASH[T_MARSH] = 'rgba(70,112,104,.20)'; WASH[T_SAND] = 'rgba(236,208,132,.40)'; WASH[T_MEADOW] = 'rgba(150,170,80,.10)';
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) { const wash = WASH[at(tx, ty)]; if (wash) R(tx * p, ty * p, p, p, wash); }
+  // the water: darker against the land, and the line of the coast drawn again and again offshore, fainter each time
+  const e1 = 2 * g + 1, e2 = 5 * g + 2, e3 = 9 * g + 3, SEA = ['#9cbcbc', '#5f8a94', '#a8c4c0', '#7ea4a8', '#b2cac4', '#98b8b6'];
+  const kindAt = i => { if (!wet[i]) return inl[i] <= g * 3 ? 6 : -1; const d = Math.floor(off[i] / 3); return d < e1 ? 0 : d < e1 + g ? 1 : d < e2 ? 2 : d < e2 + g ? 3 : d >= e3 && d < e3 + g ? 5 : 4; };
+  for (let y = 0; y < H; y++) { let from = 0, was = -1; for (let x = 0; x <= W; x++) { const kd = x < W ? kindAt(y * W + x) : -1; if (kd !== was) { if (was >= 0) R(from, y, x - from, 1, was === 6 ? INK : SEA[was]); from = x; was = kd; } } }
+  for (let ty = 2; ty < TH - 2; ty++) for (let tx = 2; tx < TW - 2; tx++) {      // and out on the open water, here and there, a wave
+    if (hh(tx, ty, 1) > 0.045) continue; const x = tx * p, y = ty * p; if (!wet[y * W + x] || off[y * W + x] < (e3 + 3 * g) * 3) continue;
+    R(x, y, 2 * g, g, 'rgba(60,96,108,.5)'); R(x + 2 * g, y - g, 2 * g, g, 'rgba(60,96,108,.5)'); R(x + 4 * g, y, 2 * g, g, 'rgba(60,96,108,.5)');
+  }
+  // the relief: each kind of country in its own sign, the nearer drawn over the further
+  const dryAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !wet[y * W + x];
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const k = at(tx, ty), a = hh(tx, ty, 2), b = hh(tx, ty, 3), ax = tx * p + Math.floor(a * p), ay = ty * p + Math.floor(b * p * 0.6) + Math.floor(p / 2);
+    if (k >= T_WATER && k !== T_PEAK) continue; if (k === T_ROAD || k === T_BRIDGE || !dryAt(ax, ay)) continue;
+    const G1 = (ux, uy, uw, uh, col) => R(ax + ux * g, ay + uy * g, uw * g, uh * g, col);
+    if (k === T_PEAK) {
+      if ((tx + ty * 2) % 3 && a > 0.2) continue;
+      const n = 3 + Math.floor(b * 3), snow = n >= 4 && wildRegion(tx * 10 + 5, ty * 10 + 5) === 'The High Fells';
+      for (let i = 0; i < n; i++) { const y = -n + i; if (i) { G1(-i + 1, y, i, 1, snow && i < 3 ? '#fbf8f0' : 'rgba(255,250,236,.8)'); if (i > 1) G1(1, y, i - 1, 1, snow && i < 2 ? '#e4e0d8' : 'rgba(96,70,44,.55)'); } G1(-i, y, 1, 1, INK); G1(i, y, 1, 1, INK); }
+    } else if (k === T_HILL) {
+      if ((tx * 2 + ty) % 3 && a > 0.25) continue;
+      G1(-1, -1, 3, 1, 'rgba(74,53,32,.8)'); G1(-2, 0, 1, 1, 'rgba(74,53,32,.8)'); G1(2, 0, 1, 1, 'rgba(74,53,32,.8)'); G1(1, 0, 1, 1, 'rgba(96,70,44,.4)');
+    } else if (k === T_FOREST) {
+      if (a > 0.62) continue;
+      const old = wildRegion(tx * 10 + 5, ty * 10 + 5) === 'Greywood', ink = old ? '#4a5048' : '#3f5230';
+      if (old || b > 0.7) { G1(0, -3, 1, 1, ink); G1(-1, -2, 3, 1, ink); G1(0, -1, 1, 1, ink); G1(-1, -1, 1, 1, 'rgba(63,82,48,.5)'); G1(1, -1, 1, 1, 'rgba(63,82,48,.5)'); G1(0, 0, 1, 1, INK); }      // a fir
+      else { G1(-1, -2, 3, 2, ink); G1(0, -3, 1, 1, ink); G1(-1, -2, 1, 1, 'rgba(120,150,80,.9)'); G1(0, 0, 1, 1, INK); }      // a round tree
+    } else if (k === T_MARSH) {
+      if (a > 0.5) continue;
+      G1(-2, 0, 4, 1, 'rgba(52,84,84,.75)'); G1(-1, -1, 1, 1, 'rgba(74,84,48,.9)'); G1(1, -2, 1, 2, 'rgba(74,84,48,.9)');
+    } else if (k === T_SAND) {
+      if (a > 0.5) continue; G1(0, 0, 1, 1, 'rgba(140,110,60,.6)'); G1(2, 1, 1, 1, 'rgba(140,110,60,.6)');
+    } else if (k === T_MEADOW) {
+      if (a > 0.16) continue; G1(-1, -1, 1, 1, 'rgba(84,104,52,.7)'); G1(0, 0, 1, 1, 'rgba(84,104,52,.7)'); G1(1, -1, 1, 1, 'rgba(84,104,52,.7)');
+    } else if (a < 0.02) { G1(-1, -2, 3, 2, '#3f5230'); G1(0, 0, 1, 1, INK); }      // open ground: a tree standing by itself, now and then
+  }
+  // the roads, in brown ink: each stretch drawn a little toward its neighbours, so that a road across the grain runs straight
+  const dots = (x0, y0, x1, y1, t, col) => { x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1); c.fillStyle = col; const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx - dy; for (;;) { c.fillRect(x0, y0, t, t); if (x0 === x1 && y0 === y1) break; const e = 2 * err; if (e > -dy) { err -= dy; x0 += sx; } if (e < dx) { err += dx; y0 += sy; } } };
+  const road = (tx, ty) => tx >= 0 && ty >= 0 && tx < TW && ty < TH && (L.t[ty * TW + tx] === T_ROAD || L.t[ty * TW + tx] === T_BRIDGE);
+  const mid = (tx, ty) => { let sx = tx + 0.5, sy = ty + 0.5, n = 1; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && road(tx + dx, ty + dy)) { sx += tx + dx + 0.5; sy += ty + dy + 0.5; n++; } return [sx / n * p, sy / n * p]; };
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    if (!road(tx, ty)) continue;
+    const m0 = mid(tx, ty), over = L.t[ty * TW + tx] === T_BRIDGE;
+    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [-1, 1]]) {
+      if (!road(tx + dx, ty + dy) || (dx && dy && (road(tx + dx, ty) || road(tx, ty + dy)))) continue;
+      const m1 = mid(tx + dx, ty + dy), bridge = over || L.t[(ty + dy) * TW + tx + dx] === T_BRIDGE;
+      dots(m0[0], m0[1], m1[0], m1[1], bridge ? g + 1 : g, bridge ? '#3a2412' : '#7a4a22');
+    }
+  }
+  // the aqueduct, a dotted line down from the hills
+  if (prov.aqLine) for (let q = 0; q < prov.aqLine.length - 1; q++) { const A = prov.aqLine[q], B = prov.aqLine[q + 1], n = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1]) / 10 * p / (3 * g))); for (let i = 0; i <= n; i++) R(Math.round((A[0] + (B[0] - A[0]) * i / n) / 10 * p), Math.round((A[1] + (B[1] - A[1]) * i / n - 8) / 10 * p), g, g + 1, '#6a5648'); }
+  // whatever stands in the country: a roof
+  for (const m of (prov.marks || [])) { const x = Math.round((m.x + (m.dw ? 6 : 14)) / 10 * p), y = Math.round((m.y + (m.dw ? 4 : 8)) / 10 * p); R(x - g, y - g, 3 * g, 2 * g, INK); R(x - g, y - 2 * g, 3 * g, g, '#8a3a26'); }
+  // the edge of the sheet: a ruled border, barred light and dark
+  { const b = 2 * g, t = 2 * g, step = 10 * p;
+    R(b, b, W - 2 * b, t, INK); R(b, H - b - t, W - 2 * b, t, INK); R(b, b, t, H - 2 * b, INK); R(W - b - t, b, t, H - 2 * b, INK);
+    for (let x = b; x < W - b; x += step * 2) { R(x, b, Math.min(step, W - b - x), t, '#dccaa2'); R(x, H - b - t, Math.min(step, W - b - x), t, '#dccaa2'); }
+    for (let y = b; y < H - b; y += step * 2) { R(b, y, t, Math.min(step, H - b - y), '#dccaa2'); R(W - b - t, y, t, Math.min(step, H - b - y), '#dccaa2'); }
+    c.strokeStyle = INK; c.lineWidth = Math.max(1, g / 2); c.strokeRect(b + 0.5, b + 0.5, W - 2 * b - 1, H - 2 * b - 1); c.strokeRect(b + t - 0.5, b + t - 0.5, W - 2 * (b + t) + 1, H - 2 * (b + t) + 1); }
+  // a rose for the north, out in the sea; and under it how far a day's march goes over open ground
+  { const cx = 15 * p, cy = 156 * p, r = 6.5 * p, pt = (an, len, wide) => { const ux = Math.cos(an), uy = Math.sin(an), vx = -uy * wide, vy = ux * wide; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + vx, cy + vy); c.lineTo(cx + ux * len, cy + uy * len); c.closePath(); c.fillStyle = INK; c.fill(); c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx - vx, cy - vy); c.lineTo(cx + ux * len, cy + uy * len); c.closePath(); c.fillStyle = '#eadbb6'; c.fill(); c.strokeStyle = INK; c.lineWidth = Math.max(1, g / 2); c.stroke(); };
+    c.strokeStyle = 'rgba(74,53,32,.7)'; c.lineWidth = Math.max(1, g / 2); c.beginPath(); c.arc(cx, cy, r * 0.72, 0, Math.PI * 2); c.stroke();
+    for (let q = 0; q < 4; q++) pt(Math.PI / 4 + q * Math.PI / 2, r * 0.55, r * 0.12);
+    for (let q = 0; q < 4; q++) pt(-Math.PI / 2 + q * Math.PI / 2, r, r * 0.16);
+    c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.font = 'bold ' + Math.round(3.6 * p) + 'px Cinzel, Georgia, serif'; c.fillText('N', cx, cy - r - 0.6 * p);
+    const len = Math.round(marchDay() / 10 * p), x0 = 5 * p, y0 = 174 * p, th = Math.max(2, g * 2);
+    R(x0 - 1, y0 - 1, len + 2, th + 2, INK); for (let q = 0; q < 4; q++) R(x0 + Math.round(len * q / 4), y0, Math.round(len * (q + 1) / 4) - Math.round(len * q / 4), th, q % 2 ? INK : '#eadbb6');
+    c.font = 'bold ' + Math.round(2.9 * p) + 'px Cinzel, Georgia, serif'; c.textAlign = 'left'; c.fillText("A DAY'S MARCH", x0, y0 - 0.9 * p); }
+  prov.chartKey = key;
+  return (prov.chart = chart);
+}
+
 // The whole province on the table: everything you have walked, everything marked, and a click to set out for it.
 function drawOverview(cv, T) {
   const F = G.field, ctx = cv.getContext('2d'), M = wildMap(), k = cv.width / WILD.W, Fg = WILD.FOG;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(provLand(), 0, 0, WILD.W, WILD.H, 0, 0, cv.width, cv.height);
-  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(provChart(cv.width), 0, 0, cv.width, cv.height);      // the chart (see provChart): the country in ink, not the country itself made small
   ctx.setTransform(k, 0, 0, k, 0, 0);
-  provSeason(ctx, 0, 0, WILD.W, WILD.H, 14, typeof yardWeather === 'function' ? yardWeather(sceneClock()) : null);
+  provSeason(ctx, 0, 0, WILD.W, WILD.H, 14, typeof yardWeather === 'function' ? yardWeather(sceneClock()) : null);      // the season lies over the chart as it does over the country: its colour, and the snow
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  for (let fy = 0; fy < WILD.FH; fy++) for (let fx = 0; fx < WILD.FW; fx++) if (!fogAt(fx, fy)) R(fx * Fg, fy * Fg, Fg + 1, Fg + 1, wildHash(fx, fy, 7) > 0.5 ? '#d9c8a0' : '#d5c299');
+  // What you have not walked is only what the old maps say of it: the chart shows faint there, under a veil of bare
+  // parchment, thinner along the edge of what you know.
+  for (let fy = 0; fy < WILD.FH; fy++) for (let fx = 0; fx < WILD.FW; fx++) if (!fogAt(fx, fy)) R(fx * Fg, fy * Fg, Fg, Fg, fogAt(fx - 1, fy) || fogAt(fx + 1, fy) || fogAt(fx, fy - 1) || fogAt(fx, fy + 1) ? 'rgba(220,202,162,.5)' : 'rgba(220,202,162,.78)');
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.font = 'bold 34px Cinzel, Georgia, serif';
-  for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 1.6, r.y + oy * 1.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); }
+  for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 1.6, r.y + oy * 1.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); ctx.globalAlpha = 1; }
   if (prov.path) for (let i = 1; i < prov.path.length; i += 2) R(prov.path[i].x - 3, prov.path[i].y - 3, 6, 6, '#f5d584');
-  const dot = (x, y, r, c) => { R(x - r - 3, y - r - 3, r * 2 + 6, r * 2 + 6, '#1a110c'); R(x - r, y - r, r * 2, r * 2, c); };
   // how far from home the country turns worse: a dotted ring for each skull
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
   [330, 600, 900, 1250].forEach((rad, n) => {
@@ -4326,7 +4737,11 @@ function drawOverview(cv, T) {
     else { ctx.save(); ctx.translate(s.x, s.y); ctx.scale(4, 4); provIcon(ctx, { x: 0, y: 0, kind: s.kind, tier: s.tier, id: s.id }, T, siteDone(s)); ctx.restore(); }
     if (mark) name(s.x, s.y, s.name.toUpperCase(), '#f5d584');
   }
-  for (const pk of F.packs) if (wildSeen(pk.x, pk.y)) { dot(pk.x, pk.y, 5, '#c23b2e'); }
+  for (const pk of F.packs) if (wildSeen(pk.x, pk.y)) {      // a roaming band: outlaws under their rag of a banner, wolves by their track; and it jumps when they are after you
+    const x = Math.round(pk.x), y = Math.round(pk.y) - (packMind(pk).chasing && Math.sin(T * 12) > 0 ? 6 : 0), ink = '#1a110c', red = '#c23b2e';
+    if (pk.kind === 'wolves') { R(x - 13, y - 11, 26, 24, ink); R(x - 7, y - 1, 14, 10, red); for (const ox of [-10, -3, 4]) R(x + ox, y - 8, 6, 6, red); }
+    else { R(x - 4, y - 30, 8, 34, ink); R(x - 1, y - 27, 2, 30, '#f1ead8'); R(x + 1, y - 30, 26, 18, ink); R(x + 3, y - 27, 21, 12, red); R(x + 14, y - 27, 10, 4, ink); }
+  }
   ctx.save(); ctx.translate(tx, ty); ctx.scale(2.4, 2.4);
   R(-18, -12, 36, 21, '#b8ab94'); R(-18, -12, 36, 2, '#d8cdb6'); R(-14, -8, 9, 6, '#b5522e'); R(-3, -9, 10, 7, '#a8482a'); R(9, -7, 6, 5, '#b5522e'); R(-12, 0, 8, 5, '#d8c9a2'); R(2, 0, 9, 5, '#e2c98f'); R(14, -5, 5, 9, '#8f846e');
   ctx.restore();
