@@ -617,7 +617,7 @@ function* provLandSteps(fresh) {
   // land beside it. Then the edge itself: a strand of sand or shingle on grass, wet sand, a dark bank under trees or
   // rock; and on the water white where the open sea breaks, and elsewhere only the water lying paler against the bank.
   // Nothing of this is known to the rules: the column walks by the tiles, and may have a foot in the water's edge.
-  // It is left as the tiles have it beside a bridge, by the marsh's own pools, and under the town.
+  // A bridge and the road over it are left as they were painted, and so is the ground under the town.
   yield;
   { const wetV = new Uint8Array(TW * TH), mereV = new Uint8Array(TW * TH), STRAND = [T_GRASS, T_MEADOW, T_HILL], openOf = new Map();
     for (let i = 0; i < TW * TH; i++) { const k = L.t[i], ax = i % TW, ay = (i - ax) / TW; wetV[i] = k === T_WATER || k === T_BRIDGE ? 1 : 0; mereV[i] = k === T_MARSH && ax >= 30 && zq(wildNoise(ax / 7, ay / 7, 1040), 6) === 0 && h(ax, ay, 1041) < 0.7 && wildRegion(ax * 10 + 5, ay * 10 + 5) !== 'The Salt Shore' ? 1 : 0; }      // (a pool of the marsh: as the marsh itself has it, above)
@@ -628,16 +628,45 @@ function* provLandSteps(fresh) {
       return (wv(x0, y0) * (1 - fu) + wv(x0 + 1, y0) * fu) * (1 - fv) + (wv(x0, y0 + 1) * (1 - fu) + wv(x0 + 1, y0 + 1) * fu) * fv - 0.46;
     };
     const lie = lieOf(wv);
+    const wm = (ax, ay) => { const j = clT(ay, TH) * TW + clT(ax, TW); return wetV[j] | mereV[j]; }, lieM = lieOf(wm);      // (the same, with the marsh's own pools counted as water: a pool lying against a lake is one water with it, and there is no shore between them)
     fresh.wetLie = lie;      // (kept: the chart of the whole province draws its coasts by it too)
     const surf = fresh.surf = [];      // and where the open sea meets the land, with which way the sea lies from there: four numbers to a spot, for the waves to come in at
+    // Ground against ground, the same way and by the same wandering line, before the water's edge is drawn over it: where
+    // sand, the floor of a wood or the marsh meets other dry ground, each lends the other a corner, and the border between
+    // them is not the sides of squares. (Not on a road, among the fields, or under the town; nor against rock or water,
+    // which have edges of their own.)
+    { const dryK = k => k < T_WATER && k !== T_ROAD && k !== T_BRIDGE;
+      for (const K of [T_SAND, T_FOREST, T_MARSH]) {
+        const lieK = lieOf((ax, ay) => (L.t[clT(ay, TH) * TW + clT(ax, TW)] === K ? 1 : 0));
+        for (let ty = 0; ty < TH; ty++) { if (ty & 1) yield; for (let tx = 0; tx < TW; tx++) {
+          const i = ty * TW + tx, k = L.t[i]; if (!dryK(k) || farm(tx, ty) || inTown(tx, ty, 4)) continue;
+          const me = k === K; let edge = false;
+          for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) { const o = L.t[clT(ty + dy, TH) * TW + clT(tx + dx, TW)]; if (dryK(o) && (o === K) !== me) { edge = true; break; } }
+          if (!edge) continue;
+          const x = tx * 10, y = ty * 10;
+          const pick = (px, py) => {      // the nearest dry tile of the other sort to a spot of this one
+            const sx = px < 5 ? -1 : 1, sy = py < 5 ? -1 : 1, byX = Math.min(px, 9 - px) <= Math.min(py, 9 - py);
+            for (const [dx, dy] of byX ? [[sx, 0], [0, sy], [sx, sy], [-sx, 0], [0, -sy], [sx, -sy], [-sx, sy], [-sx, -sy]] : [[0, sy], [sx, 0], [sx, sy], [0, -sy], [-sx, 0], [-sx, sy], [sx, -sy], [-sx, -sy]]) { const j = clT(ty + dy, TH) * TW + clT(tx + dx, TW), o = L.t[j]; if (dryK(o) && (o === K) !== me) return j; }
+            return -1;
+          };
+          for (let py = 0; py < 10; py++) {
+            let from = 0, was = null;
+            for (let px = 0; px <= 10; px++) {
+              let c = null;
+              if (px < 10 && (lieK(x + px + 0.5, y + py + 0.5) > 0) !== me) { const j = pick(px, py); if (j >= 0) c = col(L.t[j], j % TW, (j - j % TW) / TW); }
+              if (c !== was) { if (was) R(x + from, y + py, px - from, 1, was); from = px; was = c; }
+            }
+          }
+        } }
+      } }
     // what is known of a tile of water: whether it is the sea, whether the sea is open there (land on one side of it at most), and its country
     const waterOf = j => { let o = openOf.get(j); if (!o) { const ax = j % TW, ay = (j - ax) / TW, sea = seaAt(ax, ay); let land = 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!wv(ax + dx, ay + dy)) land++; openOf.set(j, o = { sea, open: sea && land <= 1, reg: wildRegion(ax * 10 + 5, ay * 10 + 5) }); } return o; };
     for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
       const i = ty * TW + tx, k = L.t[i], w = wetV[i];
       if (k === T_ROAD || k === T_BRIDGE || mereV[i] || inTown(tx, ty, 2)) continue;
-      let edge = false, held = false;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = clT(ty + dy, TH) * TW + clT(tx + dx, TW); if (wetV[j] !== w) edge = true; if (mereV[j] || L.t[j] === T_BRIDGE) held = true; }
-      if (!edge || held) continue;
+      let edge = false;
+      for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) if (wetV[clT(ty + dy, TH) * TW + clT(tx + dx, TW)] !== w) { edge = true; break; }
+      if (!edge) continue;
       const x = tx * 10, y = ty * 10;
       // the nearest tile of the other kind (want: 1 water, 0 land) to a spot of this one
       const pick = (px, py, want) => {
@@ -650,7 +679,7 @@ function* provLandSteps(fresh) {
         for (let px = 0; px <= 10; px++) {
           let c = null;
           if (px < 10) {
-            const X = x + px, Y = y + py, f = lie(X + 0.5, Y + 0.5);
+            const X = x + px, Y = y + py, f = lieM(X + 0.5, Y + 0.5);
             if (f > 0) {                           // water here
               const j = w ? i : pick(px, py, 1), W = j < 0 ? null : waterOf(j);
               if (W) {
@@ -676,7 +705,6 @@ function* provLandSteps(fresh) {
     // The marsh's own pools (a tile of marsh that is open water: see the marsh, above) are rounded the same way, in
     // their own dark water: marsh where the line cuts a corner off a pool, pool where it runs out into the ground beside
     // it, and a darker rim along it. A pool lying against a lake or the river is one water with it, and has no line there.
-    const wm = (ax, ay) => { const j = clT(ay, TH) * TW + clT(ax, TW); return wetV[j] | mereV[j]; }, lieM = lieOf(wm);
     for (let ty = 0; ty < TH; ty++) { if (ty & 1) yield; for (let tx = 30; tx < TW; tx++) {
       const i = ty * TW + tx, k = L.t[i], me = mereV[i];
       if (wetV[i] || k === T_ROAD || inTown(tx, ty, 2)) continue;
@@ -4337,15 +4365,24 @@ function provTracks(ctx, R, inView) {
 // rest at a glance. Its picture is not made of plain paint as a man is (it has lamps that add their light, and stains),
 // so the line is found another way: the picture is drawn once on a slip of its own, and wherever there is nothing next
 // to something the line goes.
-function provInkIcon(ctx, s, T) {
+function provIconEdge(s, T) {      // the line, as strokes: where each begins from the middle of the place, and how long it is, three numbers to a stroke. Found once for a place (and again when it is dealt with, and its picture changes).
+  const kept = prov.edges || (prov.edges = new Map()), done = siteDone(s), key = s.id + (done ? ':done' : '');
+  let runs = kept.get(key); if (runs) return runs;
   const N = 80, ox = 40, oy = 50, slip = prov.inkCv || (prov.inkCv = Object.assign(document.createElement('canvas'), { width: N, height: N })), c = slip.getContext('2d', { willReadFrequently: true }), lit = prov.lit;
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, N, N);
   prov.lit = null;      // its lamps are counted when it is painted in earnest, not here
-  try { c.translate(ox - Math.round(s.x), oy - Math.round(s.y)); provIcon(c, s, T, false); }
+  try { c.translate(ox - Math.round(s.x), oy - Math.round(s.y)); provIcon(c, s, T, done); }
   finally { prov.lit = lit; c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
-  const d = c.getImageData(0, 0, N, N).data, on = (x, y) => x >= 0 && y >= 0 && x < N && y < N && d[(y * N + x) * 4 + 3] > 200, X0 = Math.round(s.x) - ox, Y0 = Math.round(s.y) - oy;
+  const d = c.getImageData(0, 0, N, N).data, on = (x, y) => x >= 0 && y >= 0 && x < N && y < N && d[(y * N + x) * 4 + 3] > 200;
+  runs = [];
+  for (let y = 0; y < N; y++) { let from = -1; for (let x = 0; x <= N; x++) { const edge = x < N && !on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)); if (edge) { if (from < 0) from = x; } else if (from >= 0) { runs.push(from - ox, y - oy, x - from); from = -1; } } }
+  kept.set(key, runs);
+  return runs;
+}
+function provInkIcon(ctx, s, T, big) {      // (big: how many times life size the picture is to be, as on the chart)
+  const runs = provIconEdge(s, T), X0 = Math.round(s.x), Y0 = Math.round(s.y), k = big || 1;
   ctx.fillStyle = PROV_INK;
-  for (let y = 0; y < N; y++) { let from = -1; for (let x = 0; x <= N; x++) { const edge = x < N && !on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)); if (edge) { if (from < 0) from = x; } else if (from >= 0) { ctx.fillRect(X0 + from, Y0 + y, x - from, 1); from = -1; } } }
+  for (let q = 0; q < runs.length; q += 3) ctx.fillRect(X0 + runs[q] * k, Y0 + runs[q + 1] * k, runs[q + 2] * k, k);
 }
 // Everything that moves, set down on the slate (see provRec) for drawProvince to paint in one turn: the boats, the
 // herds, whoever is on the roads, the roaming bands and the column.
@@ -4732,10 +4769,30 @@ function provChart(w, bare) {
   const INK = '#4a3520', lie = prov.wetLie;
   // what is water, dot by dot: by the tile where it is all one thing, and by the line of the shore where land and water meet
   const wet = new Uint8Array(W * H);
+  // The river is laid out in straight reaches, and on a sheet this size it showed: a ruled line from the fells to the bay.
+  // The old maps draw a river winding, more than it does, and so does this one: on the chart of the whole province (not
+  // under the fog close to, where it must meet the river itself) its line is carried a little to one side and the other
+  // as it goes. Not where a road crosses it, nor where it comes to a lake or the sea: there it is where it is. The
+  // country itself is not changed by this, and neither is the way anybody walks.
+  let bend = null;
+  if (!bare && lie && typeof wildFlow === 'function') {
+    const flow = wildFlow(), calm = new Uint8Array(TW * TH).fill(9); let cur = [];
+    for (let i = 0; i < TW * TH; i++) { const k = L.t[i]; if (k === T_BRIDGE || (k === T_WATER && !flow.has(i))) { calm[i] = 0; cur.push(i); } }      // how far each tile is from a crossing, or from water that is not the river
+    for (let d = 1; d < 7 && cur.length; d++) { const nx = []; for (const i of cur) { const cx = i % TW, cy = (i - cx) / TW; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const ax = cx + dx, ay = cy + dy; if (ax < 0 || ay < 0 || ax >= TW || ay >= TH) continue; const j = ay * TW + ax; if (calm[j] > d) { calm[j] = d; nx.push(j); } } } cur = nx; }
+    const a0 = WILD_RIVER[0], a1 = WILD_RIVER[WILD_RIVER.length - 1], an = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]);
+    bend = { flow, calm, ux: (a1[0] - a0[0]) / an, uy: (a1[1] - a0[1]) / an };
+  }
   for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
     const k0 = wetK(at(tx, ty)); let mixed = false;
     if (lie) for (let dy = -1; dy <= 1 && !mixed; dy++) for (let dx = -1; dx <= 1; dx++) if (wetK(at(tx + dx, ty + dy)) !== k0) { mixed = true; break; }
-    for (let py = 0; py < p; py++) for (let px = 0; px < p; px++) wet[(ty * p + py) * W + tx * p + px] = mixed ? (lie((tx * p + px + 0.5) * 10 / p, (ty * p + py + 0.5) * 10 / p) > 0 ? 1 : 0) : (k0 ? 1 : 0);
+    let bx = 0, by = 0, sway = 0;      // which way the river is carried here, and how far at the most
+    if (mixed && bend) { let key = -1; for (let r = 0; r <= 2 && key < 0; r++) for (let dy = -r; dy <= r && key < 0; dy++) for (let dx = -r; dx <= r; dx++) { const j = cl(ty + dy, TH) * TW + cl(tx + dx, TW); if (bend.flow.has(j)) { key = j; break; } }
+      if (key >= 0) { const dir = bend.flow.get(key); sway = 10 * Math.max(0, Math.min(1, (bend.calm[key] - 1) / 4)); bx = -dir[1]; by = dir[0]; } }
+    for (let py = 0; py < p; py++) for (let px = 0; px < p; px++) {
+      let wx = (tx * p + px + 0.5) * 10 / p, wy = (ty * p + py + 0.5) * 10 / p;
+      if (sway) { const al = wx * bend.ux + wy * bend.uy, off = sway * Math.sin(al / 36 + 1.4 * Math.sin(al / 95)); wx -= bx * off; wy -= by * off; }
+      wet[(ty * p + py) * W + tx * p + px] = mixed ? (lie(wx, wy) > 0 ? 1 : 0) : (k0 ? 1 : 0);
+    }
   }
   // how far each dot is from the shore, in thirds of a dot: over the water, and (far enough for the inked line) over the land
   const far = (inWater) => {
@@ -4825,6 +4882,21 @@ function provChart(w, bare) {
 // a weight with everything else there.
 const FOG_CHART = 1200;
 
+// The veil that lies over what you have not walked, on the chart of the whole province: bare parchment, thinner toward
+// the edge of what you know. It is kept as a small picture, two dots to a square of the fog, and laid on the chart
+// stretched and softened, so that its edge is a fading and not a staircase. It is made again only when more is known.
+function provVeil() {
+  const FW = WILD.FW, FH = WILD.FH, W = FW * 2, H = FH * 2, fog = wildMap().fog; let n = 0;
+  for (const b of fog) { let v = b; while (v) { n += v & 1; v >>= 1; } }
+  if (prov.veilCv && prov.veilN === n) return prov.veilCv;
+  const sheet = prov.veilCv || (prov.veilCv = Object.assign(document.createElement('canvas'), { width: W, height: H })), c = sheet.getContext('2d'), img = c.createImageData(W, H), d = img.data;
+  const un = new Float32Array(W * H), mid = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) un[y * W + x] = fogAt(x >> 1, y >> 1) ? 0 : 1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0; for (let q = -2; q <= 2; q++) sum += un[y * W + Math.max(0, Math.min(W - 1, x + q))]; mid[y * W + x] = sum / 5; }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let sum = 0; for (let q = -2; q <= 2; q++) sum += mid[Math.max(0, Math.min(H - 1, y + q)) * W + x]; const i = y * W + x, a = un[i] ? 0.78 * (0.3 + 0.7 * sum / 5) : 0; d[i * 4] = 220; d[i * 4 + 1] = 202; d[i * 4 + 2] = 162; d[i * 4 + 3] = Math.round(a * 255); }
+  c.putImageData(img, 0, 0); prov.veilN = n;
+  return sheet;
+}
 // The whole province on the table: everything you have walked, everything marked, and a click to set out for it.
 function drawOverview(cv, T) {
   const F = G.field, ctx = cv.getContext('2d'), M = wildMap(), k = cv.width / WILD.W, Fg = WILD.FOG;
@@ -4834,11 +4906,12 @@ function drawOverview(cv, T) {
   provSeason(ctx, 0, 0, WILD.W, WILD.H, 14, typeof yardWeather === 'function' ? yardWeather(sceneClock()) : null);      // the season lies over the chart as it does over the country: its colour, and the snow
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   // What you have not walked is only what the old maps say of it: the chart shows faint there, under a veil of bare
-  // parchment, thinner along the edge of what you know.
-  for (let fy = 0; fy < WILD.FH; fy++) for (let fx = 0; fx < WILD.FW; fx++) if (!fogAt(fx, fy)) R(fx * Fg, fy * Fg, Fg, Fg, fogAt(fx - 1, fy) || fogAt(fx + 1, fy) || fogAt(fx, fy - 1) || fogAt(fx, fy + 1) ? 'rgba(220,202,162,.5)' : 'rgba(220,202,162,.78)');
+  // parchment (provVeil), thinner along the edge of what you know.
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(provVeil(), 0, 0, WILD.W, WILD.H); ctx.imageSmoothingEnabled = false;
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.font = 'bold 34px Cinzel, Georgia, serif';
-  for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 1.6, r.y + oy * 1.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); ctx.globalAlpha = 1; }
+  for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(), ry = r.x > 1880 && r.y < 200 ? 240 : r.y;      // (a name that would lie under the dial, in the corner, is written below it)
+    ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 1.6, ry + oy * 1.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, ry); ctx.globalAlpha = 1; }
   if (prov.path) for (let i = 1; i < prov.path.length; i += 2) R(prov.path[i].x - 3, prov.path[i].y - 3, 6, 6, '#f5d584');
   // how far from home the country turns worse: a dotted ring for each skull
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
@@ -4856,7 +4929,7 @@ function drawOverview(cv, T) {
     if (mark) { const b = Math.sin(T * 5) > 0 ? 3 : 0; ctx.strokeStyle = '#f5d584'; ctx.lineWidth = 5; ctx.strokeRect(s.x - 40 - b, s.y - 42 - b, 80 + b * 2, 74 + b * 2); }
     if (s === hv) { ctx.strokeStyle = '#fff6d8'; ctx.lineWidth = 3; ctx.strokeRect(s.x - 36, s.y - 38, 72, 66); }
     if (unseen) { for (let q = -14; q <= 14; q += 2) { R(s.x + q - 3, s.y + q - 3, 7, 7, '#8a2a20'); R(s.x + q - 3, s.y - q - 3, 7, 7, '#8a2a20'); } }
-    else { ctx.save(); ctx.translate(s.x, s.y); ctx.scale(4, 4); provIcon(ctx, { x: 0, y: 0, kind: s.kind, tier: s.tier, id: s.id }, T, siteDone(s)); ctx.restore(); }
+    else { provInkIcon(ctx, s, T, 4); ctx.save(); ctx.translate(s.x, s.y); ctx.scale(4, 4); ctx.translate(-Math.round(s.x), -Math.round(s.y)); provIcon(ctx, s, T, siteDone(s)); ctx.restore(); }      // its picture, as it is in the country, gone round with ink as a map-maker would set it down
     if (mark) name(s.x, s.y, s.name.toUpperCase(), '#f5d584');
   }
   for (const pk of F.packs) if (wildSeen(pk.x, pk.y)) {      // a roaming band: outlaws under their rag of a banner, wolves by their track; and it jumps when they are after you
