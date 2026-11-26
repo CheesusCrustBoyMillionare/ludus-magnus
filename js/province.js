@@ -2483,9 +2483,23 @@ function* provLandSteps(fresh, se) {
   // water. It is deeper in some stretches of country than in others, so that it comes patchily and goes patchily. What
   // is under it is read from the land as painted, dot by dot (off a copy: see the corn, above), and the snow keeps a
   // little of the shade of what it covers, so that a furrow or a tussock still shows through. See drawProvince.
+  // And the cold has the still water. A pond is frozen across, and the pools of the marsh; a lake carries a shelf of
+  // ice out from its shore, ragged at the edge, and is open beyond it. The river runs and the sea is salt: neither
+  // freezes. The ice is painted into the winter's land itself (it is there whether or not snow is lying), in the same
+  // pass, and when snow does lie it lies on the ice too.
   fresh.snowLie = null;
   if (se === 3 && typeof document !== 'undefined') {
     const W = cv.width, H = cv.height, STRIP = 120, whole = cv;
+    const iceCv = Object.assign(document.createElement('canvas'), { width: W, height: STRIP }), ix = iceCv.getContext('2d'), runs = wildFlow();
+    const IR = [204, 188, 222], IG = [220, 206, 232], IB = [233, 224, 240];      // (grey-blue, not white: it is ice, and the snow that lies on it is another thing)
+    // How far out a tile of water is from the land, and how far from water that does not freeze (the sea, and wherever
+    // the river runs), each counted in tiles from one to the next; read between the tiles, they give every dot of a
+    // lake its distance from the bank, and the shelf of ice is as wide as that says.
+    const fromLand = new Float32Array(TW * TH), fromOpen = new Float32Array(TW * TH).fill(9);
+    { const wetT = i => L.t[i] === T_WATER || L.t[i] === T_BRIDGE, spread = (D, far) => { for (let pass = 0; pass < far; pass++) { let any = false; for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) { const i = ty * TW + tx; if (!wetT(i)) continue; let m = D[i]; if (tx > 0) m = Math.min(m, D[i - 1] + 1); if (tx < TW - 1) m = Math.min(m, D[i + 1] + 1); if (ty > 0) m = Math.min(m, D[i - TW] + 1); if (ty < TH - 1) m = Math.min(m, D[i + TW] + 1); if (m < D[i]) { D[i] = m; any = true; } } if (!any) break; } };
+      for (let i = 0; i < TW * TH; i++) { const tx = i % TW, ty = (i - tx) / TW; if (wetT(i)) { fromLand[i] = 9; if (seaAt(tx, ty) || runs.has(i)) fromOpen[i] = 0; } }
+      spread(fromLand, 9); spread(fromOpen, 9); }
+    const between = (D, X, Y) => { const u = Math.max(0, Math.min(TW - 1.001, X / 10 - 0.5)), v = Math.max(0, Math.min(TH - 1.001, Y / 10 - 0.5)), i0 = Math.floor(u), j0 = Math.floor(v), fu = u - i0, fv = v - j0, k = j0 * TW + i0; return (D[k] * (1 - fu) + D[k + 1] * fu) * (1 - fv) + (D[k + TW] * (1 - fu) + D[k + TW + 1] * fu) * fv; };
     const snow = Object.assign(document.createElement('canvas'), { width: W, height: H }), sx = snow.getContext('2d');
     const strip = Object.assign(document.createElement('canvas'), { width: W, height: STRIP + 1 }), st = strip.getContext('2d', { willReadFrequently: true });
     const sA = new Float32Array(W), cA = new Float32Array(W), sB = new Float32Array(W), cB = new Float32Array(W);
@@ -2495,18 +2509,25 @@ function* provLandSteps(fresh, se) {
     for (let y0 = 0; y0 < H; y0 += STRIP) {
       const hh = Math.min(STRIP, H - y0), top = y0 > 0 ? 1 : 0;      // (with the row above it, to know what is over each dot)
       st.clearRect(0, 0, W, STRIP + 1); st.drawImage(whole, 0, y0 - top, W, hh + top, 0, 0, W, hh + top);
-      const D = st.getImageData(0, 0, W, hh + top).data, out = sx.createImageData(W, hh), O = out.data;
+      const D = st.getImageData(0, 0, W, hh + top).data, out = sx.createImageData(W, hh), O = out.data, ice = ix.createImageData(W, hh), I = ice.data; let iced = false;
       for (let yy = 0; yy < hh; yy++) {
         const Y = y0 + yy, row = Math.min(TH - 1, Math.floor(Y / 10)) * TW, sa = Math.sin(Y * 0.027), ca = Math.cos(Y * 0.027), sb = Math.sin(Y * 0.051), cb = Math.cos(Y * 0.051);
         for (let X = 0; X < W; X++) {
           const k = ((yy + top) * W + X) * 4, r = D[k], g = D[k + 1], b = D[k + 2];
-          if (b > r + 22 && b >= g - 4) continue;                                                 // water
-          const lum = (r * 3 + g * 5 + b * 2) / 10;
+          const lum = (r * 3 + g * 5 + b * 2) / 10, tX = Math.min(TW - 1, Math.floor(X / 10)), tk0 = L.t[row + tX], pool = tk0 === T_MARSH && g > r + 15 && b > r + 12;
+          if (pool || (b > r + 22 && b >= g - 4)) {                                               // water: left as it is, but for the ice
+            let f = 0;
+            if (pool) f = 0.74;
+            else if (tk0 !== T_BRIDGE) { const open = between(fromOpen, X, Y);
+              if (open > 0.8) { const v = between(fromLand, X, Y), edge = (1.7 + 0.4 * (sA[X] * ca + cA[X] * sa) + 0.25 * (sB[X] * cb - cB[X] * sb) + ((hashOf(X >> 1, Y >> 1) & 7) - 3.5) * 0.02) * Math.min(1, (open - 0.8) / 2); f = v < edge ? Math.min(0.86, (edge - v) / 0.3 + 0.4) : 0; } }
+            if (f > 0) { const o = (yy * W + X) * 4, gr = hashOf(X, Y) & 31, sh = gr === 0 ? 2 : gr < 8 ? 1 : 0; I[o] = IR[sh]; I[o + 1] = IG[sh]; I[o + 2] = IB[sh]; I[o + 3] = Math.round(f * 255); iced = true;      // (a darker fleck in it, and here and there a white one where it has cracked)
+              const a = f * 0.62 * (0.72 + 0.18 * (sA[X] * ca + cA[X] * sa)); O[o] = SR[0]; O[o + 1] = SG[0]; O[o + 2] = SB[0]; O[o + 3] = Math.round(a * 255); }
+            continue; }
           let d;
           if (g > r + 8 && g > b + 8) { const ka = k - W * 4; d = (yy + top > 0) && !(D[ka + 1] > D[ka] + 8 && D[ka + 1] > D[ka + 2] + 8) ? 0.8 : 0.28; }      // an evergreen: white along the top of each bough
           else if (lum < 62) d = 0.12;                                                            // trunk, bough, doorway, shadow
           else if (r > 130 && r > g * 1.45 && r > b * 1.6) d = 0.92;                              // a tiled roof
-          else { const tk = L.t[row + Math.min(TW - 1, Math.floor(X / 10))]; d = tk === T_ROAD || tk === T_BRIDGE ? 0.34 : tk === T_SAND ? 0.5 : tk === T_FOREST || tk === T_MARSH ? 0.6 : tk === T_PEAK || tk === T_HILL ? 0.85 : 0.74; if (lum < 96) d *= 0.62; }      // (less on what is dark: ploughland in its furrows, a hedge, a fence, so that the fields keep their lines)
+          else { const tk = tk0; d = tk === T_ROAD || tk === T_BRIDGE ? 0.34 : tk === T_SAND ? 0.5 : tk === T_FOREST || tk === T_MARSH ? 0.6 : tk === T_PEAK || tk === T_HILL ? 0.85 : 0.74; if (lum < 96) d *= 0.62; }      // (less on what is dark: ploughland in its furrows, a hedge, a fence, so that the fields keep their lines)
           const patch = 0.72 + 0.18 * (sA[X] * ca + cA[X] * sa) + 0.1 * (sB[X] * cb - cB[X] * sb), grain = (hashOf(X, Y) & 15) / 16;
           const a = d * patch + (grain - 0.5) * 0.16; if (a <= 0.02) continue;
           const o = (yy * W + X) * 4, sh = lum > 150 ? 0 : lum > 105 ? 1 : 2;
@@ -2514,6 +2535,7 @@ function* provLandSteps(fresh, se) {
         }
       }
       sx.putImageData(out, 0, y0);
+      if (iced) { ix.clearRect(0, 0, W, STRIP); ix.putImageData(ice, 0, 0); ctx.drawImage(iceCv, 0, 0, W, hh, 0, y0, W, hh); }
       yield;
     }
     fresh.snowLie = snow;
@@ -2713,6 +2735,18 @@ function provWind(x, y, T, gust) {
   const lull = 0.6 - gust * 0.7;
   return s > lull ? Math.min(1, (s - lull) / (1 - lull)) : 0;
 }
+// Rain over the country (the picture is at 0, 0: see drawProvince). It comes down on the wind, which is out of the
+// west: every streak leans east, and leans further where a front is passing, so that the rain and the trees under it
+// show the same gust.
+function provRain(ctx, camX, camY, T, amt, gust) {
+  if (!(amt > 0)) return;
+  const W = PROV.VW, H = PROV.VH; ctx.fillStyle = `rgba(200,215,235,${(0.5 * amt).toFixed(3)})`;
+  for (let i = 0, m = Math.round(110 * amt); i < m; i++) {
+    const x = Math.floor((i * 97.3 + T * 95) % (W + 30) - 15), y = Math.floor((i * 61.7 + T * 340 + (i % 7) * 13) % (H + 10) - 5);
+    if (provWind(camX + x, camY + y, T, gust) > 0.12) { ctx.fillRect(x, y, 1, 2); ctx.fillRect(x + 1, y + 2, 1, 2); ctx.fillRect(x + 2, y + 4, 1, 2); }
+    else { ctx.fillRect(x, y, 1, 4); ctx.fillRect(x + 1, y + 4, 1, 2); }
+  }
+}
 const SEASON_TURN = 5000;      // how long the land of one season takes to give way to the next, in thousandths of a second
 // The sun's road on the water, and the moon's. Open water throws the light back at whoever looks across it toward the
 // light: a road of sparks from where he stands to under the sun, which goes with him as he walks. Faint and white at
@@ -2841,64 +2875,120 @@ function drawHerds(ctx, T, R, inView) {
     const vx = abed ? 0 : roam * (Math.cos(Th * w1 + p1) * 0.65 * w1 + Math.cos(Th * w2 + p2) * 0.35 * w2);      // which way the herd as a whole is drifting
     let bolt = 0;
     if (K === 'deer' && F) { const d = Math.hypot(F.x - cx, F.y - cy); if (d < 70) { bolt = (70 - d) / 70; cx += (cx - F.x) / (d || 1) * bolt * 46; cy += (cy - F.y) / (d || 1) * bolt * 46; } }
-    const beasts = [];
+    const vy = abed ? 0 : -roam * 0.7 * (Math.sin(Th * w1 * 0.9 + p2) * 0.65 * w1 * 0.9 + Math.sin(Th * w2 * 1.1 + p1) * 0.35 * w2 * 1.1);      // (and up the map or down it)
+    // A beast steps by the ground it covers, not by the clock: so many beats to a pace of country (RATE), four beats to
+    // a stride, so that it goes faster when it goes further, stands when it stands, and never treads on the spot. And
+    // it turns the way it is going: side on when that is across the map, and end on when it is up it or down it.
+    const beasts = [], RATE = K === 'cattle' ? 1.2 : K === 'horses' || K === 'deer' ? 1.0 : 1.6;
     for (let i = 0; i < H.n; i++) {
-      const b1 = hv(10 + i), b2 = hv(30 + i), b3 = hv(50 + i), spread = K === 'cattle' ? 12 : 9;
-      const x = cx + (b1 - 0.5) * 2 * spread + Math.sin(Th * (0.22 + b3 * 0.16) + b1 * 20) * 5, y = cy + (b2 - 0.5) * 2 * spread * 0.7 + Math.cos(Th * (0.19 + b1 * 0.14) + b2 * 20) * 3.5;
-      const own = Math.cos(Th * (0.22 + b3 * 0.16) + b1 * 20), moving = bolt > 0.1 || (!abed && (Math.abs(vx) > 1.1 || Math.abs(own) > 0.6));
-      const right = bolt > 0.1 ? (F ? cx > F.x : true) : Math.abs(vx) > 1.1 ? vx > 0 : own > 0;
-      const graze = !moving && Math.sin(T * 0.45 + b2 * 30) > 0.1, step = moving && Math.sin(T * 9 + i * 2) > 0 ? 1 : 0;
+      const b1 = hv(10 + i), b2 = hv(30 + i), b3 = hv(50 + i), spread = K === 'cattle' ? 12 : 9, a1 = 0.22 + b3 * 0.16, a2 = 0.19 + b1 * 0.14;
+      const x = cx + (b1 - 0.5) * 2 * spread + Math.sin(Th * a1 + b1 * 20) * 5, y = cy + (b2 - 0.5) * 2 * spread * 0.7 + Math.cos(Th * a2 + b2 * 20) * 3.5;
+      const own = Math.cos(Th * a1 + b1 * 20), bvx = vx + 5 * a1 * own, bvy = vy - 3.5 * a2 * Math.sin(Th * a2 + b2 * 20);      // which way this one is going: the herd's drift, and its own
+      const moving = bolt > 0.1 || (!abed && Math.hypot(bvx, bvy) > 0.9);
+      const right = bolt > 0.1 ? (F ? cx > F.x : true) : moving ? bvx > 0 : own > 0;
+      const end = K === 'cranes' ? 0 : bolt > 0.1 ? (F && Math.abs(cy - F.y) > Math.abs(cx - F.x) * 1.2 ? (cy > F.y ? 1 : -1) : 0) : moving && Math.abs(bvy) > Math.abs(bvx) * 1.15 ? (bvy > 0 ? 1 : -1) : 0;      // 1: coming down the map, its face toward you; -1: going up it, its tail toward you
+      const graze = !moving && Math.sin(T * 0.45 + b2 * 30) > 0.1;
       const shy = K === 'deer' ? null : herdShy(K, x, y);      // the column among them: they give it room
-      if (shy) beasts.push({ x: Math.round(x + shy.x), y: Math.round(y + shy.y), right: shy.right, graze: false, step: shy.run && Math.sin(T * 12 + i * 2) > 0 ? 1 : 0, moving: shy.run, b1, b2, b3, i });
-      else beasts.push({ x: Math.round(x), y: Math.round(y), right, graze: graze || (abed && !moving), step, moving, b1, b2, b3, i, down: abed && !moving });      // (down: lying, its head on the ground)
+      const fx = shy ? x + shy.x : x, fy = shy ? y + shy.y : y, ph = (shy ? shy.run : moving) ? Math.floor((fx * 1.3 + fy * 1.7) * RATE) & 3 : -1, step = ph >= 0 && (ph & 1) ? 1 : 0;
+      if (shy) beasts.push({ x: Math.round(fx), y: Math.round(fy), right: shy.right, graze: false, step, moving: shy.run, ph, end: 0, b1, b2, b3, i });
+      else beasts.push({ x: Math.round(x), y: Math.round(y), right, graze: graze || (abed && !moving), step, moving, ph, end, b1, b2, b3, i, down: abed && !moving });      // (down: lying, its head on the ground)
     }
     beasts.sort((p, q) => p.y - q.y);
+    // Its legs, side on (hind and fore where they stand at rest, the top of them, how long): in four moments, the hind
+    // foot lifted and set forward, the fore foot following, each drawn back under the beast as it goes over it. The
+    // larger beasts show the pair on the far side too (far: their colour), half a stride behind.
+    const OFF_H = [0, 1, 1, 0], OFF_F = [0, 0, -1, -1];
+    const legs = (hx, fx, top, lg, c, d, ph, far) => {
+      const leg = (lx, pk, fore, col) => R(lx + (ph < 0 ? 0 : (fore ? OFF_F : OFF_H)[pk] * d), top, 1, lg - (ph >= 0 && lg > 1 && pk === (fore ? 0 : 1) ? 1 : 0), col);
+      if (far) { leg(hx + d, (ph + 2) & 3, false, far); leg(fx - d, (ph + 2) & 3, true, far); }
+      leg(hx, ph & 3, false, c); leg(fx, ph & 3, true, c);
+    };
+    // And end on: narrower than it is long, two legs showing and lifted in turn, the barrel of it, and its head: from in
+    // front its face (and a muzzle: nose), from behind the poll of its head beyond its rump, and its tail. (o: the colour
+    // of its legs; horn: horns or ears at the corners of its head; neck: how far its head is carried above its back;
+    // rise: how far it is off the ground, hopping or leaping.)
+    const endOn = (x, y, w, h, lg, c, up, ph, o) => {
+      const x0 = x - (w >> 1), rise = o.rise || 0, top = y - lg - h + 1 - rise, ft = y - lg + 1 - rise, fw = Math.max(1, w - 2), hx0 = x0 + ((w - fw) >> 1), hy0 = top - 1 - (o.neck || 0), fh = o.faceH || 2;
+      R(x0, y + 1, w + 1, 1, 'rgba(0,0,0,.2)');
+      if (lg > 1 || ph !== 0) R(x0, ft, 1, lg - (ph === 0 && lg > 1 ? 1 : 0), o.leg); if (lg > 1 || ph !== 2) R(x0 + w - 1, ft, 1, lg - (ph === 2 && lg > 1 ? 1 : 0), o.leg);
+      R(x0, top, w, h, c); if (w > 2) R(x0 + w - 1, top, 1, h, shade(c, 0.76));
+      if (up) { R(hx0, hy0, fw, top - hy0, o.poll || c); if (o.rump) R(x0 + 1, top + 1, w - 2, 2, o.rump); if (o.tail) R(x0 + ((w - 1) >> 1), top + 1, 1, o.tailLen || Math.max(1, h - 1), o.tail); }
+      else { R(hx0, hy0, fw, Math.max(fh, top - hy0 + 1), o.face || c); if (o.nose) R(hx0, hy0 + fh - 1, fw, 1, o.nose); }
+      if (o.horn) { R(hx0 - 1, hy0 - 1, 1, 1, o.horn); R(hx0 + fw, hy0 - 1, 1, 1, o.horn); }
+    };
     for (const B of beasts) {
       // A beast lying down is the same beast set lower, by the length of its legs, and cut off at the ground. (A horse sleeps on its feet, and so does a crane.)
       const low = B.down ? (K === 'cattle' || K === 'goats' ? 2 : K === 'deer' ? 3 : K === 'horses' || K === 'cranes' ? 0 : 1) : 0;
-      const { x, right, graze, step, moving } = B, d = right ? 1 : -1, y = B.y + low;
+      const { x, right, graze, step, moving, ph, end } = B, d = right ? 1 : -1, y = B.y + low, up = end < 0;
       provAt(x, B.y, 6);
       if (low) { ctx.save(); ctx.beginPath(); ctx.rect(x - 14, B.y - 30, 28, 31); ctx.clip(); }
       if (K === 'sheep') {
-        const black = B.b3 > 0.88, lamb = B.b3 < 0.16, wool = black ? '#3a322c' : B.b1 > 0.5 ? '#f1ead8' : '#e6dcc4', w = lamb ? 3 : 5, hh = lamb ? 2 : 3, lying = !moving && B.b2 > 0.82;
-        R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - hh, w, hh, wool); R(x - (w >> 1) + 1, y - hh - 1, w - 2, 1, wool);
-        R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - hh + (graze ? 2 : 0), 2, 2, black ? '#1c1614' : '#2a1c14');
-        if (!lying) { R(x - (w >> 1) + (step && !lamb ? 1 : 0), y, 1, 1, '#2a1c14'); R(x + (w >> 1) - (step ? 1 : 0), y, 1, 1, '#2a1c14'); }
+        const black = B.b3 > 0.88, lamb = B.b3 < 0.16, wool = black ? '#3a322c' : B.b1 > 0.5 ? '#f1ead8' : '#e6dcc4', w = lamb ? 3 : 5, hh = lamb ? 2 : 3, lying = !moving && B.b2 > 0.82, dark = black ? '#1c1614' : '#2a1c14';
+        if (end) endOn(x, y, lamb ? 2 : 4, hh, 1, wool, up, ph, { leg: '#2a1c14', face: dark, poll: dark });
+        else {
+          R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - hh, w, hh, wool); R(x - (w >> 1) + 1, y - hh - 1, w - 2, 1, wool);
+          R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - hh + (graze ? 2 : 0), 2, 2, dark);
+          if (!lying) { if (lamb) { R(x - 1, y, 1, 1, '#2a1c14'); R(x + 1 - step, y, 1, 1, '#2a1c14'); } else legs(x - 2 * d, x + 2 * d, y, 1, '#2a1c14', d, ph); }
+        }
       } else if (K === 'cattle') {
         const c = B.b1 > 0.6 ? '#8a5a32' : B.b1 > 0.3 ? '#e8e2d2' : '#3a2a22', patch = c === '#e8e2d2' ? '#3a2a22' : '#e8e2d2';
-        R(x - 4, y + 1, 9, 1, 'rgba(0,0,0,.22)'); R(x - 4, y - 5, 8, 4, c); R(x - 2 + (B.b2 > 0.5 ? 2 : 0), y - 5, 2, 2, patch); R(x - 3, y - 2, 2, 1, patch);
-        R(right ? x + 4 : x - 6, y - 5 + (graze ? 2 : 0), 2, 3, c); R(right ? x + 4 : x - 6, y - 6 + (graze ? 2 : 0), 1, 1, '#e8e2d2'); R(right ? x + 5 : x - 5, y - 6 + (graze ? 2 : 0), 1, 1, '#e8e2d2');
-        R(x - 3 + step, y - 1, 1, 2, '#2a1c14'); R(x + 2 - step, y - 1, 1, 2, '#2a1c14'); R(right ? x - 5 : x + 4, y - 4, 1, 3, shade(c, 0.8));
+        if (end) { endOn(x, y, 6, 4, 2, c, up, ph, { leg: '#2a1c14', horn: '#e8e2d2', faceH: 3, nose: c === '#e8e2d2' ? '#c9a898' : '#d8c8b8', tail: shade(c, 0.7) }); if (up && B.b2 > 0.5) R(x, y - 4, 2, 2, patch); }
+        else {
+          const hy = (graze ? 2 : 0) + (ph === 1 || ph === 3 ? 1 : 0);      // (its head nods as it walks)
+          R(x - 4, y + 1, 9, 1, 'rgba(0,0,0,.22)'); legs(d > 0 ? x - 3 : x + 2, d > 0 ? x + 2 : x - 3, y - 1, 2, '#2a1c14', d, ph, '#4a3a2c');
+          R(x - 4, y - 5, 8, 4, c); R(x - 2 + (B.b2 > 0.5 ? 2 : 0), y - 5, 2, 2, patch); R(x - 3, y - 2, 2, 1, patch);
+          R(right ? x + 4 : x - 6, y - 5 + hy, 2, 3, c); R(right ? x + 4 : x - 6, y - 6 + hy, 1, 1, '#e8e2d2'); R(right ? x + 5 : x - 5, y - 6 + hy, 1, 1, '#e8e2d2');
+          R(right ? x - 5 : x + 4, y - 4, 1, 3, shade(c, 0.8));
+        }
       } else if (K === 'goats') {
         const c = B.b1 > 0.5 ? '#c9c2ae' : B.b1 > 0.25 ? '#8a7a66' : '#e8e2d2', hop = moving && Math.sin(T * 6 + B.i) > 0.6 ? 1 : 0;
-        R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 3 - hop, 4, 2, c); R(right ? x + 2 : x - 3, y - 4 - hop + (graze ? 1 : 0), 2, 2, c); R(right ? x + 2 : x - 2, y - 5 - hop + (graze ? 1 : 0), 1, 1, '#5a4a3a'); R(right ? x + 3 : x - 4, y - 3 - hop + (graze ? 1 : 0), 1, 1, c);
-        R(x - 2 + step, y - 1 - hop, 1, 2, '#3a2a22'); R(x + 1 - step, y - 1 - hop, 1, 2, '#3a2a22');
+        if (end) endOn(x, y, 3, 2, 2, c, up, ph, { leg: '#3a2a22', horn: '#5a4a3a', rise: hop });
+        else {
+          R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 3 - hop, 4, 2, c); R(right ? x + 2 : x - 3, y - 4 - hop + (graze ? 1 : 0), 2, 2, c); R(right ? x + 2 : x - 2, y - 5 - hop + (graze ? 1 : 0), 1, 1, '#5a4a3a'); R(right ? x + 3 : x - 4, y - 3 - hop + (graze ? 1 : 0), 1, 1, c);
+          legs(d > 0 ? x - 2 : x + 1, d > 0 ? x + 1 : x - 2, y - 1 - hop, 2, '#3a2a22', d, ph);
+        }
       } else if (K === 'horses') {
         // five coats, and no two horses of a coat quite the same: each a little lighter or darker than the next, and a little redder or duller
-        const base = ['#7a4a2a', '#2a2220', '#c9c2ae', '#a8642e', '#c8a868'][Math.floor(B.b1 * 5)], c = coatOf(base, B.b2, B.b3), dk = shade(c, 0.6), foal = B.b3 < 0.2, w = foal ? 5 : 8, bh = foal ? 3 : 4, lg = foal ? 2 : 3, hw = w >> 1, hx = right ? x + hw - 1 : x - hw - 1, trot = moving && Math.sin(T * 8 + B.i) > 0 ? 1 : 0;
-        R(x - hw, y + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(x - hw, y - lg - bh - trot, w, bh, c); if (B.b2 > 0.7 && base !== '#c9c2ae') R(x - 1, y - lg - bh - trot, 2, 2, '#e8e2d2');
-        if (graze) { R(hx, y - lg - bh + 1, 2, bh, c); R(right ? hx + 1 : hx - 1, y - lg, 2, 2, c); } else { R(hx, y - lg - bh - 3 - trot, 2, 4, c); R(right ? hx + 1 : hx - 2, y - lg - bh - 3 - trot, 3, 2, c); R(right ? hx - 1 : hx + 2, y - lg - bh - 2 - trot, 1, 3, dk); }
-        R(right ? x - hw - 1 : x + hw, y - lg - bh + 1 - trot, 1, 3, dk); R(x - hw + step, y - lg, 1, lg, dk); R(x + hw - 1 - step, y - lg, 1, lg, dk);
+        const base = ['#7a4a2a', '#2a2220', '#c9c2ae', '#a8642e', '#c8a868'][Math.floor(B.b1 * 5)], c = coatOf(base, B.b2, B.b3), dk = shade(c, 0.6), foal = B.b3 < 0.2, w = foal ? 5 : 8, bh = foal ? 3 : 4, lg = foal ? 2 : 3, hw = w >> 1, hx = right ? x + hw - 1 : x - hw - 1, trot = ph === 1 || ph === 3 ? 1 : 0;      // (it rises a dot between the pairs, as the horses of the column do)
+        if (end) endOn(x, y - 1, foal ? 3 : 5, bh + 1, lg, c, up, ph, { leg: dk, tail: dk, horn: c, neck: 2, faceH: 4, nose: dk, rise: trot });
+        else {
+          R(x - hw, y + 1, w + 1, 1, 'rgba(0,0,0,.22)'); legs(d > 0 ? x - hw : x + hw - 1, d > 0 ? x + hw - 1 : x - hw, y - lg, lg, dk, d, ph, foal ? null : shade(c, 0.42));
+          R(x - hw, y - lg - bh - trot, w, bh, c); if (B.b2 > 0.7 && base !== '#c9c2ae') R(x - 1, y - lg - bh - trot, 2, 2, '#e8e2d2');
+          if (graze) { R(hx, y - lg - bh + 1, 2, bh, c); R(right ? hx + 1 : hx - 1, y - lg, 2, 2, c); } else { R(hx, y - lg - bh - 3 - trot, 2, 4, c); R(right ? hx + 1 : hx - 2, y - lg - bh - 3 - trot, 3, 2, c); R(right ? hx - 1 : hx + 2, y - lg - bh - 2 - trot, 1, 3, dk); }
+          R(right ? x - hw - 1 : x + hw, y - lg - bh + 1 - trot, 1, 3, dk);
+        }
       } else if (K === 'pigs') {
         const c = B.b1 > 0.6 ? '#e0a8a0' : B.b1 > 0.3 ? '#5a4a44' : '#c8907c', piglet = B.b3 < 0.25, w = piglet ? 3 : 5;
-        R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - 3, w, 3, c); if (B.b2 > 0.6 && !piglet) R(x - 1, y - 3, 2, 2, c === '#5a4a44' ? '#e0a8a0' : '#5a4a44');
-        R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - 3 + (graze ? 1 : 0), 2, 2, c); R(right ? x + (w >> 1) + 3 : x - (w >> 1) - 3, y - 2 + (graze ? 1 : 0), 1, 1, shade(c, 0.8)); R(right ? x - (w >> 1) - 1 : x + (w >> 1) + 1, y - 3, 1, 1, c);
-        R(x - (w >> 1) + step, y, 1, 1, '#3a2a22'); R(x + (w >> 1) - step, y, 1, 1, '#3a2a22');
+        if (end) endOn(x, y, piglet ? 2 : 4, 3, 1, c, up, ph, { leg: '#3a2a22', nose: shade(c, 0.8), tail: shade(c, 0.8), tailLen: 1 });
+        else {
+          R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - 3, w, 3, c); if (B.b2 > 0.6 && !piglet) R(x - 1, y - 3, 2, 2, c === '#5a4a44' ? '#e0a8a0' : '#5a4a44');
+          R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - 3 + (graze ? 1 : 0), 2, 2, c); R(right ? x + (w >> 1) + 3 : x - (w >> 1) - 3, y - 2 + (graze ? 1 : 0), 1, 1, shade(c, 0.8)); R(right ? x - (w >> 1) - 1 : x + (w >> 1) + 1, y - 3, 1, 1, c);
+          if (piglet) { R(x - 1, y, 1, 1, '#3a2a22'); R(x + 1 - step, y, 1, 1, '#3a2a22'); } else legs(x - 2 * d, x + 2 * d, y, 1, '#3a2a22', d, ph);
+        }
       } else if (K === 'geese') {
-        const c = B.b1 > 0.3 ? '#f4f4f0' : '#a8a498', up = !graze, wad = moving && Math.sin(T * 10 + B.i) > 0 ? 1 : 0;
-        R(x - 1, y + 1, 4, 1, 'rgba(0,0,0,.18)'); R(x - 1, y - 2, 3, 2, c); R(right ? x - 2 : x + 2, y - 2, 1, 1, c);
-        if (up) { R(right ? x + 2 : x - 2, y - 4, 1, 3, c); R(right ? x + 3 : x - 3, y - 4, 1, 1, '#e8902a'); } else { R(right ? x + 2 : x - 2, y - 1, 1, 2, c); R(right ? x + 3 : x - 3, y, 1, 1, '#e8902a'); }
-        R(x - 1 + wad, y, 1, 1, '#e8902a'); R(x + 1 - wad, y, 1, 1, '#e8902a');
+        const c = B.b1 > 0.3 ? '#f4f4f0' : '#a8a498', headUp = !graze, wad = moving && Math.sin(T * 10 + B.i) > 0 ? 1 : 0;
+        if (end) {      // end on: its neck straight up out of the middle of it, and its feet going one and then the other
+          R(x - 1, y + 1, 4, 1, 'rgba(0,0,0,.18)'); R(x - 1, y - 2, 3, 2, c); R(x + 1, y - 2, 1, 2, shade(c, 0.86)); R(x, y - 5, 1, 3, c); if (!up) R(x, y - 4, 1, 1, '#e8902a');
+          if (!wad) R(x - 1, y, 1, 1, '#e8902a'); else R(x + 1, y, 1, 1, '#e8902a');
+        } else {
+          R(x - 1, y + 1, 4, 1, 'rgba(0,0,0,.18)'); R(x - 1, y - 2, 3, 2, c); R(right ? x - 2 : x + 2, y - 2, 1, 1, c);
+          if (headUp) { R(right ? x + 2 : x - 2, y - 4, 1, 3, c); R(right ? x + 3 : x - 3, y - 4, 1, 1, '#e8902a'); } else { R(right ? x + 2 : x - 2, y - 1, 1, 2, c); R(right ? x + 3 : x - 3, y, 1, 1, '#e8902a'); }
+          R(x - 1 + wad, y, 1, 1, '#e8902a'); R(x + 1 - wad, y, 1, 1, '#e8902a');
+        }
       } else if (K === 'cranes') {
         const c = B.b1 > 0.5 ? '#c8ccd0' : '#e8e8e4', down = graze;
         R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.16)'); R(x - 1, y - 4, 1, 4, '#3a3a40'); R(x + 1, y - 4 + (moving && step ? 1 : 0), 1, 4 - (moving && step ? 1 : 0), '#3a3a40'); R(x - 2, y - 6, 5, 2, c); R(right ? x - 3 : x + 3, y - 5, 1, 2, '#3a3a40');
         if (down) { R(right ? x + 3 : x - 3, y - 5, 1, 4, c); R(right ? x + 4 : x - 5, y - 2, 2, 1, '#c8a040'); } else { R(right ? x + 3 : x - 3, y - 10, 1, 5, c); R(right ? x + 3 : x - 3, y - 11, 1, 1, '#c23b2e'); R(right ? x + 4 : x - 5, y - 10, 2, 1, '#c8a040'); }
       } else {                                   // deer
-        const stag = B.i === 0, c = B.b1 > 0.5 ? '#a8764a' : '#96683e', up = !graze || bolt > 0.1, leap = bolt > 0.1 && Math.sin(T * 10 + B.i) > 0 ? 2 : 0;
-        R(x - 3, y + 1, 7, 1, 'rgba(0,0,0,.2)'); R(x - 3, y - 5 - leap, 6, 3, c); R(right ? x - 4 : x + 3, y - 5 - leap, 1, 2, '#f1ead8');
-        R(right ? x + 3 : x - 4, y - (up ? 8 : 4) - leap, 1, up ? 3 : 2, c); R(right ? x + 3 : x - 5, y - (up ? 9 : 3) - leap, 2, 2, c);
-        if (stag && up) { R(right ? x + 3 : x - 5, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 5 : x - 3, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 2 : x - 6, y - 11 - leap, 1, 1, '#d8c9a2'); R(right ? x + 6 : x - 2, y - 11 - leap, 1, 1, '#d8c9a2'); }
-        R(x - 2 + step, y - 2 - leap, 1, 3, '#5a3f26'); R(x + 1 - step, y - 2 - leap, 1, 3, '#5a3f26');
+        const stag = B.i === 0, c = B.b1 > 0.5 ? '#a8764a' : '#96683e', headUp = !graze || bolt > 0.1, leap = bolt > 0.1 && Math.sin(T * 10 + B.i) > 0 ? 2 : 0;
+        if (end) { endOn(x, y, 4, 3, 3, c, up, ph, { leg: '#5a3f26', horn: c, neck: 2, nose: '#3a2a1c', rump: '#f1ead8', rise: leap });      // (its white scut is what you see of a deer going away)
+          if (stag) { const ay = y - 12 - leap; R(x - 3, ay, 1, 3, '#d8c9a2'); R(x + 2, ay, 1, 3, '#d8c9a2'); R(x - 4, ay + 1, 1, 1, '#d8c9a2'); R(x + 3, ay + 1, 1, 1, '#d8c9a2'); } }
+        else {
+          R(x - 3, y + 1, 7, 1, 'rgba(0,0,0,.2)'); R(x - 3, y - 5 - leap, 6, 3, c); R(right ? x - 4 : x + 3, y - 5 - leap, 1, 2, '#f1ead8');
+          R(right ? x + 3 : x - 4, y - (headUp ? 8 : 4) - leap, 1, headUp ? 3 : 2, c); R(right ? x + 3 : x - 5, y - (headUp ? 9 : 3) - leap, 2, 2, c);
+          if (stag && headUp) { R(right ? x + 3 : x - 5, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 5 : x - 3, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 2 : x - 6, y - 11 - leap, 1, 1, '#d8c9a2'); R(right ? x + 6 : x - 2, y - 11 - leap, 1, 1, '#d8c9a2'); }
+          legs(d > 0 ? x - 2 : x + 1, d > 0 ? x + 1 : x - 2, y - 2 - leap, 3, '#5a3f26', d, ph);
+        }
       }
       if (low) ctx.restore();
     }
@@ -2967,19 +3057,22 @@ function drawBirds(ctx, T, R, inView) {
 function drawTown(ctx, T, R, tx, ty, tr, night) {
   const X0 = tx - 44, X1 = tx + 19, Y0 = ty - 26, Y1 = ty + 12, W = X1 - X0, gx = Math.floor(tx / 10) * 10 + 5, hv = q => wildHash(q, 77, 1400), lit = night > 0.3;
   const wall = '#b8ab94', wl = '#d8cdb6', wd = '#8f846e', road = k => k === T_ROAD || k === T_BRIDGE;
-  const flag = (fx, fy, c) => { const wv = Math.sin(T * 5 + fx) > 0 ? 1 : 0; R(fx, fy - 7, 1, 7, '#5a4326'); R(fx + 1, fy - 7 + wv, 3, 3, c); R(fx + 4, fy - 6 - wv + 1, 2, 2, shade(c, 0.85)); };
+  // (a flag flies on the wind there is: in a lull it hangs down its staff, a front lifts it, and in a gale it cracks)
+  const flag = (fx, fy, c) => { const g0 = prov.gustNow || 0, bl = provWind(fx, fy, T, g0) + g0 * 0.4; R(fx, fy - 7, 1, 7, '#5a4326');
+    if (bl < 0.06) { R(fx + 1, fy - 7, 2, 4, c); R(fx + 1, fy - 3, 1, 1, shade(c, 0.85)); return; }
+    const wv = Math.sin(T * (bl > 0.6 ? 11 : 5) + fx) > 0 ? 1 : 0; R(fx + 1, fy - 7 + wv, 3, 3, c); R(fx + 4, fy - 6 - wv + 1, 2, 2, shade(c, 0.85)); if (bl > 0.6) R(fx + 6, fy - 6 + wv, 1, 1, shade(c, 0.85)); };
   const tower = (x, y) => { R(x, y, 7, 11, '#c9bca8'); R(x, y, 2, 11, '#e0d6c4'); R(x + 5, y, 2, 11, '#a89c88'); for (let q = 0; q < 7; q += 2) R(x + q, y - 2, 1, 2, '#c9bca8'); R(x + 3, y + 4, 1, 3, lit ? '#f5c04a' : '#3a2a1c'); R(x, y + 11, 7, 1, wd); };
   const house = (x, y, w, i) => { const wc = ['#e2d2a8', '#f0e8d6', '#d8c9a2', '#e8dcc0'][Math.floor(hv(i) * 4)], rc = ['#a8482a', '#b5522e', '#9a4228', '#b8603a', '#8a6a3a'][Math.floor(hv(i + 40) * 5)]; R(x, y, w, 4, wc); R(x + w - 1, y, 1, 4, shade(wc, 0.85)); R(x - 1, y - 2, w + 2, 2, rc); R(x, y - 3, w, 1, shade(rc, 1.2)); R(x + 1 + Math.floor(hv(i + 80) * (w - 3)), y + 2, 1, 2, '#3a2416'); if (w > 5) R(x + w - 3, y + 1, 1, 1, lit && hv(i + 120) > 0.35 ? '#f5c04a' : '#3a2a1c'); };
   // The ground about it. A town does not stand on a lawn: for a bowshot round the walls the grass is worn to earth by
   // carts, cattle and feet, raggedly, barest by the gates and greening again further off; stones lie where the masons
   // left them, and weeds have the foot of the wall.
-  { const mx = (X0 + X1) / 2, my = (Y0 + Y1) / 2 + 2, rx = W / 2 + 17, ry = (Y1 - Y0) / 2 + 13;
+  { const mx = (X0 + X1) / 2, my = (Y0 + Y1) / 2 + 2, rx = W / 2 + 17, ry = (Y1 - Y0) / 2 + 13, bare = prov.landSe === 3 ? 1 - 0.6 * Math.min(1, (prov.white || 0) * 1.5) : 1;      // (under snow less of it shows)
     for (let dy = -ry; dy <= ry; dy++) {
       const k = 1 - (dy * dy) / (ry * ry); if (k <= 0) continue;
       const w = Math.round(rx * Math.sqrt(k) + (hv(dy + 500) - 0.5) * 8), cx = Math.round(mx + (hv(dy + 560) - 0.5) * 5), w2 = w - 7 - Math.floor(hv(dy + 620) * 5), w3 = w2 - 8 - Math.floor(hv(dy + 680) * 4);
-      R(cx - w, my + dy, w * 2, 1, 'rgba(160,146,96,.26)');
-      if (w2 > 0) R(cx - w2, my + dy, w2 * 2, 1, 'rgba(184,164,116,.34)');
-      if (w3 > 0) R(cx - w3, my + dy, w3 * 2, 1, 'rgba(198,180,134,.32)');
+      R(cx - w, my + dy, w * 2, 1, 'rgba(160,146,96,' + (0.26 * bare).toFixed(3) + ')');
+      if (w2 > 0) R(cx - w2, my + dy, w2 * 2, 1, 'rgba(184,164,116,' + (0.34 * bare).toFixed(3) + ')');
+      if (w3 > 0) R(cx - w3, my + dy, w3 * 2, 1, 'rgba(198,180,134,' + (0.32 * bare).toFixed(3) + ')');
     }
     for (let q = 0; q < 34; q++) { const an = hv(q + 700) * 6.283, rr = 0.72 + hv(q + 740) * 0.3, px = Math.round(mx + Math.cos(an) * rx * rr), py = Math.round(my + Math.sin(an) * ry * rr);
       if (px > X0 - 4 && px < X1 + 4 && py > Y0 - 6 && py < Y1 + 6) continue;
@@ -4344,9 +4437,10 @@ function provIcon(ctx, s, T, done) {
   const hut = (ox, oy) => { R(ox - 4, oy - 3, 8, 5, '#d9c9a0'); R(ox - 4, oy - 3, 1, 5, '#eadcb6'); R(ox + 2, oy - 3, 2, 5, '#b8a67c'); R(ox - 4, oy + 1, 8, 1, '#b8a67c'); R(ox - 5, oy - 6, 10, 3, '#8a5a32'); R(ox - 4, oy - 7, 8, 1, '#a8703c'); R(ox + 1, oy - 6, 4, 3, '#6f4424'); R(ox - 5, oy - 3, 10, 1, '#5e3a1e'); R(ox - 1, oy - 1, 2, 3, '#3a2416'); R(ox - 1, oy - 2, 2, 1, '#8a6a3a'); R(ox - 3, oy - 1, 1, 1, '#3a2a1c'); R(ox + 2, oy - 9, 2, 3, '#8a8478'); R(ox + 2, oy - 9, 2, 1, '#a39c88'); };      // a wall with a light and a dark end, a roof with a ridge, a door under its lintel, a window, a chimney
   const tent = (ox, oy, c) => { for (let i = 0; i < 6; i++) { R(ox - i, oy - 6 + i, i * 2 + 1, 1, i % 4 < 2 ? c : shade(c, 0.9)); if (i) R(ox + 1, oy - 6 + i, i, 1, shade(c, 0.76)); } R(ox, oy - 8, 1, 2, '#3a2a1c'); R(ox - 1, oy - 2, 2, 3, '#2a1d12'); R(ox - 2, oy - 2, 1, 3, shade(c, 1.15)); R(ox - 7, oy, 1, 1, '#c9b890'); R(ox + 7, oy, 1, 1, '#c9b890'); };      // the pole through its peak, one side in shade, the flap tied back, and its pegs
   if (!gone) { const kk = s.kind, gc = kk === 'camp' || kk === 'slavers' || kk === 'chief' || kk === 'bounty' ? '120,96,60' : kk === 'lair' ? '70,58,34' : kk === 'ruin' || kk === 'battlefield' || kk === 'shrine' || kk === 'vow' ? '200,192,170' : kk === 'quarry' ? '232,226,208' : '150,126,82';
+    const bare = prov.landSe === 3 ? 1 - 0.75 * Math.min(1, (prov.white || 0) * 1.5) : 1;      // (under snow the ground about it is white with the rest: only a little of it shows, where it is walked on)
     const rg0 = wildRegion(s.x, s.y), gc2 = rg0 === 'The Salt Shore' ? '226,208,156' : rg0 === 'The High Fells' ? '226,230,238' : rg0 === 'Blackmere' ? '52,76,66' : rg0 === 'The Quarry Hills' && gc === '150,126,82' ? '206,196,168' : gc;
-    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand') && kk !== 'tale') for (let dy = -6; dy <= 6; dy++) { const w = Math.round(20 * Math.sqrt(1 - (dy * dy) / 43)); R(-w, 3 + dy, w * 2, 1, `rgba(${gc2},.16)`); }
-    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand') && kk !== 'tale') for (let dy = -5; dy <= 5; dy++) { const w = Math.round(17 * Math.sqrt(1 - (dy * dy) / 30)) + (((sd0 >> (dy + 5)) & 1) ? 1 : -1); R(-w, 3 + dy, w * 2, 1, `rgba(${gc},.3)`); }      // the ground about it: trodden, fouled, paved or white with dust
+    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand') && kk !== 'tale') for (let dy = -6; dy <= 6; dy++) { const w = Math.round(20 * Math.sqrt(1 - (dy * dy) / 43)); R(-w, 3 + dy, w * 2, 1, `rgba(${gc2},${(0.16 * bare).toFixed(3)})`); }
+    if (!['cache', 'herb'].includes(kk) && !kk.startsWith('errand') && kk !== 'tale') for (let dy = -5; dy <= 5; dy++) { const w = Math.round(17 * Math.sqrt(1 - (dy * dy) / 30)) + (((sd0 >> (dy + 5)) & 1) ? 1 : -1); R(-w, 3 + dy, w * 2, 1, `rgba(${gc},${(0.3 * bare).toFixed(3)})`); }      // the ground about it: trodden, fouled, paved or white with dust
     for (let i = 0; i < 5; i++) R(-6 + i * 2, 4 + i, 15, 1, 'rgba(0,0,0,.09)'); }      // and its shadow, lying away to the south-east
   R(-7, 3, 15, 2, 'rgba(0,0,0,.22)');
   const k = s.kind, tr = s.tier || 1;
@@ -4673,6 +4767,49 @@ function provTracks(ctx, R, inView) {
   }
   ctx.globalAlpha = 1;
 }
+// Snow on what is not part of the painted land: the town, and the places you have found. Each is drawn afresh every
+// frame, so the snow painted into the winter's land (snowLie) cannot lie on it. Instead its picture is drawn once on
+// a slip of its own, at two moments, and wherever it is the same at both (so not on a flag, a fire or a man walking)
+// the snow is found dot by dot: on a tiled roof, on whatever bare ground the caller names (ground: red, green and
+// blue to how deep), and along the top of anything pale that stands against the open. It is kept, and laid over the
+// picture by how much snow is lying (see drawProvince).
+function provSnowCap(key, W, H, draw, ground) {
+  const kept = prov.caps || (prov.caps = new Map()); let cap = kept.get(key); if (cap) return cap;
+  const slip = Object.assign(document.createElement('canvas'), { width: W, height: H }), c = slip.getContext('2d', { willReadFrequently: true }), lit = prov.lit;
+  const take = T => { c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.clearRect(0, 0, W, H); prov.lit = null;      // (its lamps are counted when it is painted in earnest, not here)
+    try { draw(c, T); } finally { prov.lit = lit; c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
+    return c.getImageData(0, 0, W, H).data; };
+  const A = take(3.1), B = take(7.45), on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && A[(y * W + x) * 4 + 3] > 200;
+  cap = Object.assign(document.createElement('canvas'), { width: W, height: H });
+  const cc = cap.getContext('2d'), out = cc.createImageData(W, H), O = out.data;
+  // (what takes it along its top: stone, plaster, thatch, timber, canvas. Not what is dark, nor bright cloth or flame, nor a face.)
+  const takes = (x, y) => { const k = (y * W + x) * 4, r = A[k], g = A[k + 1], b = A[k + 2]; return (r * 3 + g * 5 + b * 2) / 10 >= 62 && Math.max(r, g, b) - Math.min(r, g, b) <= 125 && !(b > g + 20) && !(r > g + 30 && g > b + 20 && b > 95); };
+  const crown = (x, y) => on(x, y) && !on(x, y - 1) && (on(x - 1, y) || on(x + 1, y)) && takes(x, y);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const k = (y * W + x) * 4, r = A[k], g = A[k + 1], b = A[k + 2];
+    if (A[k + 3] <= 200 || B[k + 3] <= 200 || r !== B[k] || g !== B[k + 1] || b !== B[k + 2]) continue;
+    let d = 0;
+    if (b > r + 22 && b >= g - 4) d = 0;                                                               // water in a basin
+    else if (r > 130 && r > g * 1.45 && r < g * 2.7 && r > b * 1.6) d = 0.9;                             // a tiled roof (and not a red flag, which is redder than any tile)
+    else if (ground && ground(r, g, b) > 0) d = ground(r, g, b);
+    else if (crown(x, y)) d = 0.88;                                                                    // the top of a wall, a thatch, a tent, a stone
+    else if (y > 0 && crown(x, y - 1) && on(x - 1, y) && on(x + 1, y) && takes(x, y)) d = 0.42;          // and thinner under that, where it is broad
+    if (d > 0) { O[k] = 250; O[k + 1] = 251; O[k + 2] = 254; O[k + 3] = Math.round(d * 255); }
+  }
+  cc.putImageData(out, 0, 0); kept.set(key, cap);
+  return cap;
+}
+// The town under snow: its roofs, the ground inside the walls (less in the streets, where it is trodden), the yard of
+// your school and the sand of the arena, the thatch of the poor outside, and the tops of the walls.
+const TOWN_SNOW = { '#cdbfa0': 0.72, '#bfb192': 0.72, '#d8cbae': 0.72, '#b3a688': 0.36, '#a39678': 0.36, '#d9b877': 0.6, '#8a6a3a': 0.85, '#a18861': 0.85, '#d9c070': 0.55, '#e6d088': 0.55 };
+function townSnow(tx, ty, tr) {
+  const ox = tx - 72, oy = ty - 44, deep = townSnow.deep || (townSnow.deep = new Map(Object.entries(TOWN_SNOW).map(([c, d]) => [parseInt(c.slice(1), 16), d])));
+  return provSnowCap('town:' + tr, 124, 88, (c, T) => drawTown(c, T, (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x) - ox, Math.round(y) - oy, w, h); }, tx, ty, tr, 0), (r, g, b) => deep.get(r << 16 | g << 8 | b) || 0);
+}
+function iconSnow(s, T) {
+  const done = siteDone(s);
+  return provSnowCap(s.id + (done ? ':done' : ''), 80, 80, (c, t) => { c.translate(40 - Math.round(s.x), 50 - Math.round(s.y)); provIcon(c, s, t, done); });
+}
 // A place that is marked for you is gone round with the dark line the column has, so that it is picked out among the
 // rest at a glance. Its picture is not made of plain paint as a man is (it has lamps that add their light, and stains),
 // so the line is found another way: the picture is drawn once on a slip of its own, and wherever there is nothing next
@@ -4918,7 +5055,7 @@ function drawProvince(cv, T) {
     // (Open water is not still either. A swell crosses the sea and the lakes, in from the west: here and there a line of
     // light where a crest is passing, and a dark one in the trough behind it, each stretch of water lit in its turn. It
     // keeps clear of the shore, which has its own surf, and of the river.)
-    { const CW = 14, CH = 7;
+    { const CW = 14, CH = 7, capGust = wx.gust || 0;
       for (let gy = Math.floor(camY / CH) * CH; gy < camY + PROV.VH; gy += CH) for (let gx = Math.floor(camX / CW) * CW; gx < camX + PROV.VW; gx += CW) {
         const hs = wildHash(gx, gy, 2330), x = gx + Math.floor(hs * (CW - 4)), y = gy + Math.floor(wildHash(gy, gx, 2331) * CH);
         if (wildTile(x, y) !== T_WATER || wildTile(x - 7, y) !== T_WATER || wildTile(x + 9, y) !== T_WATER || wildTile(x, y - 6) !== T_WATER || wildTile(x, y + 6) !== T_WATER) continue;
@@ -4926,6 +5063,8 @@ function drawProvince(cv, T) {
         const crest = Math.sin(x * 0.055 + y * 0.021 - T * 0.55 + wildNoise(x / 110, y / 110, 2332) * 4);
         if (crest > 0.35) { ctx.globalAlpha = Math.round((crest - 0.35) * 0.62 * 16) / 16; R(x, y, 3 + Math.floor(hs * 3), 1, '#dcf0fa'); if (crest > 0.93) { ctx.globalAlpha = 0.7; R(x + 1, y, 1, 1, '#ffffff'); } }
         else if (crest < -0.5) { ctx.globalAlpha = Math.round((-crest - 0.5) * 0.4 * 16) / 16; R(x, y + 1, 4 + Math.floor(hs * 3), 1, '#0c3460'); }
+        if (capGust > 0.2 && crest > -0.1) { const wd = provWind(x, y, T, capGust);      // and on a windy day the crests break where a gust is on the water: a white horse, run a little way downwind and gone
+          if (wd > 0.25) { const p = (T * 1.3 + hs * 7) % 1; ctx.globalAlpha = Math.round(Math.min(1, capGust * wd * 1.5) * (1 - p) * 8) / 8; R(x + p * 4, y - 1, 3, 1, '#ffffff'); R(x + 1 + p * 4, y - 2, 1, 1, '#ffffff'); R(x - 2 + p * 2, y, 2, 1, '#e6f2fa'); } }
       }
       ctx.globalAlpha = 1; }
     // and the sun's road across it (provGlitter): by how low the sun stands, and how much of it the sky lets through
@@ -4956,16 +5095,23 @@ function drawProvince(cv, T) {
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
   const dark = prov.darkNow = provDark(), lamps = dark > 0.3 ? Math.min(1, (dark - 0.3) * 3) : 0;      // how dark it is, and how far the lamps are lit (as the windows are: see drawMarks)
+  const gustNow = prov.gustNow = wx.gust || 0;      // how hard it is blowing today: for the smoke, and for the flags on the town
   prov.sunNow = provSun(sky, wx);      // how the sun throws a shadow at this hour: for the town's walls, and for everything that is painted by provRec
+  const snowOn = prov.landSe === 3 && typeof document !== 'undefined' ? Math.min(1, (wx.white || 0) * 1.5) : 0;      // how far the snow has come on what is drawn afresh (provSnowCap), as it has on the land
   if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), dark);
+    if (snowOn > 0.03) { ctx.globalAlpha = snowOn; ctx.drawImage(townSnow(Math.round(tx), Math.round(ty), tier()), Math.round(tx) - 72, Math.round(ty) - 44); ctx.globalAlpha = 1; }
     if (lamps) for (const [lx, ly, lr] of [[-31, -12, 20], [-12, -16, 18], [-30, 4, 18], [-8, 2, 20], [10, -6, 16], [22, 3, 9]]) provGlow(ctx, tx + lx, ty + ly, lr, '255,180,90', (0.035 * lamps).toFixed(3)); }      // the town, lit: its streets, and a torch at the east gate
   // places: the ones you have come upon, and anything a clue has marked
   const sites = wildSites();
-  for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; if (M.marks[s.id] && !siteDone(s)) provInkIcon(ctx, s, T); provIcon(ctx, s, T, siteDone(s)); }
+  for (const s of sites) { if (!inView(s.x, s.y, 30) || !siteShown(s) || !wildSeen(s.x, s.y)) continue; if (M.marks[s.id] && !siteDone(s)) provInkIcon(ctx, s, T); provIcon(ctx, s, T, siteDone(s));
+    if (snowOn > 0.03) { ctx.globalAlpha = snowOn; ctx.drawImage(iconSnow(s, T), Math.round(s.x) - 40, Math.round(s.y) - 50); ctx.globalAlpha = 1; } }
   // Everything that moves: north to south, so that whoever is nearer is in front, each with its shadow under it, and
   // whatever stands tall painted again over those behind it (provRec).
   // smoke: from the town's hearths, and from any hearth or camp you can see
-  const smoke = (sx, sy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(sx + Math.sin(q * 5 + i) * 3 + q * 6, sy - q * 22, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
+  // (It goes with the wind, as the trees do: nearly straight up in a lull, leaning over as a front comes across, and on
+  // a windy day laid flat along the roofs and torn off short.)
+  const smoke = (sx, sy, n) => { const blow = Math.min(1, gustNow * 0.5 + provWind(sx, sy, T, gustNow) * (0.35 + 0.5 * gustNow));
+    for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q) * (1 - 0.35 * blow); R(sx + Math.sin(q * 5 + i) * 3 * (1 - 0.6 * blow) + q * (6 + 30 * blow), sy - q * (22 - 13 * blow), 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
   prov.white = wx.white || 0; prov.wetNow = wx.wet || 0;      // (for the track the column leaves: see provStep)
   prov.rainy = wx.rain > 0.25 || wx.snow > 0.25; prov.dry = !prov.rainy && !(wx.wet > 0.25) && !(wx.white > 0.2);      // hoods go up in the one, and dust rises off the roads in the other
   provRec.begin(); provMovers(provRec.ctx, T, provRec.R, inView); drawMarks(provRec.ctx, T, provRec.R, inView, dark, smoke, ctx);
@@ -5059,7 +5205,7 @@ function drawProvince(cv, T) {
   if (dark > 0.3 && !(wx.over > 0.6)) provGlitter(ctx, T * 0.6, camX, camY, F, 1, '#dbe6f6', Math.min(0.7, (dark - 0.3) * 1.4) * (1 - (wx.over || 0)));      // the moon's road on the water: over the dark, which it is the one thing to break
   if (dark > 0.3) drawAmbient(ctx, T, (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }, camX, camY, true);      // what shows only in the dark
   if (lamps && !camped) { const fk = PROV.FIG, bx = F.x + (prov.face === 'left' ? -1 : 1) * Math.round(5 * fk); ctx.globalAlpha = lamps; R(bx, F.y - Math.round(13 * fk) - fl, 2, 3 + fl, '#e2702a'); R(bx, F.y - Math.round(10 * fk), 1, Math.round(4 * fk), '#3a2a1c'); ctx.globalAlpha = 1; }
-  ctx.save(); ctx.translate(camX, camY); sceneRain(ctx, PROV.VW, PROV.VH, T, wx.rain, 110); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
+  ctx.save(); ctx.translate(camX, camY); provRain(ctx, camX, camY, T, wx.rain, wx.gust || 0); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
 
   // names, and marks that show even through the fog
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
