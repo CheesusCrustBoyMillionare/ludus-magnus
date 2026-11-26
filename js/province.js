@@ -2399,7 +2399,8 @@ const provRec = (() => {
       x = x * sc + tx; y = y * sc + ty; w *= sc; h *= sc;
       if (clip) { const x1 = Math.min(x + w, clip[2]), y1 = Math.min(y + h, clip[3]); x = Math.max(x, clip[0]); y = Math.max(y, clip[1]); w = x1 - x; h = y1 - y; }
       if (!(w > 0 && h > 0)) return;
-      if (sc !== 1) cur.flat = true;      // growing small in a gateway: under the wall, and its shadow with it
+      if (sc !== 1) {      // growing small in a gateway: under the wall, and its shadow with it. Made small, it is still set down in whole dots, as everything on the map is, and not smeared across them
+        cur.flat = true; const x1 = Math.round(x + w), y1 = Math.round(y + h); x = Math.round(x); y = Math.round(y); w = Math.max(1, x1 - x); h = Math.max(1, y1 - y); }
       X[n] = x; Y[n] = y; W[n] = w; H[n] = h; A[n] = alpha; C[n] = style; cur.to = ++n;
     },
     save() { stack.push({ tx, ty, sc, alpha, style, clip }); },
@@ -2574,29 +2575,37 @@ function coatOf(base, a, b) {
 }
 function drawHerds(ctx, T, R, inView) {
   const F = G.field;
+  // After dark they lie down where they are. A herd wanders by a clock of its own, which stops while it is abed and goes
+  // on from the same place in the morning, so that it wakes where it slept.
+  const abed = (prov.darkNow || 0) > 0.36, since = clamp(T - (prov.herdSeen === undefined ? T : prov.herdSeen), 0, 0.25);
+  prov.herdSeen = T; if (prov.herdT === undefined) prov.herdT = T; if (!abed) prov.herdT += since;
+  const Th = prov.herdT;
   for (const H of (prov.herds || [])) {
     if (!inView(H.x, H.y, 60) || !wildSeen(H.x, H.y)) continue;
     const hv = n => wildHash(H.seed, n, 670), K = H.kind, roam = K === 'cattle' ? 12 : K === 'deer' ? 22 : K === 'horses' ? 36 : K === 'pigs' ? 14 : K === 'geese' ? 13 : K === 'cranes' ? 8 : 28, pace = K === 'cattle' ? 0.8 : K === 'goats' ? 2.4 : K === 'deer' ? 1.6 : K === 'horses' ? 2 : K === 'pigs' ? 1.2 : K === 'geese' ? 1.6 : K === 'cranes' ? 0.5 : 2.4;
     const w1 = (0.035 + hv(1) * 0.02) * pace, w2 = (0.061 + hv(2) * 0.03) * pace, p1 = hv(3) * 9, p2 = hv(4) * 9;
-    let cx = H.x + roam * (Math.sin(T * w1 + p1) * 0.65 + Math.sin(T * w2 + p2) * 0.35), cy = H.y + roam * 0.7 * (Math.cos(T * w1 * 0.9 + p2) * 0.65 + Math.cos(T * w2 * 1.1 + p1) * 0.35);
-    const vx = roam * (Math.cos(T * w1 + p1) * 0.65 * w1 + Math.cos(T * w2 + p2) * 0.35 * w2);      // which way the herd as a whole is drifting
+    let cx = H.x + roam * (Math.sin(Th * w1 + p1) * 0.65 + Math.sin(Th * w2 + p2) * 0.35), cy = H.y + roam * 0.7 * (Math.cos(Th * w1 * 0.9 + p2) * 0.65 + Math.cos(Th * w2 * 1.1 + p1) * 0.35);
+    const vx = abed ? 0 : roam * (Math.cos(Th * w1 + p1) * 0.65 * w1 + Math.cos(Th * w2 + p2) * 0.35 * w2);      // which way the herd as a whole is drifting
     let bolt = 0;
     if (K === 'deer' && F) { const d = Math.hypot(F.x - cx, F.y - cy); if (d < 70) { bolt = (70 - d) / 70; cx += (cx - F.x) / (d || 1) * bolt * 46; cy += (cy - F.y) / (d || 1) * bolt * 46; } }
     const beasts = [];
     for (let i = 0; i < H.n; i++) {
       const b1 = hv(10 + i), b2 = hv(30 + i), b3 = hv(50 + i), spread = K === 'cattle' ? 12 : 9;
-      const x = cx + (b1 - 0.5) * 2 * spread + Math.sin(T * (0.22 + b3 * 0.16) + b1 * 20) * 5, y = cy + (b2 - 0.5) * 2 * spread * 0.7 + Math.cos(T * (0.19 + b1 * 0.14) + b2 * 20) * 3.5;
-      const own = Math.cos(T * (0.22 + b3 * 0.16) + b1 * 20), moving = bolt > 0.1 || Math.abs(vx) > 1.1 || Math.abs(own) > 0.6;
+      const x = cx + (b1 - 0.5) * 2 * spread + Math.sin(Th * (0.22 + b3 * 0.16) + b1 * 20) * 5, y = cy + (b2 - 0.5) * 2 * spread * 0.7 + Math.cos(Th * (0.19 + b1 * 0.14) + b2 * 20) * 3.5;
+      const own = Math.cos(Th * (0.22 + b3 * 0.16) + b1 * 20), moving = bolt > 0.1 || (!abed && (Math.abs(vx) > 1.1 || Math.abs(own) > 0.6));
       const right = bolt > 0.1 ? (F ? cx > F.x : true) : Math.abs(vx) > 1.1 ? vx > 0 : own > 0;
       const graze = !moving && Math.sin(T * 0.45 + b2 * 30) > 0.1, step = moving && Math.sin(T * 9 + i * 2) > 0 ? 1 : 0;
       const shy = K === 'deer' ? null : herdShy(K, x, y);      // the column among them: they give it room
       if (shy) beasts.push({ x: Math.round(x + shy.x), y: Math.round(y + shy.y), right: shy.right, graze: false, step: shy.run && Math.sin(T * 12 + i * 2) > 0 ? 1 : 0, moving: shy.run, b1, b2, b3, i });
-      else beasts.push({ x: Math.round(x), y: Math.round(y), right, graze, step, moving, b1, b2, b3, i });
+      else beasts.push({ x: Math.round(x), y: Math.round(y), right, graze: graze || (abed && !moving), step, moving, b1, b2, b3, i, down: abed && !moving });      // (down: lying, its head on the ground)
     }
     beasts.sort((p, q) => p.y - q.y);
     for (const B of beasts) {
-      const { x, y, right, graze, step, moving } = B, d = right ? 1 : -1;
-      provAt(x, y, 6);
+      // A beast lying down is the same beast set lower, by the length of its legs, and cut off at the ground. (A horse sleeps on its feet, and so does a crane.)
+      const low = B.down ? (K === 'cattle' || K === 'goats' ? 2 : K === 'deer' ? 3 : K === 'horses' || K === 'cranes' ? 0 : 1) : 0;
+      const { x, right, graze, step, moving } = B, d = right ? 1 : -1, y = B.y + low;
+      provAt(x, B.y, 6);
+      if (low) { ctx.save(); ctx.beginPath(); ctx.rect(x - 14, B.y - 30, 28, 31); ctx.clip(); }
       if (K === 'sheep') {
         const black = B.b3 > 0.88, lamb = B.b3 < 0.16, wool = black ? '#3a322c' : B.b1 > 0.5 ? '#f1ead8' : '#e6dcc4', w = lamb ? 3 : 5, hh = lamb ? 2 : 3, lying = !moving && B.b2 > 0.82;
         R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - hh, w, hh, wool); R(x - (w >> 1) + 1, y - hh - 1, w - 2, 1, wool);
@@ -2638,14 +2647,15 @@ function drawHerds(ctx, T, R, inView) {
         if (stag && up) { R(right ? x + 3 : x - 5, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 5 : x - 3, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 2 : x - 6, y - 11 - leap, 1, 1, '#d8c9a2'); R(right ? x + 6 : x - 2, y - 11 - leap, 1, 1, '#d8c9a2'); }
         R(x - 2 + step, y - 2 - leap, 1, 3, '#5a3f26'); R(x + 1 - step, y - 2 - leap, 1, 3, '#5a3f26');
       }
+      if (low) ctx.restore();
     }
     // the shepherd and his dog, with the larger flocks
     if ((K === 'sheep' || K === 'pigs' || K === 'geese') && hv(5) > 0.45 && H.n >= 4) {
       const sx = Math.round(cx - (vx >= 0 ? 16 : -16)), sy = Math.round(cy + 6), mv = Math.abs(vx) > 0.9;
-      provAt(sx, sy, 6);
+      provAt(sx, sy, 6).lamp = abed ? 9 : 0;      // he watches by a lantern
       vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', walk: T * 6, moving: mv, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14', hood: prov.rainy ? '#5a4a38' : null });
       R(sx + (vx >= 0 ? 5 : -5), sy - 16, 1, 16, '#6b4f2c'); R(sx + (vx >= 0 ? 5 : -6), sy - 17, 2, 1, '#6b4f2c');      // his crook
-      if (K === 'sheep' && hv(8) > 0.35) { const an = T * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; provAt(dx, dy, 5); R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
+      if (K === 'sheep' && hv(8) > 0.35) { const an = Th * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; provAt(dx, dy, 5); R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
     }
   }
 }
@@ -4473,7 +4483,9 @@ function provMovers(ctx, T, R, inView) {
   const mounts = (G.fac && G.fac.stables) | 0;      // with stables the school rides: and the better the stables, the better the horses are turned out
   men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: prov.face, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null }, mounts, 1 + i) }); });
   folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: prov.face, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
-  for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink'); f.draw(); }
+  // The column goes out at the gate and in at it as everybody on the roads does (gateEnter): small in the arch, and its
+  // full size a few steps out. A man does not stand as tall as the temple under the town's own wall.
+  for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink'); const gk = gateEnter(ctx, f.x, f.y); if (gk >= 0) { f.draw(); gateLeave(ctx, gk); } }
   if (prov.dry && prov.moving && tr.length > 3 && wildTile(cart.x, cart.y) === T_ROAD) { const ux = cart.x - F.x, uy = cart.y - F.y, n = Math.hypot(ux, uy) || 1; provDust(R, off => ({ x: cart.x - ux / n * off, y: cart.y - uy / n * off }), 8, T, 1); }      // the column's own, behind its cart
 }
 function drawProvince(cv, T) {
@@ -4552,7 +4564,7 @@ function drawProvince(cv, T) {
     ctx.globalAlpha = 1; }
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
-  const dark = provDark(), lamps = dark > 0.3 ? Math.min(1, (dark - 0.3) * 3) : 0;      // how dark it is, and how far the lamps are lit (as the windows are: see drawMarks)
+  const dark = prov.darkNow = provDark(), lamps = dark > 0.3 ? Math.min(1, (dark - 0.3) * 3) : 0;      // how dark it is, and how far the lamps are lit (as the windows are: see drawMarks)
   prov.sunNow = provSun(sky, wx);      // how the sun throws a shadow at this hour: for the town's walls, and for everything that is painted by provRec
   if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), dark);
     if (lamps) for (const [lx, ly, lr] of [[-31, -12, 20], [-12, -16, 18], [-30, 4, 18], [-8, 2, 20], [10, -6, 16], [22, 3, 9]]) provGlow(ctx, tx + lx, ty + ly, lr, '255,180,90', (0.035 * lamps).toFixed(3)); }      // the town, lit: its streets, and a torch at the east gate
@@ -4963,15 +4975,28 @@ function drawOverview(cv, T) {
 }
 
 // The whole province on a hand's breadth: what you have walked, where you are, and what is marked.
-function drawMini(cv) {
-  const ctx = cv.getContext('2d'), L = wildLand(), M = wildMap(), F = G.field, s = 2;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#d7c59c'; ctx.fillRect(0, 0, cv.width, cv.height);
-  for (let fy = 0; fy < WILD.FH; fy++) for (let fx = 0; fx < WILD.FW; fx++) {
-    if (!fogAt(fx, fy)) continue;
-    ctx.fillStyle = TILE_COL[L.t[Math.min(WILD.TH - 1, fy * 2 + 1) * WILD.TW + Math.min(WILD.TW - 1, fx * 2 + 1)]];
-    ctx.fillRect(fx * s, fy * s, s, s);
+// The country on it is the chart's (provChart), a dot to a tile: parchment, with a wash for each kind of ground, the
+// water pale and its shores inked; faint where you have not walked, as on the chart itself. It is kept, and made again
+// only when more is known.
+const MINI_WASH = [[220, 202, 162], [176, 186, 132], [206, 184, 138], [178, 190, 166], [232, 212, 158], [150, 104, 62], [110, 76, 46], [208, 202, 150], [164, 194, 190], [184, 172, 154]];      // in the order of the T_ kinds in wilds.js
+function provMiniBase() {
+  const TW = WILD.TW, TH = WILD.TH, L = wildLand(), fog = wildMap().fog; let n = 0;
+  for (const b of fog) { let v = b; while (v) { n += v & 1; v >>= 1; } }
+  if (prov.miniCv && prov.miniN === n) return prov.miniCv;
+  const sheet = prov.miniCv || (prov.miniCv = Object.assign(document.createElement('canvas'), { width: TW, height: TH })), c = sheet.getContext('2d'), img = c.createImageData(TW, TH), d = img.data;
+  const wetK = k => k === T_WATER || k === T_BRIDGE, at = (x, y) => L.t[Math.max(0, Math.min(TH - 1, y)) * TW + Math.max(0, Math.min(TW - 1, x))];
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const k = L.t[ty * TW + tx], shore = !wetK(k) && (wetK(at(tx + 1, ty)) || wetK(at(tx - 1, ty)) || wetK(at(tx, ty + 1)) || wetK(at(tx, ty - 1)));
+    const col = shore ? [106, 82, 54] : MINI_WASH[k] || MINI_WASH[0], known = fogAt(tx >> 1, ty >> 1), f = known ? 1 : 0.3, i = (ty * TW + tx) * 4;
+    d[i] = 220 + (col[0] - 220) * f; d[i + 1] = 202 + (col[1] - 202) * f; d[i + 2] = 162 + (col[2] - 162) * f; d[i + 3] = 255;
   }
+  c.putImageData(img, 0, 0); prov.miniN = n;
+  return sheet;
+}
+function drawMini(cv) {
+  const ctx = cv.getContext('2d'), M = wildMap(), F = G.field;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(provMiniBase(), 0, 0, cv.width, cv.height);
   const dot = (x, y, c, r) => { ctx.fillStyle = '#1a110c'; ctx.fillRect(x / 10 - r - 1, y / 10 - r - 1, r * 2 + 2, r * 2 + 2); ctx.fillStyle = c; ctx.fillRect(x / 10 - r, y / 10 - r, r * 2, r * 2); };
   for (const st of wildSites()) { if (siteDone(st)) continue; if (M.marks[st.id]) dot(st.x, st.y, '#f5d584', 2); else if (M.seen[st.id] && siteShown(st)) dot(st.x, st.y, '#c23b2e', 1); }
   dot(WILD.TOWN.x, WILD.TOWN.y, '#f1ead8', 2);

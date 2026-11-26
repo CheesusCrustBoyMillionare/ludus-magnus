@@ -75,7 +75,7 @@ const TIPS = {
   quest: 'A personal matter you promised to help him with. It ends at a place out in the province: take the whole school there. See it through and he comes back changed, and will never desert you.',
   awaygames: 'While the arena is open, games are held in town every fifth day whether you are there or not. If you are out here you miss them: no purse, no fame, and an unanswered challenge still costs you.',
   bigmap: 'Shows the whole province at once: everywhere you have walked and every marked place. Click anywhere on it to set out for that spot. Key: M',
-  minimap: 'The whole province. Click for the full map. Coloured where you have walked, plain parchment where you have not. White is the town, purple is you, gold is a place a clue points to, and red is a place you have found but not yet dealt with.',
+  minimap: 'The whole province. Click for the full map. Clear where you have walked, and faint, as the old maps have it, where you have not. White is the town, purple is you, gold is a place a clue points to, and red is a place you have found but not yet dealt with.',
   makecamp: 'Ends the day where you are. The men rest: fatigue falls and wounds heal, though more slowly than at home. Scout also ends the day, but reveals more of the map and gives less rest. Key: E',
   fieldrules: 'Marching takes time. A day\'s march covers more ground by road, and less through forest, hill and marsh. Going into a place takes a day, and so does making camp. Nobody trains out here: marching tires the men and camp rests them. In a fight, every fit man takes part. To go home, walk back into the town.',
   eagle: 'The hunt for the lost eagle of the Seventeenth Legion. Each clue marks the next place on the map.',
