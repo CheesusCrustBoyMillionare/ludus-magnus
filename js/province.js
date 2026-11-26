@@ -1577,7 +1577,10 @@ function* provLandSteps(fresh, se) {
         }
         if (!any) return;
         { const wk = crop === 'wheat' || crop === 'barley' ? 'reap' : crop === 'stubble' ? 'glean' : crop === 'plough' ? (hz ? 'plough' : null) : crop === 'green' || (crop === 'beans' && se < 3) ? 'hoe' : crop === 'ley' && se === 1 ? 'mow' : null, wy = cy + y0 + 2 + (hh >> 1), wa = cx + x0 + (wk === 'plough' ? 3 : 6), wb = cx + x0 + w - (wk === 'plough' ? 2 : 4);      // and who works it (see drawFieldWork)
-          if (wk && w >= 16 && ok(wa, wy) && ok(wb, wy) && ok((wa + wb) >> 1, wy)) fresh.work.push({ x0: wa, x1: wb, y: wy, kind: wk, seed: pl * 13 + sd * 7 + 5 }); }
+          if (wk && w >= 16 && ok(wa, wy) && ok(wb, wy) && ok((wa + wb) >> 1, wy)) fresh.work.push({ x0: wa, x1: wb, y: wy, kind: wk, seed: pl * 13 + sd * 7 + 5 });
+          // (a ploughed plot whose furrows run up and down is ploughed up and down: the share goes from ya to yb along its
+          // middle, and the oxen walk out onto the headland at either end to turn, as they must)
+          if (crop === 'plough' && !hz && hh >= 18 && w >= 12) { const vx = cx + x0 + 2 + ((w - 2) >> 1), ya = cy + y0 + 6, yb = cy + y0 + hh - 2; if (ok(vx, ya - 6) && ok(vx, yb + 6) && ok(vx, (ya + yb) >> 1) && ok(vx - 4, (ya + yb) >> 1) && ok(vx + 4, (ya + yb) >> 1) && !fresh.work.some(q => q.kind === 'ploughV' && Math.abs(q.x0 - vx) < 30 && Math.abs(q.y - ((ya + yb) >> 1)) < 40)) fresh.work.push({ x0: vx, x1: vx, y: (ya + yb) >> 1, ya, yb, kind: 'ploughV', seed: pl * 13 + sd * 7 + 5 }); } }
         // one thing to a plot, by what grows there
         const mx = cx + x0 + 4 + Math.floor(lmV(pl, 948 + sd) * Math.max(1, w - 8)), my = cy + y0 + 5 + Math.floor(lmV(pl, 949 + sd) * Math.max(1, hh - 7)), pick2 = lmV(pl, 950 + sd);
         if (!ok(mx, my) || !ok(mx + 3, my) || !ok(mx - 3, my - 3)) return;
@@ -2511,6 +2514,33 @@ function* provLandSteps(fresh, se) {
     for (let i = 0; i < N; i++) { const k = L.t[i]; damp[i] = k === T_PEAK ? 0 : k === T_HILL ? damp[i] * 0.35 : k === T_MEADOW ? Math.max(damp[i], 120) : k === T_FOREST ? damp[i] * 0.7 : damp[i]; }
     for (let pass = 0; pass < 3; pass++) { const raw = damp.slice();      // (and each tile evened with those round it, three times over, so that a meadow's mist has no square edge)
       for (let ty = 1; ty < TH - 1; ty++) for (let tx = 1; tx < TW - 1; tx++) { const i = ty * TW + tx; damp[i] = (raw[i] * 2 + raw[i - 1] + raw[i + 1] + raw[i - TW] + raw[i + TW] + ((raw[i - TW - 1] + raw[i - TW + 1] + raw[i + TW - 1] + raw[i + TW + 1]) >> 1)) >> 3; } } }
+  // A fruit tree is picked only where whoever picks it can be seen: not one with another tree standing in front of it
+  // (which would be painted over him: see overs), and no two of them close together. Known only now, with every
+  // tree set down.
+  fresh.work = fresh.work.filter((W, i, all) => W.kind !== 'ladder' || (!overs.some(o => o.tree && o.base > W.y + 1 && o.base < W.y + 44 && o.x0 < W.x0 + W.wd + 4 && o.x1 > W.x0 - W.wd - 4 && o.y0 < W.y - 4)
+    && !all.some((q, j) => j < i && q.kind === 'ladder' && Math.hypot(q.x0 - W.x0, q.y - W.y) < 30)));
+  // Where somebody can fish from the bank (fresh.fish: his feet, which way the water lies from him, and whether it is
+  // running water: see drawAnglers). Open grass or sand at the edge of a lake or the river, not the sea; the spot is
+  // walked out to the shore as it is really drawn (wetLie), with clear water beyond it for the float to lie in; no two
+  // are close together, none is by a place or under a tree, and there is one at the end of the ferry's jetty. In winter
+  // the still water is under ice, and only the river is fished.
+  { const fish = fresh.fish = [], lie = fresh.wetLie, flow = wildFlow(), places = wildSites(), lms = fresh.marks || [];
+    const clear = (px, py) => !fish.some(f => Math.hypot(f.x - px, f.y - py) < 70) && !places.some(s => Math.hypot(s.x - px, s.y - py) < 40) && Math.hypot(WILD.TOWN.x - px, WILD.TOWN.y - py) > 110
+      && !lms.some(mk => px > mk.x - 14 && px < mk.x + mk.r * 2 + 14 && py > mk.y - mk.r * 1.6 - 6 && py < mk.y + 20) && !overs.some(o => px + 6 > o.x0 && px - 6 < o.x1 && py + 4 > o.y0 && py - 14 < o.base);
+    if (lie) {
+      for (const mk of lms) if (mk.name === 'The ferry' && se !== 3 && lie(mk.x + 46, mk.y + 7) > 0 && lie(mk.x + 50, mk.y + 7) > 0) fish.push({ x: mk.x + 36, y: mk.y + 5, d: 1, run: 0, seed: mk.x * 7 + mk.y, pier: true });
+      for (let ty = 3; ty < TH - 3; ty++) for (let tx = 18; tx < TW - 3; tx++) {
+        const k = L.t[ty * TW + tx]; if ((k !== T_GRASS && k !== T_MEADOW && k !== T_SAND) || h(tx, ty, 2420) > 0.7 || farm(tx, ty) || grove(tx, ty)) continue;
+        for (const d of h(tx, ty, 2421) > 0.5 ? [1, -1] : [-1, 1]) {
+          const j = ty * TW + tx + d; if (L.t[j] !== T_WATER || L.t[j + d] !== T_WATER || seaAt(tx + d, ty) || seaAt(tx + d * 2, ty)) continue;
+          const run = flow.has(j) || flow.has(j + d) ? 1 : 0; if (se === 3 && !run) continue;
+          const py = ty * 10 + 6; let px = tx * 10 + 5, n = 0; while (n < 12 && !(lie(px + d * 3 + 0.5, py + 0.5) > 0)) { px += d; n++; }
+          if (n >= 12 || lie(px + 0.5, py + 0.5) > 0 || lie(px + 0.5, py - 2.5) > 0 || !(lie(px + d * 10 + 0.5, py + 1.5) > 0.2 && lie(px + d * 14 + 0.5, py + 1.5) > 0.2) || !clear(px, py)) continue;
+          fish.push({ x: px, y: py, d, run, seed: tx * 211 + ty * 13 }); break;
+        }
+      }
+    }
+  }
   // And the cold has the still water. A pond is frozen across, and the pools of the marsh; a lake carries a shelf of
   // ice out from its shore, ragged at the edge, and is open beyond it. The river runs and the sea is salt: neither
   // freezes. The ice is painted into the winter's land itself (it is there whether or not snow is lying), in the same
@@ -2783,7 +2813,7 @@ function provMist(ctx, T, camX, camY, k) {
   const TW = WILD.TW, TH = WILD.TH, CW = 8, CH = 4, drift = T * 2.2;
   for (let gy = Math.floor(camY / CH) * CH; gy < camY + PROV.VH; gy += CH) {
     const v = Math.max(0, Math.min(TH - 1.001, (gy + 2) / 10 - 0.5)), j0 = Math.floor(v), fv = v - j0, row = j0 * TW, sy = Math.sin(gy * 0.019 + T * 0.03) * 2.1, cy = Math.cos(gy * 0.043);
-    for (let gx = Math.floor(camX / CW) * CW; gx < camX + PROV.VW; gx += CW) {
+    for (let gx = Math.floor(camX / CW) * CW - ((gy / CH) & 1) * (CW / 2); gx < camX + PROV.VW; gx += CW) {      // (each line of it set half a piece along from the one above, as bricks are laid: so that no edge of it stands upright through more than one line)
       const u = Math.max(0, Math.min(TW - 1.001, (gx + 4) / 10 - 0.5)), i0 = Math.floor(u), fu = u - i0, q = row + i0;
       const dm = (damp[q] * (1 - fu) + damp[q + 1] * fu) * (1 - fv) + (damp[q + TW] * (1 - fu) + damp[q + TW + 1] * fu) * fv; if (dm < 8) continue;      // (how damp, read between the tiles, so that a bank has no corners)
       // banks of it, with clear air between: whole where it is thick, and thinning to shreds at its edges
@@ -2824,11 +2854,12 @@ function provFlap(x, y, T) { const g0 = prov.gustNow || 0, bl = provWind(x, y, T
 const LETTER = {
   small: { w: 3, h: 5, gap: 1, glyphs: {
     A: '010/101/111/101/101', B: '110/101/110/101/110', C: '011/100/100/100/011', D: '110/101/101/101/110', E: '111/100/110/100/111', F: '111/100/110/100/100', G: '011/100/101/101/011',
-    H: '101/101/111/101/101', I: '111/010/010/010/111', J: '001/001/001/101/010', K: '101/101/110/101/101', L: '100/100/100/100/111', M: '101/111/111/101/101', N: '101/111/111/111/101',
+    H: '101/101/111/101/101', I: '111/010/010/010/111', J: '001/001/001/101/010', K: '101/101/110/101/101', L: '100/100/100/100/111', M: '10001/11011/10101/10001/10001', N: '1001/1101/1011/1001/1001',
     O: '010/101/101/101/010', P: '110/101/110/100/100', Q: '010/101/101/111/011', R: '110/101/110/101/101', S: '011/100/010/001/110', T: '111/010/010/010/010', U: '101/101/101/101/111',
-    V: '101/101/101/101/010', W: '101/101/111/111/101', X: '101/101/010/101/101', Y: '101/101/010/010/010', Z: '111/001/010/100/111',
+    V: '101/101/101/101/010', W: '10001/10001/10101/11011/10001', X: '101/101/010/101/101', Y: '101/101/010/010/010', Z: '111/001/010/100/111',
     0: '111/101/101/101/111', 1: '010/110/010/010/111', 2: '110/001/010/100/111', 3: '110/001/010/001/110', 4: '101/101/111/001/001', 5: '111/100/110/001/110', 6: '011/100/111/101/111', 7: '111/001/010/010/010', 8: '111/101/111/101/111', 9: '111/101/111/001/110',
-    '-': '000/000/111/000/000', '.': '000/000/000/000/010', ',': '000/000/000/010/100', "'": '010/010/000/000/000', ':': '000/010/000/010/000', '!': '010/010/010/000/010', '?': '110/001/010/000/010', '/': '001/001/010/100/100', '+': '000/010/111/010/000' } },
+    '-': '000/000/111/000/000', '.': '000/000/000/000/010', ',': '000/000/000/010/100', "'": '010/010/000/000/000', ':': '000/010/000/010/000', '!': '010/010/010/000/010', '?': '110/001/010/000/010', '/': '001/001/010/100/100', '+': '000/010/111/010/000',
+    ';': '000/010/000/010/100', '(': '001/010/010/010/001', ')': '100/010/010/010/100', '"': '101/101/000/000/000', '&': '010/101/010/101/011', '%': '101/001/010/100/101', '=': '000/111/000/111/000', '’': '010/010/000/000/000' } },
   tall: { w: 5, h: 7, gap: 3, glyphs: {
     A: '01110/10001/10001/11111/10001/10001/10001', B: '11110/10001/10001/11110/10001/10001/11110', C: '01110/10001/10000/10000/10000/10001/01110', D: '11110/10001/10001/10001/10001/10001/11110',
     E: '11111/10000/10000/11110/10000/10000/11111', F: '11111/10000/10000/11110/10000/10000/10000', G: '01110/10001/10000/10111/10001/10001/01111', H: '10001/10001/10001/11111/10001/10001/10001',
@@ -2838,15 +2869,32 @@ const LETTER = {
     U: '10001/10001/10001/10001/10001/10001/01110', V: '10001/10001/10001/10001/10001/01010/00100', W: '10001/10001/10001/10101/10101/11011/10001', X: '10001/10001/01010/00100/01010/10001/10001',
     Y: '10001/10001/01010/00100/00100/00100/00100', Z: '11111/00001/00010/00100/01000/10000/11111', '-': '00000/00000/00000/11111/00000/00000/00000', "'": '00100/00100/00000/00000/00000/00000/00000' } } };
 // How wide a line of it comes out, in the units it is drawn in.
-function provTextW(text, hand) { const L = LETTER[hand || 'small']; return Math.max(0, String(text).length * (L.w + L.gap) - L.gap); }
+// (o, where it is given: k, how many units across each dot of a letter is; track, how much further apart the letters
+// are set than the hand sets them; fat, how much wider every stroke is laid than one dot.)
+// (A letter is as wide as its rows are long: in the small hand an M and a W want five dots and an N four, or the
+// three of them cannot be told apart, and the rest have three. letterOf: a letter's runs of ink, kept once worked out,
+// with its width set after them.)
+function letterOf(L, ch) {
+  const kept = L.runs || (L.runs = {}); let r = kept[ch];
+  if (!r) { r = kept[ch] = []; const g = L.glyphs[ch], rows = g ? g.split('/') : []; rows.forEach((row, ry) => { for (let cx = 0; cx < row.length; cx++) if (row[cx] === '1') { let e = cx; while (e + 1 < row.length && row[e + 1] === '1') e++; r.push(cx, ry, e - cx + 1); cx = e; } }); r.wide = g ? rows[0].length : L.w; }
+  return r;
+}
+function provTextW(text, hand, o) { const L = LETTER[hand || 'small'], s = String(text).toUpperCase(), k = (o && o.k) || 1, sp = L.gap + ((o && o.track) || 0); let w = 0; for (let i = 0; i < s.length; i++) w += letterOf(L, s[i]).wide + sp; return Math.max(0, w - sp) * k + ((o && o.fat) || 0); }
 // And the line itself, its top left corner at x, y, in one colour (each letter laid down as runs of ink, row by row).
-function provText(ctx, text, x, y, col, hand) {
-  const L = LETTER[hand || 'small'], runs = L.runs || (L.runs = {}), s = String(text).toUpperCase(); ctx.fillStyle = col;
-  for (let i = 0, px = Math.round(x), py = Math.round(y); i < s.length; i++, px += L.w + L.gap) {
-    const ch = s[i]; let r = runs[ch];
-    if (!r) { r = runs[ch] = []; const g = L.glyphs[ch]; if (g) g.split('/').forEach((row, ry) => { for (let cx = 0; cx < row.length; cx++) if (row[cx] === '1') { let e = cx; while (e + 1 < row.length && row[e + 1] === '1') e++; r.push(cx, ry, e - cx + 1); cx = e; } }); }
-    for (let k = 0; k < r.length; k += 3) ctx.fillRect(px + r[k], py + r[k + 1], r[k + 2], 1);
+function provText(ctx, text, x, y, col, hand, o) {
+  const L = LETTER[hand || 'small'], s = String(text).toUpperCase(), k = (o && o.k) || 1, fat = (o && o.fat) || 0, sp = L.gap + ((o && o.track) || 0); ctx.fillStyle = col;
+  for (let i = 0, px = Math.round(x), py = Math.round(y); i < s.length; i++) {
+    const r = letterOf(L, s[i]);
+    for (let q = 0; q < r.length; q += 3) ctx.fillRect(px + r[q] * k, py + r[q + 1] * k, r[q + 2] * k + fat, k);
+    px += (r.wide + sp) * k;
   }
+}
+// A sentence broken into lines of no more than so many letters, at its spaces (a card is no wider than it need be).
+function provWrap(text, max) {
+  const out = []; let line = '';
+  for (const word of String(text).split(' ')) { if (line && line.length + 1 + word.length > max) { out.push(line); line = word; } else line = line ? line + ' ' + word : word; }
+  if (line || !out.length) out.push(line);
+  return out;
 }
 const SEASON_TURN = 5000;      // how long the land of one season takes to give way to the next, in thousandths of a second
 // The sun's road on the water, and the moon's. Open water throws the light back at whoever looks across it toward the
@@ -2948,6 +2996,37 @@ function provFlush(x, y) {
   }
 }
 
+// ---------- at the water ----------
+// Somebody fishing from the bank, here and there along a lake or the river, and one at the end of the ferry's jetty
+// (prov.fish: where, set down as the land is painted). He stands with his rod out over the water and his creel by
+// him; the float lies and nods, and on the river goes down with the stream until it is cast again. At the end of
+// each cast it goes under, the rod comes up, and there is a fish on the line or there is not. Not every bank is
+// fished on a given day, and nobody is out after dark or in the rain.
+function drawAnglers(ctx, T, R, inView) {
+  const fish = prov.fish; if (!fish || !fish.length || (prov.darkNow || 0) > 0.3 || prov.rainy) return;
+  const day = Math.floor((typeof G !== 'undefined' && G.day) || 0), wood = '#6b4f2c', gut = 'rgba(240,240,228,.62)', summer = typeof sceneSeason === 'function' && sceneSeason() === 1;
+  for (let j = 0; j < fish.length; j++) {
+    const A = fish[j], hv = q => wildHash(A.seed, q + day * 7, 1950);
+    if (hv(1) > (A.pier ? 0.75 : 0.6) || !inView(A.x, A.y, 30) || !wildSeen(A.x, A.y)) continue;
+    const x = A.x, y = A.y, d = A.d, u = T / (13 + hv(2) * 12) + hv(3) * 9, cast = Math.floor(u), f = u - cast, luck = wildHash(A.seed, cast, 1951), bite = f > 0.86, up = f > 0.9;
+    const tunic = ['#8a6a4a', '#5a6a7a', '#7a6a4a', '#6a7a4a', '#9a8a6a'][Math.floor(hv(4) * 5)], hair = hv(5) > 0.6 ? '#8a8a8a' : hv(5) > 0.3 ? '#3a2a1c' : '#6a4a2a';
+    provAt(x, y, 6);
+    R(x - d * 6 - 1, y - 2, 4, 3, '#c9a763'); R(x - d * 6 - 1, y - 2, 4, 1, '#a8853f');                                   // his creel
+    provMan(ctx, x, y, { face: d > 0 ? 'right' : 'left', t: T, walk: 0, moving: false, tunic, hair });
+    if (summer) { R(x - 3, y - 18, 7, 1, '#d9c070'); R(x - 2, y - 19, 5, 1, '#e6d088'); }
+    if (up) {      // the rod brought up, the line in to his hand, and what is on it
+      for (let q = 0; q < 13; q++) R(x + d * (2 + (q >> 2)), y - 8 - q, 1, 1, wood);
+      for (let q = 0; q < 7; q++) R(x + d * 6, y - 20 + q, 1, 1, gut);
+      if (luck > 0.45) { const wag = Math.sin(T * 18) > 0 ? 1 : 0; R(x + d * 6 - (d > 0 ? 0 : 1), y - 13, 2, 3, '#cfdae2'); R(x + d * 6 - (d > 0 ? 0 : 1), y - 13, 1, 3, '#f1f5f8'); R(x + d * 6 - 1 + wag, y - 10, 2, 1, '#8fa0ac'); }
+    } else {      // the rod out, and the float on the water
+      for (let q = 0; q < 10; q++) R(x + d * (2 + q), y - 8 - q, 1, 1, wood);
+      const fx = x + d * 15, fy = y + 2 + (A.run ? Math.floor(f * 7) : 0), nod = !bite && Math.sin(T * 2.3 + A.seed) > 0.72 ? 1 : 0, drop = fy - (y - 17);
+      for (let q = 1; q < drop; q++) R(x + d * (11 + Math.round(4 * q / drop)), y - 17 + q, 1, 1, gut);
+      if (bite) R(fx - 2, fy, 5, 1, 'rgba(255,255,255,.42)');                                                               // gone under: a ring where it was
+      else { R(fx, fy - 1 + nod, 1, 1, '#c23b2e'); R(fx, fy + nod, 1, 1, '#f1ead8'); if (nod) R(fx - 1, fy + 1, 3, 1, 'rgba(255,255,255,.3)'); }
+    }
+  }
+}
 // ---------- the work of the fields ----------
 // The land shows what each plot is under at this season; here are the people who make it so (prov.work: where a plot
 // can be worked along, and what is done there, set down as the land is painted). By the season: the plough going up
@@ -2963,6 +3042,22 @@ function drawFieldWork(ctx, T, R, inView) {
   for (let j = 0; j < work.length; j++) {
     const W = work[j], hv = q => wildHash(W.seed, q + day * 7, 1900), k = W.kind;
     if (hv(1) > (k === 'plough' ? 0.7 : 0.6) || (snow && k !== 'glean') || (k === 'plough' && W.x1 - W.x0 < 24) || !inView((W.x0 + W.x1) / 2, W.y, 40) || !wildSeen((W.x0 + W.x1) / 2, W.y)) continue;
+    if (k === 'ploughV') {      // a plot whose furrows run up and down: the same team seen end on, going away up the plot and coming back down it
+      const x = W.x0, span = W.yb - W.ya; if (span < 8) continue;
+      const u = (T * 3.2 / span + hv(2) * 2) % 2, away = u >= 1, yf = W.ya + span * (away ? 2 - u : u), y = Math.round(yf), dv = away ? -1 : 1, ph = Math.floor(yf * 1.1) & 3;
+      const c1 = hv(5) > 0.5 ? '#d8d0b8' : '#8a6444', c2 = hv(6) > 0.5 ? '#8a6444' : '#e8e2d2', tunic = ['#8a6a4a', '#7a6a4a', '#9a8a6a', '#6a5a3a', '#b8a888'][Math.floor(hv(3) * 5)], hair = hv(4) > 0.6 ? '#8a8a8a' : hv(4) > 0.3 ? '#3a2a1c' : '#6a4a2a';
+      const ox = (bx, by, c, lift) => { const dk = shade(c, 0.6); R(bx - 3, by, 7, 1, 'rgba(0,0,0,.22)'); R(bx - 2, by - 2, 1, 2 - (lift === 1 ? 1 : 0), dk); R(bx + 2, by - 2, 1, 2 - (lift === 3 ? 1 : 0), dk);
+        R(bx - 2, by - 7, 5, 5, c); R(bx - 2, by - 7, 5, 1, shade(c, 1.12));
+        if (away) { R(bx, by - 6, 1, 4, dk); R(bx - 1, by - 8, 3, 1, shade(c, 0.85)); }                                                             // from behind: the tail, and the top of the head beyond the back
+        else { R(bx - 1, by - 9, 3, 4, shade(c, 0.9)); R(bx - 3, by - 10, 1, 2, '#f1ead8'); R(bx + 3, by - 10, 1, 2, '#f1ead8'); R(bx - 1, by - 6, 3, 1, shade(c, 0.6)); R(bx - 1, by - 8, 1, 1, '#1c1310'); R(bx + 1, by - 8, 1, 1, '#1c1310'); } };      // from in front: the head, the horns, the muzzle
+      const oy = y + dv * 8, my = y - dv * 5;
+      const beasts = () => { provAt(x, oy, 9); R(x - 5, oy - 8, 11, 1, wood); ox(x - 3, oy, c1, ph); ox(x + 3, oy, c2, (ph + 2) & 3); };      // the yoke across the two of them, on their necks
+      const share = () => { provAt(x, y, 4); R(x, Math.min(y, oy) - (away ? 0 : 2), 1, Math.abs(oy - y) - (away ? 1 : 4), wood); R(x - 1, y - 1, 2, 2, steel); R(x, y - 5, 1, 4, wood); for (let q = 0; q < 3; q++) R(x - 1 + (q & 1), y - dv * (2 + q * 2), 2, 1, q & 1 ? '#62492e' : '#94744c'); };      // the beam, the share in the ground, the stilt, and the earth turned over behind it
+      const man = () => { provAt(x, my, 6); provMan(ctx, x, my, { face: away ? 'up' : 'down', t: T, walk: yf * 1.5, moving: true, tunic, hair }); };
+      if (away) { beasts(); share(); man(); } else { man(); share(); beasts(); }
+      for (let q = 0; q < 3; q++) { const cy2 = y - dv * (13 + q * 5 + Math.floor(hv(8 + q) * 4)), cx2 = x + (q - 1) * 4, hop = Math.sin(T * 5 + q * 2 + W.seed) > 0.7 ? 1 : 0; if (cy2 < W.ya || cy2 > W.yb) continue; provAt(cx2, cy2, 3); R(cx2, cy2 - 1 - hop, 2, 1, '#1c1310'); R(cx2 + 2, cy2 - 2 - hop, 1, 1, '#1c1310'); }      // crows after the plough
+      continue;
+    }
     if (k === 'ladder' || k === 'gather' || k === 'olives') {      // the fruit harvest, which stays where the tree is
       const x = W.x0, y = W.y, d = hv(2) > 0.5 ? 1 : -1, face = d > 0 ? 'right' : 'left', tunic = ['#8a6a4a', '#b8703c', '#7a6a4a', '#3f7a5a', '#9a8a6a'][Math.floor(hv(3) * 5)], hair = hv(4) > 0.5 ? '#3a2a1c' : '#6a4a2a', skin = '#d9a57c', bsk = '#c9a763', fruit = hv(5) > 0.5 ? '#c23b2e' : '#e3b04a';
       const basket = (bx, by, c) => { R(bx, by - 2, 4, 3, bsk); R(bx, by - 2, 4, 1, '#a8853f'); R(bx + 1, by - 3, 2, 1, c); };
@@ -4550,11 +4645,10 @@ function provDial(ctx, x, y) {
   const a = Math.PI * (1 - p), sx = Math.round(cx + Math.cos(a) * r), sy = Math.round(cy - Math.sin(a) * r);
   if (camped) { ctx.fillStyle = '#cfd8e8'; ctx.fillRect(cx - 2, cy - 12, 5, 5); ctx.fillStyle = 'rgba(24,16,10,.82)'; ctx.fillRect(cx, cy - 12, 3, 4); }      // a moon, while they sleep
   else { ctx.fillStyle = p > 0.86 ? '#f08a4a' : '#ffd24a'; ctx.fillRect(sx - 2, sy - 2, 5, 5); ctx.fillStyle = '#fff0b0'; ctx.fillRect(sx - 1, sy - 1, 3, 3); }
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.font = 'bold 7px Consolas, monospace'; ctx.fillStyle = p > 0.86 ? '#f0a070' : '#f2e6cc'; ctx.fillText(camped ? 'NIGHT' : hourWord(), x + 40, y + 9);
-  ctx.font = 'bold 5px Consolas, monospace'; ctx.fillStyle = '#a8947a'; ctx.fillText(`DAY ${G.day}`, x + 40, y + 16);
-  ctx.fillStyle = '#c9b9a0'; ctx.fillText('MARCH', x + 40, y + 23.5);
-  ctx.fillStyle = '#2a2418'; ctx.fillRect(x + 60, y + 19, 32, 5); ctx.fillStyle = p > 0.86 ? '#e2695c' : '#e0aa3e'; ctx.fillRect(x + 60, y + 19, Math.round(32 * (1 - p)), 5);
+  provText(ctx, camped ? 'NIGHT' : hourWord(), x + 40, y + 3, p > 0.86 ? '#f0a070' : '#f2e6cc');      // (in the map's own letters, as every word on it is: see LETTER)
+  provText(ctx, `DAY ${G.day}`, x + 40, y + 11, '#a8947a');
+  provText(ctx, 'MARCH', x + 40, y + 19, '#c9b9a0');
+  ctx.fillStyle = '#2a2418'; ctx.fillRect(x + 64, y + 19, 28, 5); ctx.fillStyle = p > 0.86 ? '#e2695c' : '#e0aa3e'; ctx.fillRect(x + 64, y + 19, Math.round(28 * (1 - p)), 5);
 }
 
 // What the march to wherever the mouse is would take, by the way the column would really go. Worked out a few times a second.
@@ -4591,14 +4685,17 @@ function provHover() {
   return best;
 }
 // A small card by the mouse. u is the size of one unit of text (1 on the close view, 2 on the whole map).
+// It is written in the map's own letters (LETTER), and a line too long for it is carried over to the next.
 function provCard(ctx, px, py, lines, skulls, u, W, H) {
-  ctx.font = `bold ${6 * u}px Consolas, monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  const w = Math.max(...lines.map(l => ctx.measureText(l[0]).width), skulls * 6 * u) + 8 * u, h = (lines.length * 8 + (skulls ? 8 : 0) + 4) * u;
-  const x = Math.round(clamp(px + 10 * u, 2, W - w - 2)), y = Math.round(clamp(py - h - 6 * u, 2, H - h - 2));
-  ctx.fillStyle = 'rgba(16,10,6,.92)'; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(x, y, w, u); ctx.fillRect(x, y + h - u, w, u);
-  lines.forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillText(t, x + 4 * u, y + (8 + i * 8) * u); });
-  for (let i = 0; i < skulls; i++) { const sx = x + 4 * u + i * 6 * u, sy = y + (lines.length * 8 + 3) * u; ctx.fillStyle = '#e2695c'; ctx.fillRect(sx, sy, 5 * u, 4 * u); ctx.fillRect(sx + u, sy + 4 * u, 3 * u, 2 * u); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(sx + u, sy + u, u, u); ctx.fillRect(sx + 3 * u, sy + u, u, u); }
+  const rows = []; for (const [t, c] of lines) for (const part of provWrap(t, 58)) rows.push([part, c]);
+  const w = Math.max(...rows.map(l => provTextW(l[0])), skulls * 6) + 8, h = rows.length * 8 + (skulls ? 11 : 3);      // (laid out a dot to a unit, and grown u times about its corner)
+  const x = Math.round(clamp(px + 10 * u, 2, W - w * u - 2)), y = Math.round(clamp(py - h * u - 6 * u, 2, H - h * u - 2));
+  ctx.save(); ctx.translate(x, y); ctx.scale(u, u);
+  ctx.fillStyle = 'rgba(16,10,6,.92)'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#e0aa3e'; ctx.fillRect(0, 0, w, 1); ctx.fillRect(0, h - 1, w, 1);
+  rows.forEach(([t, c], i) => provText(ctx, t, 4, 3 + i * 8, c));
+  for (let i = 0; i < skulls; i++) { const sx = 4 + i * 6, sy = rows.length * 8 + 2; ctx.fillStyle = '#e2695c'; ctx.fillRect(sx, sy, 5, 4); ctx.fillRect(sx + 1, sy + 4, 3, 2); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(sx + 1, sy + 1, 1, 1); ctx.fillRect(sx + 3, sy + 1, 1, 1); }
+  ctx.restore();
 }
 const loreOf = n => taleLore(n) || LORE[n];
 function hoverLines(hv) {
@@ -5081,6 +5178,7 @@ function provMovers(ctx, T, R, inView) {
   });
   drawHerds(ctx, T, R, inView);
   drawFieldWork(ctx, T, R, inView);
+  drawAnglers(ctx, T, R, inView);
   drawTraffic(ctx, T, R, inView);
   drawMillCart(ctx, T, R, inView);
   drawTrade(ctx, T, R, inView);
@@ -5135,17 +5233,18 @@ function provMovers(ctx, T, R, inView) {
   // where it halted. (The dark, and the fire's light in it, are laid by drawProvince.)
   const campK = (performance.now() - (prov.night || -1e9)) / CAMP_MS;
   if (campK >= 0 && campK < 1 && !inTownWalls(F.x, F.y)) {
-    const fx = Math.round(F.x) + 10, fy = Math.round(F.y) + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0;
+    const fx = Math.round(F.x) + 10, fy = Math.round(F.y) + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0, campSnow = prov.landSe === 3 && (prov.white || 0) > 0.25;      // (campSnow: snow is lying, and lies on the tents and the cart as on everything else)
     const tent = (x, y, c, big) => {
       const h = big ? 9 : 7; provAt(x, y, h);
       R(x - h, y + 1, h * 2 + 1, 1, 'rgba(0,0,0,.22)');
       for (let i = 0; i < h; i++) { R(x - i, y - h + i + 1, i * 2 + 1, 1, i % 4 < 2 ? c : shade(c, 0.92)); if (i) R(x + 1, y - h + i + 1, i, 1, shade(c, 0.74)); }
+      if (campSnow) { for (let i = 0; i < 3; i++) { R(x - i, y - h + i + 1, i + 1, 1, '#f6f8fb'); if (i) R(x + 1, y - h + i + 1, i, 1, '#c9d2de'); } for (let i = 3; i < h; i++) R(x - i, y - h + i + 1, i % 3 ? 1 : 2, 1, '#eef1f6'); }      // snow lying on it: a cap at the peak, and a line of it down the slope the weather comes from
       R(x - 1, y - 3, 2, 4, '#2a1c14'); R(x, y - h - 1, 1, 2, '#5a4326'); if (big) R(x + 1, y - h - 1, 3, 2, '#7a2a8a');
     };
     tent(fx - 15, fy - 8, '#d9c9a0', true);
     for (let i = 0; i < Math.ceil(men.length / 2); i++) tent(fx + 9 + i * 15, fy - 9 + i * 4, i ? '#b8a67c' : '#c9b890');
     { const ax = fx - 2, ay = fy - 12; provAt(ax, ay, 4); R(ax - 2, ay + 1, 5, 1, 'rgba(0,0,0,.2)'); R(ax - 2, ay - 9, 1, 10, KIT.wood); R(ax + 2, ay - 9, 1, 10, KIT.wood); R(ax, ay - 11, 1, 12, KIT.wood); R(ax, ay - 13, 1, 2, KIT.steel); R(ax - 2, ay - 3, 5, 4, '#a8261c'); R(ax - 2, ay - 3, 5, 1, '#c23b2e'); R(ax, ay - 2, 1, 1, '#e8b545'); }      // the arms, stacked: spears, and a shield leaning on them
-    { const cx = fx - 30, cy = fy + 2; provAt(cx, cy, 8); R(cx - 6, cy + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, cy - 6, 10, 5, '#8a6a3a'); R(cx - 5, cy - 7, 10, 1, '#a8834a'); R(cx - 4, cy - 10, 8, 3, '#d9c9a0'); R(cx - 5, cy - 1, 3, 3, '#3a2a1c'); R(cx + 2, cy - 1, 3, 3, '#3a2a1c'); R(cx + 5, cy - 3, 4, 1, '#6b4f2c'); R(cx + 8, cy - 2, 1, 3, '#6b4f2c'); }      // the cart, its shafts on the ground
+    { const cx = fx - 30, cy = fy + 2; provAt(cx, cy, 8); R(cx - 6, cy + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, cy - 6, 10, 5, '#8a6a3a'); R(cx - 5, cy - 7, 10, 1, '#a8834a'); R(cx - 4, cy - 10, 8, 3, '#d9c9a0'); if (campSnow) R(cx - 4, cy - 10, 8, 1, '#f6f8fb'); R(cx - 5, cy - 1, 3, 3, '#3a2a1c'); R(cx + 2, cy - 1, 3, 3, '#3a2a1c'); R(cx + 5, cy - 3, 4, 1, '#6b4f2c'); R(cx + 8, cy - 2, 1, 3, '#6b4f2c'); }      // the cart, its shafts on the ground
     for (let i = 0, n = mounts ? Math.min(3, men.length + 1) : 0; i < n; i++) { const hx = fx - 27 + i * 3, hy = fy + 13 + i * 7; provAt(hx, hy, 8, 'ink').folk = true; provRider(ctx, hx, hy, { face: i % 2 ? 'right' : 'left', t: T + i * 3, moving: false, empty: true, tunic: '#000000' }, mounts, i); }
     provAt(fx, fy, 5, 'flat');                                                                                         // the fire
     R(fx - 4, fy, 8, 2, '#3a2a1c'); R(fx - 4, fy - 1, 2, 1, '#5a4326'); R(fx + 2, fy - 1, 2, 1, '#5a4326');
@@ -5415,7 +5514,6 @@ function drawProvince(cv, T) {
   ctx.save(); ctx.translate(camX, camY); provRain(ctx, camX, camY, T, wx.rain, wx.gust || 0); if (typeof sceneSnow === 'function') { sceneSnow(ctx, PROV.VW, PROV.VH, T, wx.snow, 140); sceneStorm(ctx, PROV.VW, PROV.VH, T, wx); } sceneVignette(ctx, PROV.VW, PROV.VH, 0.26); ctx.restore();
 
   // names, and marks that show even through the fog
-  ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   // a name on the map, with a red pip for each skull of danger
   const tag0 = (x, y, text, col, bg, pips) => { const tw = provTextW(text), w = tw + 6 + (pips ? pips * 5 + 2 : 0), x0 = Math.round(x - w / 2); x = x0 + w / 2; R(x0, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); provText(ctx, text, x0 + 3, y - 5, col || '#f2e6cc'); for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
   const tag = (x, y, ...rest) => { if (LU <= 1) return tag0(x, y, ...rest); ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(LU, LU); tag0(0, 0, ...rest); ctx.restore(); };      // the same, grown about the spot it names
@@ -5430,29 +5528,25 @@ function drawProvince(cv, T) {
     if (near || mark) tag(s.x, s.y + 16, s.name.toUpperCase(), mark ? '#f5d584' : '#f2e6cc', null, siteDanger(s));
   }
   // the regions' names, written across the country in old ink
-  ctx.font = 'bold 11px Cinzel, Georgia, serif';
   // ink with a pale edge, so a name reads over forest and fell as it does over open ground
   for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(), nx = Math.round(r.x - provTextW(nm, 'tall') / 2), ny = Math.round(r.y) - 7, dim = 1 - 0.8 * Math.min(1, provGloom(sky)); ctx.globalAlpha = dim * 0.5; for (const [ox, oy] of [[-1, 0], [2, 0], [0, -1], [1, -1], [0, 1], [1, 1]]) provText(ctx, nm, nx + ox, ny + oy, '#ecdcb4', 'tall'); ctx.globalAlpha = dim * 0.92; provText(ctx, nm, nx, ny, '#3a2610', 'tall'); provText(ctx, nm, nx + 1, ny, '#3a2610', 'tall'); ctx.globalAlpha = 1; }      // (each stroke two dots thick, as ink is; and the pale edge round it)
 
   // on the glass: where you are, and how to move
   ctx.setTransform(S * LU, 0, 0, S * LU, 0, 0);
-  ctx.font = 'bold 7px Consolas, monospace'; ctx.textAlign = 'left';
   const where = wildRegion(F.x, F.y).toUpperCase(), ww = provTextW(where), danger = wildTier(F.x, F.y);
   ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 4, ww + 14 + danger * 6, 12);
   provText(ctx, where, 9, 8, '#f2e6cc');
   for (let i = 0; i < danger; i++) { ctx.fillStyle = '#e2695c'; ctx.fillRect(ww + 14 + i * 6, 7, 5, 4); ctx.fillRect(ww + 15 + i * 6, 11, 3, 2); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(ww + 15 + i * 6, 8, 1, 1); ctx.fillRect(ww + 17 + i * 6, 8, 1, 1); }
   provDial(ctx, 4, 18);
   ctx.setTransform(S, 0, 0, S, 0, 0);
-  ctx.font = 'bold 7px Consolas, monospace'; ctx.textAlign = 'left';
   // at the edge of the view: which way home is, and which way to anything a clue has marked
-  ctx.font = 'bold ' + Math.round(6 * LU * 10) / 10 + 'px Consolas, monospace'; ctx.textAlign = 'center';
   const point = (wx, wy, label, col, bg) => {
     if (wx > camX + 10 && wx < camX + PROV.VW - 10 && wy > camY + 10 && wy < camY + PROV.VH - 10) return;
     const cx = PROV.VW / 2, cy = PROV.VH / 2, dx = wx - (camX + cx), dy = wy - (camY + cy), k = Math.min((cx - 26) / Math.abs(dx || 0.01), (cy - 22) / Math.abs(dy || 0.01));
-    const px = Math.round(cx + dx * k), py = Math.round(cy + dy * k), d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, w = Math.ceil(ctx.measureText(label).width) + 6;
-    ctx.fillStyle = bg; ctx.fillRect(px - w / 2, py - 5 * LU, w, Math.round(9 * LU));
+    const px = Math.round(cx + dx * k), py = Math.round(cy + dy * k), d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, w = Math.ceil(provTextW(label) * LU) + 6, x0 = Math.round(px - w / 2);
+    ctx.fillStyle = bg; ctx.fillRect(x0, py - Math.round(5 * LU), w, Math.round(9 * LU));
     for (let i = 0; i < 5; i++) ctx.fillRect(Math.round(px + ux * (w / 2 + 1 + i) - (4 - i) * Math.abs(uy)), Math.round(py + uy * (6 + i) - (4 - i) * Math.abs(ux)), 1 + Math.round((4 - i) * 2 * Math.abs(uy)), 1 + Math.round((4 - i) * 2 * Math.abs(ux)));
-    ctx.fillStyle = col; ctx.fillText(label, px, py + 2 * LU);
+    ctx.save(); ctx.translate(x0 + 3, py - Math.round(5 * LU) + Math.round(2 * LU)); ctx.scale(LU, LU); provText(ctx, label, 0, 0, col); ctx.restore();
   };
   for (const s of sites) if (M.marks[s.id] && !siteDone(s) && siteLive(s)) point(s.x, s.y, s.kind === 'cache' ? 'DIG' : s.kind === 'herb' ? 'HERB' : QUEST_SITE[s.kind] || s.journey ? 'JOURNEY' : s.kind === 'tale' ? 'STORY' : ['deserter', 'battlefield', 'chief', 'barrow'].includes(s.kind) ? 'EAGLE' : 'MARKED', '#2a1a0c', '#f5d584');
   point(tx, ty, 'HOME', '#2a1a0c', '#f1ead8');
@@ -5481,7 +5575,6 @@ function drawProvince(cv, T) {
     const [lines, sk] = hoverLines(hv), hx = hv.x - camX, hy = hv.y - camY;
     ctx.strokeStyle = 'rgba(245,213,132,.8)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(hx) - 11.5, Math.round(hy) - 12.5, 23, 20);
     provCard(ctx, hx, hy - 8, lines, sk, LU, PROV.VW, PROV.VH);
-    ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
   }
   // night falls when camp is made, and lifts again
   const nk = (performance.now() - prov.night) / CAMP_MS;
@@ -5490,20 +5583,21 @@ function drawProvince(cv, T) {
     const fx = F.x - camX + 10, fy = F.y - camY + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0;      // (the dark itself, and the fire's light in it, are laid with the rest: provNight)
     ctx.globalAlpha = a;
     // (the fire is the camp's own now, with the tents and the men about it: see provMovers)
-    ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('NIGHT', PROV.VW / 2, 40);
-    ctx.globalAlpha = 1; ctx.font = 'bold 7px Consolas, monospace';
+    { const nx = Math.round(PROV.VW / 2 - provTextW('NIGHT', 'tall', { fat: 1 }) / 2); provText(ctx, 'NIGHT', nx, 32, '#e8dcc0', 'tall', { fat: 1 }); }      // (in the tall hand, as the regions are named)
+    ctx.globalAlpha = 1;
   }
-  ctx.textAlign = 'center'; ctx.font = 'bold 7px Consolas, monospace';
   const mw = marchWord(), pk = !hv && !mw ? provPeek() : (hv ? provPeek() : null);
-  // the two lines along the foot, grown about the middle of the foot (but never wider than the map)
-  const foot = (w, f) => { const s = Math.min(LU, (PROV.VW - 8) / w); if (s <= 1) return f(); ctx.save(); ctx.translate(PROV.VW / 2, PROV.VH); ctx.scale(s, s); ctx.translate(-PROV.VW / 2, -PROV.VH); f(); ctx.restore(); };
-  if (mw) { const w = Math.ceil(ctx.measureText(mw.text).width) + 12; foot(w, () => { ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 32, w, 12); ctx.fillStyle = mw.miss ? '#f08a7c' : '#f5d584'; ctx.fillText(mw.text, PROV.VW / 2, PROV.VH - 23); }); }
+  // the two lines along the foot, grown about the middle of the foot (but never wider than the map); a line of words
+  // on a dark slip, its middle at the middle of the foot and its top at y
+  const foot = (w, f) => { const s = Math.min(LU, (PROV.VW - 8) / w); if (s === 1) return f(); ctx.save(); ctx.translate(PROV.VW / 2, PROV.VH); ctx.scale(s, s); ctx.translate(-PROV.VW / 2, -PROV.VH); f(); ctx.restore(); };
+  const slip = (text, y, col, bg) => { const w = provTextW(text) + 12, x0 = Math.round(PROV.VW / 2 - w / 2); foot(w, () => { ctx.fillStyle = bg; ctx.fillRect(x0, y, w, 11); provText(ctx, text, x0 + 6, y + 3, col); }); };
+  if (mw) slip(mw.text, PROV.VH - 31, mw.miss ? '#f08a7c' : '#f5d584', 'rgba(24,16,10,.88)');
   if (pk && prov.mouse) {                    // by the mouse: what the march there would take
-    const t = daysWord(pk.days).toUpperCase(), w = Math.ceil(ctx.measureText(t).width) + 8, mx = clamp(prov.mouse.u * PROV.VW + 8, 2, PROV.VW - w - 2), my = clamp(prov.mouse.v * PROV.VH + (hv ? 16 : 10), 12, PROV.VH - 36);
-    ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(mx, my, w, 10); ctx.textAlign = 'left'; ctx.fillStyle = pk.days < 0 ? '#f08a7c' : pk.days === 0 ? '#9fce86' : '#f5d584'; ctx.fillText(t, mx + 4, my + 7.5); ctx.textAlign = 'center';
+    const t = daysWord(pk.days).toUpperCase(), w = provTextW(t) + 8, mx = Math.round(clamp(prov.mouse.u * PROV.VW + 8, 2, PROV.VW - w - 2)), my = Math.round(clamp(prov.mouse.v * PROV.VH + (hv ? 16 : 10), 12, PROV.VH - 36));
+    ctx.fillStyle = 'rgba(24,16,10,.88)'; ctx.fillRect(mx, my, w, 9); provText(ctx, t, mx + 4, my + 2, pk.days < 0 ? '#f08a7c' : pk.days === 0 ? '#9fce86' : '#f5d584');
   }
   const tip = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : town(F) < 60 ? 'W A S D OR CLICK TO WALK  -  M FOR THE WHOLE MAP  -  R TO GO HOME' : '';
-  if (tip) { const w = Math.ceil(ctx.measureText(tip).width) + 12; foot(w, () => { ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(PROV.VW / 2 - w / 2, PROV.VH - 18, w, 12); ctx.fillStyle = '#f5d584'; ctx.fillText(tip, PROV.VW / 2, PROV.VH - 9); }); }
+  if (tip) slip(tip, PROV.VH - 17, '#f5d584', 'rgba(24,16,10,.8)');
 }
 const town = F => Math.hypot(F.x - WILD.TOWN.x, F.y - WILD.TOWN.y);
 
@@ -5629,10 +5723,10 @@ function provChart(w, bare) {
     c.strokeStyle = 'rgba(74,53,32,.7)'; c.lineWidth = Math.max(1, g / 2); c.beginPath(); c.arc(cx, cy, r * 0.72, 0, Math.PI * 2); c.stroke();
     for (let q = 0; q < 4; q++) pt(Math.PI / 4 + q * Math.PI / 2, r * 0.55, r * 0.12);
     for (let q = 0; q < 4; q++) pt(-Math.PI / 2 + q * Math.PI / 2, r, r * 0.16);
-    c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; c.font = 'bold ' + Math.round(3.6 * p) + 'px Cinzel, Georgia, serif'; c.fillText('N', cx, cy - r - 0.6 * p);
+    const ls = Math.max(1, Math.round(p / 2)); provText(c, 'N', Math.round(cx - 2.5 * ls), Math.round(cy - r - 0.6 * p) - 7 * ls, INK, 'tall', { k: ls });      // (the chart's words in the map's own letters, a dot of them to half a tile)
     const len = Math.round(marchDay() / 10 * p), x0 = 5 * p, y0 = 174 * p, th = Math.max(2, g * 2);
     R(x0 - 1, y0 - 1, len + 2, th + 2, INK); for (let q = 0; q < 4; q++) R(x0 + Math.round(len * q / 4), y0, Math.round(len * (q + 1) / 4) - Math.round(len * q / 4), th, q % 2 ? INK : '#eadbb6');
-    c.font = 'bold ' + Math.round(2.9 * p) + 'px Cinzel, Georgia, serif'; c.textAlign = 'left'; c.fillText("A DAY'S MARCH", x0, y0 - 0.9 * p); }
+    provText(c, "A DAY'S MARCH", x0, Math.round(y0 - 0.9 * p) - 5 * ls, INK, 'small', { k: ls }); }
   return (kept[key] = chart);
 }
 // The chart as it lies under the fog in the country itself: a dot of it to two of the country's, so that its ink is of
@@ -5665,10 +5759,18 @@ function drawOverview(cv, T) {
   // What you have not walked is only what the old maps say of it: the chart shows faint there, under a veil of bare
   // parchment (provVeil), thinner along the edge of what you know.
   ctx.imageSmoothingEnabled = true; ctx.drawImage(provVeil(), 0, 0, WILD.W, WILD.H); ctx.imageSmoothingEnabled = false;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.font = 'bold 34px Cinzel, Georgia, serif';
-  for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(), ry = r.x > 1880 && r.y < 200 ? 240 : r.y;      // (a name that would lie under the dial, in the corner, is written below it)
-    ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 1.6, ry + oy * 1.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, ry); ctx.globalAlpha = 1; }
+  // Every word on the chart is in the map's own letters (LETTER), two dots of the table to a dot of a letter. They
+  // are set on the glass and not in the country, so that a letter's dots fall square: glass(f) does f there, and m is
+  // what a length in the country comes to on it.
+  const U = cv.width / 960, m = k / U, WORD = { k: 2 }, glass = f => { ctx.save(); ctx.setTransform(U, 0, 0, U, 0, 0); f(); ctx.restore(); };
+  // (The regions' names do not change, and each is written nine times over for its pale edge: they are written once
+  // on a sheet of their own, kept for as long as the table is this size, and the sheet is laid on.)
+  if (!prov.namesCv || prov.namesCv.width !== cv.width || prov.namesCv.height !== cv.height) {
+    const sheet = prov.namesCv = Object.assign(document.createElement('canvas'), { width: cv.width, height: cv.height }), nx = sheet.getContext('2d'); nx.setTransform(U, 0, 0, U, 0, 0);
+    for (const r of WILD_REGIONS) { const nm = r.name.toUpperCase(), wide = { k: 2, track: 1 }, ry = Math.round((r.x > 1880 && r.y < 200 ? 240 : r.y) * m) - 10, rx = Math.round(r.x * m - provTextW(nm, 'small', wide) / 2);      // (a name that would lie under the dial, in the corner, is written below it)
+      for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) provText(nx, nm, rx + ox, ry + oy, 'rgba(236,220,180,.7)', 'small', wide); provText(nx, nm, rx, ry, 'rgba(58,38,16,.92)', 'small', wide); }
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(prov.namesCv, 0, 0); ctx.restore();
   if (prov.path) for (let i = 1; i < prov.path.length; i += 2) R(prov.path[i].x - 3, prov.path[i].y - 3, 6, 6, '#f5d584');
   // how far from home the country turns worse: a dotted ring for each skull
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
@@ -5677,8 +5779,7 @@ function drawOverview(cv, T) {
     const lx = tx + rad * 0.72, ly = ty - rad * 0.72;
     if (lx < WILD.W - 60 && ly > 30) for (let q = 0; q <= n + 1; q++) { R(lx + q * 20 - 4, ly - 18, 16, 13, 'rgba(120,40,30,.75)'); R(lx + q * 20, ly - 5, 8, 5, 'rgba(120,40,30,.75)'); }
   });
-  ctx.font = 'bold 20px Consolas, monospace';
-  const name = (x, y, t, c) => { const w = ctx.measureText(t).width + 14; R(x - w / 2, y + 36, w, 26, 'rgba(24,16,10,.85)'); ctx.fillStyle = c; ctx.fillText(t, x, y + 55); };
+  const name = (x, y, t, c) => glass(() => { const w = provTextW(t, 'small', WORD) + 8, x0 = Math.round(x * m - w / 2), y0 = Math.round(y * m) + 14; ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(x0, y0, w, 14); provText(ctx, t, x0 + 4, y0 + 2, c, 'small', WORD); });
   const hv = provHover();
   for (const s of wildSites()) {
     if (!siteKnown(s) && !(M.seen[s.id] && siteShown(s))) continue;
@@ -5701,22 +5802,18 @@ function drawOverview(cv, T) {
   // you: a banner that stands over everything
   const fb = Math.floor(T * 2.5) % 2 ? 4 : 0;
   R(F.x - 3, F.y - 46 - fb, 6, 46 + fb, '#1a110c'); R(F.x - 1, F.y - 44 - fb, 2, 44 + fb, '#f1ead8'); R(F.x + 1, F.y - 46 - fb, 34, 22, '#1a110c'); R(F.x + 3, F.y - 44 - fb, 30, 18, '#7a2a8a'); R(F.x + 9, F.y - 39 - fb, 18, 8, '#f5d584');
-  const U = cv.width / 960;
   ctx.setTransform(U, 0, 0, U, 0, 0);
   ctx.save(); ctx.translate(960 - 196, 8); ctx.scale(2, 2); provDial(ctx, 0, 0); ctx.restore();
   // the key to the map
   const key = [['#7a2a8a', 'YOU'], ['#f5d584', 'MARKED FOR YOU'], ['#c23b2e', 'A ROAMING BAND'], ['#8a8478', 'DEALT WITH'], ['rgba(120,40,30,.9)', 'SKULLS: HOW HARD THE COUNTRY IS']];
-  ctx.font = 'bold 11px Consolas, monospace'; ctx.textAlign = 'left';
-  const kw = Math.max(...key.map(q => ctx.measureText(q[1]).width)) + 34;
+  const kw = Math.max(...key.map(q => provTextW(q[1], 'small', WORD))) + 34;
   ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(8, 8, kw, key.length * 16 + 10);
-  key.forEach(([c, t], n) => { ctx.fillStyle = c; ctx.fillRect(16, 15 + n * 16, 10, 10); ctx.fillStyle = '#f2e6cc'; ctx.fillText(t, 32, 24 + n * 16); });
+  key.forEach(([c, t], n) => { ctx.fillStyle = c; ctx.fillRect(16, 15 + n * 16, 10, 10); provText(ctx, t, 32, 15 + n * 16, '#f2e6cc', 'small', WORD); });
   if (hv) { const [lines, sk] = hoverLines(hv); provCard(ctx, hv.x * k / U, hv.y * k / U - 14, lines, sk, 2, 960, 720); }
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 14px Consolas, monospace';
   const mw2 = marchWord(), pk2 = provPeek();
-  const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : mw2 ? mw2.text : pk2 && prov.mouse ? `${daysWord(pk2.days).toUpperCase()}  -  CLICK TO SET OUT  -  M TO CLOSE` : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = ctx.measureText(msg).width + 24;
-  ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(960 / 2 - w / 2, 720 - 34, w, 24);
-  ctx.fillStyle = '#f5d584'; ctx.fillText(msg, 960 / 2, 720 - 17);
+  const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : mw2 ? mw2.text : pk2 && prov.mouse ? `${daysWord(pk2.days).toUpperCase()}  -  CLICK TO SET OUT  -  M TO CLOSE` : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = Math.min(952, provTextW(msg, 'small', WORD) + 24), mx = Math.round(960 / 2 - w / 2);
+  ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(mx, 720 - 34, w, 24);
+  provText(ctx, msg, mx + 12, 720 - 34 + 7, '#f5d584', 'small', WORD);
 }
 
 // The whole province on a hand's breadth: what you have walked, where you are, and what is marked.
