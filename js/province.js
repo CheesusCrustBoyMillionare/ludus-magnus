@@ -5,6 +5,7 @@
 
 // FIG: how large a man is drawn out here, against the size he is drawn in the town (1). See provMan.
 const PROV = { VW: 480, VH: 360, S: 2, SPEED: 88, FIG: 0.75 };
+const CAMP_MS = 3200;      // how long the night is on the screen when camp is made, in thousandths of a second: long enough to see the camp
 // The eagle over the column: how fast she flies, how far behind the column's own movements she is (seconds), and how
 // slowly she comes round to a new heading (the share of the old heading she still has after a second).
 const EAGLE = { speed: 104, lag: 0.55, turn: 0.07 };
@@ -2476,6 +2477,47 @@ function* provLandSteps(fresh, se) {
       if (!(++n & 15)) yield;
     }
   }
+  // Snow. In winter a second sheet is made the size of the land: where snow lies when it has fallen, and how deep. It
+  // lies deep on open ground and on tiled roofs, and along the top of every evergreen bough; thin on a trodden road;
+  // hardly at all on a trunk, a bare branch or in a doorway, which stay dark and give the white its shape; and not on
+  // water. It is deeper in some stretches of country than in others, so that it comes patchily and goes patchily. What
+  // is under it is read from the land as painted, dot by dot (off a copy: see the corn, above), and the snow keeps a
+  // little of the shade of what it covers, so that a furrow or a tussock still shows through. See drawProvince.
+  fresh.snowLie = null;
+  if (se === 3 && typeof document !== 'undefined') {
+    const W = cv.width, H = cv.height, STRIP = 120, whole = cv;
+    const snow = Object.assign(document.createElement('canvas'), { width: W, height: H }), sx = snow.getContext('2d');
+    const strip = Object.assign(document.createElement('canvas'), { width: W, height: STRIP + 1 }), st = strip.getContext('2d', { willReadFrequently: true });
+    const sA = new Float32Array(W), cA = new Float32Array(W), sB = new Float32Array(W), cB = new Float32Array(W);
+    for (let X = 0; X < W; X++) { sA[X] = Math.sin(X * 0.043); cA[X] = Math.cos(X * 0.043); sB[X] = Math.sin(X * 0.019 + 1.3); cB[X] = Math.cos(X * 0.019 + 1.3); }
+    const SR = [250, 240, 222], SG = [251, 244, 231], SB = [254, 250, 243];
+    const hashOf = (x, y) => { let v = Math.imul(x, 374761393) + Math.imul(y, 668265263); v = Math.imul(v ^ (v >>> 13), 1274126177); return (v ^ (v >>> 16)) >>> 0; };      // (a grain to it, with no pattern in it)
+    for (let y0 = 0; y0 < H; y0 += STRIP) {
+      const hh = Math.min(STRIP, H - y0), top = y0 > 0 ? 1 : 0;      // (with the row above it, to know what is over each dot)
+      st.clearRect(0, 0, W, STRIP + 1); st.drawImage(whole, 0, y0 - top, W, hh + top, 0, 0, W, hh + top);
+      const D = st.getImageData(0, 0, W, hh + top).data, out = sx.createImageData(W, hh), O = out.data;
+      for (let yy = 0; yy < hh; yy++) {
+        const Y = y0 + yy, row = Math.min(TH - 1, Math.floor(Y / 10)) * TW, sa = Math.sin(Y * 0.027), ca = Math.cos(Y * 0.027), sb = Math.sin(Y * 0.051), cb = Math.cos(Y * 0.051);
+        for (let X = 0; X < W; X++) {
+          const k = ((yy + top) * W + X) * 4, r = D[k], g = D[k + 1], b = D[k + 2];
+          if (b > r + 22 && b >= g - 4) continue;                                                 // water
+          const lum = (r * 3 + g * 5 + b * 2) / 10;
+          let d;
+          if (g > r + 8 && g > b + 8) { const ka = k - W * 4; d = (yy + top > 0) && !(D[ka + 1] > D[ka] + 8 && D[ka + 1] > D[ka + 2] + 8) ? 0.8 : 0.28; }      // an evergreen: white along the top of each bough
+          else if (lum < 62) d = 0.12;                                                            // trunk, bough, doorway, shadow
+          else if (r > 130 && r > g * 1.45 && r > b * 1.6) d = 0.92;                              // a tiled roof
+          else { const tk = L.t[row + Math.min(TW - 1, Math.floor(X / 10))]; d = tk === T_ROAD || tk === T_BRIDGE ? 0.34 : tk === T_SAND ? 0.5 : tk === T_FOREST || tk === T_MARSH ? 0.6 : tk === T_PEAK || tk === T_HILL ? 0.85 : 0.74; if (lum < 96) d *= 0.62; }      // (less on what is dark: ploughland in its furrows, a hedge, a fence, so that the fields keep their lines)
+          const patch = 0.72 + 0.18 * (sA[X] * ca + cA[X] * sa) + 0.1 * (sB[X] * cb - cB[X] * sb), grain = (hashOf(X, Y) & 15) / 16;
+          const a = d * patch + (grain - 0.5) * 0.16; if (a <= 0.02) continue;
+          const o = (yy * W + X) * 4, sh = lum > 150 ? 0 : lum > 105 ? 1 : 2;
+          O[o] = SR[sh]; O[o + 1] = SG[sh]; O[o + 2] = SB[sh]; O[o + 3] = a >= 1 ? 255 : Math.round(a * 255);
+        }
+      }
+      sx.putImageData(out, 0, y0);
+      yield;
+    }
+    fresh.snowLie = snow;
+  }
   fresh.land = cv;
   return fresh;
 }
@@ -2716,7 +2758,7 @@ function provGlow(ctx, x, y, r, rgb, a) {
   ctx.globalCompositeOperation = 'source-over';
 }
 // How dark the sheet lies at this hour, 0 to 1: a little at dawn, deepening through dusk, and nearly whole in the night.
-function provGloom(sky) { const nk = (performance.now() - (prov.night || -1e9)) / 1700; return Math.max(sky.night * 1.7, nk >= 0 && nk < 1 ? Math.sin(nk * Math.PI) * 0.86 : 0); }
+function provGloom(sky) { const nk = (performance.now() - (prov.night || -1e9)) / CAMP_MS; return Math.max(sky.night * 1.7, nk >= 0 && nk < 1 ? Math.sin(nk * Math.PI) * 0.86 : 0); }
 function provNight(ctx, camX, camY, a, T) {
   if (a < 0.02) return;
   const W = PROV.VW, H = PROV.VH, veil = prov.veil || (prov.veil = Object.assign(document.createElement('canvas'), { width: W, height: H })), v = veil.getContext('2d'), L = prov.lit || [];
@@ -3936,7 +3978,7 @@ function drawTrade(ctx, T, R, inView) {
 // who: 0 the lanista (his horse is the best of them), 1.. the men, each on a beast of a different coat.
 const HORSE_COATS = ['#d8d2c4', '#7a4a2a', '#5a3a22', '#8a5a34', '#3a2a22', '#a8703c'];
 function provRider(ctx, X, Y, o, lvl, who) {
-  if (!lvl) { vilPerson(ctx, X, Y, o); return; }      // (drawn straight: the column marks its own groups as men, where it sets them down)
+  if (!lvl) { vilPerson(ctx, X, Y, o); if (o.kit) provKit(ctx, X, Y, o); return; }      // (drawn straight: the column marks its own groups as men, where it sets them down)
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); };
   const coat = HORSE_COATS[who % HORSE_COATS.length], dk = shade(coat, 0.72), lt = shade(coat, 1.18), mane = who === 0 ? '#f4f0e6' : '#2a1c14';
   // A horse walks in four beats, as a man now walks in four moments (vilPerson): near hind, near fore, off hind, off fore,
@@ -3972,9 +4014,11 @@ function provRider(ctx, X, Y, o, lvl, who) {
   // stand on; and his legs drawn again where a rider's are: one down the near side, bent at the knee, when the horse is
   // seen from the side, and one down each flank when it is seen end on
   const sit = side ? 5 : 6, leg = o.skin || '#d9a57c', shin = lvl >= 3 ? '#c9a23a' : leg, shoe = '#4a3320';      // on a war-horse he rides in greaves
+  if (o.empty) return;      // (a horse with nobody up: tethered, at the camp)
   ctx.save(); ctx.beginPath(); ctx.rect(Math.round(X - 8), Math.round(Y - 30), 16, 26 - sit - bob); ctx.clip();
   vilPerson(ctx, X + (side ? -d : 0), Y - sit - bob, Object.assign({}, o, { moving: false }));
   ctx.restore();
+  if (o.kit) provKit(ctx, X + (side ? -d : 0), Y - sit - bob, Object.assign({}, o, { moving: false }));
   if (side) {
     const F = (x, y, w, h, c) => R(d > 0 ? x : -x - w, y, w, h, c);
     F(-1, -9 - bob, 3, 2, leg); F(1, -7 - bob, 2, 2, shin); F(1, -5 - bob, 3, 1, shoe);            // thigh forward, shin down, a foot
@@ -3982,6 +4026,45 @@ function provRider(ctx, X, Y, o, lvl, who) {
     F(3, -11 - bob, 3, 1, leather);                                                               // the rein, from his hand to its neck
   } else {
     for (const s of [-1, 1]) { const lx = s < 0 ? -5 : 4; R(lx, -10 - bob, 2, 2, leg); R(lx, -8 - bob, 2, 2, shin); R(lx, -6 - bob, 2, 1, shoe); }      // astride: a leg down each flank
+  }
+}
+
+// What each man of the school carries on the road, by what he fights as (CLASSES, in data.js), so that the column is
+// the school and not five men in red: the murmillo his crested helmet, the great red shield slung on his back; the
+// thraex his griffin helmet and small blue shield; the hoplomachus a plume, a round bronze shield and his spear in his
+// hand; the retiarius bareheaded, the trident upright and the net over his shoulder; the dimachaerus a band round his
+// brow and the hilts of two swords behind his shoulders. Drawn over the man (vilPerson) at the same spot, and rising
+// with him as he steps. With his hood up against the rain the helmet is under it.
+const KIT = { bronze: '#c9a23a', bright: '#f5d584', steel: '#c1c7cc', wood: '#6b4f2c' };
+function provKit(ctx, X, Y, o) {
+  const f = o.face, side = f === 'left' || f === 'right', d = f === 'left' ? -1 : 1, k = o.kit;
+  const ph = o.moving ? Math.floor((((o.walk % 6.2832) + 6.2832) % 6.2832) / 1.5708) & 3 : -1, up = ph === 1 || ph === 3 ? 1 : 0;
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y - up), w, h); };
+  const S = (x, y, w, h, c) => R(d > 0 ? x : -(x + w - 1), y, w, h, c);      // the same, turned to the way he faces (x: toward his front)
+  const helm = (crest, cc) => {
+    if (o.hood) return;
+    R(-2, -15, 5, f === 'up' ? 4 : 2, KIT.bronze); R(-2, -15, 5, 1, KIT.bright);
+    if (side) S(-2, -13, 2, 2, KIT.bronze); else if (f === 'down') { R(-2, -13, 1, 2, KIT.bronze); R(2, -13, 1, 2, KIT.bronze); }      // the neck-guard; the cheek-pieces
+    if (crest === 'crest') { if (side) R(-2, -16, 5, 1, cc); else R(-1, -17, 3, 2, cc); }
+    else if (crest === 'griffin') { if (side) { S(1, -17, 1, 2, KIT.bronze); S(-1, -16, 2, 1, KIT.bronze); } else { R(0, -17, 1, 2, KIT.bronze); R(-1, -16, 3, 1, KIT.bronze); } }
+    else if (crest === 'plume') { R(0, -18, 1, 3, cc); if (side) S(-1, -17, 1, 2, cc); else R(1, -17, 1, 1, cc); }
+  };
+  const shield = (w, h, c, boss) => {      // slung on his back for the road
+    if (f === 'up') { R(-(w >> 1), -10, w, h, c); R(-(w >> 1), -10, w, 1, shade(c, 1.25)); R(0, -10 + (h >> 1), 1, 1, boss); }
+    else if (side) { S(-5, -10, 2, h, c); S(-5, -10, 2, 1, shade(c, 1.25)); }
+    else { R(-5, -10, 2, h, c); R(4, -10, 1, h, shade(c, 0.8)); }
+  };
+  const pole = tip => { const px = side ? (d > 0 ? 5 : -5) : 5; R(px, -19, 1, 17, KIT.wood); tip(px); };      // carried upright in his hand
+  if (k === 'murmillo') { shield(5, 6, '#a8261c', '#e8b545'); helm('crest', '#c23b2e'); }
+  else if (k === 'thraex') { shield(3, 4, '#2f6db8', '#e8b545'); helm('griffin'); }
+  else if (k === 'hoplomachus') { shield(4, 4, KIT.bronze, KIT.bright); helm('plume', '#f1ead8'); pole(px => R(px, -21, 1, 2, KIT.steel)); }
+  else if (k === 'retiarius') {
+    pole(px => { R(px - 1, -20, 3, 1, KIT.steel); R(px - 1, -22, 1, 2, KIT.steel); R(px + 1, -22, 1, 2, KIT.steel); R(px, -21, 1, 1, KIT.steel); });
+    if (side) { S(-3, -10, 2, 3, '#b8a67c'); S(-3, -9, 1, 1, '#7a6a4a'); S(-2, -7, 1, 2, '#b8a67c'); } else { R(-3, -10, 2, 3, '#b8a67c'); R(-3, -9, 1, 1, '#7a6a4a'); R(-2, -7, 1, 2, '#b8a67c'); }      // the net over his shoulder
+  }
+  else if (k === 'dimachaerus') {
+    if (!o.hood) R(-2, -14, 5, 1, '#a8261c');
+    if (side) { S(-3, -12, 1, 3, KIT.steel); S(-3, -9, 1, 1, KIT.wood); } else { R(-3, -12, 1, 2, KIT.steel); R(3, -12, 1, 2, KIT.steel); }
   }
 }
 
@@ -4047,7 +4130,7 @@ function pathLength(x, y, path) { let c = 0; for (const q of path) { c += Math.h
 
 function provStep(dt) {
   const F = G.field, k = vil.keys, kx = (k.r ? 1 : 0) - (k.l ? 1 : 0), ky = (k.d ? 1 : 0) - (k.u ? 1 : 0);
-  const camped = performance.now() - (prov.night || -1e9) < 1500;                    // night has fallen: nobody walks until it lifts
+  const camped = performance.now() - (prov.night || -1e9) < CAMP_MS - 300;                    // night has fallen: nobody walks until it lifts
   const x0 = F.x, y0 = F.y, sp = camped ? 0 : PROV.SPEED * wildPace(F.x, F.y) * dt;
   if (kx || ky) {
     prov.path = null;
@@ -4159,11 +4242,11 @@ const hourWord = () => HOURS.find(h => dayPart() < h[0])[1];
 // The light for that hour, from the same sky as the yard's (its day runs dawn to dusk over the first 0.7 of its clock).
 // How dark it is out there, 0 to 1. The day on the march runs dawn to dusk, so lamps are lit as dusk comes on, and
 // again in the short night when camp is made.
-function provDark() { const nk = (performance.now() - (prov.night || -1e9)) / 1700; return Math.max(provSky().night * 2.4, nk >= 0 && nk < 1 ? Math.sin(nk * Math.PI) : 0); }
+function provDark() { const nk = (performance.now() - (prov.night || -1e9)) / CAMP_MS; return Math.max(provSky().night * 2.4, nk >= 0 && nk < 1 ? Math.sin(nk * Math.PI) : 0); }
 function provSky() { return yardSky((((0.05 + dayPart() * 0.6) - 0.2 + 1) % 1) * YARD_DAY); }
 // The dial: the sun on its arc from dawn to dusk, the hour in a word, the day, and what is left of today's march.
 function provDial(ctx, x, y) {
-  const p = dayPart(), camped = performance.now() - (prov.night || -1e9) < 1500;
+  const p = dayPart(), camped = performance.now() - (prov.night || -1e9) < CAMP_MS - 300;
   ctx.fillStyle = 'rgba(24,16,10,.82)'; ctx.fillRect(x, y, 96, 27);
   ctx.fillStyle = '#e0aa3e'; ctx.fillRect(x, y, 96, 0.5);
   // the sky's arc, with the ground under it
@@ -4561,7 +4644,7 @@ function provSeason(ctx, x0, y0, w, h, step, wx) {
   // country for it: only what lies on the ground, leaves and frost, and the snow when there is snow. The chart of the
   // whole province (step 14 and over) is not painted by the season, and still takes its colour here.
   if (step >= 14) { ctx.fillStyle = se === 1 ? 'rgba(214,196,96,.07)' : se === 2 ? 'rgba(190,118,36,.17)' : se === 3 ? 'rgba(232,238,244,.26)' : 'rgba(0,0,0,0)'; ctx.fillRect(x0, y0, w, h); }
-  if (white > 0) { ctx.fillStyle = 'rgba(244,248,252,' + (0.3 * white).toFixed(3) + ')'; ctx.fillRect(x0, y0, w, h); }
+  if (white > 0 && !(step < 14 && se === 3 && prov.snowLie && prov.landSe === 3)) { ctx.fillStyle = 'rgba(244,248,252,' + (0.3 * white).toFixed(3) + ')'; ctx.fillRect(x0, y0, w, h); }      // (close to, the snow lies where snow would: prov.snowLie, laid in drawProvince. This is for the chart, and for a land not yet painted for winter.)
   if (se < 2) return;
   for (let y = Math.floor(y0 / step) * step; y < y0 + h; y += step) for (let x = Math.floor(x0 / step) * step; x < x0 + w; x += step) {
     const v = wildHash(x, y, 1700), k = wildTile(x, y), px = x + Math.floor(v * 97) % step, py = y + Math.floor(v * 53) % step;
@@ -4700,10 +4783,47 @@ function provMovers(ctx, T, R, inView) {
   const folk = [];
   if (tr.length > 3) folk.push({ x: cart.x, y: cart.y, wide: 8, draw: () => { R(cart.x - 6, cart.y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cart.x - 5, cart.y - 6, 10, 5, '#8a6a3a'); R(cart.x - 5, cart.y - 7, 10, 1, '#a8834a'); R(cart.x - 4, cart.y - 10, 8, 3, '#d9c9a0'); R(cart.x - 5, cart.y - 1, 3, 3, '#3a2a1c'); R(cart.x + 2, cart.y - 1, 3, 3, '#3a2a1c'); } });
   const mounts = (G.fac && G.fac.stables) | 0;      // with stables the school rides: and the better the stables, the better the horses are turned out
-  men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: easy ? ['down', 'left', 'right'][Math.floor(T * 0.13 + i * 0.6 + wildHash(g.id | 0, 3, 77) * 3) % 3] : prov.face, t: T, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null }, mounts, 1 + i) }); });
+  men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: easy ? ['down', 'left', 'right'][Math.floor(T * 0.13 + i * 0.6 + wildHash(g.id | 0, 3, 77) * 3) % 3] : prov.face, t: T, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, kit: g.cls, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null }, mounts, 1 + i) }); });
   folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: easy ? 'down' : prov.face, t: T, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
   // The column goes out at the gate and in at it as everybody on the roads does (gateEnter): small in the arch, and its
   // full size a few steps out. A man does not stand as tall as the temple under the town's own wall.
+  // Camp. When night is made (prov.night) the column is not standing in the road in the dark: it has pitched. The
+  // lanista's tent with his pennon on it and one to every two men, the arms stacked, the cart with its shafts down, the
+  // horses tethered if the school rides, a fire with the men sitting round it, and the lanista on his feet before his
+  // tent. It is there for as long as the night is on the screen (CAMP_MS), and in the morning the column is standing
+  // where it halted. (The dark, and the fire's light in it, are laid by drawProvince.)
+  const campK = (performance.now() - (prov.night || -1e9)) / CAMP_MS;
+  if (campK >= 0 && campK < 1 && !inTownWalls(F.x, F.y)) {
+    const fx = Math.round(F.x) + 10, fy = Math.round(F.y) + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0;
+    const tent = (x, y, c, big) => {
+      const h = big ? 9 : 7; provAt(x, y, h);
+      R(x - h, y + 1, h * 2 + 1, 1, 'rgba(0,0,0,.22)');
+      for (let i = 0; i < h; i++) { R(x - i, y - h + i + 1, i * 2 + 1, 1, i % 4 < 2 ? c : shade(c, 0.92)); if (i) R(x + 1, y - h + i + 1, i, 1, shade(c, 0.74)); }
+      R(x - 1, y - 3, 2, 4, '#2a1c14'); R(x, y - h - 1, 1, 2, '#5a4326'); if (big) R(x + 1, y - h - 1, 3, 2, '#7a2a8a');
+    };
+    tent(fx - 15, fy - 8, '#d9c9a0', true);
+    for (let i = 0; i < Math.ceil(men.length / 2); i++) tent(fx + 9 + i * 15, fy - 9 + i * 4, i ? '#b8a67c' : '#c9b890');
+    { const ax = fx - 2, ay = fy - 12; provAt(ax, ay, 4); R(ax - 2, ay + 1, 5, 1, 'rgba(0,0,0,.2)'); R(ax - 2, ay - 9, 1, 10, KIT.wood); R(ax + 2, ay - 9, 1, 10, KIT.wood); R(ax, ay - 11, 1, 12, KIT.wood); R(ax, ay - 13, 1, 2, KIT.steel); R(ax - 2, ay - 3, 5, 4, '#a8261c'); R(ax - 2, ay - 3, 5, 1, '#c23b2e'); R(ax, ay - 2, 1, 1, '#e8b545'); }      // the arms, stacked: spears, and a shield leaning on them
+    { const cx = fx - 30, cy = fy + 2; provAt(cx, cy, 8); R(cx - 6, cy + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, cy - 6, 10, 5, '#8a6a3a'); R(cx - 5, cy - 7, 10, 1, '#a8834a'); R(cx - 4, cy - 10, 8, 3, '#d9c9a0'); R(cx - 5, cy - 1, 3, 3, '#3a2a1c'); R(cx + 2, cy - 1, 3, 3, '#3a2a1c'); R(cx + 5, cy - 3, 4, 1, '#6b4f2c'); R(cx + 8, cy - 2, 1, 3, '#6b4f2c'); }      // the cart, its shafts on the ground
+    for (let i = 0, n = mounts ? Math.min(3, men.length + 1) : 0; i < n; i++) { const hx = fx - 27 + i * 3, hy = fy + 13 + i * 7; provAt(hx, hy, 8, 'ink').folk = true; provRider(ctx, hx, hy, { face: i % 2 ? 'right' : 'left', t: T + i * 3, moving: false, empty: true, tunic: '#000000' }, mounts, i); }
+    provAt(fx, fy, 5, 'flat');                                                                                         // the fire
+    R(fx - 4, fy, 8, 2, '#3a2a1c'); R(fx - 4, fy - 1, 2, 1, '#5a4326'); R(fx + 2, fy - 1, 2, 1, '#5a4326');
+    R(fx - 2, fy - 5 - fl, 4, 5 + fl, '#e2702a'); R(fx - 1, fy - 3 - fl, 2, 3, '#f5c04a'); R(fx - 1 + fl, fy - 7 - fl, 1, 2, '#e2702a');
+    for (let q = 0; q < 3; q++) { const p = (T * 0.9 + q / 3) % 1; ctx.globalAlpha = 1 - p; R(fx - 2 + ((q * 3 + Math.floor(T * 0.9 + q / 3)) % 5), fy - 8 - p * 12, 1, 1, '#f5c04a'); } ctx.globalAlpha = 1;
+    for (let q = 0; q < 3; q++) { const p = (T * 0.3 + q / 3) % 1; ctx.globalAlpha = 0.4 * (1 - p); R(fx - 1 + Math.sin(p * 5 + q) * 2 + p * 5, fy - 10 - p * 18, 2 + Math.round(p * 2), 2, '#b8b4ac'); } ctx.globalAlpha = 1;
+    const seat = [[-10, -1, 'right'], [10, 0, 'left'], [-8, 6, 'right'], [8, 7, 'left']];      // (to either side of the fire, so that it is seen between them)
+    men.forEach((g, i) => {
+      const x = fx + seat[i][0], y = fy + seat[i][1];
+      provAt(x, y, 5, 'ink').folk = true;
+      R(x - 3, y - 1, 7, 2, 'rgba(0,0,0,.28)');
+      ctx.save(); ctx.beginPath(); ctx.rect(x - 8, y - 30, 16, 30); ctx.clip();      // sitting: set down into the ground to the hips
+      vilPerson(ctx, x, y + 4, { face: seat[i][2], t: T, moving: false, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null });
+      ctx.restore();
+    });
+    provAt(fx - 18, fy - 3, 5, 'ink').folk = true;
+    vilPerson(ctx, fx - 18, fy - 3, { face: 'right', t: T, moving: false, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true });
+    return;
+  }
   for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink').folk = true; const gk = gateEnter(ctx, f.x, f.y); if (gk >= 0) { f.draw(); gateLeave(ctx, gk); } }      // (its cart is of a size with its men)
   if (prov.dry && prov.moving && tr.length > 3 && wildTile(cart.x, cart.y) === T_ROAD) { const ux = cart.x - F.x, uy = cart.y - F.y, n = Math.hypot(ux, uy) || 1; provDust(R, off => ({ x: cart.x - ux / n * off, y: cart.y - uy / n * off }), 8, T, 1); }      // the column's own, behind its cart
 }
@@ -4738,6 +4858,11 @@ function drawProvince(cv, T) {
   if (prov.landWas) { const k = (performance.now() - prov.landTurn) / SEASON_TURN;
     if (!(k < 1)) prov.landWas = null;
     else { ctx.globalAlpha = 1 - k * k * (3 - 2 * k); ctx.drawImage(prov.landWas, camX, camY, PROV.VW, PROV.VH, camX, camY, PROV.VW, PROV.VH); ctx.globalAlpha = 1; } }
+  // Snow lying (prov.snowLie: see the end of provLand). It is laid on once, twice, three times as more of it has
+  // fallen, so that where it lies deep it is white almost at once and where it lies thin it comes last and goes first.
+  if (prov.snowLie && wx.white > 0.02 && prov.landSe === 3) {
+    for (let q = 0, n = wx.white * 2.3; q < 3 && n - q > 0; q++) { ctx.globalAlpha = Math.min(1, n - q); ctx.drawImage(prov.snowLie, camX, camY, PROV.VW, PROV.VH, camX, camY, PROV.VW, PROV.VH); }
+    ctx.globalAlpha = 1; }
   provSeason(ctx, camX, camY, PROV.VW, PROV.VH, 7, wx);
   const inView =(x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
   const M = wildMap();
@@ -4927,8 +5052,8 @@ function drawProvince(cv, T) {
   if (sky.tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = sky.tint; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); ctx.globalCompositeOperation = 'source-over'; }
   if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.12 * wx.over).toFixed(3)})`; ctx.fillRect(camX, camY, PROV.VW, PROV.VH); }
   // The column's own light: the brand the lanista carries once the lamps are lit, and the fire when camp is made.
-  const camp = (performance.now() - (prov.night || -1e9)) / 1700, camped = camp >= 0 && camp < 1 ? Math.sin(camp * Math.PI) : 0, fl = Math.sin(T * 11) > 0 ? 1 : 0;
-  if (camped) provGlow(ctx, F.x + 10, F.y - 1, 30, '255,150,60', (0.09 * camped).toFixed(3));
+  const camp = (performance.now() - (prov.night || -1e9)) / CAMP_MS, camped = camp >= 0 && camp < 1 ? Math.sin(camp * Math.PI) : 0, fl = Math.sin(T * 11) > 0 ? 1 : 0;
+  if (camped) provGlow(ctx, Math.round(F.x) + 10, Math.round(F.y) + 1, 36, '255,150,60', (0.1 * camped).toFixed(3));
   else if (lamps) provGlow(ctx, F.x, F.y - Math.round(8 * PROV.FIG), 24, '255,170,80', (0.08 * lamps).toFixed(3));
   provNight(ctx, camX, camY, provGloom(sky), T);
   if (dark > 0.3 && !(wx.over > 0.6)) provGlitter(ctx, T * 0.6, camX, camY, F, 1, '#dbe6f6', Math.min(0.7, (dark - 0.3) * 1.4) * (1 - (wx.over || 0)));      // the moon's road on the water: over the dark, which it is the one thing to break
@@ -5006,12 +5131,12 @@ function drawProvince(cv, T) {
     ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
   }
   // night falls when camp is made, and lifts again
-  const nk = (performance.now() - prov.night) / 1700;
+  const nk = (performance.now() - prov.night) / CAMP_MS;
   if (nk >= 0 && nk < 1) {
     const a = Math.sin(nk * Math.PI);
     const fx = F.x - camX + 10, fy = F.y - camY + 2, fl = Math.sin(T * 14) > 0 ? 1 : 0;      // (the dark itself, and the fire's light in it, are laid with the rest: provNight)
     ctx.globalAlpha = a;
-    ctx.fillStyle = '#3a2a1c'; ctx.fillRect(fx - 4, fy, 8, 2); ctx.fillStyle = '#e2702a'; ctx.fillRect(fx - 2, fy - 5 - fl, 4, 5 + fl); ctx.fillStyle = '#f5c04a'; ctx.fillRect(fx - 1, fy - 3 - fl, 2, 3);
+    // (the fire is the camp's own now, with the tents and the men about it: see provMovers)
     ctx.font = 'bold 12px Cinzel, Georgia, serif'; ctx.fillStyle = '#e8dcc0'; ctx.fillText('NIGHT', PROV.VW / 2, 40);
     ctx.globalAlpha = 1; ctx.font = 'bold 7px Consolas, monospace';
   }
@@ -5332,7 +5457,7 @@ function provFrame(ts) {
       if (G.field && !(arena && !arena.hidden)) {
         // held still (a setting, or the system's wish for less motion), the map is painted while the column is on the move, the
         // mouse is over it or night is falling, and for a few frames after, and otherwise left as it is
-        const kk = vil.keys, moving = prov.dirty || cv._drawnW !== cv.width || prov.path || kk.u || kk.d || kk.l || kk.r || prov.mouse || prov.hint > performance.now() || performance.now() - (prov.night || -1e9) < 2200;
+        const kk = vil.keys, moving = prov.dirty || cv._drawnW !== cv.width || prov.path || kk.u || kk.d || kk.l || kk.r || prov.mouse || prov.hint > performance.now() || performance.now() - (prov.night || -1e9) < CAMP_MS + 500;
         prov.settle = moving ? 4 : Math.max(0, (prov.settle || 0) - 1);
         if (!ui.still || prov.settle > 0) { prov.dirty = false; cv._drawnW = cv.width; drawProvince(cv, T); }
         if (ts - prov.mini > 400) {
