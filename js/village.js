@@ -1077,21 +1077,67 @@ function villageLabels(ov, cv, sc, L) {
   const box = [left, top, w, h, fs].join();
   if (ov._box !== box) { ov._box = box; ov.style.left = left + 'px'; ov.style.top = top + 'px'; ov.style.width = w + 'px'; ov.style.height = h + 'px'; ov.style.fontSize = fs + 'px'; }
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'), px = v => Math.round(v * sc);
-  // The names are in the letters of the map of the province (vilLetters), two dots of the page to a dot of a letter, where
-  // the map is shown wide enough for them to stand clear of one another; shown smaller than that, they are in the type of
-  // the page, which is narrower. A line along the foot that would not fit in the one is in the other.
-  const cut = sc >= 0.92 && typeof provTextW === 'function', word = t => cut ? vilLetters(t) : esc(t), fits = t => cut && provTextW(t) * 2 + 16 <= w;
+  // The names are in the letters of the map of the province (vilLetters), two dots of the page to a dot of a letter. Where
+  // the map is shown small they would run into one another, so they are set out first (vilSetOut): each as near over its
+  // own door as its neighbours leave room for. Only if there is no setting them out at all are they in the type of the
+  // page, which is narrower.
+  const can = typeof provTextW === 'function', wide = t => provTextW(t) * 2;
+  const set = can ? vilSetOut(PLACES.map(p => { const t = L.labelOf(p), m = L.marks[p.key], ly = Math.max(1, p.y - 8); return { key: p.key, bw: wide(t) + 8 + (m ? wide(String(m)) + 7 : 0), cx: px(p.dx), top: Math.max(0, px(ly + 8) - H) }; }), w) : null;
+  const cut = !!set, word = t => cut ? vilLetters(t) : esc(t);
   let html = '';
   for (const p of PLACES) {
-    const on = p.key === ui.tab, ly = Math.max(1, p.y - 8), m = L.marks[p.key];
-    html += '<span class="vl' + (cut ? ' cut' : '') + (on ? ' on' : p.key === 'arena' && L.games ? ' gold' : '') + '" style="left:' + px(p.dx) + 'px;top:' + Math.max(0, px(ly + 8) - H) + 'px">' + word(L.labelOf(p)) + (m ? '<i class="vm' + (m === '!' ? ' new' : '') + '">' + word(m) + '</i>' : '') + '</span>';
+    const on = p.key === ui.tab, ly = Math.max(1, p.y - 8), m = L.marks[p.key], at = set && set.find(q => q.key === p.key);
+    html += '<span class="vl' + (cut ? ' cut' : '') + (on ? ' on' : p.key === 'arena' && L.games ? ' gold' : '') + '" style="' + (at ? 'transform:none;left:' + at.x0 + 'px;top:' + at.top : 'left:' + px(p.dx) + 'px;top:' + Math.max(0, px(ly + 8) - H)) + 'px">' + word(L.labelOf(p)) + (m ? '<i class="vm' + (m === '!' ? ' new' : '') + '">' + word(m) + '</i>' : '') + '</span>';
   }
   html += '<span class="vl gate' + (cut ? ' cut' : '') + (L.open ? ' gold' : ' dim') + '" style="top:' + px(106) + 'px">' + word('GATE') + '</span>';
-  if (L.say) html += '<span class="vfoot' + (fits(L.say) ? ' cut' : '') + (L.gold ? ' gold' : '') + '">' + (fits(L.say) ? vilLetters(L.say) : esc(L.say)) + '</span>';
-  if (L.rumour && L.at) { const up = px(L.at.top) > h * 0.36, x = Math.max(24, Math.min(76, L.at.x / VILLAGE.W * 100));
-    html += '<span class="vsay ' + (up ? 'up' : 'down') + '" style="left:' + x.toFixed(1) + '%;' + (up ? 'bottom:' + (h - px(L.at.top)) : 'top:' + px(L.at.foot)) + 'px"><b>THE TALK OF THE TOWN</b>&ldquo;' + esc(L.rumour) + '&rdquo;</span>'; }
+  // the line along the foot: on one line if it will go on one, else broken where it says two things, and over three at most
+  const fill = (t, max) => { const out = []; let line = '';
+    for (const part of String(t).split('  -  ')) {
+      if (line && wide(line + '  -  ' + part) <= max) { line += '  -  ' + part; continue; }
+      if (line) out.push(line); line = '';
+      for (const wd of part.split(' ')) { if (line && wide(line + ' ' + wd) > max) { out.push(line); line = wd; } else line += (line ? ' ' : '') + wd; }
+    }
+    if (line) out.push(line); return out; };
+  const rows = (t, max) => { let out = fill(t, max); for (let m = max - 8; out.length > 1 && m > max / 2; m -= 8) { const even = fill(t, m); if (even.length > out.length) break; out = even; } return out; };      // (and of a length, as near as may be: not a full line and then one word)
+  const lines = ls => ls.map(l => '<span class="ln">' + vilLetters(l) + '</span>').join('');
+  const foot = L.say && can ? rows(L.say, w - 16) : null, footOk = !!foot && foot.length <= 3 && foot.every(l => wide(l) <= w - 16), footTop = h - 2 - (footOk ? 6 + foot.length * 14 - 4 : H);
+  let under = false;      // (the slip has come down over the foot of the picture: the line there, which only says whose talk it is, gives way to it)
+  // what two of the town are saying: a slip over their heads, or under their feet where there is no room above. It is
+  // kept inside the picture, both ways.
+  if (L.rumour && L.at) {
+    const ls = can ? rows('"' + L.rumour + '"', Math.min(w - 8, Math.max(Math.round(w * 0.46), 340)) - 16) : null, ok = ls && ls.every(l => wide(l) <= w - 24);
+    if (ok) { const bw = Math.max(wide('THE TALK OF THE TOWN'), ...ls.map(wide)) + 16, bh = 28 + ls.length * 10 + (ls.length - 1) * 4, above = px(L.at.top), below = h - px(L.at.foot), up = above >= bh + 4 || above >= below;
+      const x = Math.round(Math.max(2, Math.min(w - bw - 2, L.at.x * sc - bw / 2))), y = up ? Math.max(1, above - 3 - bh) : Math.max(1, Math.min(px(L.at.foot) + 3, h - bh - 1));
+      under = y + bh > footTop - 2;
+      html += '<span class="vsay cut" style="left:' + x + 'px;top:' + y + 'px"><b>' + vilLetters('THE TALK OF THE TOWN') + '</b>' + lines(ls) + '</span>'; }
+    else { const up = px(L.at.top) > h * 0.36, x = Math.max(24, Math.min(76, L.at.x / VILLAGE.W * 100));
+      html += '<span class="vsay ' + (up ? 'up' : 'down') + '" style="left:' + x.toFixed(1) + '%;' + (up ? 'bottom:' + (h - px(L.at.top)) : 'top:' + px(L.at.foot)) + 'px"><b>THE TALK OF THE TOWN</b>&ldquo;' + esc(L.rumour) + '&rdquo;</span>'; }
+  }
+  if (L.say && !under) html += '<span class="vfoot' + (footOk ? ' cut' : '') + (L.gold ? ' gold' : '') + '">' + (footOk ? lines(foot) : esc(L.say)) + '</span>';
   if (ov._html !== html) { ov._html = html; ov.innerHTML = html; }
   if (ov.hidden) ov.hidden = false;
+}
+
+// Where each name goes, in the letters of the map, on a picture so wide (w): as near over its own door (cx: the middle
+// of it) as may be, clear of the names beside it and inside the picture. A row of names with no room for them all sends
+// its longest a line lower, over its own wall. What comes back is the list with the left edge (x0) and top of each; or
+// nothing, if they cannot be set out even so.
+function vilSetOut(list, w) {
+  const GAP = 2, TALL = 16;
+  for (let turn = 0; turn < 3; turn++) {
+    const rows = []; list.slice().sort((a, b) => a.top - b.top).forEach(q => { const r = rows[rows.length - 1]; if (r && q.top - r[0].top < TALL) r.push(q); else rows.push([q]); });
+    let long = null;
+    for (const r of rows) {
+      r.sort((a, b) => a.cx - b.cx);
+      if (r.reduce((s, q) => s + q.bw, 0) + GAP * (r.length - 1) > w) { long = r.reduce((m, q) => q.bw > m.bw ? q : m, r[0]); long.top = Math.max(...r.map(q => q.top)) + TALL; break; }
+      r.forEach(q => { q.x0 = Math.max(0, Math.min(w - q.bw, q.cx - q.bw / 2)); });
+      for (let n = 0; n < 12; n++) for (let i = 1; i < r.length; i++) { const a = r[i - 1], b = r[i], o = a.x0 + a.bw + GAP - b.x0; if (o > 0) { a.x0 -= o / 2; b.x0 += o / 2; } }      // two that would touch give way to one another equally
+      for (let i = 0; i < r.length; i++) r[i].x0 = Math.max(i ? r[i - 1].x0 + r[i - 1].bw + GAP : 0, r[i].x0);
+      for (let i = r.length - 1; i >= 0; i--) r[i].x0 = Math.min(i < r.length - 1 ? r[i + 1].x0 - r[i].bw - GAP : w - r[i].bw, r[i].x0);
+    }
+    if (!long) { list.forEach(q => { q.x0 = Math.round(q.x0); }); return list; }
+  }
+  return null;
 }
 
 // A word for the page in the letters of the map (LETTER, in province.js): a small drawing of it, each run of ink a

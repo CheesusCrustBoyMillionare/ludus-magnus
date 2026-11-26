@@ -451,6 +451,8 @@ h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
 #vlabels .vsay { position: absolute; transform: translateX(-50%); width: max-content; max-width: 46%; padding: 4px 7px 5px; background: #f4ecd8; color: #2a1a0c; border: 1px solid #8a5a14; box-shadow: 0 2px 0 #0006; font-weight: 600; line-height: 1.3; }
 #vlabels .vsay b { display: block; margin-bottom: 2px; padding-bottom: 1px; border-bottom: 1px solid #d8ccb0; color: #8a5a14; }
 #vlabels .vsay.up { margin-bottom: 3px; } #vlabels .vsay.down { margin-top: 3px; }
+#vlabels .ln { display: block; } #vlabels .ln + .ln { margin-top: 4px; } #vlabels .vfoot.cut .ln { text-align: center; }
+#vlabels .vsay.cut { transform: none; max-width: none; line-height: 0; } #vlabels .vsay.cut b { margin-bottom: 3px; padding-bottom: 3px; }
 #topbar .stat .season { color: inherit; opacity: .8; }
 /* what the purse or the fame has just gained or lost, rising beside the figure (tickFloat in main.js) */
 .tkf { position: fixed; z-index: 60; pointer-events: none; font: bold 13px Consolas, monospace; font-style: normal; text-shadow: 0 1px 0 #000, 0 0 4px #000; animation: tkf 1.4s ease-out forwards; }
