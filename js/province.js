@@ -49,6 +49,8 @@ function* provLandSteps(fresh, se) {
   // with the line it stands on, so that the map can paint it again over a man who is north of that line
   // (drawProvince). Painted again it leaves out its shadow and anything else that is only a stain on the ground.
   const overs = [];
+  const mirrors = [];      // what else is seen in the water it stands by, though nobody walks behind it: a cottage (where it stands: it is read off the land as painted), and the places built at the water's edge (painted again, like a tree)
+  const WATERSIDE = ["The fishers' huts", 'The huts on stilts', 'The drowned temple', 'The ferry'];
   fresh.overs = overs;
   // Where corn stands, for the wind to go over it (drawProvince): a mark to every five paces of the country each way,
   // 1 where it is young and green, 2 where it is tall and ripe; and 3 where the ground is under anything else that is
@@ -547,7 +549,7 @@ function* provLandSteps(fresh, se) {
         if (ty % 3 === 1 && !(at(tx - 1, ty) === T_GRASS && farm(tx - 1, ty) && crop(tx - 1, ty) === c0)) {      // a row of the plot that can be worked along, from this end of it to the other
           let run = 1; while (run < 8 && at(tx + run, ty) === T_GRASS && farm(tx + run, ty) && crop(tx + run, ty) === c0) run++;
           const wk = c === 2 ? 'plough' : c === 1 || ((c === 3 || c === 5) && se < 3) ? 'hoe' : (c === 0 || c === 6) && se === 1 ? 'reap' : c === 6 && se === 2 ? 'glean' : null;
-          if (wk && run >= 3) fresh.work.push({ x0: x + 4, x1: x + run * 10 - 5, y: y + 6, kind: wk, seed: tx * 131 + ty });
+          if (wk && run >= (wk === 'plough' ? 3 : 2)) fresh.work.push({ x0: x + 4, x1: x + run * 10 - 5, y: y + 6, kind: wk, seed: tx * 131 + ty });
         }
         { const v = c === 1 ? 1 : (c === 0 || c === 6) && se === 1 ? 2 : c <= 9 ? 3 : 0, j = ty * 2 * CORN_W + tx * 2; if (v) corn[j] = corn[j + 1] = corn[j + CORN_W] = corn[j + CORN_W + 1] = v; }      // (standing corn, or a plot of something else: see corn, above)
         if (c === 0) { R(x, y, 10, 10, '#c9b25a'); for (let q = 1; q < 10; q += 3) R(x, y + q, 10, 1, '#b39a44'); if (a > 0.9) { R(x + 4, y + 3, 3, 4, '#e0c868'); R(x + 5, y + 2, 1, 1, '#e0c868'); R(x + 4, y + 7, 3, 1, '#8f7a30'); } }      // wheat, and a stook
@@ -873,6 +875,7 @@ function* provLandSteps(fresh, se) {
     } else if (reg === 'The Home Fields' && k === T_GRASS && !farmland(tx, ty)) {
       const d = Math.hypot(tx - tx0, ty - ty0), px = Math.floor(tx / 3), py = Math.floor(ty / 3), plot = h(px, py, 93), pv = h(px, py, 94);
       if (d > 10.5 && d < 17 && plot > 0.7) {                         // vineyards, olive groves and orchards beyond the fields
+        if (plot > 0.9 ? se >= 2 : plot <= 0.78 && se === 2) { if ((tx * 3 + ty * 5) % 4 === 0) fresh.work.push({ x0: x + 5, x1: x + 5, y: y + 9, kind: plot > 0.9 ? 'olives' : 'gather', seed: tx * 173 + ty * 7 }); }      // (the olives are beaten down in autumn and on into the winter, and the orchards picked in autumn: see drawFieldWork)
         if (plot > 0.9) {                      // olives: old trees, each where it happened to grow
           R(x, y, 10, 10, pv > 0.5 ? 'rgba(150,150,96,.38)' : 'rgba(170,170,120,.38)'); fray(tx, ty, (ax, ay) => grove(ax, ay) === 1);
           for (let q = 0, n = 2 + Math.floor(v1 * 3); q < n; q++) { const ox = 1 + Math.floor(h(tx, ty, 500 + q) * 7), oy = 2 + Math.floor(h(tx, ty, 504 + q) * 6), r = 1 + Math.floor(h(tx, ty, 508 + q) * 2); R(x + ox - r, y + oy, r * 2 + 1, 2, '#6f8a5a'); R(x + ox - r, y + oy - 1, r + 1, 1, '#9ab284'); R(x + ox, y + oy + 2, 1, 1, '#4a3320'); }
@@ -992,6 +995,7 @@ function* provLandSteps(fresh, se) {
       const spire = kind === 'cypress' || kind === 'poplar', needle = kind === 'pine' || kind === 'fir' || kind === 'larch', bare = kind === 'dead' || kind === 'burnt', broad = !spire && !needle && !bare && kind !== 'stone' && kind !== 'birch' && kind !== 'willow';
       const wd = spire ? 1 : bare ? 3 : broad ? Math.ceil(sz * 1.7) : sz + 1, up = spire ? sz * 2 + 8 : needle ? 6 + (2 + Math.floor(sz / 2)) * 2 : broad ? 4 + Math.ceil(sz * 1.8) : sz + 6;
       overs.push({ x0: cx - wd, x1: cx + wd + 1, y0: cy - up, base: cy + 1, tree: true, soft: true, d: () => tree(cx, cy, kind, sz, f) });
+      if (se === 2 && kind === 'blossom' && h(cx, cy, 2403) > 0.78) fresh.work.push({ x0: cx, x1: cx, y: cy + 1, kind: 'ladder', seed: cx * 31 + cy, wd, up });      // (a fruit tree, picked from a ladder)
       { const sheds = !['pine', 'fir', 'yew', 'cypress', 'stone', 'olive', 'dead', 'burnt', 'gold', 'russet'].includes(kind), tn = h(cx, cy, 2401);      // (as below: what has a leaf to lose, and how far it has turned)
         const sc = se === 2 && sheds ? (kind === 'birch' || kind === 'poplar' || kind === 'larch' ? 1 : tn < 0.3 ? 0 : tn < 0.58 ? 1 : tn < 0.84 ? 2 : 3) : se === 0 && kind === 'blossom' ? 4 : 0; if (sc) fresh.shed.push(cx, cy - Math.round(up * 0.55), sc); }
     }
@@ -1573,7 +1577,7 @@ function* provLandSteps(fresh, se) {
         }
         if (!any) return;
         { const wk = crop === 'wheat' || crop === 'barley' ? 'reap' : crop === 'stubble' ? 'glean' : crop === 'plough' ? (hz ? 'plough' : null) : crop === 'green' || (crop === 'beans' && se < 3) ? 'hoe' : crop === 'ley' && se === 1 ? 'mow' : null, wy = cy + y0 + 2 + (hh >> 1), wa = cx + x0 + (wk === 'plough' ? 3 : 6), wb = cx + x0 + w - (wk === 'plough' ? 2 : 4);      // and who works it (see drawFieldWork)
-          if (wk && w >= 22 && ok(wa, wy) && ok(wb, wy) && ok((wa + wb) >> 1, wy) && ok(wa, wy - 4) && ok(wb, wy - 4)) fresh.work.push({ x0: wa, x1: wb, y: wy, kind: wk, seed: pl * 13 + sd * 7 + 5 }); }
+          if (wk && w >= 16 && ok(wa, wy) && ok(wb, wy) && ok((wa + wb) >> 1, wy)) fresh.work.push({ x0: wa, x1: wb, y: wy, kind: wk, seed: pl * 13 + sd * 7 + 5 }); }
         // one thing to a plot, by what grows there
         const mx = cx + x0 + 4 + Math.floor(lmV(pl, 948 + sd) * Math.max(1, w - 8)), my = cy + y0 + 5 + Math.floor(lmV(pl, 949 + sd) * Math.max(1, hh - 7)), pick2 = lmV(pl, 950 + sd);
         if (!ok(mx, my) || !ok(mx + 3, my) || !ok(mx - 3, my - 3)) return;
@@ -1654,6 +1658,7 @@ function* provLandSteps(fresh, se) {
         for (let q = 0; q < 14; q++) { const px = x - 4 + Math.floor(lmV(q, 400 + seed) * (r * 2 + 8)), py = y + 12 + Math.floor(lmV(q, 401 + seed) * 8); if (at(Math.floor(px / 10), Math.floor(py / 10)) === T_WATER) R(px, py, 1, 2 + Math.floor(lmV(q, 402 + seed) * 2), q % 3 ? 'rgba(236,230,214,.2)' : 'rgba(30,50,70,.18)'); } };      // and where it stands over water, itself again in it, broken      // what lies under it, the thing itself, and what was added to it since
       feats.push({ y: y + 10, d: whole });
       if (TALL.includes(name)) overs.push({ x0: x - 12, x1: x + 56, y0: y - 34, base: y + 10, d: whole });
+      else if (WATERSIDE.includes(name)) mirrors.push({ x0: x - 12, x1: x + 56, y0: y - 34, base: y + 10, d: whole });
       return true;
     };
     for (let n = 0; n < 9000; n++) if (tryAt(4 + Math.floor(wildHash(n, seed, 700) * (TW - 9)), 4 + Math.floor(wildHash(seed, n, 701) * (TH - 8)))) return true;
@@ -2028,6 +2033,7 @@ function* provLandSteps(fresh, se) {
   const cot = (P, v, x, y, o) => {
     const w = o.w || 7 + Math.floor(v(11) * 5), hh = o.h || 5 + Math.floor(v(12) * 2), rh = 3 + Math.floor(v(13) * 2), BUILD = { 'The High Fells': [['#a89c88', '#b8ab94', '#9a958a'], ['slate', 'turf']], 'The Quarry Hills': [['#e2d9c0', '#d8d2c0', '#cdbd94'], ['tile', 'slate']], 'Greywood': [['#7a5a34', '#8a6a3a', '#a89c88'], ['shingle', 'thatch']], 'Blackmere': [['#6a5a44', '#8a7a5a'], ['reed', 'turf']], 'The Salt Shore': [['#f0e8d6', '#e2d2a8'], ['tile', 'reed']], 'The Home Fields': [['#f0e8d6', '#e2d2a8', '#d8c4a0'], ['tile', 'thatch']], 'The Long Meadows': [['#e2d2a8', '#cdbd94', '#d8c4a0'], ['thatch', 'shingle']], 'The Barrow Downs': [['#b8ab94', '#a89c88', '#cdbd94'], ['thatch', 'turf']] }[wildRegion(x, y)],
       wall = o.wall || (BUILD ? BUILD[0][Math.floor(v(14) * BUILD[0].length)] : WALLS[Math.floor(v(14) * WALLS.length)]), roof = ROOFS[o.roof || (BUILD ? BUILD[1][Math.floor(v(15) * BUILD[1].length)] : ['tile', 'thatch', 'slate', 'shingle'][Math.floor(v(15) * 4)])], timber = ['#7a5a34', '#8a6a3a', '#6a5a44', '#8a7a5a'].includes(wall);      // stone and slate in the fells, timber and shingle in the wood, whitewash and tile by the town: each country builds with what it has
+    { const xa = P.at ? P.at(x - 1) : x - 1, xb = P.at ? P.at(x + w + 1) : x + w + 1; mirrors.push({ x0: Math.min(xa, xb), x1: Math.max(xa, xb), y0: y - rh - 2, base: y + hh, copy: true }); }      // (seen in the water, if it stands by any: see the end of the painting)
     for (let i = 0; i < 4; i++) P(x + w + i, y + 1 + i, 2, hh - 1, 'rgba(0,0,0,.08)');      // its shadow, thrown to the east
     P(x - 1, y + hh, w + 3, 2, 'rgba(0,0,0,.22)'); P(x, y, w, hh, wall); P(x, y, 1, hh, tint(wall, 1.08)); P(x + w - 1, y, 1, hh, tint(wall, 0.84));
     P(x + Math.round(w * 0.66), y, w - Math.round(w * 0.66), hh, 'rgba(40,26,10,.10)'); P(x, y + hh - 1, w, 1, tint(wall, 0.8));      // the east end of the wall in shade, and the footing
@@ -2463,19 +2469,21 @@ function* provLandSteps(fresh, se) {
   }
   if (typeof document !== 'undefined') {
     const SW = 96, SH = 56, SQ = 0.6, sc = Object.assign(document.createElement('canvas'), { width: SW, height: SH }), s2 = sc.getContext('2d'), wet = fresh.wetLieM;
-    let n = 0;
-    for (const o of overs) {
-      const base = Math.round(o.base), mx = (o.x0 + o.x1) >> 1;
-      const x0 = o.x0 - 2, w = Math.min(SW, o.x1 - o.x0 + 4), rh = Math.min(SH, Math.ceil(Math.min(90, base - o.y0) * SQ) + 1), y0 = base + 1;
+    let n = 0; fresh.mirrorAt = []; const land0 = cv; s2.imageSmoothingEnabled = false;
+    for (const o of overs.concat(mirrors)) {
+      const base = Math.round(o.base), mx = (o.x0 + o.x1) >> 1, pad = o.copy ? 0 : 2;
+      const x0 = Math.round(o.x0) - pad, w = Math.min(SW, Math.round(o.x1) - Math.round(o.x0) + pad * 2), rh = Math.min(SH, Math.ceil(Math.min(90, base - o.y0) * SQ) + 1), y0 = base + 1;
       if (o.wet) continue;
-      { let near = false; for (let r = 3; r < rh && !near; r += 3) near = wet(mx + 0.5, base + r + 0.5) > 0.13; if (!near) continue; }      // (a tree a little way back from the water shows the top of itself in it, and no more)
+      { let near = false; for (let r = o.copy ? 1 : 3; r < rh && !near; r += o.copy ? 1 : 3) near = wet(mx + 0.5, base + r + 0.5) > 0.13; if (!near) continue; }      // (a tree a little way back from the water shows the top of itself in it, and no more)
       s2.globalCompositeOperation = 'source-over'; s2.globalAlpha = 1; s2.clearRect(0, 0, SW, SH);
       const mir = { fillStyle: '#000', globalAlpha: 1, fillRect(x, y, ww, hh) {      // a slate that sets down whatever is painted on it the other way up
         x = Math.round(x); y = Math.round(y);
         const r0 = Math.max(0, Math.round((base - y - hh) * SQ)), r1 = Math.round((base - y) * SQ);
         if (r1 > r0) { s2.globalAlpha = this.globalAlpha; s2.fillStyle = this.fillStyle; s2.fillRect(x - x0, r0, ww, r1 - r0); }
       } };
-      try { fresh.paintOver(mir, o.d); } catch (e) { continue; }      // (something in it that is not plain paint: it is not seen in the water)
+      if (o.copy) { const sh = base - Math.round(o.y0); s2.setTransform(1, 0, 0, -1, 0, rh); s2.drawImage(land0, x0, base - sh, w, sh, 0, 0, w, rh); s2.setTransform(1, 0, 0, 1, 0, 0); }      // a cottage: as it stands on the land, the other way up and shorter
+      else try { fresh.paintOver(mir, o.d); } catch (e) { continue; }      // (something in it that is not plain paint: it is not seen in the water)
+      if (o.copy || mirrors.includes(o)) fresh.mirrorAt.push(mx, base);      // (kept: where a building is seen in the water)
       s2.globalAlpha = 1; s2.globalCompositeOperation = 'source-atop'; s2.fillStyle = 'rgba(40,84,124,.3)'; s2.fillRect(0, 0, w, rh);
       s2.globalCompositeOperation = 'destination-out'; s2.fillStyle = '#000';
       for (let r = 0; r < rh; r++) {
@@ -2945,7 +2953,8 @@ function provFlush(x, y) {
 // can be worked along, and what is done there, set down as the land is painted). By the season: the plough going up
 // and down the fallow behind a yoke of oxen, crows after it; hoers in the young corn and among the beans; reapers in
 // a line through the standing corn, in straw hats; a mower in the hay; and at the stubble a cart being loaded, and a
-// gleaner after it. Not every plot is worked on a given day, nobody is out after dark or in the rain, and the plough
+// gleaner after it. And beyond the fields: the orchards picked in autumn, from the ground and from ladders set into
+// the fruit trees, and the olives beaten down onto cloths. Not every plot is worked on a given day, nobody is out after dark or in the rain, and the plough
 // does not go in snow. Each steps by the ground he covers, as the beasts do.
 function drawFieldWork(ctx, T, R, inView) {
   const work = prov.work; if (!work || !work.length || (prov.darkNow || 0) > 0.3 || prov.rainy) return;
@@ -2954,6 +2963,26 @@ function drawFieldWork(ctx, T, R, inView) {
   for (let j = 0; j < work.length; j++) {
     const W = work[j], hv = q => wildHash(W.seed, q + day * 7, 1900), k = W.kind;
     if (hv(1) > (k === 'plough' ? 0.7 : 0.6) || (snow && k !== 'glean') || (k === 'plough' && W.x1 - W.x0 < 24) || !inView((W.x0 + W.x1) / 2, W.y, 40) || !wildSeen((W.x0 + W.x1) / 2, W.y)) continue;
+    if (k === 'ladder' || k === 'gather' || k === 'olives') {      // the fruit harvest, which stays where the tree is
+      const x = W.x0, y = W.y, d = hv(2) > 0.5 ? 1 : -1, face = d > 0 ? 'right' : 'left', tunic = ['#8a6a4a', '#b8703c', '#7a6a4a', '#3f7a5a', '#9a8a6a'][Math.floor(hv(3) * 5)], hair = hv(4) > 0.5 ? '#3a2a1c' : '#6a4a2a', skin = '#d9a57c', bsk = '#c9a763', fruit = hv(5) > 0.5 ? '#c23b2e' : '#e3b04a';
+      const basket = (bx, by, c) => { R(bx, by - 2, 4, 3, bsk); R(bx, by - 2, 4, 1, '#a8853f'); R(bx + 1, by - 3, 2, 1, c); };
+      if (k === 'ladder') {      // a ladder set into the tree, somebody up it, and a basket filling at its foot
+        // (only the taller trees want a ladder: a short one, its rails either side of whoever stands on it. The rest are picked from the ground.)
+        const tall = W.up >= 12, lx = x + d * Math.max(3, W.wd - 2), rise = tall ? 4 : 0, reach = Math.sin(T * 1.7 + W.seed) > 0;
+        if (tall) { provAt(lx, y, 6); for (let q = 0; q < 10; q++) { R(lx - 2, y - q, 1, 1, wood); R(lx + 2, y - q, 1, 1, wood); if (q % 2) R(lx - 1, y - q, 3, 1, '#8a6a3a'); } }
+        provAt(lx, y + 1, 6); provMan(ctx, lx, y - rise, { face: d > 0 ? 'left' : 'right', t: T, walk: 0, moving: false, tunic, hair }); if (reach) { R(lx - d * 3, y - rise - 17, 1, 5, skin); R(lx - d * 3, y - rise - 18, 1, 1, fruit); }
+        provAt(lx + d * 5, y + 1, 4); basket(lx + d * 5 - 2, y + 1, fruit);
+      } else if (k === 'gather') {      // under the trees of an orchard: one reaching up into a tree, a basket by her, and a full one stood ready
+        const reach = Math.sin(T * 1.9 + W.seed) > -0.2;
+        provAt(x, y, 6); provMan(ctx, x, y, { face, t: T, walk: 0, moving: false, tunic, hair }); if (reach) { R(x + d * 3, y - 17, 1, 5, skin); R(x + d * 3, y - 18, 1, 1, fruit); }
+        provAt(x - d * 5, y + 1, 4); basket(x - d * 5 - 2, y + 1, fruit); if (hv(6) > 0.4) { provAt(x - d * 10, y + 2, 4); basket(x - d * 10 - 2, y + 2, fruit); }
+      } else {      // the olives: a cloth spread under the tree, and two with long poles beating the fruit down onto it
+        provAt(x, y - 1, 12, 'flat'); R(x - 7, y - 1, 15, 3, '#d8d2c0'); R(x - 7, y - 1, 15, 1, '#ece6d6'); for (let q = 0; q < 6; q++) R(x - 6 + Math.floor(hv(10 + q) * 13), y - 1 + Math.floor(hv(16 + q) * 3), 1, 1, q % 2 ? '#3a3a22' : '#5a6a2a');
+        for (const sd of [-1, 1]) { const mx = x + sd * 9, sw = Math.sin(T * 3.4 + W.seed + sd) > 0 ? 1 : 0; provAt(mx, y + 1, 6); provMan(ctx, mx, y + 1, { face: sd > 0 ? 'left' : 'right', t: T, walk: 0, moving: false, tunic: sd > 0 ? tunic : '#9a8a6a', hair });
+          R(mx - sd * (3 + sw * 2), y - 25 + sw * 3, 1, 16 - sw * 2, wood); if (sw) R(mx - sd * 6, y - 23, 1, 2, wood); }
+      }
+      continue;
+    }
     const team = k === 'plough' ? 9 : 0, span = W.x1 - W.x0 - team * 2, sp = k === 'plough' ? 3.2 : k === 'reap' ? 1.1 : k === 'mow' ? 1.4 : 0.7, u = (T * sp / span + hv(2) * 2) % 2, out = u < 1, d = out ? 1 : -1, xf = W.x0 + team + span * (out ? u : 2 - u) - d * (team - 3), x = Math.round(xf), y = W.y, face = out ? 'right' : 'left';      // (the plough team is as long as a small plot is wide: it is the middle of it that goes from one headland to the other, and it turns about where it stands)
     const tunic = ['#8a6a4a', '#7a6a4a', '#9a8a6a', '#6a5a3a', '#b8a888'][Math.floor(hv(3) * 5)], hair = hv(4) > 0.6 ? '#8a8a8a' : hv(4) > 0.3 ? '#3a2a1c' : '#6a4a2a';
     const man = (mx, my, o) => provMan(ctx, mx, my, Object.assign({ face, t: T, walk: xf * 1.5, moving: true, tunic, hair }, o));
@@ -2978,11 +3007,11 @@ function drawFieldWork(ctx, T, R, inView) {
         if (up) { R(mx + d * 3, my - 17, 1, 9, wood); R(mx + (d > 0 ? 3 : 2), my - 18, 2, 1, steel); } else { R(mx + d * 4, my - 8, 1, 7, wood); R(mx + (d > 0 ? 4 : 3), my - 1, 2, 1, steel); }
       }
     } else if (k === 'reap') {
-      for (let q = 0; q < 3; q++) {
+      for (let q = 0, n = span < 16 ? 1 : span < 22 ? 2 : 3; q < n; q++) {      // (as many as the plot has room for)
         const mx = x - d * q * 7, my = y - 3 + q * 3, sw = Math.sin(T * 4 + q * 2.1 + W.seed) > 0 ? 2 : 0;
         provAt(mx, my, 6); man(mx, my, { tunic: ['#b8a888', '#9a8a6a', '#c9b890'][q] }); hat(mx, my);
         R(mx + d * 4, my - 8 + sw, 1, 2, wood); R(mx + (d > 0 ? 4 : 3), my - 9 + sw, 2, 1, steel); R(mx + (d > 0 ? 6 : 2), my - 8 + sw, 1, 2, steel);      // the sickle
-        if (q === 2) { R(mx - d * 5, my - 3, 2, 4, straw); R(mx - d * 5 - 1, my - 1, 4, 1, '#b89a4a'); }                                                    // and a sheaf bound behind the last of them
+        if (q === n - 1) { R(mx - d * 5, my - 3, 2, 4, straw); R(mx - d * 5 - 1, my - 1, 4, 1, '#b89a4a'); }                                                    // and a sheaf bound behind the last of them
       }
     } else if (k === 'mow') {
       const sw = Math.sin(T * 2.6 + W.seed) > 0;
@@ -2991,10 +3020,12 @@ function drawFieldWork(ctx, T, R, inView) {
       for (let q = 1; q < 4; q++) { const hx2 = x - d * q * 7; if ((d > 0 ? hx2 > W.x0 : hx2 < W.x1)) R(hx2, y + 1, 3, 1, q & 1 ? '#b8c070' : '#a8b060'); }                // the swathe lying behind him
     } else {                                   // carrying the corn: a cart standing in the stubble with its ox, a man pitching sheaves up to it, and a gleaner
       const cxx = Math.round((W.x0 + W.x1) / 2) + (hv(5) > 0.5 ? 6 : -6), cd = hv(6) > 0.5 ? 1 : -1, pitch = Math.sin(T * 2.2 + W.seed) > 0.2;
+      if (span >= 24) {      // (the cart only where there is room to bring it in)
       provAt(cxx, y, 12); R(cxx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cxx - 5, y - 6, 10, 5, '#8a6a3a'); R(cxx - 5, y - 7, 10, 1, '#a8834a'); R(cxx - 4, y - 10, 8, 3, straw); R(cxx - 3, y - 12, 6, 2, strawL); cartWheel(R, cxx - 4, y - 2, 0, 1); cartWheel(R, cxx + 1, y - 2, 2, 1);
       const bx = cxx + cd * 12, c = '#8a6444', dk = shade(c, 0.6); provAt(bx, y, 10); R(bx - 4, y + 1, 10, 1, 'rgba(0,0,0,.22)'); R(bx - 4, y - 2, 1, 3, dk); R(bx + 3, y - 2, 1, 3, dk); R(bx - 3, y - 2, 1, 3, shade(c, 0.42)); R(bx + 2, y - 2, 1, 3, shade(c, 0.42)); R(bx - 4, y - 6, 9, 4, c); R(cd > 0 ? bx + 5 : bx - 6, y - 5, 2, 4, c); R(cd > 0 ? bx + 5 : bx - 5, y - 6, 1, 1, '#f1ead8');      // the ox, standing, its head down
       R(cd > 0 ? cxx + 5 : bx + 5, y - 4, Math.abs(bx - cxx) - 9, 1, wood);                                                                           // the shafts
       const px = cxx - cd * 9; provAt(px, y + 2, 6); man(px, y + 2, { face: cd > 0 ? 'right' : 'left', moving: false, walk: 0 }); R(px + cd * 3, y - (pitch ? 18 : 9), 1, pitch ? 12 : 8, wood); if (pitch) { R(px + cd * 2, y - 21, 3, 3, straw); R(px + cd * 2, y - 19, 3, 1, '#b89a4a'); }      // the pitchfork, and a sheaf going up on it
+      }
       provAt(x, y + 5, 6); man(x, y + 5, { tunic: ['#b8703c', '#8a2a6a', '#3f7a5a'][Math.floor(hv(7) * 3)], moving: Math.sin(T * 1.3 + W.seed) > -0.2 }); R(x - d * 4, y - 5, 3, 3, '#c9a763'); R(x - d * 4, y - 6, 3, 1, strawL);      // the gleaner, her basket on her hip
     }
   }
