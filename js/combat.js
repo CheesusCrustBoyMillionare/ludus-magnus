@@ -2240,6 +2240,39 @@ function renderArenaSnow(B) {
   return cv;
 }
 
+// And snow lying where a fight is fought out in the province. That ground is painted by one painter for every kind
+// of country (renderWild), which knows nothing of snow, so the picture itself is looked at, once: the far hills go
+// white; whatever stands there (a tree, the cliff, a palisade, old stones, a rock on the ground) takes snow along
+// its top, wherever it has the sky, the hills or the open ground over it; and the ground is covered, blue under
+// whatever throws its shade across it, and trodden thin in the middle where the fighting is.
+function renderWildSnow(B) {
+  const W = 428, H = 240, GY = 78, bg = B._bg, look = Object.assign(document.createElement('canvas'), { width: W, height: H }), lc = look.getContext('2d', { willReadFrequently: true });
+  lc.drawImage(bg, 0, 0); const D = lc.getImageData(0, 0, W, H).data;
+  const cv = Object.assign(document.createElement('canvas'), { width: W, height: H }), ctx = cv.getContext('2d'), img = ctx.createImageData(W, H), O = img.data;
+  // the colour of the open ground: whatever colour there is most of across the foot of the picture
+  const tally = new Map(); let base = [0, 0, 0], most = 0;
+  for (let y = 200; y < H; y += 2) for (let x = 0; x < W; x += 3) { const i = (y * W + x) * 4, key = (D[i] >> 2) << 12 | (D[i + 1] >> 2) << 6 | (D[i + 2] >> 2), n = (tally.get(key) || 0) + 1; tally.set(key, n); if (n > most) { most = n; base = [D[i], D[i + 1], D[i + 2]]; } }
+  const HILLS = [[143, 169, 166], [163, 186, 182], [108, 139, 104], [92, 122, 88]];
+  const far = (i, c) => Math.abs(D[i] - c[0]) + Math.abs(D[i + 1] - c[1]) + Math.abs(D[i + 2] - c[2]);
+  const hill = i => HILLS.some(c => far(i, c) < 8), ground = i => far(i, base) < 62;
+  const sky = i => { const r = D[i], g = D[i + 1], b = D[i + 2]; return (b >= g && b > r + 6 && r + g + b > 400) || (r > 220 && g > 230 && b > 235) || (r > 240 && g > 228 && b > 190 && b < 232); };      // (the sky, a cloud, or the sun)
+  const open = (i, y) => y < GY + 6 ? sky(i) || hill(i) || (y >= GY && ground(i)) : ground(i);
+  const put = (i, r, g, b, a) => { if (O[i + 3] >= a) return; O[i] = r; O[i + 1] = g; O[i + 2] = b; O[i + 3] = a; };
+  for (let y = 1; y < H - 1; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4, v = wildHash(x, y, 1680);
+    if (y < GY + 6 && hill(i)) { put(i, 244, 248, 252, 140); continue; }
+    if (y < GY ? sky(i) : false) continue;
+    if (y >= GY && ground(i)) {
+      const dx = (x - 214) / 158, dy = (y - 166) / 60, r = dx * dx + dy * dy, lie = y < GY + 3 ? 1 : r < 0.5 ? 0.16 : r < 1 ? 0.16 + (r - 0.5) / 0.5 * 0.74 : 0.9;
+      if (wildHash(x >> 1, y, 1681) < lie) { const dark = far(i, base) > 30 && D[i] + D[i + 1] + D[i + 2] < base[0] + base[1] + base[2]; if (dark || wildHash(x >> 2, y >> 1, 1682) > 0.9) put(i, 214, 224, 238, 232); else put(i, 245, 248, 252, 232); }
+      continue;
+    }
+    if (open(i - W * 4, y - 1)) { put(i, 252, 253, 255, 242); if (!open(i + W * 4, y + 1) && v < 0.6) put(i + W * 4, 226, 233, 243, 205); }      // the top of something
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
 // ---------- what an ability looks like ----------
 // Short-lived pictures laid over the fight: a burst under a man as he calls on an ability, the arc of a heavy
 // blow, a shockwave, the streak of a lunge, motes rising round a man who has steeled or mended himself.
@@ -2415,9 +2448,9 @@ function drawBattle(ctx, B) {
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
   if (uu > 0 && !B.wild) { ctx.fillStyle = shade(B.theme.sand, 0.95); ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); }      // more sand below the sand, for the little of it that shows either side of the choices
-  // snow lying, where snow would lie (renderArenaSnow): under the crowd's banners, the blood and the men
-  const lying = !B.wild && typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, (yardWeather(sceneClock()).white || 0) * 1.5) : 0;
-  if (lying > 0.03) { if (!B._snow) B._snow = renderArenaSnow(B); ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
+  // snow lying, where snow would lie (renderArenaSnow, or out in the province renderWildSnow): under the crowd's banners, the blood and the men
+  const lying = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, (yardWeather(sceneClock()).white || 0) * 1.5) : 0;
+  if (lying > 0.03) { if (!B._snow) B._snow = B.wild ? renderWildSnow(B) : renderArenaSnow(B); ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
 
   const dusk = B.light === 'dusk';
@@ -2457,7 +2490,7 @@ function drawBattle(ctx, B) {
     if (tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, 428, 240); ctx.globalCompositeOperation = 'source-over'; }
     if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.1 * wx.over).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
     if (wx.wet > 0) { ctx.fillStyle = `rgba(70,45,20,${(0.14 * wx.wet).toFixed(3)})`; ctx.fillRect(0, 86, 428, 154); }
-    sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * (B.wild ? 0.7 : 0.16)); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
+    sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * 0.16); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
   }
   if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
   for (const x of B.wild ? [] : ARENA_TORCHES) {

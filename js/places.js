@@ -730,7 +730,9 @@ const PLACE_SCENES = {
     R(270, 78, 50, 46, '#3a2416'); R(266, 74, 58, 4, '#8a6a3a'); R(294, 78, 2, 46, '#5a3c20');          // the door
     for (const x of [236, 344]) E.column(x, 66, 54);
     E.paving(124, '#d8c9a8', '#c4b490');
-    R(250, 150, 90, 18, '#b8ab94'); R(254, 153, 82, 12, '#4f8fb8'); for (let i = 0; i < 4; i++) R(260 + ((i * 23 + Math.floor(T * 6)) % 70), 156 + (i % 2) * 4, 5, 1, '#d6ecf8');        // the pool in the court
+    R(250, 150, 90, 18, '#b8ab94');
+    if (sceneSeason() === 3) { R(254, 153, 82, 12, '#c6d9e6'); R(254, 153, 82, 1, '#eef5f9'); R(262, 157, 22, 1, '#a9c3d6'); R(283, 158, 9, 1, '#a9c3d6'); R(306, 161, 18, 1, '#a9c3d6'); R(296, 155, 12, 1, '#f6fafc'); R(270, 162, 9, 1, '#f6fafc'); }      // in winter it is frozen over, as the town's pond is: grey ice, a crack or two, and where the light lies on it
+    else { R(254, 153, 82, 12, '#4f8fb8'); for (let i = 0; i < 4; i++) R(260 + ((i * 23 + Math.floor(T * 6)) % 70), 156 + (i % 2) * 4, 5, 1, '#d6ecf8'); }        // the pool in the court
     for (const x of [70, 150, 440, 520]) { R(x - 8, 132, 16, 8, '#7a5a34'); R(x - 7, 124, 14, 9, '#5d7f3f'); R(x - 4, 120, 8, 5, '#6f8f48'); R(x - 2, 122, 2, 2, '#e8a0a0'); }
     // the household: whoever you have taken on, each at his work
     let n = 0;

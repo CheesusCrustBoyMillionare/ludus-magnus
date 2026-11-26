@@ -373,6 +373,18 @@ function scenePlaque(ctx, x, y, w, gold) {
   R(l, y - 6, w + 3, 11, 'rgba(0,0,0,.28)'); R(l - 1, y - 8, w + 2, 11, '#e0aa3e'); R(l - 1, y - 8, w + 2, 1, '#f6d27a'); R(l - 1, y + 2, w + 2, 1, '#a8782a'); R(l, y - 7, w, 9, gold ? '#5a3d1c' : '#241812'); R(l, y - 7, w, 1, gold ? '#6e4c26' : '#33241a');
   R(l + 1, y - 3, 1, 1, '#e0aa3e'); R(l + w - 2, y - 3, 1, 1, '#e0aa3e');
 }
+// Two signs on the same line that would overlap are moved apart, each by half of what they overlap by and a little
+// over, and kept inside the picture: a long word on one (so many hurt, so many running) does not lie over its
+// neighbour's. (Each sign: x, y as sceneSign takes them, and its text.)
+function signsApart(signs) {
+  const half = q => Math.ceil((provTextW(q.text) + 8) / 2) + 2;
+  for (let pass = 0; pass < 3; pass++) for (let i = 0; i < signs.length; i++) for (let j = i + 1; j < signs.length; j++) {
+    const a = signs[i].x <= signs[j].x ? signs[i] : signs[j], b = a === signs[i] ? signs[j] : signs[i];
+    if (Math.abs(a.y - b.y) >= 12) continue;
+    const over = (a.x + half(a)) - (b.x - half(b)) + 2; if (over <= 0) continue;
+    a.x = Math.max(half(a) + 2, a.x - Math.ceil(over / 2)); b.x = Math.min(588 - half(b), b.x + Math.ceil(over / 2));
+  }
+}
 // A sign: a name on a plaque, its middle at x and the foot of its letters at y (gold: one that matters today). Kept
 // inside the picture, however long the name is.
 function sceneSign(ctx, x, y, text, gold) {
@@ -483,7 +495,9 @@ function drawYard(cv, T) {
     provText(ctx, text, lx, ly, '#f2e6cc');
   });
   // building names sit on a dark plaque so they read against any wall
-  const sign = (x, y, text) => late.push(() => sceneSign(ctx, x, y, text, false));
+  // (They are set down together, when the rest is done, so that two that would lie one over the other can be moved
+  // apart first: see signsApart.)
+  const signs = [], sign = (x, y, text) => { if (!signs.length) late.push(() => { signsApart(signs); for (const q of signs) sceneSign(ctx, q.x, q.y, q.text, false); }); signs.push({ x, y, text }); };
   const sky = yardSky(T), lights = [], fires = [], perches = [];
   const wx = yardWeather(T);
   // Snow lying (wx.white: how much of it, 0 to 1). It lies on whatever has a top to hold it: snowOn lays it along one,

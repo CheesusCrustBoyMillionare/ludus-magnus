@@ -5989,7 +5989,7 @@ function drawOverview(cv, T) {
   key.forEach(([c, t], n) => { ctx.fillStyle = c; ctx.fillRect(16, 15 + n * 16, 10, 10); provText(ctx, t, 32, 15 + n * 16, '#f2e6cc', 'small', WORD); });
   if (hv) { const [lines, sk] = hoverLines(hv); provCard(ctx, hv.x * k / U, hv.y * k / U - 14, lines, sk, 2, 960, 720); }
   const mw2 = marchWord(), pk2 = provPeek();
-  const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : mw2 ? mw2.text : pk2 && prov.mouse ? `${daysWord(pk2.days).toUpperCase()}  -  CLICK TO SET OUT  -  M TO CLOSE` : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = Math.min(952, provTextW(msg, 'small', WORD) + 24), mx = Math.round(960 / 2 - w / 2);
+  const msg = prov.hint > performance.now() ? 'YOU CANNOT WALK THERE' : mw2 ? mw2.text : pk2 && prov.mouse ? `${daysWord(pk2.days).toUpperCase()}  -  CLICK TO SET OUT  -  M TO CLOSE` : 'THE PROVINCE  -  CLICK ANYWHERE TO SET OUT FOR IT  -  M TO CLOSE', w = Math.min(952, provTextW(msg, 'small', WORD) + 24), bar = 20 + Math.round(marchDay() / 10 * 4) + 12, mx = Math.max(Math.min(bar, 954 - w), Math.round(960 / 2 - w / 2));      // (in the middle of the foot; but a long line is moved along, so that it does not lie over the bar that shows a day's march, in the corner)
   ctx.fillStyle = 'rgba(24,16,10,.85)'; ctx.fillRect(mx, 720 - 34, w, 24);
   provText(ctx, msg, mx + 12, 720 - 34 + 7, '#f5d584', 'small', WORD);
 }
