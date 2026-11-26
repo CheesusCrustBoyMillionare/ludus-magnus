@@ -62,7 +62,7 @@ const TIPS = {
   favour: 'Rises with gifts and with the things each patron cares about. Falls a little every market day (every fifth day).',
   feud: 'Grows when you kill their fighters or they kill yours. At 40 their champion challenges you, and refusing costs you.',
   rations: 'Paid per fighter per day. Better food means higher morale.',
-  dynasty: 'If debt takes the ludus, an heir starts again with what the family has kept. The Chronicle shows the history of the house.',
+  dynasty: 'If debt takes the ludus, or every man is lost and you cannot afford another, an heir starts again with what the family has kept. The Chronicle shows the history of the house.',
   friend: 'Friends hit harder when they fight on the same side. If one dies, the other grieves, and may swear to kill the man who did it.',
   rivalbond: 'Rivals inside your own ludus train harder to outdo each other, but fight worse on the same side.',
   vow: 'He has sworn to face this rival. When that man is on the day\'s list of bouts he fights him with extra fury, and winning lifts him greatly.',
@@ -536,7 +536,7 @@ function helpModal() {
       + sec('The arena\'s year', 'For a month, every market day is also a <b>games</b> day. Then the arena is <b>shut for a month</b>: no bouts, no purses and no festivals, though the town carries on as usual. Use that month for training, contracts, and trips out of the east gate. Then the arena opens again, and the cycle repeats. The side bar always shows how long it is until the next games.')
       + sec('The aim', `Win bouts for purses and <b>fame</b>. Fame opens bigger arenas, and at ${FINAL_FAME} the Emperor sends for you. If you lose every man, or stay in debt beyond the days of grace, the house falls.`)
       + sec('Money', 'Purses, wagers, contracts and the Guild\'s stipend bring money in. Food, wages, men and gear take it out. The ledger under <b>Household</b> shows each day\'s balance.')
-      + sec('Debt and heirs', 'When your money falls below zero the creditors allow a few days of grace, and then take the ludus. That is not the end: an heir starts again with whatever the family managed to keep, and legacy points buy a better start.')
+      + sec('Debt and heirs', 'When your money falls below zero the creditors allow a few days of grace, and then take the ludus. That is not the end: an heir starts again with whatever the family managed to keep, and legacy points buy a better start. The same happens if you lose every man and cannot afford another.')
       + sec('Where to look', 'Hover over anything to see what it means, or move to it with Tab. <b>Settings</b>, in the menu, can stop the pictures moving, turn off the single-key shortcuts, and make Tab stop at every explanation. The steward can take you through the first week again: use the button at the bottom of this page.')
       + sec('Saving', 'The game saves itself after everything you do, and keeps a backup from the morning of the last market day. <b>Saves</b>, at the bottom of the side bar, holds five campaigns.'),
     fighters: () => sec('Three skills', '<b>Strength</b> hits harder and gives more health. <b>Agility</b> attacks faster and dodges. <b>Skill</b> lands more blows, scores more critical hits and blocks. <b>Power</b> is the three added together.')
@@ -2073,18 +2073,20 @@ function dynastyPanel() {
     <div class="panel">${boons}${tree ? '<hr class="sep">' + tree : ''}${past ? '<hr class="sep"><div class="log" style="max-height:none">' + past + '</div>' : ''}</div>`;
 }
 
-// The succession, shown when debt has taken the ludus. Four steps; it cannot be closed.
+// The succession, shown when debt has taken the ludus or its cells stand empty. Four steps; it cannot be closed.
 function ruinModal() {
   const R = G.ruin, D = G.dynasty;
   const steps = `<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">The succession &middot; ${R.step + 1} of 4</div>`;
   if (R.step === 0) {
     const h = D.history[D.history.length - 1];
-    return `${steps}<h2>The creditors come</h2>
-      <p>The days of grace are spent and the purse is still empty. They arrive at dawn with soldiers and a magistrate's seal, and take the ludus, the men and the keys.</p>
+    const fall = R.why === 'empty'
+      ? '<h2>The gates are chained</h2><p>Your cells are empty and your purse cannot fill them. A school with no men is no school: the gates are chained shut, and the house is sold for what its walls will fetch.</p>'
+      : '<h2>The creditors come</h2><p>The days of grace are spent and the purse is still empty. They arrive at dawn with soldiers and a magistrate\'s seal, and take the ludus, the men and the keys.</p>';
+    return `${steps}${fall}
       <p>But a house is more than its walls. Your heir will begin again, and the family keeps what this ludus earned.</p>
       <ul><li>Lasted <b class="num">${h.days}</b> days</li><li>Reached the <b>${h.tier}</b> with <b class="num">${h.fame}</b> fame</li><li>Won <b class="num">${h.wins}</b> bouts</li></ul>
       <p>The house earns <b class="gold num">${R.earned}</b> legacy${D.points > R.earned ? `, and holds <b class="num">${D.points}</b> in all` : ''}.</p>
-      <div class="row"><button class="primary" data-act="ruinstep" data-v="1">Send for your heir</button></div>`;
+      <div class="row"><button class="primary" data-act="ruinstep" data-v="${G.roster.length ? 1 : R.offers.length ? 2 : 3}">Send for your heir</button></div>`;      // with nobody left to smuggle out, that step is passed over
   }
   if (R.step === 1) {
     const men = G.roster.map(g => `<p><button class="${R.fighter === g.id ? 'primary' : ''}" data-act="ruinpick" data-v="${g.id}">${g.name}</button>
@@ -3145,7 +3147,7 @@ function intro() {
       <li>Fame opens bigger arenas. At ${FINAL_FAME} fame, the Emperor sends for you.</li>
       <li>Between games, hire men out on <b>contracts</b>, arm them at the <b>Blacksmith</b>, hire staff under <b>Household</b> and win the favour of the powerful under <b>Patrons</b>.</li>
       <li>Tired or wounded men lose. Dead men stay dead.</li>
-      <li>Stay in debt for ${graceDays()} days and the creditors take the ludus. That is not the end: your heir starts again, with whatever the family managed to keep.</li>
+      <li>Stay in debt for ${graceDays()} days and the creditors take the ludus. That is not the end: your heir starts again, with whatever the family managed to keep. The same happens if you lose every man and cannot afford another.</li>
     </ul>
     <p class="dim" style="font-size:13px">Your steward can walk you through the first week (about five minutes), and afterwards speak up only when something new happens. You can dismiss him at any time, and call him back from the Chronicle.</p>
     <div class="row"><button class="primary" data-act="tutstart">Show me the ropes</button><button data-act="close">I know the trade</button></div>`);

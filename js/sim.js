@@ -19,7 +19,7 @@ const CURRENT_KEY = 'ludus-magnus-current';
 const slotKey = n => 'ludus-magnus-slot-' + n;
 let slot = 1;
 
-// The house is finished when the cells are empty and no man on the block can be paid for. A block with nobody on it is
+// The house falls when the cells are empty and no man on the block can be paid for (it passes to an heir: see beginRuin). A block with nobody on it is
 // not that: the dealer brings more on the next games day, and a full purse will buy them.
 const houseEmpty = () => !G.roster.length && G.market.length > 0 && G.denarii < Math.min(...G.market.map(m => m.price));
 function save() {
@@ -511,7 +511,7 @@ function migrate() {
   if (!G.armoury) G.armoury = [];
   if (!G.dynasty) G.dynasty = newDynasty();
   if (!G.tally) G.tally = { wins: G.roster.reduce((n, g) => n + g.wins, 0), losses: 0 };
-  if (G.over === 'debt') { G.over = false; if (!G.ruin) beginRuin(); }       // an old save that ended in debt now passes to an heir
+  if (G.over === 'debt' || G.over === 'empty') { const why = G.over; G.over = false; if (!G.ruin) beginRuin(why); }       // an old save that ended in debt, or with its cells empty, now passes to an heir
   // saves from before the blacksmith: turn each fighter's old weapon and armour level into real pieces
   G.roster.concat(G.market).forEach(g => {
     if (g.gear) return;
@@ -668,15 +668,18 @@ function rollBoons(score) {
   return out;
 }
 
-// The creditors take the ludus. The game pauses on the succession until an heir is named.
-function beginRuin() {
+// The house falls: the creditors take a ludus that stays in debt, and one with empty cells and a purse that cannot fill
+// them is shut up ('empty'). Either way the game pauses on the succession until an heir is named. (An empty school
+// used to be the end of the campaign, the only one there was: about 7 careful campaigns in 100 stopped dead there.)
+function beginRuin(why) {
   if (G.ruin) return;
+  const empty = why === 'empty';
   const D = G.dynasty, earned = legacyScore();
   D.points += earned;
   D.history.push({ gen: D.gen, days: G.day, fame: G.fame, wins: G.tally.wins, tier: TIERS[tier()].name, earned });
-  G.ruin = { step: 0, earned, offers: rollBoons(earned), fighter: null, boon: null };
+  G.ruin = { step: 0, earned, offers: rollBoons(earned), fighter: null, boon: null, why: empty ? 'empty' : 'debt' };
   G.pendingEvent = null; G.eventQueue = [];
-  log('The creditors come with soldiers and take the ludus, the men and the keys.', 'bad');
+  log(empty ? 'The cells are empty and the purse cannot fill them. The gates are chained shut, and the house passes to an heir.' : 'The creditors come with soldiers and take the ludus, the men and the keys.', 'bad');
 }
 function ruinFighter(id) { if (G.ruin) G.ruin.fighter = id && byId(id) ? +id : null; }
 function ruinBoon(id) { if (G.ruin && G.ruin.offers.includes(id)) G.ruin.boon = id; }
@@ -2214,9 +2217,9 @@ function endDay() {
   }
   if (G.day > 1 && G.day % MONTH === 1) log(arenaShut() ? `The games are over for the month. The arena is shut, and opens again in ${MONTH} days: a month for training, for work, and for the road.` : 'The arena opens again today: a month of games, every fifth day.', 'gold');
 
-  if (houseEmpty()) G.over = 'empty';
+  if (houseEmpty()) beginRuin('empty');
   if (!G.over && !G.ruin) jobsTick();
-  if (!G.over && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
+  if (!G.over && !G.ruin && !isGamesDay() && !G.field && chance(0.22)) rollEvent();
   if (!G.over && !G.ruin) checkDeeds();
   doctoreRound();
   if (isMarketDay()) backupSlot();
@@ -2384,7 +2387,7 @@ function applyBoutResult(bout, B, wager, pay, kind) {
     if (!B.decision) setRecord('quick', Math.round(B.time * 10) / 10, who, bout.house, false);
   }
   checkDeeds(lines);
-  if (houseEmpty()) G.over = 'empty';
+  if (houseEmpty()) beginRuin('empty');
   save();
   return { win, lines, purse, fameGain, wager, wagerGain, avgExc, sweep, kind: kind || 'win' };
 }

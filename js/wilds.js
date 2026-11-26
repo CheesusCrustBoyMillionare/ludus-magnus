@@ -846,8 +846,8 @@ function applyWildResult(B) {
   }
   const day = F.day;
   G.field.fight = null;
-  if (houseEmpty()) G.over = 'empty';
-  if (day && !G.over) fieldDay('march');
+  if (houseEmpty()) beginRuin('empty');
+  if (day && !G.over && !G.ruin) fieldDay('march');
   save();
   return { win, lines };
 }

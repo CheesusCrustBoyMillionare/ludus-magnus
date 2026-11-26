@@ -101,6 +101,14 @@ test('page is stamped: every script and stylesheet address carries its current f
   return (r.stdout.match(/build \w+/) || [''])[0];
 });
 
+test('no dead end: nothing in the rules ends a campaign but the Emperor\'s Games', () => {
+  // A house that falls, in debt or with its cells empty, passes to an heir (beginRuin). G.over was how a campaign used
+  // to stop for good; it is still read, for an old save's sake, and nothing must set it.
+  for (const f of ['sim', 'jobs', 'wilds', 'combat', 'abilities', 'main']) assert(!/G\.over\s*=\s*['"]/.test(read('js/' + f + '.js')), f + '.js ends a campaign outright');
+  const empty = (read('js/sim.js') + read('js/wilds.js')).match(/if \(houseEmpty\(\)\) beginRuin\('empty'\);/g) || [];
+  assert(empty.length === 3, 'an empty school should fall to an heir in three places (the day\'s end, a bout, a fight on the road); found ' + empty.length);
+});
+
 test('interface wiring: every button, field and tooltip has a handler', () => {
   const main = read('js/main.js'), html = read('index.html');
   const used = (re, src) => [...new Set([...src.matchAll(re)].map(m => m[1]))];
@@ -1167,7 +1175,7 @@ test('dynasty: debt, ruin, succession and what the family keeps', () => game()(f
   const stats0 = Object.assign({}, champ.stats);
   endDay(); assert(G.debtDays === 1 && !G.ruin, 'day one of grace');
   endDay(); assert(G.debtDays === 2 && !G.ruin, 'day two of grace');
-  endDay(); assert(G.ruin && !G.over, 'on the third day the ludus falls, and the game goes on');
+  endDay(); assert(G.ruin && G.ruin.why === 'debt' && !G.over, 'on the third day the ludus falls, and the game goes on');
   const R = G.ruin, D = G.dynasty;
   assert(deedCount() >= 1 && R.earned === Math.floor(160 / 20) + 0 + 9 + 5 + deedCount() && D.points === R.earned && D.history.length === 1 && D.history[0].gen === 1, 'legacy is worked out from how far the house got');
   assert(R.offers.length === 3 && new Set(R.offers).size === 3 && R.offers.every(b => BOONS[b]), 'three different boons are offered');
@@ -1209,9 +1217,17 @@ test('dynasty: debt, ruin, succession and what the family keeps', () => game()(f
   // paying the debt off in time
   G = JSON.parse(snap); G.ruin = null; G.dynasty = newDynasty(); G.debtDays = 2; G.denarii = 1000; endDay();
   assert(G.debtDays === 0 && !G.ruin, 'climbing out of debt resets the count');
-  // losing every fighter with no money is still the end
-  newGame(); G.roster = []; G.denarii = 0; endDay();
-  assert(G.over === 'empty' && !G.ruin, 'an empty ludus with an empty purse still ends the campaign');
+  // losing every fighter with no money to buy another: the house is shut up, and that too passes to an heir
+  newGame(); G.fame = 60; G.tally.wins = 4; G.roster = []; G.denarii = 0; endDay();
+  assert(!G.over && G.ruin && G.ruin.why === 'empty' && G.ruin.earned >= 3 + 4 && G.dynasty.points === G.ruin.earned && G.dynasty.history.length === 1 && G.log.some(l => l.t.includes('chained shut')), 'an empty ludus with an empty purse falls, and is not the end');
+  ruinFighter(99); assert(G.ruin.fighter === null, 'there is nobody to smuggle out');
+  if (G.ruin.offers.length) ruinBoon(G.ruin.offers[0]);
+  assert(startHeir() && G.dynasty.gen === 2 && G.day === 1 && G.roster.length >= 2 && !G.ruin && !G.over && !badNumber(G), 'and the heir begins again with men of his own');
+  // empty cells with money for a man, or with nobody on the block, are not a fall
+  newGame(); G.roster = []; G.denarii = 5000; endDay(); assert(!G.ruin && !G.over, 'a purse that can fill the cells keeps the house');
+  // a save that had ended that way opens on the succession
+  newGame(); G.roster = []; G.denarii = 0; G.over = 'empty'; save(); G = null;
+  assert(load() && !G.over && G.ruin && G.ruin.why === 'empty', 'an old save that ended with empty cells passes to an heir when it is opened');
 }));
 
 test('equipment: blacksmith, armoury, and what the pieces do', () => game()(function () {
@@ -2416,9 +2432,11 @@ if (!quick) {
   });
 
   // The campaign is meant to be won by a careful player most times and not every time, and to be winnable, less
-  // often, by one who takes no contracts. Measured over some 1,600 campaigns each: the careful player wins about 87%, and
-  // the same player taking no contracts about 70% (a campaign not won by day 700 counts as lost). Before these limits
-  // were set the careful player won 199 of 200, and nothing here would have said so: there was a floor and no ceiling.
+  // often, by one who takes no contracts. Measured over 480 campaigns each: the careful player wins about 93%, and the
+  // same player taking no contracts about 74% (a campaign not won by day 700 counts as lost; since a school with empty
+  // cells passes to an heir, as one in debt does, that is the only way to lose one, and the figures are some five
+  // points higher than they were while an empty school was the end). Before these limits were set the careful player
+  // won 199 of 200, and nothing here would have said so: there was a floor and no ceiling.
   // A hundred and twenty campaigns of each are played, all at once, a process to every twenty. The limits are set
   // about three of chance's own steps (standard deviations) either side of what was measured, so that chance alone
   // crosses one of them about once in three hundred runs of the suite. They are wide: they catch a campaign that has
@@ -2437,8 +2455,8 @@ if (!quick) {
   test('a careful player usually wins the campaign, and not always', () => {
     assert(!campaignsError, campaignsError);
     const won = sum(careful, d => d.results.won), day = middle([].concat(...careful.map(d => d.winDays))), second = middle(careful.map(d => d.medianTierDay[0])), rate = sum(careful, d => d.winRate) / careful.length;
-    assert(won >= 92, `careful auto-player won only ${won} of ${N} campaigns; expected at least 92`);
-    assert(won <= 115, `careful auto-player won ${won} of ${N} campaigns; expected no more than 115: the campaign has grown too easy`);
+    assert(won >= 100, `careful auto-player won only ${won} of ${N} campaigns; expected at least 100`);
+    assert(won <= 118, `careful auto-player won ${won} of ${N} campaigns; expected no more than 118: the campaign has grown too easy`);
     assert(day >= 340 && day <= 600, 'median victory on day ' + day + '; allowed 340-600');
     assert(second <= 45, 'second arena reached on day ' + second + '; expected by day 45');
     assert(rate >= 0.5 && rate <= 0.85, 'bout win rate ' + rate.toFixed(2) + '; allowed 0.50-0.85');
@@ -2448,8 +2466,8 @@ if (!quick) {
   test('a player who takes no contracts can win, less often', () => {
     assert(!campaignsError, campaignsError);
     const won = sum(nowork, d => d.won), all = sum(careful, d => d.results.won);
-    assert(won >= 68, `without contracts only ${won} of ${N} campaigns were won; expected at least 68: a school should not need the work to live`);
-    assert(won <= 100, `without contracts ${won} of ${N} campaigns were won; expected no more than 100: the work should be worth taking`);
+    assert(won >= 74, `without contracts only ${won} of ${N} campaigns were won; expected at least 74: a school should not need the work to live`);
+    assert(won <= 104, `without contracts ${won} of ${N} campaigns were won; expected no more than 104: the work should be worth taking`);
     assert(won < all, `without contracts ${won} of ${N} campaigns were won, and with them ${all}: the work should help`);
     return `${won}/${N} campaigns won, against ${all} with contracts`;
   });
