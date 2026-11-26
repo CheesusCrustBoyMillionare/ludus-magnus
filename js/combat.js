@@ -2200,6 +2200,46 @@ function renderBackdrop(B) {
   return cv;
 }
 
+// Snow lying in the arena (a sheet of its own, laid over the backdrop by how much of it there is: see drawBattle). On
+// the seats and the steps of the bank, where nobody is sitting; along the rim, the awning, the roof of the box and
+// the top of the wall; and over the sand, drifted against the wall, blue in the wall's shade, and trodden thin in the
+// middle where the fighting is. It is laid under the banners, the blood and the men, which are drawn after it.
+function renderArenaSnow(B) {
+  const th = B.theme, cv = document.createElement('canvas'); cv.width = 428; cv.height = 240;
+  const ctx = cv.getContext('2d'), stone = !th.planks, hv = (x, y) => wildHash(x, y, 1660);
+  const S = (x, y, w, h, c) => { ctx.fillStyle = c || '#f7fafd'; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  // the rows of seats, and the stairs between them; then whoever sits there is taken out of it
+  for (let y = 23; y <= 65; y += 9) {
+    if (th.planks) S(0, y - 8, 428, 8, 'rgba(244,248,252,.45)');
+    for (let x = 0; x < 428; x += 2) { if (hv(x, y) < 0.86) S(x, y, 2, 1); if (hv(x, y + 1) < 0.3) S(x, y - 1, 2, 1, '#e3eaf3'); }
+  }
+  for (const a of ARENA_AISLES) { ctx.clearRect(a, 15, 9, 51); for (let y = 18; y < 58; y += th.planks ? 4 : 3) if (hv(a, y) < 0.6) S(a + 1 + (hv(y, a) < 0.5 ? 0 : 3), y, 4, 1, '#eef2f7'); }
+  ctx.globalCompositeOperation = 'destination-out'; for (const p of B.crowd) drawSpectator(ctx, p, 0); ctx.globalCompositeOperation = 'source-over';
+  // the rim: the lintel of the arcade, or the far hills and the rail of a pit; or the awning
+  if (!th.awning) {
+    if (stone) S(0, 0, 428, 1);
+    else { for (let x = 0; x < 428; x += 2) { const t = 4 + Math.round(Math.sin(x * 0.03) * 2 + Math.sin(x * 0.08 + 1) * 1.5); S(x, t, 2, 10 - t, 'rgba(244,248,252,.8)'); }
+      for (let x = 6; x < 428; x += 22) { ctx.clearRect(x, 3, 2, 9); S(x, 2, 2, 1); } ctx.clearRect(0, 6, 428, 1); for (let x = 0; x < 428; x += 2) if (hv(x, 5) < 0.7) S(x, 5, 2, 1); }
+    S(0, 9, 428, 2); for (let x = 0; x < 428; x++) if (hv(x, 11) < 0.4) S(x, 11, 1, 1, '#e3eaf3');
+  } else for (let x = 0; x < 428; x++) { S(x, 0, 1, 2 + Math.floor(hv(x, 0) * 2.2)); }
+  // the roof of the box
+  if (th.box) { S(170, 21, 88, 2); for (let x = 170; x < 258; x++) if (hv(x, 23) < 0.5) S(x, 23, 1, 1, '#e3eaf3'); }
+  else if (th.planks) S(188, 31, 52, 2);
+  else { S(187, 29, 54, 2); for (let x = 187; x < 241; x++) if (hv(x, 31) < 0.5) S(x, 31, 1, 1, '#e3eaf3'); }
+  // the top of the wall round the sand: on every point of a palisade, or along the coping
+  if (th.planks) for (let x = 4; x < 428; x += 10) { S(x + 4, 60, 3, 1); S(x + 3, 62, 1, 1, '#eef2f7'); S(x + 7, 62, 1, 1, '#eef2f7'); S(x + 8, 65, 5, 1, '#eef2f7'); }
+  else { S(0, 65, 428, 2); for (let x = 0; x < 428; x++) { const d = Math.floor(hv(x, 67) * 2.3); if (d) S(x, 67, 1, d, '#e3eaf3'); } }
+  // the sand
+  for (let y = 86; y < 240; y++) {
+    const sh = Math.max(0, Math.min(1, (y - 86) / 20)), c = 'rgb(' + Math.round(204 + 41 * sh) + ',' + Math.round(215 + 33 * sh) + ',' + Math.round(232 + 20 * sh) + ')';      // (blue in the shade of the wall, which lies across the near sand)
+    for (let x = 0; x < 428; x += 2) {
+      const dx = (x - 214) / 158, dy = (y - 166) / 60, r = dx * dx + dy * dy, lie = y < 89 ? 1 : r < 0.5 ? 0.16 : r < 1 ? 0.16 + (r - 0.5) / 0.5 * 0.74 : 0.9;
+      if (wildHash(x >> 1, y, 1661) < lie) S(x, y, 2, 1, wildHash(x >> 2, y >> 1, 1662) > 0.9 ? '#dbe4f0' : c);
+    }
+  }
+  return cv;
+}
+
 // ---------- what an ability looks like ----------
 // Short-lived pictures laid over the fight: a burst under a man as he calls on an ability, the arc of a heavy
 // blow, a shockwave, the streak of a lunge, motes rising round a man who has steeled or mended himself.
@@ -2375,6 +2415,9 @@ function drawBattle(ctx, B) {
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
   if (uu > 0 && !B.wild) { ctx.fillStyle = shade(B.theme.sand, 0.95); ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); }      // more sand below the sand, for the little of it that shows either side of the choices
+  // snow lying, where snow would lie (renderArenaSnow): under the crowd's banners, the blood and the men
+  const lying = !B.wild && typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, (yardWeather(sceneClock()).white || 0) * 1.5) : 0;
+  if (lying > 0.03) { if (!B._snow) B._snow = renderArenaSnow(B); ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
 
   const dusk = B.light === 'dusk';
@@ -2414,7 +2457,7 @@ function drawBattle(ctx, B) {
     if (tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, 428, 240); ctx.globalCompositeOperation = 'source-over'; }
     if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.1 * wx.over).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
     if (wx.wet > 0) { ctx.fillStyle = `rgba(70,45,20,${(0.14 * wx.wet).toFixed(3)})`; ctx.fillRect(0, 86, 428, 154); }
-    sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * 0.7); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
+    sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * (B.wild ? 0.7 : 0.16)); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
   }
   if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
   for (const x of B.wild ? [] : ARENA_TORCHES) {

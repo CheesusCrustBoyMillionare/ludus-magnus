@@ -17,6 +17,33 @@ const PLACE_TIPS = {
   chronicle: 'The record house. The shelves fill as your chronicle grows. The urns are your dead, the busts are your family line, and the wreaths are the festival crowns the house has won.',
 };
 
+// Snow on the top of whatever stands in a place. A place is painted afresh at every frame, by a painter of its own,
+// and none of them knows anything of snow; so the picture itself is looked at. It is looked at twice, a moment apart,
+// a dot of it to each of the picture's own dots, down as far as the ground: whatever is the same both times is
+// standing still (not a flag, nor smoke, nor anybody walking). Of that, whatever has the open sky directly over it
+// is a top, and takes snow; and so do the upper courses of a tiled roof or an awning, wherever they are. It is found
+// once for a place on a given day, and kept (placeCaps), and until it is found nothing is laid.
+let placeCaps = null;
+function placeSnowCaps(layer, key, T) {
+  let P = placeCaps; if (!P || P.key !== key) P = placeCaps = { key, was: null, at: 0, sheet: null };
+  if (P.sheet) return P.sheet;
+  if (P.was && T - P.at < 1.2 && T >= P.at) return null;
+  const W = 590, H = 119, look = Object.assign(document.createElement('canvas'), { width: W, height: H }), lc = look.getContext('2d', { willReadFrequently: true });
+  lc.imageSmoothingEnabled = false; lc.drawImage(layer, 0, 0, layer.width, Math.round(layer.height * H / 190), 0, 0, W, H);
+  const B = lc.getImageData(0, 0, W, H).data;
+  if (!P.was || T < P.at) { P.was = B; P.at = T; return null; }
+  const A = P.was, same = i => A[i + 3] > 250 && B[i + 3] > 250 && A[i] === B[i] && A[i + 1] === B[i + 1] && A[i + 2] === B[i + 2], open = i => A[i + 3] < 40 && B[i + 3] < 40;
+  const tile = i => { const r = A[i], g = A[i + 1], b = A[i + 2]; return r > 140 && r < 236 && r > g * 1.6 && g > b * 1.12; };
+  const sheet = Object.assign(document.createElement('canvas'), { width: W, height: H }), sc = sheet.getContext('2d'), img = sc.createImageData(W, H), D = img.data;
+  const put = (i, r, g, b, a) => { D[i] = r; D[i + 1] = g; D[i + 2] = b; D[i + 3] = a; };
+  for (let y = 1; y < H - 1; y++) for (let x = 3; x < W - 3; x++) {
+    const i = (y * W + x) * 4; if (!same(i)) continue;
+    if (open(i - W * 4)) { put(i, 252, 253, 255, 245); if (same(i + W * 4) && wildHash(x, y, 1670) < 0.6) put(i + W * 4, 228, 235, 244, 215); }
+    else if (tile(i) && same(i - 12) && tile(i - 12) && same(i + 12) && tile(i + 12) && y >= 3 && !(same(i - W * 12) && tile(i - W * 12)) && wildHash(x, y, 1671) < 0.86) { if (!D[i + 3]) put(i, 244, 247, 251, 235); }
+  }
+  sc.putImageData(img, 0, 0); P.was = null;
+  return (P.sheet = sheet);
+}
 function drawPlace(cv, T, tab) {
   const S = cv.width / 590, main = cv.getContext('2d'), scene = PLACE_SCENES[tab];
   if (!placeLayer || placeLayer.width !== cv.width) {
@@ -27,6 +54,7 @@ function drawPlace(cv, T, tab) {
   let ctx = main;
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   const sky = yardSky(T), wx = yardWeather(T), late = [], lamps = [], fires = [], shafts = [];
+  const snowK = scene.indoor ? 0 : Math.min(1, (wx.white || 0) * 1.5);      // snow lying out of doors: on the ground (see paving, below), on the hills, and on the top of whatever stands there (placeSnowCaps)
   if (wx.over > 0) {
     const grey = mixHex('#8d98a3', '#1a2030', sky.night);
     sky.bands = sky.bands.map(c => mixHex(c, grey, wx.over * 0.8));
@@ -82,6 +110,7 @@ function drawPlace(cv, T, tab) {
       if (SE >= 2) for (let i = 0; i < 40; i++) { const wx2 = (i * 131 + 17) % 586, tall = i % 5 === 0, wc = SE === 2 ? '#8a7a3a' : '#7a745a'; R(wx2, y - (tall ? 3 : 1), 1, tall ? 4 : 2, wc); R(wx2 + 1, y - 1, 1, 2, shade(wc, 1.2)); if (tall) R(wx2, y - 4, 1, 1, shade(wc, 0.8)); }      // gone brown in autumn, and to stubble in winter
       sceneLitter(ctx, T, y, SE);
       for (let i = 0; i < 14; i++) { const wx2 = (i * 211 + 60) % 580, wy = y + 12 + (i * 37) % Math.max(6, 170 - y); R(wx2, wy, 1, 2, '#6f8a4a'); R(wx2 + 1, wy + 1, 1, 1, '#84a05a'); }                                                                              // and coming up between the stones
+      yardSnow(ctx, R, y, 190 - y, snowK);      // and snow over it, when snow is lying: drifted at the foot of the wall, trodden along the way people go
     },
     // PASS 25. the floor of a room: stone flags, boards or tiles, laid so that they widen toward you
     floor: (y, c, d, kind) => {
@@ -114,10 +143,12 @@ function drawPlace(cv, T, tab) {
   };
   if (!scene.indoor) {                          // the country beyond the town: two ranges of hills, cypresses, a roof or two
     sceneHills(ctx, 100, sky, 28, 2 + tab.length, T);
+    if (snowK > 0.03) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(240,245,251,' + (0.5 * snowK).toFixed(3) + ')'; ctx.fillRect(0, 0, 590, 124); ctx.globalCompositeOperation = 'source-over'; }      // snow on the hills: laid on what has been painted here so far, which is the hills and nothing else
     sceneTown(ctx, 122, tab.length, T);
     for (const [cx, ch] of [[18, 34], [44, 26], [556, 30], [578, 38], [300, 22]]) E.cypress(cx, 122, ch);
   }
   scene.draw(E);
+  if (snowK > 0.03) { const caps = placeSnowCaps(placeLayer, [tab, cv.width, G.day, typeof tier === 'function' ? tier() : 0].join(), T); if (caps) { ctx.globalAlpha = snowK; ctx.drawImage(caps, 0, 0, 590, caps.height); ctx.globalAlpha = 1; } }
   // and the master of the house, if he has come in. He is drawn where he stands in the depth of the picture: over
   // whoever is further off, under whoever is nearer; and after the dog, the children and the pigeons that go along the
   // foot of it only if he is nearer than they are.
@@ -181,7 +212,7 @@ function drawPlace(cv, T, tab) {
       if (day > 0.15) for (let q = 0; q < 9; q++) { const u = (q * 0.37 + 0.1) % 1, v = (T * (0.02 + (q % 3) * 0.008) + q * 0.19) % 1, ax = pts[0][0] + (pts[1][0] - pts[0][0]) * u, ay = pts[0][1] + (pts[1][1] - pts[0][1]) * u, bx = pts[3][0] + (pts[2][0] - pts[3][0]) * u, by = pts[3][1] + (pts[2][1] - pts[3][1]) * u; ctx.fillStyle = `rgba(255,248,220,${(0.5 * day * Math.sin(v * Math.PI)).toFixed(3)})`; ctx.fillRect(Math.round(ax + (bx - ax) * v + Math.sin(T + q) * 2), Math.round(ay + (by - ay) * v), 1, 1); }      // dust, seen only where the light is
     }
   }
-  if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneWhite(ctx, 590, 122, 68, wx.white); sceneRain(ctx, 590, 190, T, wx.rain); sceneSnow(ctx, 590, 190, T, wx.snow); sceneStorm(ctx, 590, 190, T, wx); sceneAir(ctx, T, sky, wx, 128, true); sceneWet(ctx, T, sky, wx, 128, lamps, [], true); }
+  if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneWhite(ctx, 590, 122, 68, wx.white * 0.2); sceneRain(ctx, 590, 190, T, wx.rain); sceneSnow(ctx, 590, 190, T, wx.snow); sceneStorm(ctx, 590, 190, T, wx); sceneAir(ctx, T, sky, wx, 128, true); sceneWet(ctx, T, sky, wx, 128, lamps, [], true); }
   if (!scene.indoor && tab !== 'arena' && E.games) sceneBunting(ctx, T, 40, 550, 44, wx);
   if (!scene.indoor) sceneGrade(ctx, sky, wx);
   late.forEach(f => f());

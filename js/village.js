@@ -329,6 +329,7 @@ function villageLayer() {
     else { R(ox - 2, oy - 4, 1, 1, '#c23b2e'); R(ox + 2, oy - 6, 1, 1, '#c23b2e'); R(ox + 1, oy - 3, 1, 1, '#e3b04a'); } }
   for (let i = 0; i < 3; i++) { const bx = 328 + i * 8; R(bx, 177, 5, 6, '#d9c070'); R(bx, 177, 5, 1, '#e6d088'); R(bx, 179, 5, 1, '#b89a4a'); R(bx, 181, 5, 1, '#b89a4a'); R(bx + 2, 182, 1, 1, '#3a2a1c'); }
   ell(381, 178, 16, 5, '#5f7f3f'); ell(381, 177, 15, 4, '#4f8fb8'); ell(379, 176, 11, 2, '#6fa8cc');
+  if (SE === 3) { ell(381, 177, 15, 4, '#c6d9e6'); ell(379, 176, 11, 2, '#dde9f1'); R(372, 178, 6, 1, '#a9c3d6'); R(385, 176, 5, 1, '#eef5f9'); R(389, 179, 4, 1, '#a9c3d6'); R(376, 175, 3, 1, '#f6fafc'); }      // in winter it is frozen over: grey ice, a crack or two, and where the light lies on it
   for (const [rx, ry] of [[366, 176], [369, 180], [395, 175], [392, 181]]) { R(rx, ry - 4, 1, 5, '#6f8a3a'); R(rx + 1, ry - 3, 1, 4, '#8aa64a'); R(rx, ry - 5, 1, 1, '#7a5a2a'); }
   // the two streets and the lanes between them
   const road = (x, y, w, h) => { R(x, y, w, h, '#cdae78'); for (let i = 0; i < w * h / 26; i++) R(x + rnd(i + x, w - 2), y + rnd(i + y + 7, h - 1), 2, 1, i % 2 ? '#bf9f6a' : '#d9bd8a'); };
@@ -351,7 +352,7 @@ function villageLayer() {
   R(254, 92, 92, 60, '#b9b29c');
   for (let y = 92; y < 150; y += 7) for (let x = 254 + (((y - 92) / 7) % 2 ? 0 : 5); x < 346; x += 10) { R(x, y, Math.min(9, 346 - x), 6, (x + y) % 3 ? '#c9c3ae' : '#d4cfbc'); }
   R(254, 92, 92, 1, '#8f8872'); R(254, 151, 92, 1, '#8f8872');
-  ell(296, 121, 11, 8, 'rgba(0,0,0,.25)'); ell(296, 119, 11, 8, '#a39d8a'); ell(296, 119, 9, 6, '#5d9ac2'); ell(296, 118, 7, 4, '#7fb6d8'); R(294, 112, 4, 8, '#bdb7a3'); R(293, 111, 6, 2, '#d4cfbc');
+  ell(296, 121, 11, 8, 'rgba(0,0,0,.25)'); ell(296, 119, 11, 8, '#a39d8a'); ell(296, 119, 9, 6, '#5d9ac2'); ell(296, 118, 7, 4, '#7fb6d8'); if (SE === 3) { ell(296, 119, 9, 6, '#c6d9e6'); ell(296, 118, 7, 4, '#dde9f1'); R(289, 121, 5, 1, '#a9c3d6'); R(299, 116, 4, 1, '#f6fafc'); } R(294, 112, 4, 8, '#bdb7a3'); R(293, 111, 6, 2, '#d4cfbc'); if (SE === 3) { R(295, 108, 2, 4, '#e8f1f6'); R(294, 112, 1, 3, '#e8f1f6'); R(297, 112, 1, 2, '#e8f1f6'); }      // (and the fountain with it in winter: its basin ice, and an icicle where the water came out)
   // the square: a statue of some forgotten magistrate, and benches to argue on
   R(291, 104, 10, 4, '#a39d8a'); R(292, 103, 8, 1, '#d4cfbc'); R(294, 95, 4, 8, '#c9c3ae'); R(294, 92, 4, 3, '#d9d2bd'); R(293, 96, 1, 5, '#b5af9b'); R(298, 97, 2, 1, '#c9c3ae');
   if (TS >= 3) { R(294, 95, 4, 8, '#e8b545'); R(294, 92, 4, 3, '#f5d584'); R(293, 96, 1, 5, '#b6832c'); R(298, 97, 2, 1, '#e8b545'); }
@@ -699,21 +700,22 @@ function drawVillage(cv, T) {
   if (wx.wet > 0) { R(0, 0, 590, 190, `rgba(40,45,60,${(0.13 * wx.wet).toFixed(3)})`); for (let i = 0; i < 9; i++) { const px = (i * 67 + 20) % 560, py = i % 2 ? 80 + (i * 3) % 8 : 156 + (i * 5) % 8, w = Math.round((8 + (i % 3) * 4) * wx.wet); if (w > 3) { R(px, py, w, 2, 'rgba(160,190,215,.55)'); R(px + 1, py + 2, w - 2, 1, 'rgba(160,190,215,.4)'); } } }
 
   // the pond: two ducks about their business, and a ring where one has just dabbled
+  const iced = (typeof seasonNo === 'function' ? seasonNo(G.day) : 0) === 3;      // (in winter the pond and the fountain are frozen: see villageLayer. The ducks stand about on the ice, and no water moves.)
   for (let i = 0; i < 2; i++) {
-    const a = T * 0.22 + i * 3.3, dx = 381 + Math.cos(a) * (9 - i * 3), dy = 177 + Math.sin(a) * 2.5, fwd = -Math.sin(a) > 0 ? 1 : -1, still = night > 0.6;
+    const a = T * 0.22 + i * 3.3, dx = 381 + Math.cos(a) * (9 - i * 3), dy = 177 + Math.sin(a) * 2.5, fwd = -Math.sin(a) > 0 ? 1 : -1, still = night > 0.6 || iced;
     const px = still ? 372 + i * 6 : dx, py = still ? 177 : dy;
     R(px - 2, py - 1, 4, 2, i ? '#8a6a4a' : '#f1ead8'); R(px + (fwd > 0 ? 2 : -3), py - 2, 2, 2, i ? '#3f6a4a' : '#f1ead8'); R(px + (fwd > 0 ? 4 : -4), py - 1, 1, 1, '#e3b04a');
     if (!still) { ctx.globalAlpha = 0.5; R(px - fwd * 4, py, 2, 1, '#bfe0f4'); R(px - fwd * 6, py + 1, 2, 1, '#bfe0f4'); ctx.globalAlpha = 1; }
   }
-  { const q = (T * 0.25) % 1; ctx.globalAlpha = 0.6 * (1 - q); R(388 - q * 4, 178, 2 + Math.round(q * 8), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
+  if (!iced) { const q = (T * 0.25) % 1; ctx.globalAlpha = 0.6 * (1 - q); R(388 - q * 4, 178, 2 + Math.round(q * 8), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
   // what you have built, alive: the flame on your shrine, steam off the bath, the school's flag
   { const F2 = G.fac || {}, lu = placeOf('ludus');
     if ((F2.shrine | 0) >= 1) { const fl2 = Math.sin(T * 11) > 0 ? 1 : 0; R(474, 61 - fl2 - ((F2.shrine | 0) > 1 ? 2 : -1), 2, 2 + fl2, '#f5c04a'); if (night > 0.3) sceneGlow(ctx, 475, 62, 10, '255,170,80', 0.3 * Math.min(1, (night - 0.3) * 2.5)); }
     if ((F2.baths | 0) >= 2 && night < 0.7) for (let q = 0; q < 2; q++) { const p2 = (T * 0.3 + q / 2) % 1; ctx.globalAlpha = 0.4 * (1 - p2); R(lu.x + lu.w - 26 + q * 4 + Math.sin(p2 * 5) * 2, lu.y + 20 - p2 * 9, 3, 2, '#eef6f8'); } ctx.globalAlpha = 1;
   }
   // what moves on the buildings: water, smoke, the forge fire, flags
-  for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.6; R(296 + Math.cos(a) * 5, 118 + Math.sin(a) * 3, 2, 1, '#d6ecf8'); }
-  R(295, 109 - Math.abs(Math.sin(T * 3)) * 2, 2, 3, '#bfe0f4');
+  if (!iced) { for (let i = 0; i < 4; i++) { const a = T * 2 + i * 1.6; R(296 + Math.cos(a) * 5, 118 + Math.sin(a) * 3, 2, 1, '#d6ecf8'); }
+    R(295, 109 - Math.abs(Math.sin(T * 3)) * 2, 2, 3, '#bfe0f4'); }
   const f = placeOf('smith'), glow = 0.55 + 0.45 * Math.sin(T * 7);
   // the forge fire, seen through the open door at the back of the dark shop: a bed of coals, and flames standing on it
   { const fx = f.dx, fy = f.y + 45;
@@ -925,7 +927,7 @@ function drawVillage(cv, T) {
       if (away) { const k = (cyc - 0.86) / 0.14; R(sx + k * 30, sy - k * 16, 2, 1, '#5a4a3a'); R(sx + k * 30 - 1, sy - k * 16 - (Math.sin(T * 20) > 0 ? 1 : 0), 1, 1, '#5a4a3a'); }
       else { R(sx, sy - hop, 2, 2, '#6a5a48'); R(sx + (q ? 2 : -1), sy - hop, 1, 1, '#4a3a2c'); R(sx, sy + 1 - hop, 1, 1, '#c8b898'); } }
   });
-  for (let i = 0; i < 4; i++) if (Math.sin(T * 2.6 + i * 1.9) > 0.75) R(372 + i * 6, 176 + (i % 2) * 2, 1, 1, '#ffffff');      // the sun on the pond
+  if (!iced) for (let i = 0; i < 4; i++) if (Math.sin(T * 2.6 + i * 1.9) > 0.75) R(372 + i * 6, 176 + (i % 2) * 2, 1, 1, '#ffffff');      // the sun on the pond
   if (wx.rain > 0.05) for (let i = 0, n = Math.round(26 * wx.rain); i < n; i++) { const k = Math.floor(T * 8) + i * 17, sx = (k * 73) % 580 + 4, sy = (i % 2 ? 76 : 154) + (k * 29) % 14, rp = (T * 8) % 1; ctx.globalAlpha = 0.6 * (1 - rp); R(sx - rp * 2, sy, 2 + Math.round(rp * 4), 1, '#d6ecf8'); ctx.globalAlpha = 1; }
   // PASS 27. the shadows lengthen and swing with the sun: laid over the ones painted on the map
   if (typeof sceneLow !== 'undefined' && night < 0.6) {
