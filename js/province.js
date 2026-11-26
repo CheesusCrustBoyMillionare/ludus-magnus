@@ -623,7 +623,17 @@ function* provLandSteps(fresh) {
     for (let i = 0; i < TW * TH; i++) { const k = L.t[i], ax = i % TW, ay = (i - ax) / TW; wetV[i] = k === T_WATER || k === T_BRIDGE ? 1 : 0; mereV[i] = k === T_MARSH && ax >= 30 && zq(wildNoise(ax / 7, ay / 7, 1040), 6) === 0 && h(ax, ay, 1041) < 0.7 && wildRegion(ax * 10 + 5, ay * 10 + 5) !== 'The Salt Shore' ? 1 : 0; }      // (a pool of the marsh: as the marsh itself has it, above)
     const wv = (ax, ay) => wetV[clT(ay, TH) * TW + clT(ax, TW)];
     const lieOf = wv => (px, py) => {      // more than nothing: water
-      const u = px / 10 - 0.5 + (wildNoise(px / 34, py / 34, 1901) - 0.5) * 0.62 + (wildNoise(px / 7, py / 7, 1903) - 0.5) * 0.22, v = py / 10 - 0.5 + (wildNoise(px / 34, py / 34, 1902) - 0.5) * 0.62 + (wildNoise(px / 7, py / 7, 1904) - 0.5) * 0.22;
+      // (It is carried aside by three swings together, a long one, a middling one and a short. They were two, and small:
+      // the line was seldom more than a dot and a half from where the tiles had it, and a straight reach of coast, fifty
+      // paces of it on the Salt Shore, stayed as good as ruled. They are larger now, two or three dots as a rule, and held
+      // in as they grow: however the three fall together the line is never carried more than 0.37 of a tile, whichever
+      // way. That is the most it can be for the middle of a tile never to come out on the wrong side of the line, even
+      // at a corner with water on three sides of it; so nobody stands further into the water than its edge.)
+      const wu = (wildNoise(px / 34, py / 34, 1901) - 0.5) * 0.88 + (wildNoise(px / 15, py / 15, 1905) - 0.5) * 0.64 + (wildNoise(px / 7, py / 7, 1903) - 0.5) * 0.32, wv2 = (wildNoise(px / 34, py / 34, 1902) - 0.5) * 0.88 + (wildNoise(px / 15, py / 15, 1906) - 0.5) * 0.64 + (wildNoise(px / 7, py / 7, 1904) - 0.5) * 0.32;
+      // (And a fourth, which is not left to chance: a slow swell along the shore, some fifty paces from crest to crest, so
+      // that where the other three all happen to lie flat together a straight reach still goes in and out.)
+      const su = wu + 0.24 * Math.sin(py / 8 + px * 0.045), sv = wv2 + 0.24 * Math.sin(px / 8 + py * 0.045 + 2);      // (its crests lie a little aslant, so that they do not run in rows)
+      const far = Math.hypot(su, sv), held = far > 1e-6 ? 0.37 * Math.tanh(far / 0.3) / far : 1, u = px / 10 - 0.5 + su * held, v = py / 10 - 0.5 + sv * held;
       const x0 = Math.floor(u), y0 = Math.floor(v), fu = u - x0, fv = v - y0;
       return (wv(x0, y0) * (1 - fu) + wv(x0 + 1, y0) * fu) * (1 - fv) + (wv(x0, y0 + 1) * (1 - fu) + wv(x0 + 1, y0 + 1) * fu) * fv - 0.46;
     };
@@ -795,6 +805,12 @@ function* provLandSteps(fresh) {
         R(mx0 + mw - 2, y + 6, 2, 2, '#9c9278');
       }
     } else if (reg === 'The Salt Shore' && k === T_SAND) {
+      // (Whatever lies on this beach was set at the same corner of its tile, and down a straight shore it stood in a rank.
+      // Each is moved a little, its own way: toward the land where the sea is beside it, and not into the water.)
+      const seaW = wet(at(tx - 1, ty)), seaE = wet(at(tx + 1, ty)), seaN = wet(at(tx, ty - 1)), seaS = wet(at(tx, ty + 1));
+      let jx = Math.floor(h(tx, ty, 466) * 7) - 3, jy = Math.floor(h(tx, ty, 467) * 5) - 2;
+      if (seaW && jx < 0) jx = -jx; if (seaE && jx > 0) jx = -jx; if (seaW && seaE) jx = 0; if (seaN && jy < 0) jy = -jy; if (seaS && jy > 0) jy = -jy; if (seaN && seaS) jy = 0;
+      ((x, y) => {      // (the beach, drawn from where it has been moved to)
       if (a > 0.9) {                           // salt pans: a single pan, or a run of them
         const cols = 1 + Math.floor(v1 * 2), rows = 1 + Math.floor(v2 * 2), pw = Math.floor(8 / cols), ph = Math.floor(6 / rows);
         R(x + 1, y + 2, 8, 6, '#a39a7a');
@@ -804,6 +820,7 @@ function* provLandSteps(fresh) {
       else if (a > 0.86) { const rl = 4 + Math.floor(b * 4), rx0 = x + 1; sh(rx0, y + 8, rl + 1); R(rx0, y + 3, 1, 5, '#6b4f2c'); R(rx0 + rl, y + 3, 1, 5, '#6b4f2c'); R(rx0, y + 3, rl + 1, 1, '#6b4f2c'); for (let q = 1; q < rl; q += 2) R(rx0 + q, y + 4, 1, 2 + Math.floor(h(tx + q, ty, 464) * 2), '#c9c3ae'); }      // fish drying on a rack
       else if (a > 0.83) { sh(x + 1, y + 8, 9); R(x + 1, y + 5, 8, 3, v1 > 0.5 ? '#7a5a34' : '#5e6a7a'); R(x + 2, y + 4, 6, 1, v1 > 0.5 ? '#94703f' : '#7a8696'); R(x + 1, y + 7, 8, 1, '#3a2a1c'); }      // a boat turned over above the tide
       else if (a > 0.81) { R(x + 1, y + 2, 1, 7, '#6b4f2c'); R(x + 8, y + 2, 1, 7, '#6b4f2c'); for (let q = 0; q < 4; q++) R(x + 2, y + 3 + q, 6, 1, q % 2 ? '#a39a84' : 'rgba(163,154,132,.5)'); }      // a net between two poles
+      })(x + jx, y + jy);
     } else if (reg === 'The Long Meadows' && (k === T_MEADOW || k === T_GRASS) && !farmland(tx, ty)) {
       if (a > 0.972) { const w = 4 + Math.floor(b * 3), hh = 3 + Math.floor(v1 * 3), hx = x + 2; sh(hx - 1, y + 8, w + 2); R(hx, y + 8 - hh, w, hh, '#d9c070'); R(hx + 1, y + 7 - hh, w - 2, 1, '#e6d088'); R(hx, y + 7, w, 1, '#b89a4a'); if (v2 > 0.6) R(hx + (w >> 1), y + 5 - hh, 1, 3, '#6b4f2c'); }      // a haycock, some round a pole
       else if (a > 0.94) herd('sheep', tx, ty, 3 + Math.floor(v1 * 5), [T_GRASS, T_MEADOW], 70);                       // a flock of sheep makes its home here
