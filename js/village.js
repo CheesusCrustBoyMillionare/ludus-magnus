@@ -257,23 +257,31 @@ function vilChild(ctx, X, Y, face, walk, tunic) {
 
 // ---------- drawing ----------
 
+// A step is four moments, not two: a foot forward and the other lifted behind it, the feet passing under him (and he
+// rises a little as they do), then the other foot forward, and the feet passing again. Seen from the side his legs
+// part and close; from in front or behind they lift by turns. Standing, he is still, but he blinks (given the time, t).
 function vilPerson(ctx, X, Y, o) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); };
-  const step = o.moving ? (Math.sin(o.walk) > 0 ? 1 : 0) : -1, f = o.face, skin = o.skin || '#d9a57c', hair = o.hair || '#3a2a1c', t = o.tunic, tD = shade(t, 0.72);
+  const f = o.face, skin = o.skin || '#d9a57c', hair = o.hair || '#3a2a1c', t = o.tunic, tD = shade(t, 0.72), side = f === 'left' || f === 'right', d = f === 'left' ? -1 : 1;
+  const ph = o.moving ? Math.floor((((o.walk % 6.2832) + 6.2832) % 6.2832) / 1.5708) & 3 : -1, up = ph === 1 || ph === 3 ? 1 : 0;      // which moment of the step; and whether he is risen
+  const B = (x, y, w, h, c) => R(x, y - up, w, h, c);                                                    // whatever of him is above the legs
   R(-3, -1, 7, 2, 'rgba(0,0,0,.28)');
-  R(-2, -4 + (step === 1 ? -1 : 0), 2, 3, skin); R(1, -4 + (step === 0 ? -1 : 0), 2, 3, skin);          // legs
-  R(-3, -10, 7, 6, t); R(-3, -10, 1, 6, tD); R(3, -10, 1, 6, tD);                                       // body
-  if (o.stripe) { R(f === 'left' ? -1 : 1, -10, 1, 6, o.stripe); }
-  else R(-3, -6, 7, 1, tD);
-  if (f === 'left' || f === 'right') R(f === 'left' ? -4 : 4, -9 + (step === 1 ? 1 : 0), 1, 3, skin); else { R(-4, -9, 1, 3, skin); R(4, -9, 1, 3, skin); }   // arms
-  R(-2, -14, 5, 4, skin); R(-2, -15, 5, 2, hair);                                                       // head
-  if (f === 'up') R(-2, -14, 5, 3, hair);
-  else if (f === 'down') { R(-1, -12, 1, 1, '#1c1310'); R(1, -12, 1, 1, '#1c1310'); }
-  else { R(f === 'left' ? -2 : 2, -12, 1, 1, '#1c1310'); R(f === 'left' ? 2 : -2, -14, 1, 3, hair); }
-  if (o.laurel) { R(-2, -15, 5, 1, '#e3b04a'); }
+  if (ph < 0 || up) { R(-2, -4 - up, 2, 3 + up, skin); R(1, -4 - up, 2, 3 + up, skin); }                // legs: standing, or passing under him
+  else if (side) { const lead = ph === 0 ? d : -d; R(lead > 0 ? 2 : -3, -4, 2, 3, skin); R(lead > 0 ? -3 : 2, -5, 2, 3, skin); }      // one forward and planted, the other back and lifted
+  else { R(-2, ph === 0 ? -5 : -4, 2, 3, skin); R(1, ph === 2 ? -5 : -4, 2, 3, skin); }                 // lifted by turns
+  B(-3, -10, 7, 6, t); B(-3, -10, 1, 6, tD); B(3, -10, 1, 6, tD);                                       // body
+  if (o.stripe) { B(f === 'left' ? -1 : 1, -10, 1, 6, o.stripe); }
+  else B(-3, -6, 7, 1, tD);
+  if (side) B(f === 'left' ? -4 : 4, -9 + (ph === 0 ? 1 : 0), 1, 3, skin); else { B(-4, -9 + (ph === 0 ? 1 : 0), 1, 3, skin); B(4, -9 + (ph === 2 ? 1 : 0), 1, 3, skin); }   // arms, swinging
+  B(-2, -14, 5, 4, skin); B(-2, -15, 5, 2, hair);                                                       // head
+  const blink = o.t !== undefined && !o.moving && Math.sin(o.t * 0.83 + X * 0.37 + Y * 0.11) > 0.992;
+  if (f === 'up') B(-2, -14, 5, 3, hair);
+  else if (f === 'down') { if (!blink) { B(-1, -12, 1, 1, '#1c1310'); B(1, -12, 1, 1, '#1c1310'); } }
+  else { if (!blink) B(f === 'left' ? -2 : 2, -12, 1, 1, '#1c1310'); B(f === 'left' ? 2 : -2, -14, 1, 3, hair); }
+  if (o.laurel) { B(-2, -15, 5, 1, '#e3b04a'); }
   if (o.hood) {                                                                                         // a hood up against the weather, and the cloak's edge on the shoulders
-    R(-3, -16, 7, 2, o.hood); R(-3, -14, 1, 3, o.hood); R(3, -14, 1, 3, o.hood); R(-3, -10, 7, 1, o.hood);
-    if (f === 'up') R(-2, -14, 5, 4, o.hood); else if (f === 'left') R(1, -14, 2, 3, o.hood); else if (f === 'right') R(-2, -14, 2, 3, o.hood);
+    B(-3, -16, 7, 2, o.hood); B(-3, -14, 1, 3, o.hood); B(3, -14, 1, 3, o.hood); B(-3, -10, 7, 1, o.hood);
+    if (f === 'up') B(-2, -14, 5, 4, o.hood); else if (f === 'left') B(1, -14, 2, 3, o.hood); else if (f === 'right') B(-2, -14, 2, 3, o.hood);
   }
 }
 

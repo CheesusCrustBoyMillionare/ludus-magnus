@@ -534,7 +534,10 @@ function* provLandSteps(fresh, se) {
     else if (k === T_GRASS) {
       const f = farm(tx, ty);
       if (f) {                                 // a plot under one of seven crops
-        const c = crop(tx, ty), mid = tx % 4 === 2 && ty % 3 === 1, pl = h(Math.floor(tx / 4), Math.floor(ty / 3), 73);
+        // What a plot is under changes with the year: green corn in spring where the wheat and the barley will stand, and
+        // nothing in flower or fruit that is out of its season; the corn cut by autumn; and in winter the corn land, the
+        // flax, the beans and the gourds all turned over and lying fallow.
+        const PLOT_TURN = [{ 0: 1, 6: 1, 9: 1 }, null, { 1: 6, 4: 10 }, { 0: 2, 1: 2, 6: 2, 4: 2, 5: 2, 9: 2 }][se], c0 = crop(tx, ty), c = PLOT_TURN && PLOT_TURN[c0] !== undefined ? PLOT_TURN[c0] : c0, mid = tx % 4 === 2 && ty % 3 === 1, pl = h(Math.floor(tx / 4), Math.floor(ty / 3), 73);
         if (c === 0) { R(x, y, 10, 10, '#c9b25a'); for (let q = 1; q < 10; q += 3) R(x, y + q, 10, 1, '#b39a44'); if (a > 0.9) { R(x + 4, y + 3, 3, 4, '#e0c868'); R(x + 5, y + 2, 1, 1, '#e0c868'); R(x + 4, y + 7, 3, 1, '#8f7a30'); } }      // wheat, and a stook
         else if (c === 1) { R(x, y, 10, 10, '#8fae52'); for (let q = 1; q < 10; q += 3) R(x, y + q, 10, 1, '#7b9a44'); }                                    // green corn
         else if (c === 2) { R(x, y, 10, 10, '#8a6a44'); for (let q = 0; q < 10; q += 2) R(x, y + q, 10, 1, '#74583a'); if (a > 0.92) { R(x + 3, y + 4, 2, 1, '#1c1310'); R(x + 6, y + 6, 2, 1, '#1c1310'); R(x + 4, y + 3, 1, 1, '#1c1310'); } }      // fallow, and crows on it
@@ -1515,7 +1518,10 @@ function* provLandSteps(fresh, se) {
       const CROP = ['wheat', 'wheat', 'barley', 'stubble', 'plough', 'green', 'beans', 'ley'];
       const stand = [];                                      // what stands in the fields, set down after the crops
       rws.forEach(([y0, hh], ri) => cols.forEach(([x0, w], ci) => {
-        const pl = ci + ri * 53, crop = CROP[Math.floor(lmV(pl, 942 + sd) * CROP.length)], hz = lmV(pl, 943 + sd) > 0.45, tone = 0.95 + lmV(pl, 944 + sd) * 0.1;
+        // (and by the season: where wheat and barley stand in summer the corn is young and green in spring, cut to stubble by
+        // autumn, and ploughed in for the winter; and so with the rest)
+        const CROP_TURN = [{ wheat: 'green', barley: 'green', stubble: 'plough' }, null, { wheat: 'stubble', barley: 'stubble', green: 'plough' }, { wheat: 'plough', barley: 'plough', green: 'plough', beans: 'plough' }][se];
+        const pl = ci + ri * 53, crop0 = CROP[Math.floor(lmV(pl, 942 + sd) * CROP.length)], crop = (CROP_TURN && CROP_TURN[crop0]) || crop0, hz = lmV(pl, 943 + sd) > 0.45, tone = 0.95 + lmV(pl, 944 + sd) * 0.1;
         const hedgeN = lmV(pl, 945 + sd) > 0.5, hedgeW = lmV(pl, 946 + sd) > 0.6, T2 = c => tint(c, tone);
         let any = false;
         for (let ly = 0; ly < hh; ly++) for (let lx = 0; lx < w; lx++) {
@@ -2719,7 +2725,7 @@ function drawHerds(ctx, T, R, inView) {
     if ((K === 'sheep' || K === 'pigs' || K === 'geese') && hv(5) > 0.45 && H.n >= 4) {
       const sx = Math.round(cx - (vx >= 0 ? 16 : -16)), sy = Math.round(cy + 6), mv = Math.abs(vx) > 0.9;
       provAt(sx, sy, 6).lamp = abed ? 9 : 0;      // he watches by a lantern
-      vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', walk: T * 6, moving: mv, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14', hood: prov.rainy ? '#5a4a38' : null });
+      vilPerson(ctx, sx, sy, { face: vx >= 0 ? 'right' : 'left', t: T, walk: T * 6, moving: mv && !abed, tunic: ['#8a6a4a', '#6a5a3a', '#7a4a3a'][Math.floor(hv(6) * 3)], hair: hv(7) > 0.5 ? '#8a8a8a' : '#2a1c14', hood: prov.rainy ? '#5a4a38' : null });
       R(sx + (vx >= 0 ? 5 : -5), sy - 16, 1, 16, '#6b4f2c'); R(sx + (vx >= 0 ? 5 : -6), sy - 17, 2, 1, '#6b4f2c');      // his crook
       if (K === 'sheep' && hv(8) > 0.35) { const an = Th * 0.5 + hv(9) * 6, dx = Math.round(cx + Math.cos(an) * 15), dy = Math.round(cy + Math.sin(an) * 9), dr = -Math.sin(an) > 0; provAt(dx, dy, 5); R(dx - 2, dy + 1, 5, 1, 'rgba(0,0,0,.2)'); R(dx - 2, dy - 2, 4, 2, '#2a241e'); R(dr ? dx + 2 : dx - 3, dy - 3, 2, 2, '#2a241e'); R(dr ? dx - 3 : dx + 2, dy - 3, 1, 1, '#f1ead8'); R(dx - 2 + (Math.sin(T * 12) > 0 ? 1 : 0), dy, 1, 1, '#1c1614'); R(dx + 1, dy, 1, 1, '#1c1614'); }
     }
@@ -2869,7 +2875,7 @@ function drawTown(ctx, T, R, tx, ty, tr, night) {
 function drawMarks(ctx, T, R, inView, night, smoke, light) {
   const lit = night > 0.3, fl = Math.sin(T * 11) > 0 ? 1 : 0, glow = (gx, gy, r, c, a) => provGlow(light || ctx, gx, gy, r, c, a);
   const apart = (x, y, wide, draw) => { const back = provRec.here(); provAt(x, y, wide); draw(); if (back) provAt(back.x, back.y, back.wide, 'flat'); };      // one of them, and then the dressing goes on
-  const man = (mx, my, o) => apart(mx, my, 6, () => vilPerson(ctx, mx, my, Object.assign({ face: 'right', walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c', hood: prov.rainy ? '#5a4a38' : null }, o)));
+  const man = (mx, my, o) => apart(mx, my, 6, () => vilPerson(ctx, mx, my, Object.assign({ face: 'right', t: T, walk: T * 6, moving: true, tunic: '#8a6a4a', hair: '#3a2a1c', hood: prov.rainy ? '#5a4a38' : null }, o)));
   const pace = (x0, x1, sp, ph) => { const u = (T * sp + ph) % 2, f = u < 1 ? u : 2 - u; return { x: Math.round(x0 + (x1 - x0) * f), face: (u < 1) === (x1 > x0) ? 'right' : 'left' }; };
   // more that moves, and what is lit after dark, for the landmarks that had little of either
   const beast = (bx, by, c, d) => apart(bx + 2, by + 4, 5, () => { R(bx - 1, by + 3, 6, 1, 'rgba(0,0,0,.2)'); R(bx, by, 5, 3, c); R(d > 0 ? bx + 4 : bx - 2, by - 1 + (Math.sin(T * 1.7 + bx) > 0.3 ? 2 : 0), 3, 2, c); R(bx + 1, by + 3, 1, 1, '#2a1c14'); R(bx + 3, by + 3, 1, 1, '#2a1c14'); });
@@ -3329,7 +3335,7 @@ function drawTraffic(ctx, T, R, inView) {
       if (!gk) lead.lamp = 10;      // a lantern, for the road after dusk
       const face = C.face, d = C.dir, walk = T * 9 + j * 3, step = C.moving && Math.sin(walk) > 0 ? 1 : 0;
       const row = rowOf(ctx, d, face, C.along);
-      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
+      const man = (ox, oy, tunic, hair, extra) => vilPerson(ctx, x + ox, y + oy, Object.assign({ face, t: T, walk: walk + ox, moving: C.moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null }, extra));
       const beast = (bx, by, c, big) => { if (face === 'up' || face === 'down') return beastEnd(R, bx, by, c, face === 'up', big, step); const w = big ? 9 : 7; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - (big ? 6 : 5), w, big ? 4 : 3, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - (big ? 9 : 7), 2, 4, c); R(d > 0 ? bx + (w >> 1) + 1 : bx - (w >> 1) - 3, by - (big ? 9 : 7), 2, 2, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 1, by - (big ? 11 : 9), 1, 2, shade(c, 0.7)); R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1) + 1, by - (big ? 5 : 4), 1, 3, shade(c, 0.6)); };
       if (kind === 'cart') {
         const cx = x - d * 12; row.link(-12, cx + d * 5, y - 4, 0, x - d * 3, y - 4, '#6b4f2c'); row.part(-12, () => { R(cx - 6, y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cx - 5, y - 6, 10, 5, '#8a6a3a'); R(cx - 5, y - 7, 10, 1, '#a8834a'); R(cx - 4, y - 10, 8, 3, hv(3) > 0.5 ? '#d9c9a0' : '#b8703c'); R(cx - 4, y - 2, 4, 4, '#3a2a1c'); R(cx - 3, y - 1, 2, 2, '#8a6a3a'); R(cx + 1, y - 2, 4, 4, '#3a2a1c'); R(cx + 2, y - 1, 2, 2, '#8a6a3a'); }, 14);
@@ -3416,7 +3422,7 @@ function drawMillCart(ctx, T, R, inView) {
   R(bx - 3, y + 1, 8, 1, 'rgba(0,0,0,.22)'); R(bx - 3, y - 5, 7, 3, mc); R(d > 0 ? bx + 3 : bx - 5, y - 7, 2, 4, mc); R(d > 0 ? bx + 4 : bx - 6, y - 7, 2, 2, mc);
   R(d > 0 ? bx + 3 : bx - 4, y - 9, 1, 2, '#6a5c4a'); R(bx - 3 + step, y - 2, 1, 3, '#5c5244'); R(bx + 3 - step, y - 2, 1, 3, '#5c5244'); R(d > 0 ? bx - 4 : bx + 4, y - 4, 1, 3, '#5c5244');
   }, 10);
-  row.part(8, () => vilPerson(ctx, x + d * 8, y + 1, { face: C.face, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c', hood: prov.rainy ? '#8a7c62' : null }), 20);
+  row.part(8, () => vilPerson(ctx, x + d * 8, y + 1, { face: C.face, t: T, walk, moving: C.moving, tunic: C.flour ? '#ece6d6' : '#b8a888', hair: C.flour ? '#d8d2c4' : '#3a2a1c', hood: prov.rainy ? '#8a7c62' : null }), 20);
   row.draw();
 }
 
@@ -3558,7 +3564,7 @@ function drawTrade(ctx, T, R, inView) {
   const W = tradeWays();
   const shown = (x, y) => inView(x, y, 36) && wildSeen(x, y) && !inTownWalls(x, y), rowC = C => { tface = C.face; return rowOf(ctx, C.dir, C.face, C.along); };
   let tface = 'right';      // which way whoever is being drawn is going: a beast going up or down the map is drawn end on
-  const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null });
+  const man = (x, y, face, moving, tunic, hair) => vilPerson(ctx, x, y, { face, t: T, walk: T * 8 + x, moving, tunic, hair: hair || '#3a2a1c', hood: prov.rainy ? shade(tunic, 0.62) : null });
   const beast = (bx, by, c, d, big, step) => { if (tface === 'up' || tface === 'down') return beastEnd(R, bx, by, c, tface === 'up', big, step); const w = big ? 10 : 7, h = big ? 5 : 3; R(bx - (w >> 1), by + 1, w + 1, 1, 'rgba(0,0,0,.22)'); R(bx - (w >> 1), by - h - 2, w, h, c); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 3, by - h - 4, 3, 4, c);
     R(bx - (w >> 1) + step, by - 2, 1, 3, shade(c, 0.6)); R(bx + (w >> 1) - 1 - step, by - 2, 1, 3, shade(c, 0.6)); R(d > 0 ? bx - (w >> 1) - 1 : bx + (w >> 1), by - h, 1, 3, shade(c, 0.6));
     if (big) { R(d > 0 ? bx + (w >> 1) + 2 : bx - (w >> 1) - 4, by - h - 6, 2, 1, '#f1ead8'); R(d > 0 ? bx + (w >> 1) : bx - (w >> 1) - 2, by - h - 6, 2, 1, '#f1ead8'); } };
@@ -3917,6 +3923,7 @@ function provStep(dt) {
   }
   const moved = Math.hypot(F.x - x0, F.y - y0);
   prov.moving = moved > 0.01;
+  prov.still = prov.moving ? 0 : (prov.still || 0) + dt;      // how long it has stood
   if (moved > 0 && wildMarched(moved, wildPace(F.x, F.y))) {            // a day's march done: night, and tomorrow they go on
     prov.night = performance.now(); SFX.ui('camp'); save();
     fieldDayDone();
@@ -4536,7 +4543,7 @@ function provMovers(ctx, T, R, inView) {
         R(p.x + ox - 3, p.y + oy - 2, 1, 2 - b, c[2]); R(p.x + ox + 2, p.y + oy - 2, 1, 1 + b, c[2]); }
     } else {                                   // as many men as will be fought, each in what he stole, and one carrying their rag of a banner
       const tun = ['#6a3a2a', '#4a4a3a', '#5a3a3a', '#3a4a5a', '#6a5a2a', '#4a3a4a'], hair = ['#2a1c14', '#6a4a2a', '#8a8a8a', '#1c1c1c'];
-      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; provAt(p.x + ox, p.y + oy, 6, 'ink').lamp = q ? 0 : 12; vilPerson(ctx, p.x + ox, p.y + oy, { face: eyes ? faceOf(F.x - p.x, F.y - p.y, p.face || 'down') : p.face || 'down', walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
+      for (const q of [...Array(n).keys()].sort((a, b) => spots[a][1] - spots[b][1])) { const [ox, oy] = spots[q]; provAt(p.x + ox, p.y + oy, 6, 'ink').lamp = q ? 0 : 12; vilPerson(ctx, p.x + ox, p.y + oy, { face: eyes ? faceOf(F.x - p.x, F.y - p.y, p.face || 'down') : p.face || 'down', t: T, walk: (p.walk || 0) + q * 1.7, moving: pm.moving, tunic: tun[Math.floor(pv(20 + q) * 6)], hair: hair[Math.floor(pv(30 + q) * 4)] }); }
       if (pv(3) > 0.4) { const [ox, oy] = spots[n - 1]; provAt(p.x + ox + 4, p.y + oy + 0.1, 6, 'ink'); R(p.x + ox + 4, p.y + oy - 20, 1, 14, '#3a2a1c'); R(p.x + ox + 5, p.y + oy - 20, 5, 3, ['#5a5a4a', '#7a2a20', '#2a3a5a'][Math.floor(pv(4) * 3)]); R(p.x + ox + 5, p.y + oy - 17, 2, 1, '#3a2a1c'); }
     }
     provAt(p.x, p.y + 0.2, 6, 'sign');      // the mark over them
@@ -4545,13 +4552,13 @@ function provMovers(ctx, T, R, inView) {
     else { R(p.x - 1, p.y - 22, 3, 3, '#c23b2e'); R(p.x, p.y - 18, 1, 1, '#c23b2e'); }
   }
   // the column: the men strung out behind, the mule cart last, you in front
-  const men = G.roster.filter(g => !g.away).slice(0, 4), tr = prov.trail;
+  const men = G.roster.filter(g => !g.away).slice(0, 4), tr = prov.trail, easy = !prov.moving && (prov.still || 0) > 2.5;      // (easy: halted long enough that the men stop facing the way they were going, and look about them; the lanista turns to you)
   const cart = tr[Math.min(tr.length - 1, 4 + men.length * 2)] || { x: F.x - 14, y: F.y };
   const folk = [];
   if (tr.length > 3) folk.push({ x: cart.x, y: cart.y, wide: 8, draw: () => { R(cart.x - 6, cart.y + 1, 13, 2, 'rgba(0,0,0,.25)'); R(cart.x - 5, cart.y - 6, 10, 5, '#8a6a3a'); R(cart.x - 5, cart.y - 7, 10, 1, '#a8834a'); R(cart.x - 4, cart.y - 10, 8, 3, '#d9c9a0'); R(cart.x - 5, cart.y - 1, 3, 3, '#3a2a1c'); R(cart.x + 2, cart.y - 1, 3, 3, '#3a2a1c'); } });
   const mounts = (G.fac && G.fac.stables) | 0;      // with stables the school rides: and the better the stables, the better the horses are turned out
-  men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: prov.face, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null }, mounts, 1 + i) }); });
-  folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: prov.face, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
+  men.forEach((g, i) => { const p = tr[Math.min(tr.length - 1, 2 + i * (mounts ? 3 : 2))]; if (p) folk.push({ x: p.x + (i % 2 ? 3 : -3), y: p.y, wide: mounts ? 8 : 5, draw: () => provRider(ctx, p.x + (i % 2 ? 3 : -3), p.y, { face: easy ? ['down', 'left', 'right'][Math.floor(T * 0.13 + i * 0.6 + wildHash(g.id | 0, 3, 77) * 3) % 3] : prov.face, t: T, walk: prov.walk + i * 1.7, moving: prov.moving, tunic: g.injury > 0 ? '#8a8a8a' : '#c23b2e', hair: g.look.hair, skin: g.look.skin, hood: prov.rainy ? (g.injury > 0 ? '#5e5e5e' : '#7a2018') : null }, mounts, 1 + i) }); });
+  folk.push({ x: F.x, y: F.y + 0.1, wide: mounts ? 8 : 5, draw: () => provRider(ctx, F.x, F.y, { face: easy ? 'down' : prov.face, t: T, walk: prov.walk, moving: prov.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true }, mounts, 0) });
   // The column goes out at the gate and in at it as everybody on the roads does (gateEnter): small in the arch, and its
   // full size a few steps out. A man does not stand as tall as the temple under the town's own wall.
   for (const f of folk) { provAt(f.x, f.y, f.wide, 'ink'); const gk = gateEnter(ctx, f.x, f.y); if (gk >= 0) { f.draw(); gateLeave(ctx, gk); } }
@@ -4608,7 +4615,19 @@ function drawProvince(cv, T) {
       }
     }
     // still water only stirs: the sea and the mere, a glint here and there (the river has its own, above)
-    for (let i = 0; i < 40; i++) { const x = camX + ((i * 97 + Math.floor(T * 8)) % PROV.VW), y = camY + (i * 53) % PROV.VH; if (wildTile(x, y) === T_WATER && !flow.has(Math.floor(y / 10) * TWf + Math.floor(x / 10))) R(x, y, 3, 1, 'rgba(214,236,248,.55)'); }
+    // (Open water is not still either. A swell crosses the sea and the lakes, in from the west: here and there a line of
+    // light where a crest is passing, and a dark one in the trough behind it, each stretch of water lit in its turn. It
+    // keeps clear of the shore, which has its own surf, and of the river.)
+    { const CW = 14, CH = 7;
+      for (let gy = Math.floor(camY / CH) * CH; gy < camY + PROV.VH; gy += CH) for (let gx = Math.floor(camX / CW) * CW; gx < camX + PROV.VW; gx += CW) {
+        const hs = wildHash(gx, gy, 2330), x = gx + Math.floor(hs * (CW - 4)), y = gy + Math.floor(wildHash(gy, gx, 2331) * CH);
+        if (wildTile(x, y) !== T_WATER || wildTile(x - 7, y) !== T_WATER || wildTile(x + 9, y) !== T_WATER || wildTile(x, y - 6) !== T_WATER || wildTile(x, y + 6) !== T_WATER) continue;
+        if (flow.has(Math.floor(y / 10) * TWf + Math.floor(x / 10)) || !wildSeen(x, y)) continue;
+        const crest = Math.sin(x * 0.055 + y * 0.021 - T * 0.55 + wildNoise(x / 110, y / 110, 2332) * 4);
+        if (crest > 0.35) { ctx.globalAlpha = Math.round((crest - 0.35) * 0.62 * 16) / 16; R(x, y, 3 + Math.floor(hs * 3), 1, '#dcf0fa'); if (crest > 0.93) { ctx.globalAlpha = 0.7; R(x + 1, y, 1, 1, '#ffffff'); } }
+        else if (crest < -0.5) { ctx.globalAlpha = Math.round((-crest - 0.5) * 0.4 * 16) / 16; R(x, y + 1, 4 + Math.floor(hs * 3), 1, '#0c3460'); }
+      }
+      ctx.globalAlpha = 1; }
   }
 
   // The sea comes in. Along every open shore (prov.surf: see the shore, in provLand) a line of white rides in from a
