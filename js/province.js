@@ -629,6 +629,7 @@ function* provLandSteps(fresh) {
     };
     const lie = lieOf(wv);
     fresh.wetLie = lie;      // (kept: the chart of the whole province draws its coasts by it too)
+    const surf = fresh.surf = [];      // and where the open sea meets the land, with which way the sea lies from there: four numbers to a spot, for the waves to come in at
     // what is known of a tile of water: whether it is the sea, whether the sea is open there (land on one side of it at most), and its country
     const waterOf = j => { let o = openOf.get(j); if (!o) { const ax = j % TW, ay = (j - ax) / TW, sea = seaAt(ax, ay); let land = 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!wv(ax + dx, ay + dy)) land++; openOf.set(j, o = { sea, open: sea && land <= 1, reg: wildRegion(ax * 10 + 5, ay * 10 + 5) }); } return o; };
     for (let ty = 0; ty < TH; ty++) { yield; for (let tx = 0; tx < TW; tx++) {
@@ -653,6 +654,7 @@ function* provLandSteps(fresh) {
             if (f > 0) {                           // water here
               const j = w ? i : pick(px, py, 1), W = j < 0 ? null : waterOf(j);
               if (W) {
+                if (W.open && f < 0.15 && !(X & 1) && !(Y & 1)) { const gx = lie(X + 1.5, Y + 0.5) - lie(X - 0.5, Y + 0.5), gy = lie(X + 0.5, Y + 1.5) - lie(X + 0.5, Y - 0.5), gn = Math.hypot(gx, gy); if (gn > 0.001) surf.push(X, Y, gx / gn, gy / gn); }
                 if (f < 0.1 && W.open && h(Math.floor(X / 3), Math.floor(Y / 2), 1913) > 0.42) c = '#e6f3fa';      // the sea breaking
                 else if (f < 0.13 && h(X, Y, 1914) > 0.3) c = w ? 'rgba(190,224,240,.4)' : hexOf(waterRGB(sdS[j], W.sea, W.reg, true).map((v, q) => v + ([190, 224, 240][q] - v) * 0.4));
                 else if (!w) c = waterHex(sdS[j], W.sea, W.reg, true);
@@ -2404,7 +2406,20 @@ const provRec = (() => {
       if (sun && sun.a > 0.01) {      // the shadows: all on one sheet, so that where two cross it is no darker, and the sheet laid on the ground
         const pad = 40, lw = PROV.VW + pad * 2, lh = PROV.VH + pad * 2, ox = camX - pad, oy = camY - pad, fat = Math.max(0, Math.ceil(sun.kx) - 1);
         const sheet = prov.shadeCv || (prov.shadeCv = Object.assign(document.createElement('canvas'), { width: lw, height: lh })), sh = sheet.getContext('2d');
-        sh.clearRect(0, 0, lw, lh); sh.fillStyle = PROV_SHADE;
+        sh.clearRect(0, 0, lw, lh);
+        // What stands tall throws its shadow by the hour too, as whoever walks does: every tree, the towers, the piers of
+        // the aqueduct. Thinner than a man's, since a wood is all shadow at dusk and should not go black.
+        // (All of them are laid as one stroke of the brush, which is far quicker than a stroke each; and where the hour puts
+        // two bands of a tree on the same line of the ground they are laid as one.)
+        if (prov.overs && prov.paintOver) { sh.fillStyle = 'rgba(14,10,6,.6)'; sh.beginPath();
+          const tall = Math.max(2, Math.round(3 * sun.ky) + 1);
+          for (const o of prov.overs) {
+            if (o.wet || o.x1 < ox - 90 || o.x0 > ox + lw || o.base < oy - 50 || o.y0 > oy + lh) continue;
+            const rows = provRows(o), foot = Math.round(o.base);
+            for (let q = 0; q < rows.length; q += 3) { const up = rows[q]; sh.rect(rows[q + 1] + Math.round(up * sun.kx) - ox, foot + Math.round((up - 1) * sun.ky) - oy, rows[q + 2] + fat + Math.round(2 * sun.kx), tall); }
+          }
+          sh.fill(); }
+        sh.fillStyle = PROV_SHADE;
         for (const g of list) {
           if (g.flat) continue;
           const foot = Math.round(g.y);
@@ -2427,6 +2442,18 @@ const provRec = (() => {
   };
 })();
 const provAt = (x, y, wide, kind) => provRec.at(x, y, wide, kind);
+// The outline of something that stands tall (a tree, a tower, a pier of the aqueduct: see overs, in provLand), for its
+// shadow: how far it reaches to left and right at each height above its foot, three numbers to a height. It is found the
+// first time it is wanted, by having the thing painted once on a slate that only takes note of where the paint went.
+function provRows(o) {
+  if (o.rows) return o.rows;
+  const lo = [], hi = [], base = Math.round(o.base);
+  const note = { fillStyle: '#000', globalAlpha: 1, fillRect(x, y, w, h) { x = Math.round(x); y = Math.round(y); for (let yy = y; yy < y + h; yy++) { const up = base - yy; if (up < 1 || up > 90) continue; if (lo[up] === undefined || x < lo[up]) lo[up] = x; if (hi[up] === undefined || x + w > hi[up]) hi[up] = x + w; } } };
+  try { prov.paintOver(note, o.d); } catch (e) { /* something in it that is not plain paint: it throws no shadow */ }
+  const rows = [];      // (taken three heights at a time: a shadow is not looked at so closely, and there are a great many trees)
+  for (let up = 1; up < lo.length; up += 3) { let a = 1e9, b = -1e9; for (let q = up; q < up + 3; q++) if (lo[q] !== undefined) { if (lo[q] < a) a = lo[q]; if (hi[q] > b) b = hi[q]; } if (b > a) rows.push(up + 1, a, b - a); }
+  return (o.rows = rows);
+}
 // How the sun throws a shadow at this hour, under this sky: see provRec.paint.
 function provSun(sky, wx) {
   const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, k = 0.3 + low * 0.9;
@@ -2667,7 +2694,8 @@ function drawTown(ctx, T, R, tx, ty, tr, night) {
       if (px > X0 - 4 && px < X1 + 4 && py > Y0 - 6 && py < Y1 + 6) continue;
       if (q % 3 === 0) { R(px, py, 2, 1, '#a39a84'); R(px, py - 1, 1, 1, '#c9c2ae'); } else if (q % 3 === 1) { R(px, py, 1, 2, '#6f9a48'); R(px + 1, py + 1, 1, 1, '#8aa652'); } else R(px, py, 3, 1, 'rgba(120,100,60,.35)'); }
   }
-  R(X0 - 1, Y1 + 3, W + 7, 3, 'rgba(0,0,0,.2)'); R(X1 + 2, Y0 + 1, 4, Y1 - Y0 + 4, 'rgba(0,0,0,.13)');      // the walls' shadow, thrown south and east
+  { const sn = prov.sunNow, long = sn ? sn.kx / 0.27 : 1, dim = sn ? sn.a / 0.36 : 1, south = Math.max(1, Math.round(1 + long * 2)), east = Math.max(1, Math.round(long * 4));      // the walls' shadow, thrown south and east: short at noon, long when the sun is low
+    R(X0 - 1, Y1 + 3, W + 3 + east, south, 'rgba(0,0,0,' + (0.2 * dim).toFixed(3) + ')'); R(X1 + 2, Y0 + 1, east, Y1 - Y0 + 2 + south, 'rgba(0,0,0,' + (0.13 * dim).toFixed(3) + ')'); }
   // the ground inside, the north wall behind everything, and the streets
   R(X0, Y0, W, Y1 - Y0, '#cdbfa0'); for (let q = 0; q < 26; q++) R(X0 + 2 + Math.floor(hv(q + 200) * (W - 5)), Y0 + 4 + Math.floor(hv(q + 230) * (Y1 - Y0 - 8)), 2, 1, q % 2 ? '#bfb192' : '#d8cbae');
   R(X0 - 2, Y0 - 3, W + 4, 5, wall); R(X0 - 2, Y0 - 3, W + 4, 1, wl); R(X0 - 2, Y0 + 1, W + 4, 1, wd); for (let q = 0; q < W + 4; q += 4) R(X0 - 2 + q, Y0 - 5, 2, 2, wl);
@@ -3800,6 +3828,8 @@ function provStep(dt) {
     prov.known = Object.keys(wildMap().seen).length;
     if (knew !== undefined && prov.known > knew) SFX.ui('discover');
     prov.stepT = (prov.stepT || 0) - dt; if (prov.stepT <= 0) { prov.stepT = 0.34; SFX.ui('march'); }
+    { const tk = prov.tracks || (prov.tracks = []), was = tk[tk.length - 1];      // and leaves its track behind it (provTracks)
+      if (!was || Math.hypot(was.x - F.x, was.y - F.y) > 4) { tk.push({ x: F.x, y: F.y, t: performance.now(), snow: (prov.white || 0) > 0.2, wet: (prov.wetNow || 0) > 0.3 }); if (tk.length > 520) tk.shift(); } }
     prov.flushIn = (prov.flushIn === undefined ? 30 : prov.flushIn) - moved; if (prov.flushIn <= 0) { prov.flushIn = 50 + Math.random() * 70; provFlush(F.x, F.y); }      // every so often it puts something up
   }
   // roaming bands: they wander their own ground; outlaws come for you if you stray close
@@ -4282,6 +4312,27 @@ function provSeason(ctx, x0, y0, w, h, step, wx) {
     else if (k === T_PEAK || k === T_HILL ? v > 0.25 : k === T_FOREST ? v > 0.6 : (k === T_GRASS || k === T_MEADOW || k === T_ROAD) && v > 0.82) { ctx.fillStyle = k === T_PEAK || k === T_HILL ? 'rgba(250,252,255,.8)' : 'rgba(244,248,252,.6)'; ctx.fillRect(px, py, k === T_PEAK || k === T_HILL ? 3 : 2, 1); }
   }
 }
+// Where the column has gone, for a while: two files of feet and the ruts of its cart. Dark in snow, and plain there;
+// plain too in sand, in the long grass it has trodden down, in the marsh and on wet ground; hardly to be seen on turf;
+// and nothing on a dry road or under trees. It fades in half a minute. (prov.tracks: where it was, when, and whether
+// there was snow lying or the ground was wet. Nothing of it is kept in the save.)
+const TRACK_LIFE = 30000;
+function provTracks(ctx, R, inView) {
+  const tk = prov.tracks; if (!tk || !tk.length) return;
+  const now = performance.now(); while (tk.length && now - tk[0].t > TRACK_LIFE) tk.shift();
+  for (let i = 1; i < tk.length; i++) {
+    const p = tk[i], q = tk[i - 1]; if (!inView(p.x, p.y, 8)) continue;
+    const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy); if (d > 12 || d < 0.01) continue;      // (it was set down somewhere else between the two)
+    const k = wildTile(p.x, p.y), age = 1 - (now - p.t) / TRACK_LIFE;
+    const [col, strong, ruts] = p.snow && k !== T_FOREST ? ['#46587a', 0.6, true] : k === T_SAND ? ['#7a6032', 0.5, true] : k === T_MEADOW ? ['#2c4c22', 0.4, false] : k === T_MARSH ? ['#22302a', 0.45, true] : p.wet && (k === T_ROAD || k === T_GRASS || k === T_HILL) ? ['#3c2c1a', 0.4, true] : k === T_GRASS || k === T_HILL ? ['#2c4c22', 0.2, false] : [null, 0, false];
+    if (!col) continue;
+    const px = -dy / d, py = dx / d, side = i & 1 ? 1 : -1, x = Math.round(p.x), y = Math.round(p.y);
+    ctx.globalAlpha = Math.round(age * strong * 16) / 16;
+    R(x + px * 2 * side - 1, y + py * 2 * side, 2, 1, col); if (i % 3 === 0) R(x - px * 3 * side, y - py * 3 * side + 1, 1, 1, col);
+    if (ruts) { R(x + px * 4, y + py * 4, 1, 1, col); R(x - px * 4, y - py * 4, 1, 1, col); if (d > 2.5) { R(x - dx / 2 + px * 4, y - dy / 2 + py * 4, 1, 1, col); R(x - dx / 2 - px * 4, y - dy / 2 - py * 4, 1, 1, col); } }
+  }
+  ctx.globalAlpha = 1;
+}
 // A place that is marked for you is gone round with the dark line the column has, so that it is picked out among the
 // rest at a glance. Its picture is not made of plain paint as a man is (it has lamps that add their light, and stains),
 // so the line is found another way: the picture is drawn once on a slip of its own, and wherever there is nothing next
@@ -4405,6 +4456,18 @@ function drawProvince(cv, T) {
   const inView =(x, y, m) => x > camX - m && x < camX + PROV.VW + m && y > camY - m && y < camY + PROV.VH + m;
   const M = wildMap();
 
+  // After rain the ground is dark with it, and water stands in the roads and the low places until it dries.
+  if (wx.wet > 0.05 && !(wx.white > 0.3)) {
+    ctx.fillStyle = 'rgba(20,30,44,' + (0.14 * wx.wet).toFixed(3) + ')'; ctx.fillRect(camX, camY, PROV.VW, PROV.VH);
+    const pa = clamp((wx.wet - 0.25) / 0.6, 0, 1);
+    if (pa > 0) for (let ty2 = Math.floor(camY / 10); ty2 <= Math.floor((camY + PROV.VH) / 10); ty2++) for (let tx2 = Math.floor(camX / 10); tx2 <= Math.floor((camX + PROV.VW) / 10); tx2++) {
+      const v = wildHash(tx2, ty2, 2320); if (v > 0.11) continue;
+      const kk = wildTile(tx2 * 10 + 5, ty2 * 10 + 5); if (!(kk === T_ROAD || kk === T_GRASS || kk === T_MEADOW) || (kk !== T_ROAD && v > 0.05) || !wildSeen(tx2 * 10 + 5, ty2 * 10 + 5)) continue;
+      const px = tx2 * 10 + 1 + Math.floor(wildHash(ty2, tx2, 2321) * 5), py = ty2 * 10 + 2 + Math.floor(v * 60);
+      ctx.globalAlpha = 0.55 * pa; R(px, py, 4, 1, '#5a7c96'); R(px + 1, py + 1, 3, 1, '#4c6c86'); if (Math.sin(T * 1.7 + tx2 * 3 + ty2) > 0.6) R(px + 1, py, 1, 1, '#dcecf6'); ctx.globalAlpha = 1;
+    }
+  }
+  provTracks(ctx, R, inView);
   // the wind going over the meadows: a lighter streak that travels
   for (let i = 0; i < 14; i++) {
     const wx2 = camX + ((i * 71 + T * 26) % (PROV.VW + 40)) - 20, wy2 = camY + (i * 47 + Math.floor(T * 0.5 + i) * 13) % PROV.VH, kk = wildTile(wx2, wy2);
@@ -4429,9 +4492,31 @@ function drawProvince(cv, T) {
     for (let i = 0; i < 40; i++) { const x = camX + ((i * 97 + Math.floor(T * 8)) % PROV.VW), y = camY + (i * 53) % PROV.VH; if (wildTile(x, y) === T_WATER && !flow.has(Math.floor(y / 10) * TWf + Math.floor(x / 10))) R(x, y, 3, 1, 'rgba(214,236,248,.55)'); }
   }
 
+  // The sea comes in. Along every open shore (prov.surf: see the shore, in provLand) a line of white rides in from a
+  // little way out, breaks on the strand and is gone, and the next is behind it; a stretch of coast moves together, and
+  // the next stretch a moment after.
+  if (prov.surf) { const sf = prov.surf; ctx.fillStyle = '#ecf6fa';
+    for (let i = 0; i < sf.length; i += 4) {
+      const x = sf[i], y = sf[i + 1]; if (x < camX - 8 || y < camY - 8 || x > camX + PROV.VW + 8 || y > camY + PROV.VH + 8 || !wildSeen(x, y)) continue;
+      const ph = (T * 0.2 + wildNoise(x / 90, y / 90, 2301) * 3 + ((x * 7 + y * 13) % 5) * 0.012) % 1, nx = sf[i + 2], ny = sf[i + 3], run = ph < 0.72 ? 1 - ph / 0.72 : 0, a = ph < 0.72 ? 0.2 + 0.6 * (ph / 0.72) : 0.8 * (1 - (ph - 0.72) / 0.28);
+      ctx.globalAlpha = Math.round(a * 8) / 8; const flat = Math.abs(ny) > Math.abs(nx);
+      ctx.fillRect(Math.round(x + nx * run * 6), Math.round(y + ny * run * 6), flat ? 2 : 1, flat ? 1 : 2);
+    }
+    ctx.globalAlpha = 1; }
+  // Rain: a ring where each drop goes into water, and a splash where it strikes the ground.
+  if (wx.rain > 0.15) { const n = Math.round(46 * wx.rain); ctx.fillStyle = '#e6f0fa';
+    for (let i = 0; i < n; i++) {
+      const u = T * 2.6 + i * 0.37, slot = Math.floor(u), p = u - slot, x = Math.round(camX + wildHash(i, slot, 2311) * PROV.VW), y = Math.round(camY + wildHash(slot, i, 2312) * PROV.VH);
+      if (!wildSeen(x, y)) continue;
+      ctx.globalAlpha = Math.round((1 - p) * 5) / 8;
+      if (wildTile(x, y) === T_WATER) { const r = 1 + Math.floor(p * 3); ctx.fillRect(x - r, y, 1, 1); ctx.fillRect(x + r, y, 1, 1); ctx.fillRect(x - r + 1, y - 1, r * 2 - 1, 1); ctx.fillRect(x - r + 1, y + 1, r * 2 - 1, 1); }
+      else if (p < 0.5) { ctx.fillRect(x, y, 1, 1); ctx.fillRect(x - 1, y - 1, 1, 1); ctx.fillRect(x + 1, y - 1, 1, 1); }
+    }
+    ctx.globalAlpha = 1; }
   // the town, with its gate facing you
   const tx = WILD.TOWN.x, ty = WILD.TOWN.y;
   const dark = provDark(), lamps = dark > 0.3 ? Math.min(1, (dark - 0.3) * 3) : 0;      // how dark it is, and how far the lamps are lit (as the windows are: see drawMarks)
+  prov.sunNow = provSun(sky, wx);      // how the sun throws a shadow at this hour: for the town's walls, and for everything that is painted by provRec
   if (inView(tx, ty, 70)) { drawTown(ctx, T, R, tx, ty, tier(), dark);
     if (lamps) for (const [lx, ly, lr] of [[-31, -12, 20], [-12, -16, 18], [-30, 4, 18], [-8, 2, 20], [10, -6, 16], [22, 3, 9]]) provGlow(ctx, tx + lx, ty + ly, lr, '255,180,90', (0.035 * lamps).toFixed(3)); }      // the town, lit: its streets, and a torch at the east gate
   // places: the ones you have come upon, and anything a clue has marked
@@ -4441,9 +4526,10 @@ function drawProvince(cv, T) {
   // whatever stands tall painted again over those behind it (provRec).
   // smoke: from the town's hearths, and from any hearth or camp you can see
   const smoke = (sx, sy, n) => { for (let i = 0; i < n; i++) { const q = (T * 0.28 + i / n) % 1; ctx.globalAlpha = 0.5 * (1 - q); R(sx + Math.sin(q * 5 + i) * 3 + q * 6, sy - q * 22, 3 + Math.round(q * 3), 2 + Math.round(q * 2), '#d8d4cc'); } ctx.globalAlpha = 1; };
+  prov.white = wx.white || 0; prov.wetNow = wx.wet || 0;      // (for the track the column leaves: see provStep)
   prov.rainy = wx.rain > 0.25 || wx.snow > 0.25; prov.dry = !prov.rainy && !(wx.wet > 0.25) && !(wx.white > 0.2);      // hoods go up in the one, and dust rises off the roads in the other
   provRec.begin(); provMovers(provRec.ctx, T, provRec.R, inView); drawMarks(provRec.ctx, T, provRec.R, inView, dark, smoke, ctx);
-  provRec.paint(ctx, camX, camY, provSun(sky, wx));
+  provRec.paint(ctx, camX, camY, prov.sunNow);
   if (lamps) provRec.lamps(g => {      // those who carry a light: the flame of it, and its round on the ground
     const lx = Math.round(g.x) + 4, ly = Math.round(g.y) - 11, fl = Math.sin(T * 11 + g.x) > 0 ? 1 : 0;
     if (!inView(lx, ly, 30)) return;
