@@ -299,8 +299,14 @@ function villageLayer() {
   const GR = ['#7e9a4b', '#869a48', '#8a9250', '#7c8c5a'][SE], GR1 = ['#718c42', '#7a8a40', '#7c8246', '#6e7e50'][SE], GR2 = ['#8eab58', '#98a852', '#a09a58', '#8c9a6c'][SE];      // the grass of the season
   const cv = document.createElement('canvas'); cv.width = VILLAGE.W * VILLAGE.S; cv.height = VILLAGE.H * VILLAGE.S;
   const ctx = cv.getContext('2d'); ctx.setTransform(VILLAGE.S, 0, 0, VILLAGE.S, 0, 0); ctx.imageSmoothingEnabled = false;
-  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
-  const ell = (cx, cy, rx, ry, c) => { ctx.fillStyle = c; for (let y = -ry; y <= ry; y++) { const hw = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry)))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + y), hw * 2, 1); } };
+  // What each dot of the picture is, for the snow that will lie on it (see the foot of this function): 1 the lit slope
+  // of a roof, 5 its shaded slope, 2 the face of a wall, 3 an awning, 4 a tree that keeps its leaf, 6 a bed of the kitchen garden; and nothing for the
+  // ground and whatever else there is, which the snow tells apart by its colour. A dot is whatever was painted on it last
+  // (cur: what is being painted now), and a wash laid thinly over something does not change what it is.
+  const cover = new Uint8Array(VILLAGE.W * VILLAGE.H); let cur = 0;
+  const mark = (x, y, w, h, v) => { const x0 = Math.max(0, Math.round(x)), x1 = Math.min(VILLAGE.W, Math.round(x) + Math.round(w)), y0 = Math.max(0, Math.round(y)), y1 = Math.min(VILLAGE.H, Math.round(y) + Math.round(h)); if (x1 > x0) for (let yy = y0; yy < y1; yy++) cover.fill(v, yy * VILLAGE.W + x0, yy * VILLAGE.W + x1); };
+  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); if (c[0] === '#') mark(x, y, w, h, cur); };
+  const ell = (cx, cy, rx, ry, c) => { ctx.fillStyle = c; for (let y = -ry; y <= ry; y++) { const hw = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry)))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + y), hw * 2, 1); if (c[0] === '#') mark(Math.round(cx - hw), cy + y, hw * 2, 1, cur); } };
   const rnd = (i, m) => Math.abs(Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 * m;
 
   // grass, with tufts and flowers
@@ -313,6 +319,7 @@ function villageLayer() {
   for (let y = 0; y < 190; y += 5) for (let x = 0; x < 590; x += 5) { const n = wildNoise(x / 55, y / 55, 77); if (n > 0.62) R(x, y, 5, 5, 'rgba(255,255,210,.07)'); else if (n < 0.36) R(x, y, 5, 5, 'rgba(0,30,0,.08)'); }
   // a kitchen garden and an orchard along the south wall
   for (let i = 0; i < 6; i++) { R(40 + i * 13, 176, 10, 9, '#6b5028'); if (SE < 3) for (let k = 0; k < 3; k++) R(41 + i * 13 + k * 3, 177 + (k % 2), 2, 6, SE === 2 ? (i % 2 ? '#8a8a3a' : '#a89a48') : i % 2 ? '#6f9a3a' : '#8ab04a'); }
+  for (let i = 0; i < 6; i++) mark(40 + i * 13, 176, 10, 9, 6);
   // a hedge under the north wall, an orchard and beehives along the south, and the duck pond
   for (let x = 6; x < 584; x += 5) { if (AL >= 3 && x > 206 && x < 384) continue; const hgt = 3 + Math.round(rnd(x, 2)); R(x, 5, 6, hgt, x % 15 < 5 ? '#3f6a2c' : '#4a7a36'); R(x + 1, 5, 3, 1, '#63903f'); if (SE < 2 && rnd(x + 9, 1) > 0.85) R(x + 2, 6, 1, 1, '#e8a0a0'); }
   for (let i = 0; i < 5; i++) { const ox = 240 + i * 13, oy = 180; ell(ox + 1, oy + 2, 5, 2, 'rgba(0,0,0,.2)'); R(ox, oy - 2, 1, 4, '#5a3c20');
@@ -370,8 +377,9 @@ function villageLayer() {
     for (let q = 0, n = Math.floor(w * h / 200); q < n; q++) R(x + 2 + rnd(x + q * 7, w - 6), y + 1 + rnd(y + q * 13, h - 3), 2, 1, q % 4 ? shade(base, 0.7) : '#6f8a4a');
     R(x, y + mid - 1, w, 2, shade(base, 1.3)); R(x, y + mid + 1, w, 1, shade(base, 0.68));
     R(x, y, w, 1, shade(base, 1.2)); R(x, y + h - 1, w, 1, shade(base, 0.6)); R(x, y, 1, h, shade(base, 1.1)); R(x + w - 1, y, 1, h, shade(base, 0.72));
+    mark(x, y, w, mid, 1); mark(x, y + mid, w, h - mid, 5);
   };
-  const wall = (x, y, w, h, c) => { R(x, y, w, h, c); for (let q = 0, n = Math.floor(w * h / 110); q < n; q++) R(x + 1 + rnd(x + q * 5, w - 6), y + 3 + rnd(y + q * 11, h - 6), 3 + (q % 3), 1 + (q % 2), q % 2 ? shade(c, 0.94) : shade(c, 1.05)); R(x, y, w, 1, shade(c, 0.74)); R(x, y + 1, w, 2, 'rgba(30,18,8,.16)'); R(x, y + h - 2, w, 2, shade(c, 0.84)); R(x, y + h - 3, w, 1, 'rgba(60,40,20,.12)'); R(x, y, 1, h, shade(c, 0.88)); R(x + w - 1, y, 1, h, shade(c, 0.88)); };      // plaster patched and faded, shade under the eaves, dirt at the foot
+  const wall = (x, y, w, h, c) => { R(x, y, w, h, c); for (let q = 0, n = Math.floor(w * h / 110); q < n; q++) R(x + 1 + rnd(x + q * 5, w - 6), y + 3 + rnd(y + q * 11, h - 6), 3 + (q % 3), 1 + (q % 2), q % 2 ? shade(c, 0.94) : shade(c, 1.05)); R(x, y, w, 1, shade(c, 0.74)); R(x, y + 1, w, 2, 'rgba(30,18,8,.16)'); R(x, y + h - 2, w, 2, shade(c, 0.84)); R(x, y + h - 3, w, 1, 'rgba(60,40,20,.12)'); R(x, y, 1, h, shade(c, 0.88)); R(x + w - 1, y, 1, h, shade(c, 0.88)); mark(x, y, w, h, 2); };      // plaster patched and faded, shade under the eaves, dirt at the foot
   const door = (p, w, h, c) => { const x = p.dx - Math.floor(w / 2), y = p.y + p.h - h; R(x - 1, y - 1, w + 2, h + 1, '#5a4326'); R(x, y, w, h, c || '#3a2416'); R(p.dx - 5, p.y + p.h, 10, 2, '#b8a888'); };
   const win = (x, y) => { R(x - 1, y, 1, 4, '#6f5140'); R(x + 3, y, 1, 4, '#6f5140'); R(x, y, 3, 4, '#3a2e24'); R(x, y, 3, 1, '#8a7a5a'); R(x - 1, y + 4, 5, 1, '#cfc4a8'); };      // shutters, and a sill
   // every building throws its shade down and to the right, as the trees and the arena do
@@ -511,19 +519,20 @@ function villageLayer() {
         }
       }
     } else if (p.kind === 'temple') {         // marble, a pediment, and columns across the front
-      R(x, y, w, 30, '#d9d2bd'); for (let i = 0; i < 15; i++) R(x + 2 + i * 2.4, y + 14 - i, w - 4 - i * 4.8, 1, i % 2 ? '#ebe5d2' : '#e2dbc6'); R(x, y + 15, w, 15, '#cfc8b2'); for (let yy = y + 17; yy < y + 30; yy += 3) R(x, yy, w, 1, '#bdb6a0');
+      R(x, y, w, 30, '#d9d2bd'); for (let i = 0; i < 15; i++) R(x + 2 + i * 2.4, y + 14 - i, w - 4 - i * 4.8, 1, i % 2 ? '#ebe5d2' : '#e2dbc6'); R(x, y + 15, w, 15, '#cfc8b2'); for (let yy = y + 17; yy < y + 30; yy += 3) R(x, yy, w, 1, '#bdb6a0'); mark(x, y, w, 15, 1); mark(x, y + 15, w, 14, 5);
       R(p.dx - 1, y + 1, 2, 3, '#e3b04a'); R(x, y + 29, w, 1, '#9f987f');
       wall(x + 2, y + 30, w - 4, 14, '#b8b09a'); { const col = cx => { R(cx, y + 30, 4, 14, '#f1ecdc'); R(cx, y + 30, 1, 14, '#d8d2bf'); R(cx + 3, y + 30, 1, 14, '#cfc8b4'); R(cx - 1, y + 30, 6, 1, '#f8f4e8'); R(cx - 1, y + 43, 6, 1, '#e2dbc6'); };      // set out from the door, so that it stands clear in the middle bay
         for (let cx = p.dx - 10; cx >= x + 3; cx -= 9) col(cx); for (let cx = p.dx + 6; cx + 4 <= x + w - 3; cx += 9) col(cx); }
       R(p.dx - 5, y + 32, 10, 12, '#5a4326'); R(p.dx - 4, y + 33, 8, 11, '#3a2416'); R(p.dx - 1, y + 33, 1, 11, '#2a180e'); R(p.dx - 5, y + 31, 10, 1, '#f1ecdc'); R(x, y + 44, w, 2, '#e2dbc6'); R(x - 2, y + 46, w + 4, 2, '#d0c9b3'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
     } else if (p.kind === 'archive') {        // the record house: grey stone under a dome
-      R(x, y, w, 26, '#8f97a0'); for (let yy = y + 3; yy < y + 26; yy += 4) R(x, yy, w, 1, '#7d858e'); R(x, y, w, 1, '#aab2ba'); R(x, y + 25, w, 1, '#5d646c');
-      ell(p.dx, y + 13, 13, 9, '#6f7780'); ell(p.dx, y + 12, 12, 8, '#a8b0b8'); ell(p.dx - 3, y + 10, 5, 3, '#c4ccd2'); R(p.dx - 1, y + 3, 2, 2, '#e3b04a');
+      R(x, y, w, 26, '#8f97a0'); for (let yy = y + 3; yy < y + 26; yy += 4) R(x, yy, w, 1, '#7d858e'); R(x, y, w, 1, '#aab2ba'); R(x, y + 25, w, 1, '#5d646c'); mark(x, y, w, 25, 1);
+      cur = 2; ell(p.dx, y + 13, 13, 9, '#6f7780'); cur = 5; ell(p.dx, y + 12, 12, 8, '#a8b0b8'); cur = 1; ell(p.dx - 3, y + 10, 5, 3, '#c4ccd2'); cur = 0; R(p.dx - 1, y + 3, 2, 2, '#e3b04a');
       wall(x + 2, y + 26, w - 4, 18, '#d6d0c0'); for (const cx of [x + 9, x + 19, x + w - 22, x + w - 12]) { R(cx, y + 31, 4, 6, '#3a2e24'); R(cx + 1, y + 32, 2, 1, '#e8dcc0'); R(cx + 1, y + 34, 2, 1, '#e8dcc0'); }
       door(p, 8, 11);
     } else if (p.kind === 'market') {         // a boarded platform and three striped awnings
       R(x, y + 8, w, h - 8, '#8a6a3a'); for (let yy = y + 11; yy < y + h; yy += 4) R(x, yy, w, 1, '#77592e'); R(x, y + h - 2, w, 2, '#5f4622');
       [['#b93a2e', 2], ['#2f6db8', 35], ['#c9a21e', 68]].forEach(([c, ox]) => { for (let i = 0; i < 28; i += 4) { R(x + ox + i, y, 2, 14, c); R(x + ox + i + 2, y, 2, 14, '#efe6cf'); } R(x + ox, y + 13, 28, 2, shade(c, 0.7)); R(x + ox, y + 15, 1, 12, '#5a4326'); R(x + ox + 27, y + 15, 1, 12, '#5a4326'); R(x + ox + 4, y + 20, 20, 5, '#a8834a'); R(x + ox + 6, y + 18, 4, 2, '#d9642e'); R(x + ox + 13, y + 18, 4, 2, '#7fae4a'); R(x + ox + 19, y + 18, 3, 2, '#e8d27a'); });
+      for (const ox of [2, 35, 68]) mark(x + ox, y, 28, 13, 3);
       R(x + 6, y + 33, 7, 7, '#a8834a'); R(x + 6, y + 33, 7, 1, '#c9a25a'); R(x + w - 16, y + 32, 9, 8, '#a8834a'); R(x + w - 16, y + 32, 9, 1, '#c9a25a'); R(p.dx - 6, y + h - 6, 12, 6, '#6b5028'); R(p.dx - 5, y + h, 10, 2, '#b8a888');
     } else if (p.kind === 'forge') {          // the forge, as good as you have made it
       if (SM === 0) { tiles(x, y, w, 28, '#8a6a3a'); for (let q = 0; q < 50; q++) R(x + 1 + rnd(q + 700, w - 3), y + 1 + rnd(q + 760, 26), 1, 2, q % 2 ? '#b8964e' : '#6b4f2c'); }      // wooden shingles and straw
@@ -543,7 +552,7 @@ function villageLayer() {
       if (SM >= 4) { for (const qx of [p.dx - 11, p.dx + 9]) { R(qx, y + 30, 2, 16, '#f4ecd8'); R(qx + 1, y + 30, 1, 16, '#d8d0bc'); R(qx - 1, y + 29, 4, 1, '#fbf6ea'); } for (const qx of [x + 4, x + w - 8]) { R(qx, y + 29, 4, 9, '#a8261c'); R(qx, y + 29, 4, 1, '#e8b545'); R(qx + 1, y + 32, 2, 2, '#e8b545'); } }      // columns by the door and the emperor's colours
     } else if (p.kind === 'forum') {          // an open colonnade where notices are posted
       R(x, y, w, h, '#c9c2ad'); for (let yy = y + 2; yy < y + h; yy += 7) for (let xx = x + ((yy - y) % 14 ? 2 : 6); xx < x + w - 6; xx += 10) R(xx, yy, 9, 6, '#d6d0bd');
-      R(x, y, w, 9, '#b5522e'); for (let xx = x + 3; xx < x + w; xx += 6) R(xx, y, 1, 9, '#a04628'); R(x, y + 8, w, 1, '#6f2e1a'); R(x, y, w, 1, '#d0673c');
+      R(x, y, w, 9, '#b5522e'); for (let xx = x + 3; xx < x + w; xx += 6) R(xx, y, 1, 9, '#a04628'); R(x, y + 8, w, 1, '#6f2e1a'); R(x, y, w, 1, '#d0673c'); mark(x, y, w, 8, 1);
       for (let cx = x + 4; cx < x + w - 4; cx += 13) { R(cx, y + 9, 4, 12, '#f1ecdc'); R(cx, y + 9, 1, 12, '#d8d2bf'); }
       for (const cx of [x + 2, x + w - 6]) for (let yy = y + 24; yy < y + h - 4; yy += 9) { R(cx, yy, 4, 6, '#f1ecdc'); R(cx, yy + 6, 4, 1, 'rgba(0,0,0,.25)'); }
       R(p.dx - 16, y + 27, 32, 12, '#6b4a2a'); R(p.dx - 15, y + 28, 30, 10, '#8a6a3a'); for (let i = 0; i < 5; i++) R(p.dx - 13 + i * 6, y + 29 + (i % 2) * 3, 4, 5, '#f2e9d2'); R(p.dx - 14, y + 39, 2, 5, '#5a4326'); R(p.dx + 12, y + 39, 2, 5, '#5a4326');
@@ -606,7 +615,7 @@ function villageLayer() {
     const kind = (i * 7 + 3) % 5;
     ell(tx + 2, ty + 1, kind === 2 ? 5 : 8, 3, 'rgba(0,0,0,.22)'); ell(tx + 1, ty + 1, kind === 2 ? 4 : 6, 2, 'rgba(0,0,0,.14)');
     if (kind === 2) {                            // a cypress: tall and dark, and the same all the year
-      R(tx - 1, ty - 3, 2, 4, '#4a3320'); ell(tx, ty - 11, 3, 9, '#2f5234'); ell(tx - 1, ty - 12, 2, 7, '#3f6844'); R(tx - 1, ty - 19, 1, 3, '#57806a'); R(tx + 2, ty - 10, 1, 6, '#213a26');
+      R(tx - 1, ty - 3, 2, 4, '#4a3320'); cur = 4; ell(tx, ty - 11, 3, 9, '#2f5234'); ell(tx - 1, ty - 12, 2, 7, '#3f6844'); R(tx - 1, ty - 19, 1, 3, '#57806a'); R(tx + 2, ty - 10, 1, 6, '#213a26'); cur = 0;
       if (SE === 3) { R(tx - 1, ty - 18, 1, 2, 'rgba(255,255,255,.5)'); R(tx - 2, ty - 12, 1, 2, 'rgba(255,255,255,.35)'); }
     } else {
       const r = 6 + (i % 3);
@@ -626,6 +635,47 @@ function villageLayer() {
     }
   });
   if (SE === 3) for (const p of PLACES) { if (p.kind === 'arena' || p.kind === 'market' || p.kind === 'forum') continue; for (let q = 0, n = Math.floor(p.w / 5); q < n; q++) R(p.x + 2 + rnd(q + p.x, p.w - 6), p.y + 1 + rnd(q + p.y + 9, 11), 3, 1, 'rgba(250,252,255,.42)'); }      // frost on the far slope of every roof
+  // Snow, for when it lies (vil.snow: a sheet of its own, laid over the map by how much of it there is: see drawVillage).
+  // It lies by what is under it. Deep on a roof, whiter on the slope that has the light, with a tile showing here and
+  // there and along the eave; on the grass everywhere, and blue where a house or a tree throws its shade; thin and
+  // broken in the streets and on the stones of the square and the wall, where it is trodden; on the top of a hedge, a
+  // bush and a cypress; on the awnings of the market. None on the face of a wall, nor in a doorway, nor on water.
+  vil.snow = null;
+  if (SE === 3) {
+    // (The map is read off a copy of itself, not off itself: a canvas that has once been read from is kept where it is
+    // slow to draw from, and the map is drawn from at every frame.)
+    const W = VILLAGE.W, H = VILLAGE.H, S = VILLAGE.S, whole = cv, copy = Object.assign(document.createElement('canvas'), { width: W * S, height: H * S }), cc = copy.getContext('2d', { willReadFrequently: true });
+    cc.drawImage(whole, 0, 0); const src = cc.getImageData(0, 0, W * S, H * S).data;
+    const sheet = document.createElement('canvas'); sheet.width = W * S; sheet.height = H * S;
+    const sc = sheet.getContext('2d'), img = sc.createImageData(W * S, H * S), D = img.data;
+    const ground = (x, y) => {      // what the ground is there, by its colour: 1 grass, 2 a street or bare sand, 3 stone, 4 a hedge or a bush; 0 anything else
+      const i = (y * S * W * S + x * S) * 4, r = src[i], g = src[i + 1], b = src[i + 2];
+      if (g >= r + 8 && g >= b + 28) return r > 80 ? 1 : 4;
+      if (r >= 178 && r <= 236 && r - b >= 62 && r - b <= 98 && g < r && g > b) return 2;
+      if (r >= 172 && r <= 222 && r - b >= 16 && r - b <= 42 && g <= r && g >= b) return 3;
+      return 0; };
+    const at = (x, y) => cover[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const m = cover[y * W + x], v = wildHash(x, y, 1640); let a = 0, c = [247, 250, 253];
+      if (m === 1 || m === 5) {
+        const eave = m === 5 && at(x, y + 1) !== 5, ridge = m === 1 && at(x, y + 1) === 5;
+        if (v > (eave ? 0.45 : m === 5 ? 0.94 : 0.985)) continue;      // a tile showing through; and most of the eave
+        a = 0.97; c = ridge || (m === 1 && at(x, y - 1) !== 1) ? [255, 255, 255] : m === 1 ? [247, 250, 253] : v < 0.25 ? [214, 223, 236] : [228, 235, 244];
+      } else if (m === 3) { if (v < 0.72) { a = 0.88; c = [240, 244, 250]; } }
+      else if (m === 4) { if (at(x, y - 1) !== 4 || (at(x - 1, y) !== 4 && v < 0.7) || v < 0.14) a = 0.92; }
+      else if (m === 6) { if ((y & 3) !== 3 && v < 0.9) { a = 0.9; c = [242, 246, 250]; } }      // a bed of the garden: under it, but for the dark of its furrows
+      else if (m === 0) {
+        const k = ground(x, y);
+        if (k === 1) { if (v > 0.978) continue; const i = (y * S * W * S + x * S) * 4, lum = 0.3 * src[i] + 0.59 * src[i + 1] + 0.11 * src[i + 2], t = Math.max(0, Math.min(1, (lum - 98) / 20)); a = 0.95; c = [200 + 47 * t, 212 + 38 * t, 230 + 23 * t]; if (t > 0.9 && wildHash(x >> 1, y, 1642) > 0.93) c = [226, 234, 244]; }
+        else if (k === 2) { const tr = wildHash(x >> 2, y >> 1, 1643); if (tr < 0.46) { a = 0.82; c = [238, 242, 247]; } else if (tr < 0.62) { a = 0.42; c = [238, 242, 247]; } }
+        else if (k === 3) { if (wildHash(x >> 2, y >> 1, 1644) < 0.6) { a = 0.86; c = [240, 244, 249]; } }
+        else if (k === 4) { if (y > 0 && ground(x, y - 1) !== 4) a = 0.94; else if (v < 0.16) a = 0.8; }
+      }
+      if (!a) continue;
+      for (let q = 0; q < S * S; q++) { const o = ((y * S + (q / S | 0)) * W * S + x * S + q % S) * 4; D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; D[o + 3] = Math.round(a * 255); }
+    }
+    sc.putImageData(img, 0, 0); vil.snow = sheet;
+  }
   return (vil.layer = cv);
 }
 
@@ -643,6 +693,8 @@ function drawVillage(cv, T) {
   // the same hour and the same weather as over the school next door
   const sky = typeof yardSky === 'function' ? yardSky(T) : { night: 0, tint: '#ffffff' }, wx = typeof yardWeather === 'function' ? yardWeather(T) : { rain: 0, gust: 0, wet: 0, over: 0 };
   const night = sky.night, dark = night > 0.6, games = typeof isGamesDay === 'function' && isGamesDay();
+  const snowK = vil.snow ? Math.min(1, (wx.white || 0) * 1.5) : 0;      // snow lying, where snow would lie (vil.snow: see villageLayer)
+  if (snowK > 0.03) { ctx.globalAlpha = snowK; ctx.drawImage(vil.snow, 0, 0, VILLAGE.W, VILLAGE.H); ctx.globalAlpha = 1; }
   if (typeof SFX !== 'undefined') { SFX.ambience(wx.rain, night); SFX.mood({ night: night > 0.6 }); }            // rain on the roofs, crickets after dark
   if (wx.wet > 0) { R(0, 0, 590, 190, `rgba(40,45,60,${(0.13 * wx.wet).toFixed(3)})`); for (let i = 0; i < 9; i++) { const px = (i * 67 + 20) % 560, py = i % 2 ? 80 + (i * 3) % 8 : 156 + (i * 5) % 8, w = Math.round((8 + (i % 3) * 4) * wx.wet); if (w > 3) { R(px, py, w, 2, 'rgba(160,190,215,.55)'); R(px + 1, py + 2, w - 2, 1, 'rgba(160,190,215,.4)'); } } }
 
@@ -701,6 +753,7 @@ function drawVillage(cv, T) {
   for (let i = 572; i < 590; i += 4) { R(i, 60, 2, 2, '#d8cdb6'); R(i, 90, 2, 2, '#d8cdb6'); }
   R(576, 74, 12, 2, '#8f846e'); R(576, 90, 12, 2, '#6f6654');
   if (!open) { R(578, 76, 9, 14, '#5a3c20'); R(578, 76, 9, 1, '#7a5632'); R(582, 76, 1, 14, '#3a2416'); R(578, 82, 9, 2, '#3a2a1c'); }
+  if (snowK > 0.03) { ctx.globalAlpha = snowK; R(572, 60, 18, 1, '#f7fafd'); R(572, 62, 18, 1, '#eef2f7'); R(572, 90, 18, 1, '#f7fafd'); R(572, 92, 18, 1, '#eef2f7'); ctx.globalAlpha = 1; }      // snow on the gate's two towers
   R(585, 54, 1, 8, '#5a4326'); R(586, 54 + (Math.sin(T * 4) > 0 ? 0 : 1), 4, 3, '#a02d22');
   if (ui.wayTo === 'gate') { const ay = 56 + Math.round(Math.sin(T * 6) * 2); R(579, ay, 3, 6, '#f5d584'); R(577, ay + 6, 7, 1, '#f5d584'); R(578, ay + 7, 5, 1, '#f5d584'); R(579, ay + 8, 3, 1, '#f5d584'); }
   // building work: whatever was improved today stands in scaffolding until the day is ended, and comes down in dust
@@ -952,7 +1005,7 @@ function drawVillage(cv, T) {
     R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 10, 1, 4, '#3a2a1c');     // he carries a brand
     ctx.globalAlpha = 1; glow(vil.x, vil.y - 6, 13);
   }
-  if (wx.white > 0) { ctx.fillStyle = `rgba(244,248,252,${(0.3 * wx.white).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }      // snow lying over everything, and going again
+  if (wx.white > 0) { ctx.fillStyle = `rgba(244,248,252,${((vil.snow ? 0.06 : 0.3) * wx.white).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }      // the white of a snowy day over everything (and all the snow there is, where the map has not been painted for winter)
   sceneSnow(ctx, 590, 190, T, wx.snow, 110); sceneStorm(ctx, 590, 190, T, wx);
   if (wx.rain > 0) {
     ctx.fillStyle = `rgba(200,215,235,${(0.5 * wx.rain).toFixed(3)})`;
@@ -972,7 +1025,7 @@ function drawVillage(cv, T) {
   // the page (see villageLabels), so that they are sharp and never smaller than can be read; on the canvas only where
   // there is no page to write on.
   const marks = typeof villageMarks === 'function' ? villageMarks() : {};
-  const ov = typeof document !== 'undefined' ? document.getElementById('vlabels') : null, sc = cv.clientWidth > 0 ? cv.clientWidth / VILLAGE.W : 1, tight = sc < 0.9;
+  const ov = typeof document !== 'undefined' ? document.getElementById('vlabels') : null, sc = cv.clientWidth > 0 ? cv.clientWidth / VILLAGE.W : 1, tight = sc < 0.9 || (!!ov && typeof provTextW === 'function');      // (tight: the names must be kept short. In the letters of the map they always must: those are wider than the type of the page.)
   const arenaLabel = () => { const dg = daysToGames(), shutA = typeof arenaShut === 'function' && arenaShut(), d = dg + ' DAY' + (dg === 1 ? '' : 'S'); return games ? (tight ? 'ARENA: TODAY' : 'ARENA: GAMES TODAY') : tight ? (shutA ? 'ARENA SHUT: ' : 'ARENA: ') + d : 'ARENA' + (shutA ? ' SHUT' : '') + ': GAMES IN ' + d; };
   const labelOf = p => p.key === 'arena' && typeof daysToGames === 'function' ? arenaLabel() : p.name.toUpperCase();
   const say = !vil.hover ? '' : heard ? 'THE TALK OF THE TOWN: WHAT THESE TWO ARE SAYING TODAY' : hov === 'gate' ? (open ? 'THE EAST GATE: OUT INTO THE PROVINCE' : 'THE EAST GATE: BARRED UNTIL YOUR FIRST GAMES') : hg >= 0 && fountainFolk()[hg] ? (fountainFolk()[hg].owed ? `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS COME TO PAY WHAT IS OWED  -  CLICK TO GO OVER` : `${fountainFolk()[hg].q.giver.name.toUpperCase()}, ${GIVERS[fountainFolk()[hg].q.giver.kind].what.toUpperCase()}, HAS WORK FOR YOU  -  CLICK TO HEAR IT`) : hov ? PLACE_INFO[hov].split(':')[0] + ': ' + (typeof villageStatus === 'function' ? villageStatus(hov) : PLACE_INFO[hov].split(': ')[1]) + (hov === ui.tab ? '  -  OPEN NOW' : '  -  CLICK TO WALK THERE') : (fountainFolk().length ? 'CLICK ANYONE WAITING BY THE FOUNTAIN TO HEAR THEM  -  ' : '') + 'W A S D TO WALK  -  CLICK A BUILDING TO WALK THERE';
@@ -983,15 +1036,14 @@ function drawVillage(cv, T) {
   }
   if (ov) villageLabels(ov, cv, sc, { labelOf, marks, games, open, say, gold: !!(hov || heard), rumour, at: heard ? { x: (heard.p.x + heard.q.x) / 2, top: Math.min(heard.p.y, heard.q.y) - 27, foot: Math.max(heard.p.y, heard.q.y) + 6 } : null });
   else {
-    ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    { const w = Math.ceil(ctx.measureText('GATE').width) + 6; R(590 - w - 1, 106, w, 8, 'rgba(24,16,10,.82)'); ctx.fillStyle = open ? '#f5d584' : '#bcab90'; ctx.fillText('GATE', 590 - w / 2 - 1, 112); }
+    { const w = provTextW('GATE') + 6; R(590 - w - 1, 106, w, 8, 'rgba(24,16,10,.82)'); provText(ctx, 'GATE', 590 - w + 2, 107, open ? '#f5d584' : '#bcab90'); }
     for (const p of PLACES) {
-      const label = labelOf(p), on = p.key === ui.tab, w = Math.ceil(ctx.measureText(label).width) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);
+      const label = labelOf(p), on = p.key === ui.tab, w = provTextW(label) + 6, lx = p.dx - Math.floor(w / 2), ly = Math.max(1, p.y - 8);
       R(lx, ly, w, 8, on ? '#f5d584' : 'rgba(24,16,10,.82)'); R(lx, ly + 7, w, 1, on ? '#b6832c' : '#000');
-      ctx.fillStyle = on ? '#2a1a0c' : p.key === 'arena' && games ? '#f5d584' : '#f2e6cc'; ctx.fillText(label, p.dx, ly + 6);
-      if (marks[p.key]) { R(lx + w + 1, ly, 8, 8, marks[p.key] === '!' ? '#e8b545' : '#c23b2e'); ctx.fillStyle = marks[p.key] === '!' ? '#2a1a0c' : '#fff'; ctx.fillText(String(marks[p.key]), lx + w + 5, ly + 6); }
+      provText(ctx, label, lx + 3, ly + 1, on ? '#2a1a0c' : p.key === 'arena' && games ? '#f5d584' : '#f2e6cc');
+      if (marks[p.key]) { R(lx + w + 1, ly, 8, 8, marks[p.key] === '!' ? '#e8b545' : '#c23b2e'); provText(ctx, String(marks[p.key]), lx + w + 5 - Math.floor(provTextW(String(marks[p.key])) / 2), ly + 1, marks[p.key] === '!' ? '#2a1a0c' : '#fff'); }
     }
-    if (say) { const w = Math.ceil(ctx.measureText(say).width) + 10; R(295 - w / 2, 178, w, 10, 'rgba(24,16,10,.88)'); ctx.fillStyle = hov || heard ? '#f5d584' : '#f2e6cc'; ctx.fillText(say, 295, 185); }
+    if (say) { const w = provTextW(say) + 10, x0 = Math.round(295 - w / 2); R(x0, 178, w, 10, 'rgba(24,16,10,.88)'); provText(ctx, say, x0 + 5, 180, hov || heard ? '#f5d584' : '#f2e6cc'); }
   }
   if (typeof dayTurn === 'function') dayTurn(ctx, 590, 190);      // the night that goes over when a day is ended
 }
@@ -1004,19 +1056,36 @@ function villageLabels(ov, cv, sc, L) {
   const box = [left, top, w, h, fs].join();
   if (ov._box !== box) { ov._box = box; ov.style.left = left + 'px'; ov.style.top = top + 'px'; ov.style.width = w + 'px'; ov.style.height = h + 'px'; ov.style.fontSize = fs + 'px'; }
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'), px = v => Math.round(v * sc);
+  // The names are in the letters of the map of the province (vilLetters), two dots of the page to a dot of a letter, where
+  // the map is shown wide enough for them to stand clear of one another; shown smaller than that, they are in the type of
+  // the page, which is narrower. A line along the foot that would not fit in the one is in the other.
+  const cut = sc >= 0.92 && typeof provTextW === 'function', word = t => cut ? vilLetters(t) : esc(t), fits = t => cut && provTextW(t) * 2 + 16 <= w;
   let html = '';
   for (const p of PLACES) {
     const on = p.key === ui.tab, ly = Math.max(1, p.y - 8), m = L.marks[p.key];
-    html += '<span class="vl' + (on ? ' on' : p.key === 'arena' && L.games ? ' gold' : '') + '" style="left:' + px(p.dx) + 'px;top:' + Math.max(0, px(ly + 8) - H) + 'px">' + esc(L.labelOf(p)) + (m ? '<i class="vm' + (m === '!' ? ' new' : '') + '">' + esc(m) + '</i>' : '') + '</span>';
+    html += '<span class="vl' + (cut ? ' cut' : '') + (on ? ' on' : p.key === 'arena' && L.games ? ' gold' : '') + '" style="left:' + px(p.dx) + 'px;top:' + Math.max(0, px(ly + 8) - H) + 'px">' + word(L.labelOf(p)) + (m ? '<i class="vm' + (m === '!' ? ' new' : '') + '">' + word(m) + '</i>' : '') + '</span>';
   }
-  html += '<span class="vl gate' + (L.open ? ' gold' : ' dim') + '" style="top:' + px(106) + 'px">GATE</span>';
-  if (L.say) html += '<span class="vfoot' + (L.gold ? ' gold' : '') + '">' + esc(L.say) + '</span>';
+  html += '<span class="vl gate' + (cut ? ' cut' : '') + (L.open ? ' gold' : ' dim') + '" style="top:' + px(106) + 'px">' + word('GATE') + '</span>';
+  if (L.say) html += '<span class="vfoot' + (fits(L.say) ? ' cut' : '') + (L.gold ? ' gold' : '') + '">' + (fits(L.say) ? vilLetters(L.say) : esc(L.say)) + '</span>';
   if (L.rumour && L.at) { const up = px(L.at.top) > h * 0.36, x = Math.max(24, Math.min(76, L.at.x / VILLAGE.W * 100));
     html += '<span class="vsay ' + (up ? 'up' : 'down') + '" style="left:' + x.toFixed(1) + '%;' + (up ? 'bottom:' + (h - px(L.at.top)) : 'top:' + px(L.at.foot)) + 'px"><b>THE TALK OF THE TOWN</b>&ldquo;' + esc(L.rumour) + '&rdquo;</span>'; }
   if (ov._html !== html) { ov._html = html; ov.innerHTML = html; }
   if (ov.hidden) ov.hidden = false;
 }
 
+// A word for the page in the letters of the map (LETTER, in province.js): a small drawing of it, each run of ink a
+// stroke, in whatever colour the words round it are. Two dots of the page to a dot of a letter, so that it is sharp.
+// Each word is drawn once and kept.
+const VIL_WORDS = new Map();
+function vilLetters(text) {
+  text = String(text).toUpperCase(); let svg = VIL_WORDS.get(text); if (svg) return svg;
+  const L = LETTER.small; let x = 0, d = '';
+  for (const ch of text) { const r = letterOf(L, ch); for (let q = 0; q < r.length; q += 3) d += 'M' + (x + r[q]) + ' ' + r[q + 1] + 'h' + r[q + 2] + 'v1h-' + r[q + 2] + 'z'; x += r.wide + L.gap; }
+  const wd = Math.max(1, x - L.gap);
+  svg = '<svg class="pw" width="' + wd * 2 + '" height="' + L.h * 2 + '" viewBox="0 0 ' + wd + ' ' + L.h + '" shape-rendering="crispEdges"><path fill="currentColor" d="' + d + '"/></svg>';
+  if (VIL_WORDS.size > 400) VIL_WORDS.clear();
+  VIL_WORDS.set(text, svg); return svg;
+}
 // A number from a name, the same every time: which of the day's rumours a pair of talkers has got hold of.
 const vilWord = s => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 9973; };
 

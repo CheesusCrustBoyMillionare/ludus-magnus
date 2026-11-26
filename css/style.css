@@ -438,6 +438,9 @@ h2 { font-size: 16px; margin-bottom: 6px; padding-bottom: 3px; }
 /* the words on the map of the town, written over its canvas (villageLabels in village.js) */
 #vlabels { position: absolute; z-index: 2; pointer-events: none; overflow: hidden; font: bold 10px Consolas, monospace; line-height: 1.2; letter-spacing: 0; }
 #vlabels .vl { position: absolute; transform: translateX(-50%); white-space: nowrap; padding: 1px 4px; background: rgba(24,16,10,.84); color: #f2e6cc; border-bottom: 1px solid #000; }
+#vlabels .vl.cut { padding: 2px 4px; line-height: 0; } #vlabels .vfoot.cut { padding: 3px 6px; line-height: 0; overflow: visible; }
+#vlabels svg.pw { display: inline-block; vertical-align: top; }
+#vlabels .vl.cut .vm { margin: -2px -4px -2px 5px; padding: 2px 3px; min-width: 0; line-height: 0; vertical-align: top; }
 #vlabels .vl.on { background: #f5d584; color: #2a1a0c; border-bottom-color: #b6832c; }
 #vlabels .vl.gold { color: #f5d584; } #vlabels .vl.dim { color: #bcab90; }
 #vlabels .vl.gate { transform: none; right: 1px; }

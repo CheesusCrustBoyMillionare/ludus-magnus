@@ -135,6 +135,19 @@ function sceneSnow(ctx, w, h, T, amt, n) {
   }
 }
 // Snow lying on the ground from y down, and going again: how white is how much has fallen.
+// Snow lying in the yard. Deep and whole over the open sand, with the shade that lies in any snow; drifted against
+// the foot of the wall; and trodden thin along the way the men go between the doors, where the sand shows through and
+// their feet have left it dark. (k: how much of it there is, 0 to 1. The sand itself is painted before it.)
+function yardSnow(ctx, R, y, h, k) {
+  if (!(k > 0.03)) return;
+  const was = ctx.globalAlpha;
+  ctx.globalAlpha = was * 0.78 * k; R(0, y, 590, h, '#eef3f9');
+  ctx.globalAlpha = was * k;
+  for (let x = 0; x < 590; x += 2) { const d = 1 + Math.floor(wildHash(x >> 2, 3, 1630) * 3); R(x, y - d + 1, 2, d + 1, '#fbfcfe'); }                                  // drifted against the wall
+  for (let i = 0; i < 70; i++) { const sx = (i * 97 + 13) % 580, sy = y + 16 + (i * 53) % Math.max(4, h - 20); R(sx, sy, 6 + (i % 4) * 4, 1, i % 3 ? 'rgba(176,196,222,.5)' : 'rgba(255,255,255,.9)'); }      // hollows in it, blue; and where it lies bright
+  for (let x = 0; x < 590; x += 3) { const v = wildHash(x, 5, 1631); if (v > 0.38) { R(x, y + 6 + Math.floor(v * 7), 3 + (v > 0.7 ? 2 : 0), 1, 'rgba(186,160,112,.75)'); if (v > 0.8) R(x + 1, y + 7 + Math.floor(v * 5), 2, 1, 'rgba(96,104,128,.6)'); } }      // the way along the doors, trodden
+  ctx.globalAlpha = was;
+}
 function sceneWhite(ctx, w, y, h, white) { if (!(white > 0)) return; ctx.fillStyle = 'rgba(244,248,252,' + (0.34 * white).toFixed(3) + ')'; ctx.fillRect(0, y, w, h); ctx.fillStyle = 'rgba(255,255,255,' + (0.3 * white).toFixed(3) + ')'; for (let i = 0; i < 40; i++) ctx.fillRect((i * 131 + 9) % (w - 8), y + 2 + (i * 43) % Math.max(4, h - 4), 5 + (i % 4) * 3, 1); }
 // A storm in autumn: when the rain is at its heaviest the sky lights, twice in quick succession, every so often. (Never with the pictures held still.)
 function sceneStorm(ctx, w, h, T, wx) {
@@ -360,6 +373,13 @@ function scenePlaque(ctx, x, y, w, gold) {
   R(l, y - 6, w + 3, 11, 'rgba(0,0,0,.28)'); R(l - 1, y - 8, w + 2, 11, '#e0aa3e'); R(l - 1, y - 8, w + 2, 1, '#f6d27a'); R(l - 1, y + 2, w + 2, 1, '#a8782a'); R(l, y - 7, w, 9, gold ? '#5a3d1c' : '#241812'); R(l, y - 7, w, 1, gold ? '#6e4c26' : '#33241a');
   R(l + 1, y - 3, 1, 1, '#e0aa3e'); R(l + w - 2, y - 3, 1, 1, '#e0aa3e');
 }
+// A sign: a name on a plaque, its middle at x and the foot of its letters at y (gold: one that matters today). Kept
+// inside the picture, however long the name is.
+function sceneSign(ctx, x, y, text, gold) {
+  const tw = provTextW(text), w = tw + 8; x = Math.max(Math.ceil(w / 2) + 2, Math.min(588 - Math.ceil(w / 2), Math.round(x))); y = Math.round(y);
+  scenePlaque(ctx, x, y, w, gold);
+  provText(ctx, text, Math.round(x - w / 2) + 4, y - 5, gold ? '#ffe9a0' : '#f2e6cc');
+}
 // PASS 16. A child, feet at x, y: half a man's height, and always running.
 function sceneChild(ctx, x, y, d, walk, tunic) {
   const R = (px, py, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(d > 0 ? x + px : x - px - w), Math.round(y + py), w, h); }, st = Math.sin(walk) > 0 ? 1 : -1;
@@ -455,21 +475,28 @@ function drawYard(cv, T) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   // names and signs are drawn last, after the light of the hour has been laid over the scene
   const late = [];
+  // (Every word in the picture is in the letters the map of the province is written in: see LETTER, in province.js.)
   const label = (x, y, text) => late.push(() => {
-    ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
     // a name over a man's head stands on bare sand or a wall: a dark edge all round it, so it reads on either
-    ctx.fillStyle = '#0c0704'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(text, x + ox * 0.5, y + oy * 0.5);
-    ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
+    const lx = Math.round(x - provTextW(text) / 2), ly = Math.round(y) - 5;
+    for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) provText(ctx, text, lx + ox, ly + oy, '#0c0704');
+    provText(ctx, text, lx, ly, '#f2e6cc');
   });
   // building names sit on a dark plaque so they read against any wall
-  const sign = (x, y, text) => late.push(() => {
-    ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
-    const w = Math.ceil(ctx.measureText(text).width) + 8;
-    scenePlaque(ctx, x, y, w, false);
-    ctx.fillStyle = '#f2e6cc'; ctx.fillText(text, x, y);
-  });
+  const sign = (x, y, text) => late.push(() => sceneSign(ctx, x, y, text, false));
   const sky = yardSky(T), lights = [], fires = [], perches = [];
   const wx = yardWeather(T);
+  // Snow lying (wx.white: how much of it, 0 to 1). It lies on whatever has a top to hold it: snowOn lays it along one,
+  // so many lines deep and whole (solid), and then ragged below that, deeper in some places than others (ragged).
+  const snowK = Math.min(1, (wx.white || 0) * 1.5);
+  const snowOn = (x, y, w, solid, ragged) => {
+    if (!(snowK > 0.03)) return;
+    const was = ctx.globalAlpha; ctx.globalAlpha = was * snowK; x = Math.round(x); y = Math.round(y); w = Math.round(w);
+    for (let q = 0; q < solid; q++) R(x, y + q, w, 1, q === 0 ? '#ffffff' : '#eef2f7');
+    for (let xx = x; xx < x + w; xx++) { const d = Math.floor(wildHash(xx, y, 1620) * (ragged + 1)); if (d) R(xx, y + solid, 1, d, d > 1 ? '#e2e9f2' : '#eef2f7'); }
+    if (solid > 1) for (let xx = x + 2; xx < x + w - 2; xx += 5) if (wildHash(xx, y, 1621) > 0.5) R(xx, y + solid - 1, 2, 1, '#d6dfeb');      // a little shade in it, so that it is not one flat white
+    ctx.globalAlpha = was;
+  };
   if (wx.over > 0) {                            // cloud takes the colour out of the sky and the light off the yard
     const grey = mixHex('#8d98a3', '#1a2030', sky.night);
     sky.bands = sky.bands.map(c => mixHex(c, grey, wx.over * 0.8));
@@ -510,6 +537,7 @@ function drawYard(cv, T) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(YARD.S, 0, 0, YARD.S, 0, 0); ctx.imageSmoothingEnabled = false;
   sceneHills(ctx, 75, sky, 3, 1, T);
+  if (snowK > 0.03) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = 'rgba(240,245,251,' + (0.5 * snowK).toFixed(3) + ')'; ctx.fillRect(0, 0, 590, 80); ctx.globalCompositeOperation = 'source-over'; }      // snow on the hills: laid on what has been painted here so far, which is the hills and nothing else
   if (t >= 1) {                                 // a town of some standing has water brought to it
     R(60, 43, 330, 4, '#b7b3a4'); R(60, 43, 330, 1, '#d6d2c2'); R(60, 46, 330, 1, '#9c988a');
     for (let x = 64; x < 388; x += 18) {       // piers lit on one side, round-headed arches between them, a stain where the channel leaks
@@ -518,24 +546,29 @@ function drawYard(cv, T) {
       if ((x >> 1) % 5 === 0) { R(x + 1, 48, 1, 9, '#7f8a6a'); R(x + 2, 50, 1, 5, '#7f8a6a'); }
     }
     for (let q = 0; q < 3; q++) R(60 + ((T * 14 + q * 110) % 330), 43, 4, 1, '#9ccbe8');      // water going along the channel
+    snowOn(60, 42, 330, 1, 0);
   }
   for (const [cx, ch] of [[36, 30], [164, 24], [232, 34], [306, 26], [444, 32], [462, 22], [488, 28]]) {      // cypresses beyond the wall
     R(cx, 78 - ch + 4, 2, ch, '#3a2a1c');
     for (let q = 0; q < ch; q++) { const w = Math.round(Math.sin(q / ch * Math.PI) * 4) + 1; R(cx + 1 - w, 76 - q, w * 2, 1, q % 3 ? '#35543a' : '#416446'); if (w > 1) { R(cx + 1 - w, 76 - q, 1, 1, '#527a56'); R(cx + w, 76 - q, 1, 1, '#294430'); } }
+    if (snowK > 0.03) { ctx.globalAlpha = snowK; for (let q = Math.floor(ch * 0.35); q < ch - 1; q += 3) { const w = Math.round(Math.sin(q / ch * Math.PI) * 4) + 1; R(cx + 1 - w, 76 - q, Math.max(1, w), 1, '#f4f7fb'); } R(cx, 76 - ch + 1, 2, 1, '#ffffff'); ctx.globalAlpha = 1; }      // snow on the boughs of the weather side, and on its tip
   }
   for (const [rx, rw, rh] of [[520, 26, 12], [548, 30, 16], [500, 18, 9]]) {       // the town's roofs, off toward the arena
     R(rx, 76 - rh, rw, rh, '#d8c9a2'); R(rx - 2, 76 - rh - 4, rw + 4, 4, '#b5522e'); R(rx - 2, 76 - rh - 4, rw + 4, 1, '#cf6a40'); R(rx + 4, 76 - rh + 3, 3, 4, '#5a4334');
     for (let q = 2; q < rw + 2; q += 4) { R(rx - 2 + q, 76 - rh - 4, 1, 4, '#963f22'); R(rx - 1 + q, 76 - rh - 4, 1, 2, '#d87650'); } R(rx + rw - 5, 76 - rh + 2, 3, 3, '#5a4334'); R(rx - 2, 76 - rh, rw + 4, 1, 'rgba(0,0,0,.22)');
+    snowOn(rx - 2, 76 - rh - 5, rw + 4, 2, 2);
   }
   smoke(538, 56, 2, '#cfcbc3'); smoke(566, 52, 2, '#cfcbc3');      // somebody's dinner, over in the town
 
   // ---- outer wall: grows grander with fame ----
   const W = [{ c: '#7a5a34', d: '#5e4426', l: '#94703f' }, { c: '#a88f66', d: '#8f7650', l: '#c4ab7c' }, { c: '#b89b6e', d: '#a3875c', l: '#d8c08e' }, { c: '#d6ccb8', d: '#b5aa94', l: '#f0e8d6' }][t];
   R(0, 74, 590, GY - 74, W.c); R(0, 74, 590, 2, W.l);
-  if (t === 0) { for (let x = 0; x < 590; x += 8) { R(x, 74, 1, GY - 74, W.d); R(x + 2, 70, 5, 4, W.c); R(x + 3, 68, 3, 2, W.l); } R(0, 98, 590, 2, W.d); }
+  if (t === 0) { for (let x = 0; x < 590; x += 8) { R(x, 74, 1, GY - 74, W.d); R(x + 2, 70, 5, 4, W.c); R(x + 3, 68, 3, 2, W.l); } R(0, 98, 590, 2, W.d);
+    if (snowK > 0.03) { ctx.globalAlpha = snowK; for (let x = 0; x < 590; x += 8) { R(x + 3, 67, 3, 1, '#ffffff'); R(x + 2, 69, 1, 1, '#eef2f7'); R(x + 6, 69, 1, 1, '#eef2f7'); R(x + 7, 73, 3, 1, '#eef2f7'); } ctx.globalAlpha = 1; } }      // snow on the point of every stake, and in the notch between two
   else {
     for (let r = 0; r < 9; r++) { const y = 76 + r * 6; for (let x = (r % 2) * 9 - 18; x < 590; x += 18) { const v = wildHash(x, r, 1601); if (v > 0.7) R(x + 1, y, 17, 5, 'rgba(255,244,214,.08)'); else if (v < 0.26) R(x + 1, y, 17, 5, 'rgba(40,24,8,.08)'); } R(0, y, 590, 1, 'rgba(255,248,224,.08)'); R(0, y + 5, 590, 1, W.d); for (let x = (r % 2) * 9; x < 590; x += 18) R(x, y, 1, 5, W.d); }
     if (t >= 2) for (let x = 0; x < 590; x += 14) R(x, 69, 8, 5, W.c);
+    if (t >= 2) for (let x = 0; x < 590; x += 14) { snowOn(x, 68, 8, 1, 1); snowOn(x + 8, 73, 6, 1, 0); } else snowOn(0, 73, 590, 1, 1);      // snow along the top of the wall, and on each merlon
   }
 
   for (let i = 0; i < 9; i++) {                 // ivy come over the top of the wall and down it, wherever it has been let grow
@@ -575,6 +608,10 @@ function drawYard(cv, T) {
       for (let xx = x + 1; xx < x + w; xx += 4) { R(xx, y - 9, 1, 4, '#963c28'); R(xx + 1, y - 9, 1, 4, '#c96a4c'); } R(x + 5, y - 13, w - 10, 1, '#de8060'); R(x - 4, y + 2, w + 8, 1, 'rgba(0,0,0,.22)');
       for (let q = 0; q < 1 + Math.floor(w / 50); q++) R(x + 2 + Math.floor(wildHash(x, q, 1511) * (w - 8)), y - 3 - Math.floor(wildHash(q, x, 1512) * 5), 3, 1, '#6f8a4a'); }      // moss in a joint or two
     else { R(x - 2, y - 3, w + 4, 4, '#8a6a4a'); R(x - 2, y - 3, w + 4, 1, '#a8855e'); }
+    // and snow lying on it: the whole of the top, and thinner down the slope to the eave, which is left showing
+    if (kind === 'thatch') { snowOn(x - 1, y - 10, w + 2, 3, 0); snowOn(x - 3, y - 7, w + 6, 2, 3); }
+    else if (kind === 'tile') { snowOn(x + 5, y - 13, w - 10, 3, 0); snowOn(x - 1, y - 10, w + 2, 2, 2); snowOn(x - 4, y - 6, w + 8, 2, 2); }
+    else snowOn(x - 2, y - 4, w + 4, 2, 0);
   };
   const door = (x, w, h) => { const di = doors.length; doors.push([x, w, h]); R(x - 1, GY - h - 1, w + 2, h + 1, '#5a4334'); R(x - 1, GY - h - 1, w + 2, 1, '#7a6150'); R(x, GY - h, w, h, '#241812'); R(x, GY - h, 1, h, '#3a2a1c'); R(x + 1, GY - h, w - 1, 3, 'rgba(0,0,0,.3)'); R(x - 2, GY - 1, w + 4, 1, '#9a8a70');
     // a lamp lit inside some of the cells after dark: painted here, in the doorway itself, so that whatever stands in front
@@ -606,7 +643,7 @@ function drawYard(cv, T) {
       R(x + w + 1, y + 10, 6, h - 10, SHADOW);
       R(x - 1, y + 5, w + 2, h - 5, OUT); R(x, y + 6, w, h - 6, '#efe6cf'); R(x, y + 6, 3, h - 6, '#cfc4a6'); R(x + w - 3, y + 6, 3, h - 6, '#cfc4a6');
       R(x + 8, y + 13, w - 16, h - 13, '#33241c');
-      R(x - 5, y - 1, w + 10, 9, OUT); R(x - 4, y, w + 8, 7, '#efe6cf'); for (let xx = x - 4; xx < x + w + 4; xx += 8) R(xx, y, 4, 7, '#3f8a3a');
+      R(x - 5, y - 1, w + 10, 9, OUT); R(x - 4, y, w + 8, 7, '#efe6cf'); for (let xx = x - 4; xx < x + w + 4; xx += 8) R(xx, y, 4, 7, '#3f8a3a'); snowOn(x - 4, y - 1, w + 8, 2, 2);
       R(x + 10, GY - 10, w - 20, 3, '#f2ecd8'); R(x + 10, GY - 7, 2, 7, '#7a5a2a'); R(x + w - 12, GY - 7, 2, 7, '#7a5a2a'); R(x + 10, GY - 12, 5, 2, '#e8d7b0');
     } else {
       y = walls(x, w, h, lv >= 2 ? '#f6f1e4' : '#efe6cf'); roof(x, y, w, lv >= 2 ? 'tile' : 'thatch');
@@ -626,14 +663,16 @@ function drawYard(cv, T) {
       R(x + w + 1, y + 10, 6, h - 10, SHADOW);
       R(x - 1, y + 5, w + 2, h - 16, OUT); R(x, y + 6, w, h - 18, '#d3e6ec'); R(x, y + 6, 3, h - 18, '#b3ccd4');
       R(x, y + 4, 2, h - 4, '#5a4334'); R(x + w - 2, y + 4, 2, h - 4, '#5a4334');
-      R(x - 5, y - 1, w + 10, 9, OUT); R(x - 4, y, w + 8, 7, '#eef6f8'); for (let xx = x - 4; xx < x + w + 4; xx += 8) R(xx, y, 4, 7, '#3d86c8');
+      R(x - 5, y - 1, w + 10, 9, OUT); R(x - 4, y, w + 8, 7, '#eef6f8'); for (let xx = x - 4; xx < x + w + 4; xx += 8) R(xx, y, 4, 7, '#3d86c8'); snowOn(x - 4, y - 1, w + 8, 2, 2);
       R(x + 1, GY - 13, w - 2, 13, OUT); R(x + 2, GY - 12, w - 4, 12, '#c9c0aa'); R(x + 2, GY - 12, w - 4, 2, '#e4dcc8');
       R(x + 5, GY - 10, w - 10, 5, '#3d9be0'); R(x + 6, GY - 10, 8, 1, '#c8e8f8'); R(x + w - 14, GY - 8, 6, 1, '#c8e8f8');
     }
     else {
       y = walls(x, w, h, '#dfeaee'); R(x - 3, y - 4, w + 6, 6, OUT); R(x - 2, y - 3, w + 4, 4, '#f4fafb');
       R(x + 2, y + 3, w - 4, 3, '#3d86c8');                                            // the bathers' blue band
-      if (lv >= 2) { const dw = w - 20; for (let i = 0; i < 6; i++) R(x + 10 + i * 2, y - 5 - i * 3, dw - i * 4, 3, i % 2 ? '#c7d3d6' : '#b3c3c8'); }
+      if (lv >= 2) { const dw = w - 20; for (let i = 0; i < 6; i++) R(x + 10 + i * 2, y - 5 - i * 3, dw - i * 4, 3, i % 2 ? '#c7d3d6' : '#b3c3c8');
+        for (let i = 0; i < 6; i++) { if (i < 5) { snowOn(x + 10 + i * 2, y - 5 - i * 3, 2, 1, 0); snowOn(x + 8 + dw - i * 2, y - 5 - i * 3, 2, 1, 0); } else snowOn(x + 10 + i * 2, y - 6 - i * 3, dw - i * 4, 2, 0); } }      // snow on the crown of the dome, and on each step of it
+      snowOn(x - 2, y - 4, lv >= 2 ? 12 : w + 4, 2, 0); if (lv >= 2) snowOn(x + w - 10, y - 4, 12, 2, 0);
       door(x + w / 2 - 6, 12, 30); R(x + 6, GY - 26, 8, 2, '#5aa0d0'); R(x + w - 14, GY - 26, 8, 2, '#5aa0d0');
       if (lv >= 3) { column(x - 3, GY - 40, 40); column(x + w - 2, GY - 40, 40); column(x + 12, GY - 40, 40); column(x + w - 17, GY - 40, 40); }
       smoke(x + w / 2, y - (lv >= 2 ? 22 : 4), 3 + lv, '#f4f8f8');
@@ -690,7 +729,7 @@ function drawYard(cv, T) {
   // ---- the street gate: the school's own way out into the town. Its banners multiply with the house's fame ----
   {
     const x = 506;
-    R(x, GY - 62, 62, 62, W.l); R(x, GY - 62, 2, 62, W.d); R(x + 60, GY - 62, 2, 62, W.d); R(x - 2, GY - 66, 66, 5, W.c); R(x - 2, GY - 66, 66, 1, W.l);
+    R(x, GY - 62, 62, 62, W.l); R(x, GY - 62, 2, 62, W.d); R(x + 60, GY - 62, 2, 62, W.d); R(x - 2, GY - 66, 66, 5, W.c); R(x - 2, GY - 66, 66, 1, W.l); snowOn(x - 2, GY - 67, 66, 1, 2);
     R(x + 14, GY - 44, 34, 44, '#3a2a1c'); R(x + 16, GY - 42, 30, 42, '#5a4030'); R(x + 30, GY - 42, 2, 42, '#3a2a1c');
     for (let yy = GY - 36; yy < GY; yy += 10) R(x + 16, yy, 30, 1, '#3a2a1c');
     R(x + 12, GY - 48, 38, 4, W.d);
@@ -728,7 +767,7 @@ function drawYard(cv, T) {
     for (let i = 0; i < 26; i++) { const x = (i * 211 + 40) % 580, y = GY + 16 + (i * 29) % 42; R(x, y, 2, 1, '#a8905c'); R(x, y - 1, 1, 1, '#c8b078'); }      // pebbles
   }
   for (let i = 0; i < 90; i++) { const sx = (i * 97) % 588, sy = GY + 6 + (i * 53) % (YARD.H - GY - 8); R(sx, sy, 1 + (i % 3), 1, i % 2 ? '#c9a763' : '#e6c98a'); }
-  sceneWhite(ctx, 590, GY, YARD.H - GY, wx.white);
+  yardSnow(ctx, R, GY, YARD.H - GY, snowK);
   if (wx.wet > 0) {
     R(0, GY, 590, YARD.H - GY, `rgba(70,45,20,${(0.22 * wx.wet).toFixed(3)})`);
     const pc = mixHex('#a88a58', sky.bands[2], 0.55), pl = mixHex('#c8b078', sky.bands[1], 0.7);
@@ -922,7 +961,7 @@ function drawYard(cv, T) {
     const o = a.moving ? { facing: a.face, moving: true, walk: a.walk } : a.act === 'nap' ? { falling: true, down: true }
       : a.act === 'watch' ? { cheer: Math.sin(T * 1.3 + g.id) > 0.6 ? T + g.id : 0 } : a.act === 'chat' ? { facing: toMate } : {};
     place(g, x, y, o);
-    if (!a.moving && a.act === 'nap') late.push(() => { ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#f2e6cc'; const p = (T * 0.7 + g.id * 0.3) % 1; ctx.globalAlpha = 1 - p; ctx.fillText('z', x + 12 + p * 5, y - 12 - p * 12); ctx.globalAlpha = 1; });
+    if (!a.moving && a.act === 'nap') late.push(() => { const p = (T * 0.7 + g.id * 0.3) % 1; ctx.globalAlpha = 1 - p; provText(ctx, 'Z', x + 11 + p * 5, y - 17 - p * 12, '#f2e6cc'); ctx.globalAlpha = 1; });
     if (!a.moving && a.act === 'chat' && (Math.floor(T * 0.8) + (a.mate && a.mate.x > a.x ? 1 : 0)) % 2) things.push({ y: y + 1, draw: () => { R(x + toMate * 3 - 4, y - 53, 9, 6, '#1c1310'); R(x + toMate * 3 - 3, y - 52, 7, 4, '#f2e6cc'); R(x + toMate * 3, y - 47, 1, 2, '#f2e6cc'); for (let k = 0; k < 3; k++) R(x + toMate * 3 - 2 + k * 2, y - 51, 1, 1, '#5a4334'); } });
     if (!a.moving && a.act === 'drink') things.push({ y: y + 1, draw: () => { R(x + 5, y - 34, 3, 3, '#7a5a2a'); R(x + 5, y - 34, 3, 1, '#5aa0d0'); } });
   });
@@ -1208,7 +1247,7 @@ function sceneOver(cv, T, tab) {
       R(x0, y0, x1 - x0, 1, c); R(x0, y1 - 1, x1 - x0, 1, c); R(x0, y0, 1, y1 - y0, c); R(x1 - 1, y0, 1, y1 - y0, c); ctx.globalAlpha = 1;
       fighterCard(cv, h);
       const say = sceneWord(h);
-      if (say) { ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; const w = Math.ceil(ctx.measureText(say).width) + 10; R(YARD.W / 2 - w / 2, 178, w, 10, 'rgba(24,16,10,.9)'); ctx.fillStyle = c; ctx.fillText(say, YARD.W / 2, 185); }
+      if (say) { const w = provTextW(say) + 10, x0 = Math.round(YARD.W / 2 - w / 2); R(x0, 178, w, 10, 'rgba(24,16,10,.9)'); provText(ctx, say, x0 + 5, 180, c); }
     }
   }
   if (cv.style.cursor !== cur) cv.style.cursor = cur;

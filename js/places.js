@@ -63,12 +63,7 @@ function drawPlace(cv, T, tab) {
     P: (x, y, d, o) => person(Math.round(x), Math.round(y), d, Object.assign({ tunic: '#8a4a3a' }, o)),
     // someone walking the length of the picture and coming round again
     walker: (i, y, speed, o) => { const x = (((i * 137 + T * speed) % 660) + 660) % 660 - 35, lap = Math.floor((i * 137 + T * speed) / 660), k = Math.abs(i * 5 + lap * 3) % 8, carry = (o && o.item) ? {} : k === 1 ? { item: 'basket' } : k === 3 ? { item: 'jar' } : k === 5 ? { item: 'sack' } : {}; person(Math.round(x), walkY(x, y), speed > 0 ? 1 : -1, Object.assign({ tunic: '#8a4a3a', moving: true, walk: T * 9 + i }, o, carry)); },      // some of them are carrying something home, and not the same thing each time they come by
-    sign: (x, y, text, gold) => late.push(() => {
-      ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center';
-      const w = Math.ceil(ctx.measureText(text).width) + 8;
-      scenePlaque(ctx, x, y, w, gold);
-      ctx.fillStyle = gold ? '#ffe9a0' : '#f2e6cc'; ctx.fillText(text, x, y);
-    }),
+    sign: (x, y, text, gold) => late.push(() => sceneSign(ctx, x, y, text, gold)),
     lamp: (x, y) => lamps.push([x, y]),
     fire: (x, y, r) => fires.push([x, y, r]),            // a hearth: it lights the room about it, and flickers
     shaft: pts => shafts.push(pts),                      // daylight (or the moon) coming in: the four corners of where it falls, from the opening round to the floor
