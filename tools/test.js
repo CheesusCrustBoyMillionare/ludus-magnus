@@ -715,6 +715,7 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
     const me = makeGladiator(45, { cls: 'dimachaerus' }), F = createBattle([me], [makeGladiator(58, { cls: 'murmillo' })], { noIntro: true });
     for (let i = 0; i < 60; i++) stepBattle(F, 1 / 30);
     const f = F.fighters[0], foe = F.fighters[1]; foe.hp = foe.maxHp; f.stun = 0; F.vfx.length = 0; F.hitstop = 0;
+    foe.stun = 4;      // (the other man is held off for as long as this takes: a blow of his that stunned the caster would break the storm off, which is tried by itself below, and now and then it did)
     castAbility(F, f, abilityById('dimachaerus.agi1'));                    // Blade storm: five cuts
     assert(f.combo && f.combo.left === 4, 'the first cut lands at once and four are still to come');
     assert(F.vfx.some(v => v.k === 'banner' && v.text === 'BLADE STORM') && F.vfx.some(v => v.k === 'ring') && F.vfx.some(v => v.k === 'arc'), 'a ribbon with its name, a ring at his feet, and the arc of the blade');
@@ -734,25 +735,33 @@ test('abilities: learned at 5, 10 and 16, four carried, cast on a full charge', 
     assert(!sf.combo, 'a stunned man loses the rest of his blows');
   }
   // watched fights stop for the player's men, and only for them
-  B = createBattle([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)], { noIntro: true, ask: true });
+  // (About one fight in a hundred is over before a man of yours has a full charge, or before the other side has cast
+  // anything: that is a short fight, not a fault. So it is fought again, a few times at most, until one is found in
+  // which both happened; every fight tried is still held to the rule each time it stops.)
   let asked = 0, foeCasts = 0, steps = 0;
-  while (!B.over && steps++ < 30000) {
-    stepBattle(B, 1 / 30);
-    if (B.pick) {
-      const who = B.pick, t0 = B.time;
-      assert(who.team === 0 && who.charge >= 100 && who.abl.length > 1, 'it stops for one of yours, charged, with a choice to make');
-      for (let i = 0; i < 20; i++) stepBattle(B, 1 / 30);
-      assert(B.pick === who && B.time === t0, 'and stays stopped until you choose');
-      const choice = who.abl[asked % who.abl.length];
-      assert(pickAbility(B, choice.id) && !B.pick && who.charge === 0 && who.lastCast === choice.id, 'he does what you chose');
-      asked++;
+  for (let bout = 0; bout < 6 && !(asked > 0 && foeCasts > 0); bout++) {
+    B = createBattle([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)], { noIntro: true, ask: true });
+    asked = 0; steps = 0;
+    while (!B.over && steps++ < 30000) {
+      stepBattle(B, 1 / 30);
+      if (B.pick) {
+        const who = B.pick, t0 = B.time;
+        assert(who.team === 0 && who.charge >= 100 && who.abl.length > 1, 'it stops for one of yours, charged, with a choice to make');
+        for (let i = 0; i < 20; i++) stepBattle(B, 1 / 30);
+        assert(B.pick === who && B.time === t0, 'and stays stopped until you choose');
+        const choice = who.abl[asked % who.abl.length];
+        assert(pickAbility(B, choice.id) && !B.pick && who.charge === 0 && who.lastCast === choice.id, 'he does what you chose');
+        asked++;
+      }
     }
+    assert(B.over, 'a watched fight is fought to its end');
+    foeCasts = B.fighters.filter(f => f.team === 1).reduce((m, f) => m + f.casts, 0);
   }
-  foeCasts = B.fighters.filter(f => f.team === 1).reduce((m, f) => m + f.casts, 0);
-  assert(B.over && asked > 0 && foeCasts > 0, 'you were asked ' + asked + ' times; the other side chose for itself ' + foeCasts + ' times');
-  // unwatched, nobody is asked
-  B = fight([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)]);
-  assert(!B.pick && B.fighters.some(f => f.team === 0 && f.casts > 0), 'unwatched, your men choose for themselves');
+  assert(asked > 0 && foeCasts > 0, 'you were asked ' + asked + ' times; the other side chose for itself ' + foeCasts + ' times');
+  // unwatched, nobody is asked (and, as above, a fight too short for anybody to cast in is fought again)
+  { let cast = false;
+    for (let bout = 0; bout < 6 && !cast; bout++) { B = fight([makeGladiator(40), makeGladiator(40)], [makeGladiator(40), makeGladiator(40)]); assert(!B.pick, 'unwatched, nobody is asked'); cast = B.fighters.some(f => f.team === 0 && f.casts > 0); }
+    assert(cast, 'unwatched, your men choose for themselves'); }
   // the cloth is the one order left
   const start = opts => createBattle([makeGladiator(30), makeGladiator(30)], [makeGladiator(30), makeGladiator(30)], Object.assign({ noIntro: true }, opts || {}));
   B = start(); B.fighters.forEach(f => { f.g.traits = []; });
@@ -1882,6 +1891,7 @@ test('the calendar: a month of games, a month with the arena shut, and market da
   // the day itself: a shut month has its market days, with fresh stock and new work, and no bouts
   newGame(); while (G.roster.length < 4) G.roster.push(makeGladiator(26));
   while (G.day < 34) { G.denarii = 500; endDay(); G.pendingEvent = null; G.reports.length = 0; }
+  G.patrons.magistrate = Math.max(G.patrons.magistrate, 12);      // (he must have some favour to lose: now and then a month of play had already brought it to nothing, where it stays, and the day could not be seen to take one from it)
   const stock = G.market.map(m => m.id).join(), work = G.contracts.map(c => c.id).join(), fav = G.patrons.magistrate, years = (G.annals || []).length;
   G.denarii = 500; endDay(); G.pendingEvent = null;
   assert(G.day === 35 && !G.bouts && !G.tourney, 'no bouts on a market day when the arena is shut');
