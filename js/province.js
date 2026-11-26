@@ -3764,6 +3764,7 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
 // Those who use the roads: carters, pilgrims, a file of soldiers, a merchant with his donkey, a man in a hurry on a
 // horse. Each keeps to one road and goes up and down it for ever; where he is comes from the clock, like the herds.
 const TRAVEL_HALT = 5;      // seconds a traveller stands at the end of his road before he turns back
+const TRAVEL_SPEED = { rider: 3.4, runner: 2.8, cart: 1.1, oxwagon: 0.8, litter: 1.2, soldiers: 1.8 };      // road tiles a second; anybody else, 1.4 (see drawTraffic, and provRuts)
 const TRAVELLERS = ['cart', 'pilgrim', 'soldiers', 'merchant', 'rider', 'herdsman', 'litter', 'mules', 'woodman', 'oxwagon', 'runner', 'family'];
 // The town's gates, as doorways. Whoever comes up a road to the town goes in at a gate as the lanista goes in at a door
 // in the town itself (village.js): up to the arch, growing small in it (a little smaller than the gateway), and gone;
@@ -3898,7 +3899,7 @@ function drawTraffic(ctx, T, R, inView) {
     const len = way.length - 1, n = len > 60 ? 3 : 2;
     for (let j = 0; j < n; j++) {
       const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)];
-      const speed = kind === 'rider' ? 3.4 : kind === 'runner' ? 2.8 : kind === 'cart' ? 1.1 : kind === 'oxwagon' ? 0.8 : kind === 'litter' ? 1.2 : kind === 'soldiers' ? 1.8 : 1.4;      // road tiles a second
+      const speed = TRAVEL_SPEED[kind] || 1.4;      // road tiles a second
       const C = giveWay(shuttleAt(lineOf(way), T, speed * 10, TRAVEL_HALT, hv(2))), x = C.x, y = C.y;      // up the road and down it, with a halt at each end
       if (!inView(x, y, 30) || !wildSeen(x, y) || inTownWalls(x, y)) continue;
       const lead = provAt(x, y, 8);
@@ -5065,6 +5066,39 @@ function provTracks(ctx, R, inView) {
   }
   ctx.globalAlpha = 1;
 }
+// And whoever else is on the roads leaves a track in lying snow, as the column does: the ruts of a cart or a wagon
+// with the beast's feet between them, the feet of a string of mules or a file of soldiers, one man's steps. Nobody
+// out there is remembered from one moment to the next (each is where the hour puts him: drawTraffic), so the track is
+// not kept either. It is reckoned: the stretch of his road behind him, fainter the further back, and no further back
+// than he has come since he last turned round; and when he turns, what he left coming in lies before him for a few
+// seconds more and goes, as he drives back over it.
+const RUT_REACH = 84, RUT_FADE = 9;
+function provRuts(ctx, T, R, inView) {
+  const white = prov.white || 0; if (!(white > 0.2) || !prov.ways) return;
+  const deep = Math.min(1, white * 1.6) * 0.75;
+  prov.ways.forEach((way, wi) => {
+    const W = lineOf(way), n = way.length - 1 > 60 ? 3 : 2;
+    for (let j = 0; j < n; j++) {
+      const hv = q => wildHash(wi * 17 + j, q, 680), kind = TRAVELLERS[Math.floor(hv(1) * TRAVELLERS.length)], sp = (TRAVEL_SPEED[kind] || 1.4) * 10;
+      const C = shuttleAt(W, T, sp, TRAVEL_HALT, hv(2)); if (!inView(C.x, C.y, RUT_REACH + 16)) continue;
+      const since = C.leg === 1 ? C.d : C.leg === 3 ? W.total - C.d : 1e9, old = C.moving ? Math.max(0, 1 - since / sp / RUT_FADE) : 0;
+      const wheels = kind === 'cart' || kind === 'oxwagon', many = wheels || kind === 'mules' || kind === 'soldiers' || kind === 'herdsman' || kind === 'litter' || kind === 'family';
+      const mark = (off, a) => {      // one step of it, so far along his road from where he is (behind him: less than nothing)
+        const p = C.along(off), q = C.along(off - 2), dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy); if (d < 0.01 || !inView(p.x, p.y, 6) || inTownWalls(p.x, p.y) || !wildSeen(p.x, p.y)) return;
+        const k = wildTile(p.x, p.y); if (k === T_BRIDGE || k === T_WATER) return;
+        const col = k === T_ROAD ? '#3e2e20' : '#46587a';      // (on the road itself the snow is trodden thin, and what shows in a rut is the wet earth; off it, the blue of a hollow in snow)
+        const px = -dy / d, py = dx / d, x = Math.round(p.x), y = Math.round(p.y), step = Math.round(Math.abs(off) / 2), side = step & 1 ? 1 : -1;
+        ctx.globalAlpha = Math.round(a * deep * 16) / 16; if (!ctx.globalAlpha) return;
+        if (wheels) { for (const half of [0, 0.5]) for (const s of [-3, 3]) R(x - dx * half + px * s, y - dy * half + py * s, 1, 1, col); if (step % 2 === 0) R(x + px * side, y + py * side, 1, 1, col); }      // (the ruts unbroken: a dot at each step and one between)
+        else if (many) { R(x + px * 2 * side, y + py * 2 * side, 1, 1, col); if (step % 3 === 0) R(x - px * 2 * side, y - py * 2 * side, 1, 1, col); }
+        else if (step % 2 === 0) R(x + px * ((step >> 1) & 1 ? 1 : -1), y + py * ((step >> 1) & 1 ? 1 : -1), 1, 1, col);
+      };
+      for (let off = 2, far = Math.min(RUT_REACH, since, W.total); off <= far; off += 2) mark(-off, 1 - off / RUT_REACH);
+      if (old > 0) for (let was = Math.ceil(since / 2) * 2 + 2; was < RUT_REACH; was += 2) mark(was - since, (1 - was / RUT_REACH) * old);
+    }
+  });
+  ctx.globalAlpha = 1;
+}
 // Snow on what is not part of the painted land: the town, and the places you have found. Each is drawn afresh every
 // frame, so the snow painted into the winter's land (snowLie) cannot lie on it. Instead its picture is drawn once on
 // a slip of its own, at two moments, and wherever it is the same at both (so not on a flag, a fire or a man walking)
@@ -5319,6 +5353,7 @@ function drawProvince(cv, T) {
     }
   }
   provTracks(ctx, R, inView);
+  provRuts(ctx, T, R, inView);
   // The wind going over the open ground. It comes across in fronts (provWind), and where a front is passing the grass
   // shows it: blades here and there turned to the light, each for as long as the gust is on it, so that the eye follows
   // the front over the meadow. Standing corn shows it far more, and all of it: a pale line where the ears are bent over
