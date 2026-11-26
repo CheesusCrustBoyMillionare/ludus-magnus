@@ -30,7 +30,7 @@ function* provLandSteps(fresh, se) {
   // a little toward gold in summer, toward brown in autumn, and to the dun of dead grass in winter. Water, stone, roofs
   // and whatever else is not green are left as they are; so is anything painted with "keep" set, which is how a tree
   // chooses its own colours for the season (see the tree) and an evergreen stays green.
-  se = se | 0; fresh.landSe = se; fresh.work = [];      // (work: where the fields can be worked at this season, and how: see drawFieldWork)
+  se = se | 0; fresh.landSe = se; fresh.work = []; fresh.shed = [];      // (shed: the trees that let their leaves go in autumn, and the blossom in spring: where, and what colour, three numbers to each: see provLeaves) (work: where the fields can be worked at this season, and how: see drawFieldWork)
   let keep = false;
   const SEASON_TO = [null, [196, 178, 96, 0.16], [158, 126, 62, 0.42], [140, 130, 104, 0.78]], seasonOf = {};
   const seasonal = c => {
@@ -884,6 +884,7 @@ function* provLandSteps(fresh, se) {
           else for (let q = 1; q < 10; q += 3) { if (bare) { R(x + q, y, 1, 10, '#6b5a40'); for (let u = 1; u < 10; u += 3) R(x + q, y + u, 2, 1, '#5a4632'); } else R(x + q, y, 2, 10, '#557a36'); if (hung) for (let u = 1 + (q % 2); u < 10; u += 3) R(x + q, y + u, 1, 1, grape); }
           fray(tx, ty, (ax, ay) => grove(ax, ay) === 2);
         } else {                               // an orchard, in blossom or in fruit
+          if (se === 0 && (tx + ty) % 2 === 0) fresh.shed.push(x + 5, y + 2, 4);
           R(x, y, 10, 10, 'rgba(120,160,70,.3)');
           for (let q = 0, n = 1 + Math.floor(v1 * 2); q < n; q++) { const ox = 2 + Math.floor(h(tx, ty, 512 + q) * 6), oy = 3 + q * 4; if (se === 3) { R(x + ox, y + oy - 3, 1, 6, '#4a3320'); R(x + ox - 2, y + oy - 2, 2, 1, '#4a3320'); R(x + ox - 2, y + oy - 3, 1, 1, '#4a3320'); R(x + ox + 1, y + oy - 1, 2, 1, '#4a3320'); R(x + ox + 2, y + oy - 2, 1, 1, '#4a3320'); continue; }      // (bare, in winter)
             keep = true; R(x + ox - 2, y + oy - 2, 5, 3, se === 2 ? '#8a7a2e' : '#4c7f38'); R(x + ox - 1, y + oy - 3, 3, 1, se === 2 ? '#b09a3a' : '#69a04a'); keep = false; R(x + ox, y + oy + 1, 1, 2, '#4a3320');
@@ -991,6 +992,8 @@ function* provLandSteps(fresh, se) {
       const spire = kind === 'cypress' || kind === 'poplar', needle = kind === 'pine' || kind === 'fir' || kind === 'larch', bare = kind === 'dead' || kind === 'burnt', broad = !spire && !needle && !bare && kind !== 'stone' && kind !== 'birch' && kind !== 'willow';
       const wd = spire ? 1 : bare ? 3 : broad ? Math.ceil(sz * 1.7) : sz + 1, up = spire ? sz * 2 + 8 : needle ? 6 + (2 + Math.floor(sz / 2)) * 2 : broad ? 4 + Math.ceil(sz * 1.8) : sz + 6;
       overs.push({ x0: cx - wd, x1: cx + wd + 1, y0: cy - up, base: cy + 1, tree: true, soft: true, d: () => tree(cx, cy, kind, sz, f) });
+      { const sheds = !['pine', 'fir', 'yew', 'cypress', 'stone', 'olive', 'dead', 'burnt', 'gold', 'russet'].includes(kind), tn = h(cx, cy, 2401);      // (as below: what has a leaf to lose, and how far it has turned)
+        const sc = se === 2 && sheds ? (kind === 'birch' || kind === 'poplar' || kind === 'larch' ? 1 : tn < 0.3 ? 0 : tn < 0.58 ? 1 : tn < 0.84 ? 2 : 3) : se === 0 && kind === 'blossom' ? 4 : 0; if (sc) fresh.shed.push(cx, cy - Math.round(up * 0.55), sc); }
     }
     // A tree's colours are its own for the season, chosen here and laid down as they are (keep). The evergreens (pine,
     // fir, yew, cypress, the stone pine, the olive) are green the year round. The rest turn in autumn, each its own
@@ -2782,6 +2785,61 @@ function provMist(ctx, T, camX, camY, k) {
     }
   }
 }
+// Leaves on the wind. In autumn every tree that has turned lets a leaf go now and then (prov.shed: where, and of what
+// colour, set down as the land is painted); it comes down turning, a little way off, and lies. When a gust is on the
+// tree they come off it in numbers and go streaming away downwind. In spring it is the blossom of the fruit trees
+// and the orchards that goes, the same way. Each leaf has its turn in a round of some seconds, and whether a tree
+// lets one go this round is by how hard it blows there.
+const SHED_COL = [null, ['#d8bc3e', '#ecd45c'], ['#c9822e', '#a8562a'], ['#b07a2e', '#8a5a22'], ['#f4d0d8', '#ffffff']];
+function provLeaves(ctx, T, camX, camY, gust) {
+  const sh = prov.shed; if (!sh || !sh.length) return;
+  const x1 = camX + PROV.VW + 8, y1 = camY + PROV.VH + 16;
+  for (let i = 0; i < sh.length; i += 3) {
+    const x = sh[i], y = sh[i + 1]; if (x < camX - 56 || x > x1 || y < camY - 4 || y > y1) continue;
+    const hs = ((Math.imul(i + 7, 2654435761) >>> 8) & 0xffff) / 65536, blow = Math.min(1, gust * 0.5 + provWind(x, y, T, gust) * (0.4 + 0.6 * gust)), col = SHED_COL[sh[i + 2]];
+    for (let q = 0, n = blow > 0.45 ? 2 : 1; q < n; q++) {
+      const u = T / (4 + hs * 5) + hs * 7 + q * 0.37, round = Math.floor(u), f = (u - round) / 0.7; if (f > 1) continue;
+      const h2 = ((Math.imul(round * 31 + i + q * 17, 2246822519) >>> 8) & 0xffff) / 65536; if (h2 > 0.28 + 0.72 * blow) continue;
+      const lx = x + (h2 - 0.5) * 9 + f * (3 + 46 * blow) + Math.sin(f * 9 + h2 * 6) * 2 * (1 - blow), ly = y - (7 + h2 * 7) * (1 - f) - (blow > 0.5 ? Math.sin(f * 3.14) * 4 * blow : 0);
+      ctx.fillStyle = col[(round + q) & 1]; ctx.fillRect(Math.round(lx), Math.round(ly), Math.sin(f * 14 + h2 * 9) > 0 ? 2 : 1, 1);
+    }
+  }
+}
+// Which way a flag or a ribbon lies this moment, 0 or 1, by the wind that is on it: still in a lull, flapping when a
+// front comes over, and fast in a gale (see provWind, and the flags of the town).
+function provFlap(x, y, T) { const g0 = prov.gustNow || 0, bl = provWind(x, y, T, g0) + g0 * 0.4; return bl < 0.06 ? 0 : Math.sin(T * (bl > 0.6 ? 11 : 5) + x) > 0 ? 1 : 0; }
+// ---------- lettering ----------
+// The names on the map are cut in letters of its own grain, not set in the type of whatever machine it is read on:
+// capitals only, as an inscription is. Two hands: a small one, three dots by five (LETTER.small), for the names of
+// places; and a tall one, five by seven (LETTER.tall), spaced wide, for the names of the regions written across the
+// country. Each letter is its rows, top to bottom, a 1 where there is ink.
+const LETTER = {
+  small: { w: 3, h: 5, gap: 1, glyphs: {
+    A: '010/101/111/101/101', B: '110/101/110/101/110', C: '011/100/100/100/011', D: '110/101/101/101/110', E: '111/100/110/100/111', F: '111/100/110/100/100', G: '011/100/101/101/011',
+    H: '101/101/111/101/101', I: '111/010/010/010/111', J: '001/001/001/101/010', K: '101/101/110/101/101', L: '100/100/100/100/111', M: '101/111/111/101/101', N: '101/111/111/111/101',
+    O: '010/101/101/101/010', P: '110/101/110/100/100', Q: '010/101/101/111/011', R: '110/101/110/101/101', S: '011/100/010/001/110', T: '111/010/010/010/010', U: '101/101/101/101/111',
+    V: '101/101/101/101/010', W: '101/101/111/111/101', X: '101/101/010/101/101', Y: '101/101/010/010/010', Z: '111/001/010/100/111',
+    0: '111/101/101/101/111', 1: '010/110/010/010/111', 2: '110/001/010/100/111', 3: '110/001/010/001/110', 4: '101/101/111/001/001', 5: '111/100/110/001/110', 6: '011/100/111/101/111', 7: '111/001/010/010/010', 8: '111/101/111/101/111', 9: '111/101/111/001/110',
+    '-': '000/000/111/000/000', '.': '000/000/000/000/010', ',': '000/000/000/010/100', "'": '010/010/000/000/000', ':': '000/010/000/010/000', '!': '010/010/010/000/010', '?': '110/001/010/000/010', '/': '001/001/010/100/100', '+': '000/010/111/010/000' } },
+  tall: { w: 5, h: 7, gap: 3, glyphs: {
+    A: '01110/10001/10001/11111/10001/10001/10001', B: '11110/10001/10001/11110/10001/10001/11110', C: '01110/10001/10000/10000/10000/10001/01110', D: '11110/10001/10001/10001/10001/10001/11110',
+    E: '11111/10000/10000/11110/10000/10000/11111', F: '11111/10000/10000/11110/10000/10000/10000', G: '01110/10001/10000/10111/10001/10001/01111', H: '10001/10001/10001/11111/10001/10001/10001',
+    I: '01110/00100/00100/00100/00100/00100/01110', J: '00111/00010/00010/00010/00010/10010/01100', K: '10001/10010/10100/11000/10100/10010/10001', L: '10000/10000/10000/10000/10000/10000/11111',
+    M: '10001/11011/10101/10101/10001/10001/10001', N: '10001/11001/10101/10011/10001/10001/10001', O: '01110/10001/10001/10001/10001/10001/01110', P: '11110/10001/10001/11110/10000/10000/10000',
+    Q: '01110/10001/10001/10001/10101/10010/01101', R: '11110/10001/10001/11110/10100/10010/10001', S: '01111/10000/10000/01110/00001/00001/11110', T: '11111/00100/00100/00100/00100/00100/00100',
+    U: '10001/10001/10001/10001/10001/10001/01110', V: '10001/10001/10001/10001/10001/01010/00100', W: '10001/10001/10001/10101/10101/11011/10001', X: '10001/10001/01010/00100/01010/10001/10001',
+    Y: '10001/10001/01010/00100/00100/00100/00100', Z: '11111/00001/00010/00100/01000/10000/11111', '-': '00000/00000/00000/11111/00000/00000/00000', "'": '00100/00100/00000/00000/00000/00000/00000' } } };
+// How wide a line of it comes out, in the units it is drawn in.
+function provTextW(text, hand) { const L = LETTER[hand || 'small']; return Math.max(0, String(text).length * (L.w + L.gap) - L.gap); }
+// And the line itself, its top left corner at x, y, in one colour (each letter laid down as runs of ink, row by row).
+function provText(ctx, text, x, y, col, hand) {
+  const L = LETTER[hand || 'small'], runs = L.runs || (L.runs = {}), s = String(text).toUpperCase(); ctx.fillStyle = col;
+  for (let i = 0, px = Math.round(x), py = Math.round(y); i < s.length; i++, px += L.w + L.gap) {
+    const ch = s[i]; let r = runs[ch];
+    if (!r) { r = runs[ch] = []; const g = L.glyphs[ch]; if (g) g.split('/').forEach((row, ry) => { for (let cx = 0; cx < row.length; cx++) if (row[cx] === '1') { let e = cx; while (e + 1 < row.length && row[e + 1] === '1') e++; r.push(cx, ry, e - cx + 1); cx = e; } }); }
+    for (let k = 0; k < r.length; k += 3) ctx.fillRect(px + r[k], py + r[k + 1], r[k + 2], 1);
+  }
+}
 const SEASON_TURN = 5000;      // how long the land of one season takes to give way to the next, in thousandths of a second
 // The sun's road on the water, and the moon's. Open water throws the light back at whoever looks across it toward the
 // light: a road of sparks from where he stands to under the sun, which goes with him as he walks. Faint and white at
@@ -3255,7 +3313,7 @@ function drawMarks(ctx, T, R, inView, night, smoke, light) {
     "The hunters' lodge": (x, y) => { smoke(x + 19, y - 13, 3); const tw = Math.sin(T * 7) > 0 ? 1 : 0; R(x + 2 - tw, y + 8, 1, 1, '#7a6a52'); const sg = Math.round(Math.sin(T * 0.9) * 1); R(x + 33 + sg, y, 2, 1, '#5e4426'); win(x + 16, y + 1, 4, 4); const pc = pace(x + 26, x + 40, 0.04, 0.6); man(pc.x, y + 14, { face: pc.face, tunic: '#5a6a3a' }); },      // smoke, the dog's tail, a hunter about the yard
     'The unfinished columns': (x, y) => { const hit = Math.sin(T * 4.4) > 0.3; man(x + 46, y + 12, { face: 'left', moving: false, tunic: '#7a6a4a' }); R(x + 41, y + (hit ? 5 : 2), 3, 1, '#6b4f2c'); R(x + 40, y + (hit ? 4 : 1), 2, 2, '#8f8a84'); if (hit) { R(x + 38, y + 3, 1, 1, '#ffffff'); R(x + 36, y + 5, 1, 1, '#f0ece0'); } for (let q = 0; q < 2; q++) { const p2 = (T * 0.2 + q / 2) % 1; ctx.globalAlpha = 0.3 * (1 - p2); R(x + 34 + q * 4 + Math.sin(p2 * 4) * 2, y + 4 - p2 * 8, 3, 2, '#f4f0e4'); } ctx.globalAlpha = 1; },      // one mason still at it
     "The giant's table": (x, y) => { const u = (T * 0.08) % 1; if (u < 0.8) { const hp = Math.floor(T * 0.7) % 4; R(x + 4 + hp * 5, y - 13 - (Math.sin(T * 5) > 0.8 ? 1 : 0), 2, 1, '#1c1310'); R(x + 6 + hp * 5, y - 13, 1, 1, '#1c1310'); } else { const f = (u - 0.8) / 0.2; R(x + 12 + f * 30, y - 14 - f * 22, 3, 1, '#1c1310'); R(x + 13 + f * 30, y - 15 - f * 22 + (Math.sin(T * 14) > 0 ? 1 : 0), 1, 1, '#1c1310'); } if (lit) { glow(x + 11, y + 2, 9, '150,180,255', 0.035 + 0.02 * Math.sin(T * 1.3)); } },      // a crow on the capstone, that goes; and something in the chamber after dark
-    'The needle': (x, y) => { const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(x + 8, y - 3, 2 + wv, 1, '#c23b2e'); R(x + 9 + wv, y - 2, 1, 2 + wv, '#c23b2e'); R(x, y - 7 + wv, 2, 1, '#f1ead8'); R(x + 5, y + 4 - fl, 1, 1 + fl, lit ? '#f5c04a' : '#c9a21e'); if (lit) glow(x + 5, y + 5, 8, '255,190,100', 0.05); const pc = pace(x + 14, x + 26, 0.03, 0.8); man(pc.x, y + 14, { face: pc.face, tunic: '#d8c9a0', hair: '#8a8a8a' }); },      // the ribbons in the wind, a lamp at its foot, an old man who has come to ask
+    'The needle': (x, y) => { const wv = provFlap(x, y, T); R(x + 8, y - 3, 2 + wv, 1, '#c23b2e'); R(x + 9 + wv, y - 2, 1, 2 + wv, '#c23b2e'); R(x, y - 7 + wv, 2, 1, '#f1ead8'); R(x + 5, y + 4 - fl, 1, 1 + fl, lit ? '#f5c04a' : '#c9a21e'); if (lit) glow(x + 5, y + 5, 8, '255,190,100', 0.05); const pc = pace(x + 14, x + 26, 0.03, 0.8); man(pc.x, y + 14, { face: pc.face, tunic: '#d8c9a0', hair: '#8a8a8a' }); },      // the ribbons in the wind, a lamp at its foot, an old man who has come to ask
     "The shepherds' fold": (x, y) => { for (const [sx, sy, ph] of [[4, 0, 0], [10, 3, 2], [7, 5, 4], [19, 4, 1]]) { const dn = Math.sin(T * 0.9 + ph) > 0.2 ? 1 : 0; R(x + sx + 3, y + sy + dn, 1, 1, '#2a1c14'); } const tw = Math.sin(T * 8) > 0 ? 1 : 0; R(x + 35, y + 5 + tw, 1, 1, '#3a322c'); smoke(x + 31, y - 10, 2); win(x + 30, y - 4, 2, 2); const pc = pace(x + 38, x + 50, 0.03, 0.4); man(pc.x, y + 13, { face: pc.face, tunic: '#8a7a5a', hair: '#c9c2b2' }); R(pc.x + (pc.face === 'right' ? 3 : -3), y + 1, 1, 12, '#8a6a3a'); },      // the sheep with their heads down, the dog, the shepherd with his crook
     'The beacon': (x, y) => { if (taleEnd('beacon') === 'dark') return; win(x + 25, y + 3, 2, 2); smoke(x + 26, y - 4, 2); },
     'The fort': (x, y) => { R(x + 23, y - 3 - fl, 2, 1 + fl, '#f5c04a'); smoke(x + 24, y - 5, 2); if (lit) glow(x + 24, y - 2, 12, '255,160,80', 0.07); for (const [hx, ph] of [[52, 0], [59, 2]]) R(x + hx - 1, y + 6 + (Math.sin(T * 3 + ph) > 0.5 ? 1 : 0), 1, 2, '#3a2a1c'); const pc = pace(x - 2, x + 6, 0.08, 0.3); R(pc.x, y - 25, 1, 1, '#d9a57c'); R(pc.x, y - 24, 1, 2, '#a8261c'); R(pc.x + 1, y - 27, 1, 4, '#c1c7cc'); },      // the cook-fire, the horses, a sentry on the corner tower
@@ -3291,7 +3349,7 @@ function drawMarks(ctx, T, R, inView, night, smoke, light) {
       if (up < 0.22) { R(m.x + 17, m.y + 2, 2, 2, '#d8e6da'); R(m.x + 16, m.y + 1, 4, 1, '#6f9a8a'); R(m.x + 16, m.y + 2, 1, 2, '#6f9a8a'); R(m.x + 19, m.y + 2, 1, 3, '#6f9a8a'); } },      // and now and then, somebody else
     'The mill': (sx, sy) => { if (taleEnd('miller') !== 'stayed') return; R(sx - 13, sy - 4, 1, 7, '#6b4f2c'); R(sx - 12, sy - 3 + (Math.sin(T * 2) > 0.6 ? 1 : 0), 3, 4, '#f1ead8'); R(sx - 12, sy - 3, 3, 1, '#d8d2c0'); },      // his apron on the fence, for the birds
     'The beacon': (sx, sy, m) => { if (taleEnd('beacon') !== 'lit') return; R(m.x + 25, m.y - 6 - fl, 3, 3 + fl, '#f5a040'); R(m.x + 26, m.y - 7 - fl, 1, 2, '#fff0b0'); glow(m.x + 26, m.y - 5, lit ? 22 : 9, '255,170,80', lit ? 0.1 : 0.05); },
-    'The great oak': (sx, sy) => { if (taleEnd('oak') !== 'stands') return; const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(sx - 12, sy - 1, 4, 1, 'rgba(0,0,0,.2)'); R(sx - 11, sy - 5, 3, 4, '#7a9a5a'); R(sx - 11, sy - 8, 3, 3, '#d9a57c'); R(sx - 11, sy - 9, 3, 1, '#6a4a2a'); R(sx - 8, sy - 6, 2 + wv, 1, '#c23b2e'); R(sx - 7 + wv, sy - 5, 1, 2, '#c23b2e'); },      // Senna, with her ribbon
+    'The great oak': (sx, sy) => { if (taleEnd('oak') !== 'stands') return; const wv = provFlap(sx, sy, T); R(sx - 12, sy - 1, 4, 1, 'rgba(0,0,0,.2)'); R(sx - 11, sy - 5, 3, 4, '#7a9a5a'); R(sx - 11, sy - 8, 3, 3, '#d9a57c'); R(sx - 11, sy - 9, 3, 1, '#6a4a2a'); R(sx - 8, sy - 6, 2 + wv, 1, '#c23b2e'); R(sx - 7 + wv, sy - 5, 1, 2, '#c23b2e'); },      // Senna, with her ribbon
     'A burnt village': (sx, sy) => { const e = taleEnd('watch'); if (e !== 'back' && e !== 'oath') return; R(sx + 8, sy, 8, 2, '#5a4a3a'); R(sx + 9, sy - 1, 6, 1, '#6a5a48'); R(sx + 11, sy - 5, 3, 5, '#b8b0a0'); R(sx + 11, sy - 5, 3, 1, '#d8d2c0'); R(sx + 9, sy - 1, 1, 1, '#e8c040'); R(sx + 15, sy, 1, 1, '#f1ead8'); },      // one grave with a stone on it
     "The giant's table": (sx, sy) => { if (taleEnd('giant') !== 'fed') return; R(sx + 9, sy, 8, 1, 'rgba(0,0,0,.22)'); R(sx + 10, sy - 7, 6, 7, '#8a6a4a'); R(sx + 10, sy - 7, 1, 7, '#a8834a'); R(sx + 11, sy - 11, 4, 4, '#d9a57c'); R(sx + 11, sy - 12, 4, 1, '#6a5a4a'); R(sx + 17, sy - 2, 2, 1, '#f1ead8'); R(sx + 16, sy - 3 - (Math.sin(T * 1.4) > 0.7 ? 1 : 0), 1, 2, '#d9a57c'); },      // Buccio, at his supper
     'The bog oak': (sx, sy) => { if (taleEnd('bog') !== 'buried') return; R(sx + 8, sy, 9, 2, '#4a3e2c'); R(sx + 9, sy - 1, 7, 1, '#5e5038'); R(sx + 11, sy - 3, 3, 1, '#c9a763'); R(sx + 13, sy - 4, 1, 1, '#c9a763'); R(sx + 11, sy - 2, 1, 1, '#8a6a34'); R(sx + 13, sy - 2, 1, 1, '#8a6a34'); },      // a mound, and a wooden horse
@@ -3346,7 +3404,7 @@ function drawMarks(ctx, T, R, inView, night, smoke, light) {
       if (ks === 'burning') { R(x + 8, y + 6 - fl, 4, 4 + fl, '#e2702a'); R(x + 9, y + 7, 2, 2, fl ? '#fff0b0' : '#f5c04a'); smoke(x + 10, y - 12, 4); if (lit) glow(x + 10, y + 8, 14, '255,150,70', 0.09); }
       else if (ks === 'low') { R(x + 9, y + 8, 2, 2, fl ? '#e2702a' : '#a8452e'); smoke(x + 10, y - 12, 1); if (lit) glow(x + 10, y + 8, 7, '255,150,70', 0.05); } }
     else if (n === 'The charcoal burners') { smoke(x + 10, y - 3, 4); if (lit) { R(x + 9, y + 9, 2, 1, '#e2702a'); glow(x + 10, y + 6, 12, '255,130,60', 0.06); } const pc = pace(x + 20, x + 30, 0.12, 0.3); man(pc.x, y + 12, { face: pc.face, tunic: '#5a4a3a' }); }
-    else if (n === 'The watchtower') { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(x + 10, y - 30, 1, 10, '#5a4326'); R(x + 11, y - 30 + wv, 4, 3, '#a8261c'); R(x + 15, y - 29 - wv + 1, 2, 2, '#8a2018'); if (lit) { R(x + 9, y - 10, 2, 3, '#f5c04a'); R(x + 6, y - 22 - fl, 1, 2 + fl, '#f5c04a'); glow(x + 6, y - 22, 12, '255,180,90', 0.07); } const pc = pace(x + 5, x + 13, 0.1, 0); R(pc.x, y - 22, 1, 1, '#d9a57c'); R(pc.x, y - 21, 1, 2, '#a8261c'); R(pc.x + (pc.face === 'right' ? 1 : -1), y - 24, 1, 4, '#c1c7cc'); }
+    else if (n === 'The watchtower') { const wv = provFlap(x, y, T); R(x + 10, y - 30, 1, 10, '#5a4326'); R(x + 11, y - 30 + wv, 4, 3, '#a8261c'); R(x + 15, y - 29 - wv + 1, 2, 2, '#8a2018'); if (lit) { R(x + 9, y - 10, 2, 3, '#f5c04a'); R(x + 6, y - 22 - fl, 1, 2 + fl, '#f5c04a'); glow(x + 6, y - 22, 12, '255,180,90', 0.07); } const pc = pace(x + 5, x + 13, 0.1, 0); R(pc.x, y - 22, 1, 1, '#d9a57c'); R(pc.x, y - 21, 1, 2, '#a8261c'); R(pc.x + (pc.face === 'right' ? 1 : -1), y - 24, 1, 4, '#c1c7cc'); }
     else if (n === 'The bee garden') { for (let q = 0; q < 8; q++) { const an = T * (2 + q % 3) + q * 1.7; R(x + 3 + q * 3.4 + Math.cos(an) * 3, y - 1 + Math.sin(an * 1.3) * 3, 1, 1, q % 3 ? '#2a1c14' : '#e8c040'); } const pc = pace(x - 4, x + 32, 0.05, 0.5); man(pc.x, y + 14, { face: pc.face, tunic: '#e8e2d2', hair: '#c9c2b2' }); }
     else if (n === 'The great oak') { for (let q = 0; q < 2; q++) { const p2 = (T * 0.14 + q * 0.5) % 1.5; if (p2 < 1) R(x + 6 + q * 14 + Math.sin(p2 * 9) * 4, y - 12 + p2 * 22, Math.sin(p2 * 18) > 0 ? 2 : 1, 1, q ? '#8ab04a' : '#b8a040'); } const sw = Math.round(Math.sin(T * 1.6) * 2); R(x + 24 + sw, y + 2, 4, 2, '#8a4a3a'); R(x + 25 + sw, y, 2, 2, '#d9a57c'); }      // somebody on the swing
     else if (n === 'A villa in its garden') { const sp = Math.sin(T * 6) > 0 ? 1 : 0; R(x + 17, y + 13, 5, 2, '#b8ab94'); R(x + 18, y + 13, 3, 1, '#6fa8c8'); R(x + 19, y + 10 + sp, 1, 3 - sp, '#cfe6f2'); R(x + 18 - sp, y + 11, 1, 1, '#cfe6f2'); R(x + 20 + sp, y + 11, 1, 1, '#cfe6f2'); if (lit) { for (const wx of [4, 28]) R(x + wx, y - 2, 5, 5, '#f5c04a'); glow(x + 19, y, 26, '255,200,110', 0.05); } smoke(x + 32, y - 15, 3); const pc = pace(x - 2, x + 12, 0.08, 0.2); man(pc.x, y + 16, { face: pc.face, tunic: '#6a5a3a' }); }
@@ -3378,7 +3436,7 @@ function drawMarks(ctx, T, R, inView, night, smoke, light) {
     else if (n === 'The causeway') { if (lit) { R(x + 33, y - 7 - fl, 3, 2 + fl, '#f5c04a'); glow(x + 34, y - 6, 12, '255,190,100', 0.07); } }
     else if (n === 'The broken aqueduct') { for (let q = 0; q < 4; q++) { const p2 = (T * 0.9 + q * 0.25) % 1; R(x + 29, y - 17 + p2 * 24, 1, 2, '#9ccbe8'); } R(x + 26, y + 8, 7, 2, '#5a9cc6'); R(x + 27, y + 8, 4, 1, '#b4d6ea'); const sp = Math.sin(T * 9) > 0 ? 1 : 0; R(x + 28 - sp, y + 7, 1, 1, '#e6f3fa'); R(x + 30 + sp, y + 7, 1, 1, '#e6f3fa'); }
     else if (n === 'A wreck on the strand') { const p2 = (T * 0.3) % 1; ctx.globalAlpha = 0.6 * Math.sin(p2 * Math.PI); R(x - 4 + p2 * 4, y + 11, 36, 1, '#e6f3fa'); ctx.globalAlpha = 1; const sw = Math.sin(T * 2) > 0 ? 1 : 0; R(x + 28 + sw, y - 7, 5, 3, '#c9c0aa'); }
-    else if (n === 'An old battlefield') { for (const [bx, by, ph] of [[9, -4, 0], [27, -3, 2], [20, 3, 4]]) { const peck = Math.sin(T * 3 + ph) > 0.4 ? 1 : 0; R(x + bx + 2, y + by + peck, 1, 1, '#1c1310'); } const wv = Math.sin(T * 4) > 0 ? 1 : 0; R(x + 11 + wv, y - 3, 3, 2, '#8a2a20'); }
+    else if (n === 'An old battlefield') { for (const [bx, by, ph] of [[9, -4, 0], [27, -3, 2], [20, 3, 4]]) { const peck = Math.sin(T * 3 + ph) > 0.4 ? 1 : 0; R(x + bx + 2, y + by + peck, 1, 1, '#1c1310'); } const wv = provFlap(x, y, T); R(x + 11 + wv, y - 3, 3, 2, '#8a2a20'); }
     else if (n === 'The gallows') { const sw = Math.round(Math.sin(T * 1.1) * 1); R(x + 15 + sw, y - 9, 3, 3, '#c9b890'); R(x + 16 + sw, y - 6, 1, 3, '#8a7a5c'); }
     else if (n === 'The old arch') { if (lit) { for (const px of [-2, 24]) { R(x + px, y + 2 - fl, 1, 2 + fl, '#f5c04a'); R(x + px, y + 4, 1, 5, '#5a4326'); } glow(x + 11, y + 2, 20, '255,190,100', 0.04); } const pc = pace(x - 14, x + 36, 0.03, 0.7); if (Math.floor(T * 0.03 + 0.7) % 3 === 0) man(pc.x, y + 12, { face: pc.face, tunic: '#9a9a8a' }); }
     else if (n === 'The great waterfall') { for (let q = 0; q < 8; q++) { const p2 = (T * 1.3 + q / 8) % 1; R(x + 11 + (q * 3) % 7, y - 26 + p2 * 30, 1, 3, q % 2 ? '#ffffff' : '#d8ecf6'); } for (let q = 0; q < 5; q++) { const p2 = (T * 0.5 + q * 0.2) % 1; ctx.globalAlpha = 0.5 * (1 - p2); R(x + 8 + q * 3 + Math.sin(p2 * 5 + q) * 2, y + 4 - p2 * 9, 3, 2, '#ffffff'); } ctx.globalAlpha = 1; const rp = (T * 0.6) % 1; ctx.globalAlpha = 0.5 * (1 - rp); R(x + 9 - rp * 5, y + 8, 12 + Math.round(rp * 10), 1, '#e6f3fa'); ctx.globalAlpha = 1; }
@@ -3386,7 +3444,7 @@ function drawMarks(ctx, T, R, inView, night, smoke, light) {
     else if (n === 'The sacred grove') { for (const lx of [9, 29]) { R(x + lx, y - 3 - fl, 1, 2 + fl, '#f5c04a'); if (lit) glow(x + lx, y - 2, 11, '255,190,100', 0.07); } const pc = pace(x + 4, x + 34, 0.035, 0.6); man(pc.x, y + 15, { face: pc.face, tunic: '#f4f0e4', hair: '#c9c2b2' }); for (let q = 0; q < 3; q++) { const p2 = (T * 0.13 + q * 0.4) % 1.4; if (p2 < 1) R(x + 6 + q * 12 + Math.sin(p2 * 8) * 4, y - 14 + p2 * 24, 1, 1, q % 2 ? '#b45f2c' : '#d4a43a'); } for (const [rx0, ry0] of [[3, -6], [33, -8], [20, -18]]) if (Math.sin(T * 2 + rx0) > 0) R(x + rx0 + 1, y + ry0 + 1, 1, 2, '#f1ead8'); }
     else if (n === 'The white temple') { R(x + 17, y + 8 - fl, 2, 2 + fl, '#f5c04a'); R(x + 17, y + 7 - fl, 1, 1, '#fff0b0'); smoke(x + 18, y + 5, 2); if (lit) { R(x + 16, y - 6, 5, 10, '#e8a040'); glow(x + 18, y - 1, 24, '255,200,120', 0.05); } }
     else if (n === 'The barrow of kings') { if (lit) { const pu = 0.5 + 0.5 * Math.sin(T * 1.2); ctx.globalAlpha = 0.35 + pu * 0.4; R(x + 22, y - 1, 5, 9, '#a8c8ff'); ctx.globalAlpha = 1; glow(x + 24, y + 3, 14, '150,190,255', (0.04 + pu * 0.04).toFixed(3)); } }
-    else if (n === 'The fort') { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(x + 24, y - 11 + wv, 4, 3, '#a8261c'); R(x + 28, y - 10 - wv + 1, 2, 2, '#8a2018'); R(x + 36, y - 2 - fl, 2, 2 + fl, '#e2702a'); R(x + 36, y - 3 - fl, 1, 1, '#f5c04a'); smoke(x + 37, y - 4, 2); if (lit) glow(x + 37, y - 1, 12, '255,160,80', 0.07);
+    else if (n === 'The fort') { const wv = provFlap(x, y, T); R(x + 24, y - 11 + wv, 4, 3, '#a8261c'); R(x + 28, y - 10 - wv + 1, 2, 2, '#8a2018'); R(x + 36, y - 2 - fl, 2, 2 + fl, '#e2702a'); R(x + 36, y - 3 - fl, 1, 1, '#f5c04a'); smoke(x + 37, y - 4, 2); if (lit) glow(x + 37, y - 1, 12, '255,160,80', 0.07);
       for (let q = 0; q < 2; q++) { const pc = pace(x + 2 + q * 30, x + 14 + q * 30, 0.09, q * 0.5); man(pc.x, y + 16, { face: pc.face, tunic: '#a8261c', hair: '#2a1c14' }); R(pc.x + (pc.face === 'right' ? 4 : -4), y - 2, 1, 14, '#6b4f2c'); R(pc.x + (pc.face === 'right' ? 4 : -4), y - 4, 1, 2, '#c1c7cc'); } }
     else if (n === 'The old arena') { for (let q = 0; q < 3; q++) { const an = T * 0.5 + q * 2.1, bx = x + 22 + Math.cos(an) * 16, by = y - 14 + Math.sin(an) * 5, f2 = Math.sin(T * 9 + q) > 0 ? 1 : 0; R(bx - 1, by - f2, 1, 1, '#c8ccd0'); R(bx, by, 1, 1, '#8a8e94'); R(bx + 1, by - f2, 1, 1, '#c8ccd0'); } }
     else if (n === 'The ferry') { const bob = Math.sin(T * 1.4) > 0 ? 1 : 0, u = (T * 0.03) % 2, f = u < 1 ? u : 2 - u, fx = x + 42 + Math.round(f * 14); R(fx - 6, y + 9 + bob, 13, 1, 'rgba(20,40,60,.3)'); R(fx - 6, y + 6 + bob, 12, 3, '#6b4f2c'); R(fx - 6, y + 6 + bob, 12, 1, '#8a6a3a'); R(fx - 1, y + 1 + bob, 2, 2, '#d9a57c'); R(fx - 1, y + 3 + bob, 2, 3, '#6a5a3a'); R(fx + 2, y - 2 + bob, 1, 10, '#8a7a5c'); R(fx - 5, y + 3 + bob, 3, 3, '#c9b890'); const sw = Math.round(Math.sin(T * 2.2)); R(x + 21 + sw, y - 4, 2, 1, '#e8c040'); smoke(x + 11, y - 9, 3); if (lit) { R(x + 10, y, 3, 3, '#f5c04a'); R(x + 19, y - 9 - fl, 1, 2, '#f5c04a'); } }
@@ -4166,10 +4224,10 @@ function drawTrade(ctx, T, R, inView) {
       const an = (i - (n - 1) / 2) * 0.34, ca = Math.cos(an), sa = Math.sin(an), dx = S.dx * ca - S.dy * sa, dy = S.dx * sa + S.dy * ca, far = 6 + i * 9 + out * (S.far * (0.55 + i * 0.2));
       const bx = Math.round(S.x + dx * far + Math.sin(T * 0.09 + i * 2) * 3), by = Math.round(S.y + dy * far + Math.sin(T * 1.5 + i) * 1);
       if (!inView(bx, by, 30) || !wildSeen(bx, by)) continue;
-      const hull = ['#6b4f2c', '#4a5a6a', '#7a4a3a'][i], sail = out > 0.05 && out < 1, tilt = Math.sin(T * 1.2 + i) > 0 ? 1 : 0;
+      const hull = ['#6b4f2c', '#4a5a6a', '#7a4a3a'][i], sail = out > 0.05 && out < 1, g0 = prov.gustNow || 0, bl = provWind(bx, by, T, g0) + g0 * 0.4, tilt = bl > 0.6 && Math.sin(T * 6 + i) > 0 ? 1 : 0;
       provAt(bx, by, 8, 'flat'); R(bx - 5, by + 1, 11, 1, 'rgba(20,40,60,.3)'); R(bx - 5, by - 2, 10, 3, hull); R(bx - 4, by + 1, 8, 1, shade(hull, 0.7)); R(bx - 5, by - 2, 10, 1, shade(hull, 1.25));
       R(bx - 2, by - 4, 2, 2, '#d9a57c'); R(bx - 2, by - 3, 2, 2, '#4a6a8a');
-      R(bx + 1, by - 10, 1, 8, '#3a2a1c'); if (sail) { R(bx + 2, by - 9 + tilt, 5, 6, '#e8dcc0'); R(bx + 2, by - 9 + tilt, 5, 1, '#fbf6ea'); } else R(bx + 1, by - 9, 2, 5, '#c9bfa8');      // sail set on the way out and home; furled at the nets and at the mooring
+      R(bx + 1, by - 10, 1, 8, '#3a2a1c'); if (sail && bl < 0.06) { R(bx + 2, by - 9, 3, 6, '#e8dcc0'); R(bx + 2, by - 9, 3, 1, '#fbf6ea'); R(bx + 3, by - 8, 1, 5, '#c9bfa8'); } else if (sail) { R(bx + 2, by - 9 + tilt, 5, 6, '#e8dcc0'); R(bx + 2, by - 9 + tilt, 5, 1, '#fbf6ea'); if (bl > 0.6) R(bx + 7, by - 8 + tilt, 1, 4, '#e8dcc0'); } else R(bx + 1, by - 9, 2, 5, '#c9bfa8');      // sail set on the way out and home; furled at the nets and at the mooring
       if (out >= 1) for (let q = 0; q < 5; q++) R(bx - 8 - q * 3, by + 1 + (q % 2), 1, 1, '#d8d2c0');      // the floats of the net, astern
     }
   }
@@ -4560,14 +4618,14 @@ function provIcon(ctx, s, T, done) {
   const sd = [...String(s.id || s.kind)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7), v = n => ((sd * (n * 2 + 3) * 7919) % 1000) / 1000;
   const pick = (n, list) => list[Math.floor(v(n) * list.length) % list.length];
   if (k === 'tale') {
-    const wv = Math.sin(T * 5) > 0 ? 1 : 0;
+    const wv = provFlap(s.x, s.y, T);
     if (s.waiting) { const up = Math.sin(T * 3) > 0.2 ? 1 : 0, bob = Math.sin(T * 2) > 0 ? 1 : 0;
       R(-2, 3, 5, 1, 'rgba(0,0,0,.25)'); R(-1, -3, 3, 5, '#8a6a9a'); R(-1, -6, 3, 3, '#d9a57c'); R(-1, -7, 3, 1, '#5a4326'); R(-1, 2, 1, 2, '#3a2a1c'); R(1, 2, 1, 2, '#3a2a1c');
       if (up) { R(2, -6, 1, 3, '#d9a57c'); R(2, -7, 1, 1, '#d9a57c'); } else R(2, -3, 1, 3, '#d9a57c');
       R(-1, -15 - bob, 3, 5, '#f5d584'); R(0, -14 - bob, 1, 2, '#2a1a0c'); R(0, -11 - bob, 1, 1, '#2a1a0c'); R(0, -10 - bob, 1, 1, '#f5d584'); }      // and over their head, the sign that they have something to say
     else { R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#4a7ab8'); R(0, -12 + wv, 6, 1, '#b4d6ea'); R(2, -11 + wv, 2, 2, '#f1ead8'); R(6, -11 - wv + 1, 2, 2, '#3a5a8a'); R(-3, 3, 5, 2, '#8f8a80'); }
   }
-  else if (k.startsWith('errand')) { const wv = Math.sin(T * 5) > 0 ? 1 : 0; R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#e8b545'); R(0, -12 + wv, 6, 1, '#fff0b0'); R(2, -11 + wv, 2, 2, '#a8261c'); R(6, -11 - wv + 1, 2, 2, '#c9952e'); R(-3, 3, 5, 2, '#8f8a80'); }      // a gold pennon set up where somebody's errand lies
+  else if (k.startsWith('errand')) { const wv = provFlap(s.x, s.y, T); R(-1, -12, 1, 16, '#5a4326'); R(0, -12 + wv, 6, 4, '#e8b545'); R(0, -12 + wv, 6, 1, '#fff0b0'); R(2, -11 + wv, 2, 2, '#a8261c'); R(6, -11 - wv + 1, 2, 2, '#c9952e'); R(-3, 3, 5, 2, '#8f8a80'); }      // a gold pennon set up where somebody's errand lies
   else if (k === 'bounty') { tent(-3, 4, '#8a3a2a'); R(4, -8, 1, 12, '#5a4326'); R(5, -8, 5, 4, '#c23b2e'); R(6, -7, 2, 2, '#f1ead8'); R(-8, 2, 3, 2, '#efe8d8'); R(-7, 1, 1, 1, '#efe8d8'); }
   else if (k === 'lair') {
     if (tr === 1) { R(-7, -2, 14, 6, '#7a6a4a'); R(-5, -4, 10, 2, '#8a7a56'); R(-2, -1, 5, 5, '#1a1410'); R(-1, -2, 3, 1, '#1a1410'); R(5, 3, 2, 1, '#efe8d8'); R(-7, 3, 1, 1, '#efe8d8'); R(v(1) > 0.5 ? -6 : 3, -5, 3, 1, '#6f8a4a'); }                       // a den dug into a bank
@@ -4967,7 +5025,9 @@ function provMovers(ctx, T, R, inView) {
         F(bx - half - 1, by - 6, 2, 4, hull); F(bx - half - 2, by - 7, 2, 1, hull); F(bx + half, by - 4, 2, 3, hull);                                   // the stern curling up, and the stem
         if (war) { F(bx + half + 2, by, 3, 1, '#c1c7cc'); for (let q = 0; q < 6; q++) F(bx - half + 3 + q * 3, by - 2, 2, 2, q % 2 ? '#c9a21e' : '#a8261c'); }      // a ram at the bow, and shields along the rail
         const pull = Math.sin(T * 2.4 + sd * 6) > 0 ? 1 : 0; for (let q = 0; q < (war ? 8 : 6); q++) F(bx - half + 3 + q * 3 - pull, by + 1, 1, 2 + pull, '#c9b890');      // the oars, all together
-        F(bx, by - 15, 1, 12, '#3a2a1c'); F(bx - 5, by - 14 + bob, 11, 8, sail); F(bx - 5, by - 14 + bob, 11, 1, shade(sail, 1.2)); F(bx - 5, by - 7 + bob, 11, 1, shade(sail, 0.8));
+        { const g0 = prov.gustNow || 0, bl = provWind(bx, by, T, g0) + g0 * 0.4, sw = bl < 0.06 ? 9 : 11, s0 = bx - (sw >> 1);      // her sail: slack in a lull, and bellied to leeward in a gale
+          F(bx, by - 15, 1, 12, '#3a2a1c'); F(s0, by - 14 + bob, sw, 8, sail); F(s0, by - 14 + bob, sw, 1, shade(sail, 1.2)); F(s0, by - 7 + bob, sw, 1, shade(sail, 0.8));
+          if (bl < 0.06) { F(s0 + 2, by - 13 + bob, 1, 6, shade(sail, 0.85)); F(s0 + 6, by - 13 + bob, 1, 6, shade(sail, 0.85)); } else if (bl > 0.6) R(bx + 6, by - 13 + bob, 1, 6, sail); }
         if (war) { F(bx - 1, by - 12 + bob, 3, 4, '#c9a21e'); F(bx, by - 11 + bob, 1, 2, '#a8261c'); } else if (s2 > 0.4) { F(bx - 2, by - 14 + bob, 2, 8, shade(sail, 0.8)); F(bx + 2, by - 14 + bob, 2, 8, shade(sail, 0.8)); }
         F(bx - half + 2, by - 6, 2, 3, '#d9a57c'); F(bx - half + 2, by - 5, 2, 2, war ? '#a8261c' : '#4a6a8a');                                           // the steersman
         for (let q = 0; q < 3; q++) { const wq = (T * 0.8 + q * 0.33) % 1; ctx.globalAlpha = 0.5 * (1 - wq); F(bx - half - 3 - wq * 10, by + 1 + q % 2, 3, 1, '#e6f3fa'); } ctx.globalAlpha = 1;      // her wake
@@ -4979,11 +5039,11 @@ function provMovers(ctx, T, R, inView) {
       }
       return;
     }
-    const sd = wildHash(hx, hy, 660), s2 = wildHash(hy, hx, 661), bx = U ? bx0 : bx0 + Math.round(Math.sin(T * 0.07 + sd * 9) * 5), by = by0 + Math.round(Math.sin(T * 1.6 + hx) * 1), tilt = Math.sin(T * 1.6 + hx) > 0 ? 1 : 0;
+    const sd = wildHash(hx, hy, 660), s2 = wildHash(hy, hx, 661), bx = U ? bx0 : bx0 + Math.round(Math.sin(T * 0.07 + sd * 9) * 5), by = by0 + Math.round(Math.sin(T * 1.6 + hx) * 1), g0 = prov.gustNow || 0, bl = provWind(bx0, by0, T, g0) + g0 * 0.4, tilt = bl > 0.6 && Math.sin(T * 6 + hx) > 0 ? 1 : 0;      // (bl: how hard it blows on her. Her sail hangs in a lull, fills as a front comes over, and strains and shakes in a gale.)
     const hull = ['#6b4f2c', '#5a3a2a', '#4a5a6a', '#7a6a4a'][Math.floor(sd * 4)], len = 8 + Math.floor(s2 * 5), half = len >> 1;
     R(bx - half, by + 1, len + 1, 1, 'rgba(20,40,60,.3)'); R(bx - half, by - 2, len, 3, hull); R(bx - half + 1, by + 1, len - 2, 1, shade(hull, 0.7)); R(bx - half, by - 2, len, 1, shade(hull, 1.25)); R(bx + half, by - 3, 1, 2, hull);
     R(bx - 2, by - 4, 2, 2, '#d9a57c'); R(bx - 2, by - 3, 2, 2, ['#8a4a3a', '#4a6a8a', '#7a7a3a'][Math.floor(s2 * 3)]);      // the man in it
-    if (sd > 0.3) { const sail = ['#e8dcc0', '#b85a48', '#d8b860', '#e8dcc0'][Math.floor(s2 * 4)]; R(bx, by - 10, 1, 8, '#3a2a1c'); R(bx + 1, by - 9 + tilt, 5, 6, sail); R(bx + 1, by - 9 + tilt, 5, 1, shade(sail, 1.2)); R(bx + 5, by - 7 + tilt, 1, 3, shade(sail, 0.8)); if (s2 > 0.6) R(bx + 2, by - 6 + tilt, 3, 1, shade(sail, 0.75)); }
+    if (sd > 0.3) { const sail = ['#e8dcc0', '#b85a48', '#d8b860', '#e8dcc0'][Math.floor(s2 * 4)]; R(bx, by - 10, 1, 8, '#3a2a1c'); if (bl < 0.06) { R(bx + 1, by - 9, 3, 6, sail); R(bx + 1, by - 9, 3, 1, shade(sail, 1.2)); R(bx + 2, by - 8, 1, 5, shade(sail, 0.8)); } else { R(bx + 1, by - 9 + tilt, 5, 6, sail); R(bx + 1, by - 9 + tilt, 5, 1, shade(sail, 1.2)); R(bx + 5, by - 7 + tilt, 1, 3, shade(sail, 0.8)); if (s2 > 0.6) R(bx + 2, by - 6 + tilt, 3, 1, shade(sail, 0.75)); if (bl > 0.6) R(bx + 6, by - 8 + tilt, 1, 4, sail); } }
     else { const pull = Math.sin(T * 2.2 + sd * 6) > 0 ? 1 : 0; R(bx - 4 - pull, by, 3, 1, '#c9b890'); R(bx + 2 + pull, by, 3, 1, '#c9b890'); }      // under oars
     if (s2 < 0.3) for (let q = 0; q < 4; q++) R(bx - half - 2 - q * 2, by + 1 + (q % 2), 1, 1, '#d8d2c0');                                              // the floats of a net astern
     if (U) for (let q = 0; q < 2; q++) { const wq = (T * 0.9 + q * 0.5) % 1; ctx.globalAlpha = 0.45 * (1 - wq); R(bx - hd * (half + 2 + wq * 7) - (hd > 0 ? 2 : 0), by + 1 + q, 2, 1, '#e6f3fa'); } ctx.globalAlpha = 1;      // a boat under sail leaves a wake
@@ -5235,6 +5295,7 @@ function drawProvince(cv, T) {
     ctx.globalAlpha = lamps; R(lx, ly - fl, 1, 2 + fl, '#f5c04a'); R(lx, ly - 1 - fl, 1, 1, '#fff0b0'); ctx.globalAlpha = 1;
     provGlow(ctx, lx, ly + 4, g.lamp, '255,180,90', (0.06 * lamps).toFixed(3));
   });
+  provLeaves(ctx, T, camX, camY, wx.gust || 0);
   drawBirds(ctx, T, R, inView);
   drawAmbient(ctx, T, R, camX, camY, false);
   // the morning's mist over the low ground: most in autumn and least in summer, and none in wind or rain
@@ -5325,7 +5386,7 @@ function drawProvince(cv, T) {
   // names, and marks that show even through the fog
   ctx.font = 'bold 6px Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   // a name on the map, with a red pip for each skull of danger
-  const tag0 = (x, y, text, col, bg, pips) => { const tw = Math.ceil(ctx.measureText(text).width), w = tw + 6 + (pips ? pips * 5 + 2 : 0); R(x - w / 2, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); ctx.textAlign = 'left'; ctx.fillStyle = col || '#f2e6cc'; ctx.fillText(text, x - w / 2 + 3, y); ctx.textAlign = 'center'; for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
+  const tag0 = (x, y, text, col, bg, pips) => { const tw = provTextW(text), w = tw + 6 + (pips ? pips * 5 + 2 : 0), x0 = Math.round(x - w / 2); x = x0 + w / 2; R(x0, y - 7, w, 9, bg || 'rgba(24,16,10,.82)'); provText(ctx, text, x0 + 3, y - 5, col || '#f2e6cc'); for (let i = 0; i < (pips || 0); i++) { R(x - w / 2 + tw + 6 + i * 5, y - 5, 4, 4, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 2, 2, 2, '#e2695c'); R(x - w / 2 + tw + 7 + i * 5, y - 4, 1, 1, '#2a1a0c'); R(x - w / 2 + tw + 9 + i * 5, y - 4, 1, 1, '#2a1a0c'); } };
   const tag = (x, y, ...rest) => { if (LU <= 1) return tag0(x, y, ...rest); ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(LU, LU); tag0(0, 0, ...rest); ctx.restore(); };      // the same, grown about the spot it names
   if (inView(tx, ty, 70)) tag(tx - 12, ty - 38, 'HOME', '#2a1a0c', '#f5d584');
   for (const s of sites) {
@@ -5340,14 +5401,14 @@ function drawProvince(cv, T) {
   // the regions' names, written across the country in old ink
   ctx.font = 'bold 11px Cinzel, Georgia, serif';
   // ink with a pale edge, so a name reads over forest and fell as it does over open ground
-  for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(); ctx.globalAlpha = 1 - 0.8 * Math.min(1, provGloom(sky)); ctx.fillStyle = 'rgba(236,220,180,.7)'; for (const [ox, oy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) ctx.fillText(nm, r.x + ox * 0.6, r.y + oy * 0.6); ctx.fillStyle = 'rgba(58,38,16,.92)'; ctx.fillText(nm, r.x, r.y); ctx.globalAlpha = 1; }
+  for (const r of WILD_REGIONS) if (inView(r.x, r.y, 120)) { const nm = r.name.toUpperCase(), nx = Math.round(r.x - provTextW(nm, 'tall') / 2), ny = Math.round(r.y) - 7, dim = 1 - 0.8 * Math.min(1, provGloom(sky)); ctx.globalAlpha = dim * 0.5; for (const [ox, oy] of [[-1, 0], [2, 0], [0, -1], [1, -1], [0, 1], [1, 1]]) provText(ctx, nm, nx + ox, ny + oy, '#ecdcb4', 'tall'); ctx.globalAlpha = dim * 0.92; provText(ctx, nm, nx, ny, '#3a2610', 'tall'); provText(ctx, nm, nx + 1, ny, '#3a2610', 'tall'); ctx.globalAlpha = 1; }      // (each stroke two dots thick, as ink is; and the pale edge round it)
 
   // on the glass: where you are, and how to move
   ctx.setTransform(S * LU, 0, 0, S * LU, 0, 0);
   ctx.font = 'bold 7px Consolas, monospace'; ctx.textAlign = 'left';
-  const where = wildRegion(F.x, F.y).toUpperCase(), ww = Math.ceil(ctx.measureText(where).width), danger = wildTier(F.x, F.y);
+  const where = wildRegion(F.x, F.y).toUpperCase(), ww = provTextW(where), danger = wildTier(F.x, F.y);
   ctx.fillStyle = 'rgba(24,16,10,.8)'; ctx.fillRect(4, 4, ww + 14 + danger * 6, 12);
-  ctx.fillStyle = '#f2e6cc'; ctx.fillText(where, 9, 13);
+  provText(ctx, where, 9, 8, '#f2e6cc');
   for (let i = 0; i < danger; i++) { ctx.fillStyle = '#e2695c'; ctx.fillRect(ww + 14 + i * 6, 7, 5, 4); ctx.fillRect(ww + 15 + i * 6, 11, 3, 2); ctx.fillStyle = '#2a1a0c'; ctx.fillRect(ww + 15 + i * 6, 8, 1, 1); ctx.fillRect(ww + 17 + i * 6, 8, 1, 1); }
   provDial(ctx, 4, 18);
   ctx.setTransform(S, 0, 0, S, 0, 0);
