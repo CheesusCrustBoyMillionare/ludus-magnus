@@ -19,11 +19,30 @@ const TILE_COL = ['#7e9a4b', '#5d7f3f', '#93985c', '#5f7a4c', '#d8c48a', '#cdae7
 // Nothing of it can be seen half made. Everything it makes for the map (the picture, the landmarks, the herds, the
 // birds, what stands tall) is kept in "fresh" and handed to prov only when the whole is done. And it does not stop
 // between taking the mill road off the land and putting it back, so the rules never see the land without it.
-function* provLandSteps(fresh) {
+function* provLandSteps(fresh, se) {
   const L = wildLand(), TW = WILD.TW, TH = WILD.TH, cv = document.createElement('canvas');
   cv.width = WILD.W; cv.height = WILD.H;
   let ctx = cv.getContext('2d'), solid = false;
-  const R = (x, y, w, h, c) => { if (solid && c[0] !== '#') return; ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+  // The season (se: 0 spring, 1 summer, 2 autumn, 3 winter) is in the land itself, and the land is painted again when it
+  // turns. What is green goes over to the colour of the season as it is laid down, the greener the more (seasonal):
+  // a little toward gold in summer, toward brown in autumn, and to the dun of dead grass in winter. Water, stone, roofs
+  // and whatever else is not green are left as they are; so is anything painted with "keep" set, which is how a tree
+  // chooses its own colours for the season (see the tree) and an evergreen stays green.
+  se = se | 0; fresh.landSe = se;
+  let keep = false;
+  const SEASON_TO = [null, [196, 178, 96, 0.16], [158, 126, 62, 0.42], [140, 130, 104, 0.78]], seasonOf = {};
+  const seasonal = c => {
+    let out = seasonOf[c]; if (out) return out;
+    let r, g, b, al = null;
+    if (c[0] === '#') { const n = parseInt(c.length === 4 ? c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c.slice(1), 16); r = n >> 16; g = (n >> 8) & 255; b = n & 255; }
+    else { const m = /rgba?\(([^)]+)\)/.exec(c); if (!m) return (seasonOf[c] = c); const q = m[1].split(','); r = +q[0]; g = +q[1]; b = +q[2]; al = q.length > 3 ? q[3].trim() : null; }
+    const green = Math.max(0, Math.min(1, (g - Math.max(r, b)) / 40));
+    if (!green || b > r + 20) return (seasonOf[c] = c);      // not green; or the green of water
+    const to = SEASON_TO[se], f = to[3] * green, ch = (v, t) => Math.max(0, Math.min(255, Math.round(v + (t - v) * f)));
+    r = ch(r, to[0]); g = ch(g, to[1]); b = ch(b, to[2]);
+    return (seasonOf[c] = al === null ? '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1) : 'rgba(' + r + ',' + g + ',' + b + ',' + al + ')');
+  };
+  const R = (x, y, w, h, c) => { if (solid && c[0] !== '#') return; ctx.fillStyle = se && !keep ? seasonal(c) : c; ctx.fillRect(x, y, w, h); };
   // What stands up tall enough to walk behind or under: an arch, the aqueduct, a tower, a great tree. Each is kept
   // with the line it stands on, so that the map can paint it again over a man who is north of that line
   // (drawProvince). Painted again it leaves out its shadow and anything else that is only a stain on the ground.
@@ -430,10 +449,10 @@ function* provLandSteps(fresh) {
         if (d1 > 0.994) { R(x + 2, y + 7, 7, 1, 'rgba(0,0,0,.18)'); R(x + 3, y + 3, 4, 4, '#c9a763'); R(x + 4, y + 2, 2, 1, '#c9a763'); R(x + 3, y + 4, 4, 1, '#a8853f'); R(x + 3, y + 6, 4, 1, '#a8853f'); R(x + 4, y + 6, 1, 1, '#2a1c14'); }      // a skep of bees
         else if (d1 > 0.988) { R(x + 3, y + 4, 4, 3, '#4f86ae'); R(x + 4, y + 3, 2, 1, '#4f86ae'); R(x + 4, y + 4, 2, 1, '#8fc0de'); R(x + 6, y + 6, 1, 4, '#4f86ae'); R(x + 2, y + 3, 1, 2, '#8a9a4a'); R(x + 3, y + 7, 2, 1, '#a39a8a'); }                        // a spring, and the trickle running off
         else if (dz === 0 && d1 < 0.7) { const mown = wildNoise(tx / 3, ty / 3, 1054) > 0.5; if (mown) { R(x, y + 1 + (ty % 2) * 2, 10, 1, tint(base, 0.9)); R(x, y + 6 + (ty % 2), 10, 1, tint(base, 0.9)); R(x + Math.floor(d2 * 6), y + 2 + (ty % 2) * 2, 4, 1, '#cdb866'); R(x + Math.floor(d3 * 6), y + 7 + (ty % 2), 3, 1, '#cdb866'); if (d2 > 0.86) { R(x + 3, y + 3, 4, 3, '#d9c070'); R(x + 4, y + 2, 2, 1, '#e6d088'); R(x + 3, y + 6, 5, 1, 'rgba(0,0,0,.16)'); } } else for (let q = 0; q < 5; q++) { const gx = x + q * 2 + Math.floor(d2 * 2), gy = y + 2 + Math.floor(h(tx, ty, 1055 + q) * 5); R(gx, gy, 1, 4, tint(base, q % 2 ? 0.86 : 1.1)); R(gx, gy - 1, 1, 1, '#d8c880'); } }      // hay: cut and lying in rows, or standing ready
-        else if (dz === 1 && d1 < 0.75) for (let q = 0, n = 5 + Math.floor(d2 * 6); q < n; q++) { const fx = x + Math.floor(h(tx, ty, 1060 + q) * 10), fy = y + Math.floor(h(tx, ty, 1071 + q) * 10); R(fx, fy, 1 + (q % 3 === 0 ? 1 : 0), 1, q % 4 ? '#c4584a' : '#d8806a'); if (q % 3 === 0) R(fx, fy + 1, 1, 1, '#4f7a3a'); }                                                    // poppies, thick as a carpet (a soft red: the hard reds are kept for men's tunics and for what warns)
-        else if (dz === 2 && d1 < 0.6) for (let q = 0, n = 2 + Math.floor(d2 * 4); q < n; q++) { const fx = x + 1 + Math.floor(h(tx, ty, 1060 + q) * 8), fy = y + 2 + Math.floor(h(tx, ty, 1071 + q) * 5), sp = [['#b070c0', '#d098dc'], ['#e07898', '#f0a8bc'], ['#6f80d8', '#98a8f0'], ['#f0e070', '#f8f0a0']][Math.floor(wildNoise(tx / 2.5, ty / 2.5, 1056) * 3.999)]; R(fx, fy + 3, 1, 2, '#4f7a3a'); R(fx, fy, 1, 3, sp[0]); R(fx, fy, 1, 1, sp[1]); }      // foxglove, lupin, mullein: tall spires, each colour in its own stand
-        else if (dz === 3 && d1 < 0.7) { R(x + Math.floor(d2 * 4), y + 1 + Math.floor(d3 * 4), 6, 5, tint(base, 1.06)); for (let q = 0; q < 8; q++) R(x + Math.floor(h(tx, ty, 1060 + q) * 10), y + Math.floor(h(tx, ty, 1071 + q) * 10), 1, 1, q % 3 ? '#f8f8f4' : '#f0d840'); }      // daisies and buttercups, on short turf
-        else if (dz === 4 && d1 < 0.4) { const bx = x + 1 + Math.floor(d2 * 5), by = y + 3 + Math.floor(d3 * 3), bc = d2 > 0.5 ? ['#b9a0e0', '#d8c8f0'] : ['#e8a0c0', '#f4d0e0']; R(bx, by + 3, 5, 1, 'rgba(0,0,0,.14)'); R(bx, by, 4, 3, '#5f8a4a'); R(bx + 1, by - 1, 2, 1, '#5f8a4a'); for (let q = 0; q < 4; q++) R(bx + (q % 2) * 2 + Math.floor(d3 * 2), by - 1 + q, 1, 1, bc[q % 2]); if (d3 > 0.7) R(bx + 5, by - 2, 1, 1, '#2a1c14'); }      // bee pasture: lavender and thyme in clumps, and a bee over them
+        else if (dz === 1 && d1 < 0.75 && se < 2) for (let q = 0, n = 5 + Math.floor(d2 * 6); q < n; q++) { const fx = x + Math.floor(h(tx, ty, 1060 + q) * 10), fy = y + Math.floor(h(tx, ty, 1071 + q) * 10); R(fx, fy, 1 + (q % 3 === 0 ? 1 : 0), 1, q % 4 ? '#c4584a' : '#d8806a'); if (q % 3 === 0) R(fx, fy + 1, 1, 1, '#4f7a3a'); }                                                    // poppies, thick as a carpet (a soft red: the hard reds are kept for men's tunics and for what warns)
+        else if (dz === 2 && d1 < 0.6 && se < 2) for (let q = 0, n = 2 + Math.floor(d2 * 4); q < n; q++) { const fx = x + 1 + Math.floor(h(tx, ty, 1060 + q) * 8), fy = y + 2 + Math.floor(h(tx, ty, 1071 + q) * 5), sp = [['#b070c0', '#d098dc'], ['#e07898', '#f0a8bc'], ['#6f80d8', '#98a8f0'], ['#f0e070', '#f8f0a0']][Math.floor(wildNoise(tx / 2.5, ty / 2.5, 1056) * 3.999)]; R(fx, fy + 3, 1, 2, '#4f7a3a'); R(fx, fy, 1, 3, sp[0]); R(fx, fy, 1, 1, sp[1]); }      // foxglove, lupin, mullein: tall spires, each colour in its own stand
+        else if (dz === 3 && d1 < 0.7 && se < 2) { R(x + Math.floor(d2 * 4), y + 1 + Math.floor(d3 * 4), 6, 5, tint(base, 1.06)); for (let q = 0; q < 8; q++) R(x + Math.floor(h(tx, ty, 1060 + q) * 10), y + Math.floor(h(tx, ty, 1071 + q) * 10), 1, 1, q % 3 ? '#f8f8f4' : '#f0d840'); }      // daisies and buttercups, on short turf
+        else if (dz === 4 && d1 < 0.4 && se < 2) { const bx = x + 1 + Math.floor(d2 * 5), by = y + 3 + Math.floor(d3 * 3), bc = d2 > 0.5 ? ['#b9a0e0', '#d8c8f0'] : ['#e8a0c0', '#f4d0e0']; R(bx, by + 3, 5, 1, 'rgba(0,0,0,.14)'); R(bx, by, 4, 3, '#5f8a4a'); R(bx + 1, by - 1, 2, 1, '#5f8a4a'); for (let q = 0; q < 4; q++) R(bx + (q % 2) * 2 + Math.floor(d3 * 2), by - 1 + q, 1, 1, bc[q % 2]); if (d3 > 0.7) R(bx + 5, by - 2, 1, 1, '#2a1c14'); }      // bee pasture: lavender and thyme in clumps, and a bee over them
         else if (dz === 5 && d1 < 0.45) for (let q = 0, n = 1 + Math.floor(d2 * 3); q < n; q++) { const fx = x + 1 + Math.floor(h(tx, ty, 1060 + q) * 8), fy = y + 2 + Math.floor(h(tx, ty, 1071 + q) * 4); R(fx, fy + 1, 1, 5, '#7a7a4a'); R(fx - 1, fy + 3, 1, 1, '#7a7a4a'); R(fx + 1, fy + 2, 1, 1, '#7a7a4a'); R(fx, fy, 1, 2, q % 2 ? '#8a6a4a' : '#a070b0'); }      // teasel and thistle, head high
       }
     }
@@ -538,7 +557,7 @@ function* provLandSteps(fresh) {
         const n = 2 + Math.floor(b * 3), lean = h(tx, ty, 144) > 0.5 ? 1 : -1, gc = b > 0.5 ? '#6b8f3e' : '#93b055';
         for (let q = 0; q < n; q++) { const gx = x + 1 + Math.floor(h(tx, ty, 145 + q) * 8), gy = y + 3 + Math.floor(h(tx, ty, 150 + q) * 5); R(gx, gy, 1, 3, gc); R(gx + lean, gy - 1, 1, 1, gc); }
       }
-      else if (a > 0.82) {                     // a drift of flowers, in the colours of that part of the country
+      else if (a > 0.82 && se < 2) {           // a drift of flowers, in the colours of that part of the country (in spring and summer)
         const reg = wildRegion(x + 5, y + 5), fc = reg === 'The Long Meadows' ? ['#f2e6a0', '#f4f4f0'] : reg === 'The Home Fields' ? ['#c4584a', '#f2e6a0'] : reg === 'Greywood' ? ['#b9a0e0', '#f4f4f0'] : reg === 'The Salt Shore' ? ['#e8a0c0', '#f4f4f0'] : ['#e8a0a0', '#b9a0e0'];
         for (let q = 0; q < 4 + Math.floor(b * 4); q++) R(x + Math.floor(h(tx, ty, 155 + q) * 9), y + Math.floor(h(tx, ty, 163 + q) * 9), 1, 1, fc[q % 2]);
       }
@@ -937,18 +956,37 @@ function* provLandSteps(fresh) {
   const LEAF = { oak: ['#35602b', '#4c7f38', '#69a04a'], beech: ['#3f7032', '#5f9a46', '#7fb85a'], chestnut: ['#4a6a2a', '#7a9a3a', '#69a04a'], blossom: ['#4c7f38', '#69a04a', '#69a04a'],
     olive: ['#557a50', '#74986a', '#90b084'], yew: ['#21402a', '#2d5236', '#3a6442'], gold: ['#b0842a', '#d4a43a', '#ecc85c'], russet: ['#8f4422', '#b45f2c', '#cf8040'] };
   const tree = (cx, cy, kind, sz, f) => {
-    const C = c => tint(c, f);
+    const C = c => tint(c, f * fresh2);
     // A tree is something to go behind. As it is painted it is kept, with the ground it covers, so that the map can paint
     // it again over whoever is north of the foot of it (provRec.paint): thinly, if that is the column or a roaming band,
     // so that they are seen through the leaves and never lost in a wood.
     if (!solid) {
       const spire = kind === 'cypress' || kind === 'poplar', needle = kind === 'pine' || kind === 'fir' || kind === 'larch', bare = kind === 'dead' || kind === 'burnt', broad = !spire && !needle && !bare && kind !== 'stone' && kind !== 'birch' && kind !== 'willow';
       const wd = spire ? 1 : bare ? 3 : broad ? Math.ceil(sz * 1.7) : sz + 1, up = spire ? sz * 2 + 8 : needle ? 6 + (2 + Math.floor(sz / 2)) * 2 : broad ? 4 + Math.ceil(sz * 1.8) : sz + 6;
-      overs.push({ x0: cx - wd, x1: cx + wd + 1, y0: cy - up, base: cy + 1, tree: true, d: () => tree(cx, cy, kind, sz, f) });
+      overs.push({ x0: cx - wd, x1: cx + wd + 1, y0: cy - up, base: cy + 1, tree: true, soft: true, d: () => tree(cx, cy, kind, sz, f) });
     }
+    // A tree's colours are its own for the season, chosen here and laid down as they are (keep). The evergreens (pine,
+    // fir, yew, cypress, the stone pine, the olive) are green the year round. The rest turn in autumn, each its own
+    // colour and some not yet; and in winter they stand bare.
+    const leafy = !['pine', 'fir', 'yew', 'cypress', 'stone', 'olive', 'dead', 'burnt', 'gold', 'russet'].includes(kind), was = keep, turn = h(cx, cy, 2401);
+    keep = true;
+    if (se === 3 && leafy) {
+      const bark = kind === 'birch' ? '#e8e4d8' : kind === 'willow' ? '#5a5040' : kind === 'larch' ? '#5a4632' : '#4a3a2a', tall = kind === 'poplar' ? sz * 2 + 5 : kind === 'larch' ? sz + 6 : sz + 4;
+      R(cx - sz, cy + 1, sz * 2 + 1, 1, 'rgba(0,0,0,.16)');
+      R(cx, cy - tall + 1, 1, tall + 1, bark);
+      if (kind === 'poplar') for (let q = 3; q < tall; q += 3) { R(cx - 1, cy - q, 1, 1, bark); R(cx + 1, cy - q - 1, 1, 1, bark); }
+      else {
+        const n = 2 + Math.floor(sz / 2);
+        for (let q = 0; q < n; q++) { const yy = cy - 3 - Math.round((q + 0.5) * (tall - 4) / n), len = Math.max(1, sz - q), sd = (q + (turn > 0.5 ? 1 : 0)) % 2 ? 1 : -1; R(sd > 0 ? cx + 1 : cx - len, yy, len, 1, bark); R(sd > 0 ? cx + len : cx - len, yy - 1, 1, 1, bark); if (len > 2) R(sd > 0 ? cx - 2 : cx + 1, yy + 1, 2, 1, bark); }
+        if (kind === 'willow') for (let q = -sz; q <= sz; q += 2) R(cx + q, cy - tall + 2 + Math.abs(q), 1, 2 + Math.abs(q) % 3, '#7a6a4a');
+      }
+      keep = was; return;
+    }
+    const fall = se === 2 && leafy ? (kind === 'birch' || kind === 'poplar' || kind === 'larch' ? ['#b89a2a', '#d8bc3e', '#ecd45c'] : turn < 0.3 ? null : turn < 0.58 ? LEAF.gold : turn < 0.84 ? LEAF.russet : ['#8a5a22', '#b07a2e', '#c8963e']) : null;
+    const fresh2 = se === 0 && leafy ? 1.06 : 1;      // (and in spring their leaf is new)
     R(cx - sz - 1, cy + 1, sz * 2 + 3, 2, 'rgba(0,0,0,.2)');
     if (kind === 'pine' || kind === 'fir' || kind === 'larch') {
-      const dk = kind === 'fir' ? '#27483a' : kind === 'larch' ? '#5a7a34' : '#2c5230', lt = kind === 'fir' ? '#3c6450' : kind === 'larch' ? '#84a04c' : '#437046', tiers = 2 + Math.floor(sz / 2);
+      const dk = fall ? fall[0] : kind === 'fir' ? '#27483a' : kind === 'larch' ? '#5a7a34' : '#2c5230', lt = fall ? fall[1] : kind === 'fir' ? '#3c6450' : kind === 'larch' ? '#84a04c' : '#437046', tiers = 2 + Math.floor(sz / 2);
       R(cx, cy - 1, 1, 3, '#4a3320');
       for (let q = 0; q < tiers; q++) { const w = sz - Math.round(q * sz / (tiers + 0.5)), y0 = cy - 2 - q * 2; R(cx - w, y0, w * 2 + 1, 2, C(dk)); R(cx - w, y0, Math.max(1, w), 1, C(lt)); }
       R(cx, cy - 2 - tiers * 2, 1, 2, C(dk));
@@ -957,26 +995,28 @@ function* provLandSteps(fresh) {
       R(cx - sz - 1, cy - sz - 5, sz * 2 + 3, 3, C('#35602b')); R(cx - sz, cy - sz - 6, sz * 2 + 1, 1, C('#35602b')); R(cx - sz - 1, cy - sz - 5, sz + 1, 1, C('#5a8a46'));
     } else if (kind === 'birch') {
       R(cx, cy - sz - 2, 1, sz + 4, '#e8e4d8'); R(cx, cy - 1, 1, 1, '#5a5448'); R(cx, cy - sz, 1, 1, '#5a5448');
-      R(cx - sz + 1, cy - sz - 5, sz * 2 - 1, sz, C('#6f9a48')); R(cx - sz + 2, cy - sz - 6, Math.max(1, sz * 2 - 3), 1, C('#6f9a48')); R(cx - sz + 1, cy - sz - 5, sz - 1, Math.max(1, sz - 2), C('#93b866'));
+      R(cx - sz + 1, cy - sz - 5, sz * 2 - 1, sz, C(fall ? fall[1] : '#6f9a48')); R(cx - sz + 2, cy - sz - 6, Math.max(1, sz * 2 - 3), 1, C(fall ? fall[1] : '#6f9a48')); R(cx - sz + 1, cy - sz - 5, sz - 1, Math.max(1, sz - 2), C(fall ? fall[2] : '#93b866'));
     } else if (kind === 'cypress' || kind === 'poplar') {      // a dark spire, or the tall pale one that stands by water and road
       const pop = kind === 'poplar', top = sz * 2 + (pop ? 6 : 3);
       R(cx, cy - 1, 1, 3, '#4a3320');
-      for (let q = 0; q < top; q++) { const w = q < 2 || q > top - 3 ? 0 : 1; R(cx - w, cy - 2 - q, w * 2 + 1, 1, C(pop ? (q % 3 ? '#4f8a3a' : '#74ac50') : (q % 3 ? '#2f5234' : '#3f6844'))); if (pop && w && q % 2) R(cx - 1, cy - 2 - q, 1, 1, C('#8cc062')); }
+      for (let q = 0; q < top; q++) { const w = q < 2 || q > top - 3 ? 0 : 1; R(cx - w, cy - 2 - q, w * 2 + 1, 1, C(pop ? (fall ? (q % 3 ? fall[0] : fall[1]) : q % 3 ? '#4f8a3a' : '#74ac50') : (q % 3 ? '#2f5234' : '#3f6844'))); if (pop && w && q % 2) R(cx - 1, cy - 2 - q, 1, 1, C(fall ? fall[2] : '#8cc062')); }
     } else if (kind === 'willow') {              // over water: a low wide head, and the withies hanging
       R(cx, cy - 2, 1, 4, '#4a4030');
-      R(cx - sz - 1, cy - sz - 3, sz * 2 + 3, sz, C('#5f7f4a')); R(cx - sz, cy - sz - 4, sz * 2 + 1, 1, C('#5f7f4a')); R(cx - sz - 1, cy - sz - 3, sz + 1, 1, C('#7f9f62'));
-      for (let q = -sz - 1; q <= sz + 1; q += 2) R(cx + q, cy - 3, 1, 2 + (Math.abs(q) % 3), C('#6f8f56'));
+      const wl = fall ? ['#9a8e3e', '#b8aa52', '#a89a46'] : ['#5f7f4a', '#7f9f62', '#6f8f56'];
+      R(cx - sz - 1, cy - sz - 3, sz * 2 + 3, sz, C(wl[0])); R(cx - sz, cy - sz - 4, sz * 2 + 1, 1, C(wl[0])); R(cx - sz - 1, cy - sz - 3, sz + 1, 1, C(wl[1]));
+      for (let q = -sz - 1; q <= sz + 1; q += 2) R(cx + q, cy - 3, 1, 2 + (Math.abs(q) % 3), C(wl[2]));
     } else if (kind === 'dead' || kind === 'burnt') {
       const dc = kind === 'burnt' ? '#2e2824' : '#5a5046';
       R(cx, cy - sz - 3, 1, sz + 5, dc); R(cx - 2, cy - sz - 1, 2, 1, dc); R(cx - 3, cy - sz - 2, 1, 1, dc); R(cx + 1, cy - sz, 2, 1, dc); R(cx + 3, cy - sz - 1, 1, 1, dc); R(cx + 1, cy - sz - 4, 1, 2, dc);
     } else {                                     // broadleaf: a crown built of two or three lobes, so that no two have one outline
-      const [dk, lt, hi] = LEAF[kind] || LEAF.oak;
+      const [dk, lt, hi] = fall || LEAF[kind] || LEAF.oak;
       R(cx, cy - 2, 1, 4, kind === 'olive' ? '#6a5a44' : '#4a3320'); if (kind === 'olive') R(cx - 1, cy, 1, 2, '#6a5a44');
       const lobes = 2 + Math.floor(h(cx, cy, 190) * 2);
       for (let q = 0; q < lobes; q++) { const ox = Math.round((h(cx + q, cy, 191) - 0.5) * sz * 1.4), oy = -Math.round(h(cx, cy + q, 192) * sz * 0.8), r = Math.max(2, sz - q);
         R(cx + ox - r, cy - 3 - r + oy, r * 2 + 1, r + 1, C(dk)); R(cx + ox - r + 1, cy - 4 - r + oy, Math.max(1, r * 2 - 1), 1, C(dk)); R(cx + ox - r, cy - 3 - r + oy, r, Math.max(1, r - 1), C(lt)); R(cx + ox - r + 1, cy - 4 - r + oy, Math.max(1, r - 1), 1, C(hi)); }
-      if (kind === 'blossom') for (let q = 0; q < 4; q++) R(cx - sz + Math.floor(h(cx, cy, 193 + q) * sz * 2), cy - 3 - Math.floor(h(cx, cy, 197 + q) * sz), 1, 1, q % 2 ? '#f4d0d8' : '#ffffff');
+      if (kind === 'blossom' && se === 0) for (let q = 0; q < 4; q++) R(cx - sz + Math.floor(h(cx, cy, 193 + q) * sz * 2), cy - 3 - Math.floor(h(cx, cy, 197 + q) * sz), 1, 1, q % 2 ? '#f4d0d8' : '#ffffff');      // (blossom is for the spring)
     }
+    keep = was;
   };
   // which trees grow where
   const species = (tx, ty, reg, r) => {
@@ -2190,11 +2230,12 @@ function* provLandSteps(fresh) {
       const rock = blendOver(tx, ty, (qx, qy) => { const rg = REG_NAMES[regT[qy * TW + qx]]; return rg === 'The High Fells' ? ['#a2aab4', '#646c78', '#7d8692'] : rg === 'The Quarry Hills' ? ['#d2cbb6', '#8f8876', '#b3ac98'] : rg === 'The Barrow Downs' ? ['#8c8676', '#4f4a3c', '#6d6858'] : ['#aaa496', '#6b665c', '#8a8478']; });
       // scree and broken rock on the ground between
       feats.push({ y: y, d: () => {
-        for (let q = 0; q < 3; q++) R(x + Math.floor(h(tx, ty, 81 + q) * 8), y + Math.floor(h(tx, ty, 84 + q) * 8), 2 + (q % 2), 1, q % 2 ? rock[1] : rock[0]);
+        for (let q = 0; q < 2; q++) R(x + Math.floor(h(tx, ty, 81 + q) * 8), y + Math.floor(h(tx, ty, 84 + q) * 8), 2 + (q % 2), 1, q % 2 ? rock[2] : tint(rock[2], 1.12));      // (two marks and not three, in the middle tone of the rock: the ground among the peaks was all speckle)
         if (d >= 2) {                           // the high valleys: snow lying, a tarn, pines, a great boulder
           const g = h(tx, ty, 1025), g2 = h(tx, ty, 1026), cold = reg === 'The High Fells' || north(tx, ty) > 0.62;
-          if (cold && g < 0.34) { const sw = 5 + Math.floor(g2 * 6); R(x + Math.floor(g2 * 30) % 4, y + 3, sw, 4, '#eef2f8'); R(x + 1 + Math.floor(g2 * 30) % 4, y + 2, Math.max(1, sw - 3), 1, '#eef2f8'); R(x + 1 + Math.floor(g2 * 30) % 4, y + 7, Math.max(1, sw - 2), 1, '#c9d2de'); if (g2 > 0.7) R(x + 3, y + 4, 2, 1, '#a8c8e4'); }
-          else if (g < 0.4) { R(x + 2, y + 4, 6, 3, cold ? '#6f9fc0' : '#4f86ae'); R(x + 3, y + 3, 4, 1, cold ? '#6f9fc0' : '#4f86ae'); R(x + 3, y + 4, 3, 1, '#b4d6ea'); R(x + 2, y + 7, 6, 1, 'rgba(0,0,0,.2)'); }
+          if (cold && g < 0.26) { const sw = 4 + Math.floor(g2 * 7), sh2 = 2 + Math.floor(h(tx, ty, 1027) * 3), sx = x - 2 + Math.floor(h(tx, ty, 1028) * (13 - sw)), sy = y + Math.floor(h(tx, ty, 1029) * 6), lean2 = h(tx, ty, 1030) > 0.5 ? 1 : -1;      // (a drift of its own shape, lying where it happens to: they were all one shape at one corner of the tile, and stood in rows)
+            R(sx, sy + 1, sw, sh2, '#eef2f8'); R(sx + 1 + lean2, sy, Math.max(1, sw - 3), 1, '#eef2f8'); R(sx + 1 - lean2, sy + sh2 + 1, Math.max(1, sw - 2), 1, '#c9d2de'); if (sw > 7) R(sx + sw - 1, sy + 2, 2, Math.max(1, sh2 - 1), '#eef2f8'); if (g2 > 0.7) R(x + 3, y + 4, 2, 1, '#a8c8e4'); }
+          else if (g >= 0.34 && g < 0.4) { R(x + 2, y + 4, 6, 3, cold ? '#6f9fc0' : '#4f86ae'); R(x + 3, y + 3, 4, 1, cold ? '#6f9fc0' : '#4f86ae'); R(x + 3, y + 4, 3, 1, '#b4d6ea'); R(x + 2, y + 7, 6, 1, 'rgba(0,0,0,.2)'); }
           else if (g < 0.5) for (let q = 0, n = 1 + Math.floor(g2 * 3); q < n; q++) { const px = x + 2 + q * 3, py = y + 5 + (q % 2) * 2; R(px, py, 1, 2, '#4a3320'); R(px - 1, py - 2, 3, 2, '#27483a'); R(px, py - 4, 1, 2, '#27483a'); R(px - 1, py - 2, 1, 1, '#3c6450'); }
           else if (g < 0.56) { const bw = 4 + Math.floor(g2 * 4); R(x + 1, y + 7, bw + 2, 1, 'rgba(0,0,0,.22)'); R(x + 2, y + 3, bw, 4, rock[1]); R(x + 2, y + 3, bw >> 1, 4, rock[0]); R(x + 3, y + 2, Math.max(1, bw - 2), 1, rock[0]); }
         }
@@ -2255,7 +2296,7 @@ function* provLandSteps(fresh) {
       // a mountain is a plain peak (0), a horn (1), a dome (2), a table with its top cut off (3), or twin summits (4)
       const shp = d === 1 ? (h(tx, ty, 1021) > 0.7 ? 1 : 0) : h(tx, ty, 1022) < 0.6 ? zq(wildNoise(tx / 7, ty / 7, 1020), 5) : Math.floor(h(tx, ty, 1023) * 5);
       const hg = Math.round(hgt * (shp === 1 ? 1.25 : shp === 2 ? 0.78 : shp === 3 ? 0.8 : 1));
-      feats.push({ y: by, d: () => {
+      const whole = () => {
         if (w > 14 && h(tx, ty, 98) > 0.45) { const side = h(tx, ty, 99) > 0.5 ? 1 : -1; mountain(cx + side * Math.round(w * 0.42), by - 1, Math.round(w * 0.62), Math.round(hg * 0.62), -lean, Math.round(snowRows * 0.4), seed + 7, shp === 4 ? 0 : shp); }      // a shoulder
         if (shp === 4) mountain(cx + Math.round(w * 0.36), by, Math.round(w * 0.85), Math.round(hg * 0.86), lean, Math.round(snowRows * 0.8), seed + 3, 0);
         mountain(cx, by, w, hg, lean, snowRows, seed, shp === 4 ? 0 : shp);
@@ -2264,7 +2305,9 @@ function* provLandSteps(fresh) {
         else if (w > 11 && m1 < 0.06) { const kx = cx - Math.round(w * 0.15); R(kx, by - 3, 3, 3, '#1c1814'); R(kx + 1, by - 4, 1, 1, '#1c1814'); R(kx - 1, by, 5, 1, rock[2]); }                                                                    // the mouth of a cave
         else if (shp === 3 && hg > 9) for (let i = 3; i < hg - 1; i += 4) R(cx - Math.round(w * (0.1 + h(i, seed, 1027) * 0.3)), by - hg + i, Math.round(w * (0.2 + h(seed, i, 1028) * 0.3)), 1, tint(rock[2], 0.95));                                                                                    // the beds of rock showing
         if (w > 20 && h(tx, ty, 100) > 0.6) { const px = cx - Math.round(w * 0.3); for (let q = 0; q < 3; q++) R(px + q * 2, by - 2 - q * 2, 2, 2, '#35543a'); }                                                              // pines at its foot
-      } });
+      };
+      feats.push({ y: by, d: whole });
+      overs.push({ x0: cx - w, x1: cx + w + 1, y0: by - Math.round(hg * 1.3) - 2, base: by, soft: true, d: whole });      // kept, like a tree or a tower: it is painted again over whoever is behind it, and its shadow goes round with the sun (provRec)
     }
   } }
   // ---- the trees of the woods, out over the whole country: the same kinds that make each region's forest, standing
@@ -2362,8 +2405,10 @@ function* provLandSteps(fresh) {
   return fresh;
 }
 // One more piece of the painting. When the last is done, what was made is handed over.
+// (For the season it is: and when the season turns the land is out of date, and is painted again behind what is showing.)
+const provLandStale = () => !prov.land || prov.landSe !== sceneSeason();
 function provLandStep() {
-  const it = prov.making || (prov.making = provLandSteps({}));
+  const it = prov.making || (prov.making = provLandSteps({}, sceneSeason()));
   let r;
   try { r = it.next(); } catch (e) { prov.making = null; throw e; }      // begun again from nothing, if it is asked for again
   if (r.done) { prov.making = null; Object.assign(prov, r.value); }
@@ -2375,14 +2420,18 @@ function provLand() {
 // Six to ten thousandths of a second of it whenever the browser is idle, which is once a frame, and every so often even
 // when it never is: so the map is ready a few seconds after the page is up, before anyone can walk to the gate.
 function provLandAhead() {
-  if (prov.land || prov.ahead || typeof document === 'undefined') return;
+  if (!provLandStale() || prov.aheadOn || prov.aheadErr || typeof document === 'undefined') return;
+  prov.aheadOn = true;
   const idle = typeof requestIdleCallback === 'function';
-  const wait = () => { prov.ahead = idle ? requestIdleCallback(more, { timeout: 400 }) : setTimeout(more, 40); };
+  const wait = () => { if (idle) requestIdleCallback(more, { timeout: 400 }); else setTimeout(more, 40); };
   const more = dl => {
+    // A new season's land is painted behind the old one, which goes on showing until it is done. Not while the column is
+    // on the march, though: some pieces of the painting are long ones, and it would stumble. It waits for a halt.
+    if (prov.land && typeof G !== 'undefined' && G && G.field && prov.moving) return wait();
     const until = performance.now() + clamp(dl && dl.timeRemaining ? dl.timeRemaining() : 0, 6, 10);      // six at least: some browsers own to almost no idle time, and the job must still get done
-    try { while (!prov.land) { provLandStep(); if (performance.now() >= until) break; } }      // (it may have been finished at the gate meanwhile)
-    catch (e) { console.error(e); prov.ahead = -1; return; }      // not tried again here: provLand will, and will say why, when the map is wanted
-    if (prov.land) { prov.ahead = 0; const soon = () => { try { provChart(FOG_CHART, true); } catch (e) { console.error(e); } }; if (idle) requestIdleCallback(soon, { timeout: 2000 }); else setTimeout(soon, 200); }      // and the chart that lies under the fog, while nobody is waiting for it
+    try { while (provLandStale()) { provLandStep(); if (performance.now() >= until) break; } }      // (it may have been finished at the gate meanwhile)
+    catch (e) { console.error(e); prov.aheadOn = false; prov.aheadErr = true; return; }      // not tried again here: provLand will, and will say why, when the map is wanted
+    if (!provLandStale()) { prov.aheadOn = false; const soon = () => { try { provChart(FOG_CHART, true); } catch (e) { console.error(e); } }; if (idle) requestIdleCallback(soon, { timeout: 2000 }); else setTimeout(soon, 200); }      // and the chart that lies under the fog, while nobody is waiting for it
     else wait();
   };
   wait();
@@ -2444,8 +2493,8 @@ const provRec = (() => {
       const order = list.slice();
       if (prov.overs && prov.paintOver) for (const o of prov.overs) {
         if (o.x1 < camX - 40 || o.x0 > camX + PROV.VW + 40 || o.base < camY - 40 || o.y0 > camY + PROV.VH + 40) continue;
-        let hit = false, seen = false;      // (a tree with the column or a band behind it is painted thinly: see the tree, in provLand)
-        for (const g of list) if (g.y < o.base && g.y > o.y0 - 2 && g.x + g.wide > o.x0 && g.x - g.wide < o.x1) { hit = true; if (!o.tree) break; if (g.ink) { seen = true; break; } }
+        let hit = false, seen = false;      // (a tree or a mountain with the column or a band behind it is painted thinly, so that they are never lost: see the tree, in provLand)
+        for (const g of list) if (g.y < o.base && g.y > o.y0 - 2 && g.x + g.wide > o.x0 && g.x - g.wide < o.x1) { hit = true; if (!o.soft) break; if (g.ink) { seen = true; break; } }
         if (hit) order.push({ y: o.base, i: 1e9, over: o, a: seen ? 0.45 : 1 });
       }
       order.sort((a, b) => a.y - b.y || a.i - b.i);
@@ -3130,7 +3179,7 @@ function drawAmbient(ctx, T, R, camX, camY, night) {
     } else if (reg === 'The Salt Shore' && k === T_SAND && b > 0.5 && wildTile(x0 - 10, y0) === T_WATER) {      // spray thrown up where the sea comes in
       const p2 = (T * 0.5 + a * 4) % 1; for (let q = 0; q < 4; q++) { ctx.fillStyle = `rgba(240,248,252,${(0.8 * (1 - p2)).toFixed(2)})`; ctx.fillRect(Math.round(x0 - 6 + q * 2 + p2 * 3), Math.round(y0 + q * 3 - Math.sin(p2 * Math.PI) * (4 + q)), 1, 1); }
     }
-    if (k === T_MEADOW && a > 0.45) {                // a butterfly, going from flower to flower
+    if (k === T_MEADOW && a > 0.45 && sceneSeason() < 2) {      // a butterfly, going from flower to flower (while there are flowers)
       const ph = a * 30, bx = x0 + Math.sin(T * 0.8 + ph) * 12 + Math.sin(T * 2.7 + ph) * 3, by = y0 + Math.cos(T * 0.6 + ph) * 8 + Math.sin(T * 3.3 + ph) * 2, open = Math.sin(T * 14 + ph) > 0, c = ['#f4f4f0', '#f2d060', '#e8a0c0', '#a8c0f0'][Math.floor(b * 4)];
       R(bx, by, 1, 1, '#2a1c14'); if (open) { R(bx - 1, by - 1, 1, 2, c); R(bx + 1, by - 1, 1, 2, c); } else R(bx, by - 1, 1, 1, c);
     } else if (k === T_MARSH && a > 0.3) {           // mist lying low and moving
@@ -4358,7 +4407,10 @@ function provIcon(ctx, s, T, done) {
 function provSeason(ctx, x0, y0, w, h, step, wx) {
   const se = typeof sceneSeason === 'function' ? sceneSeason() : 0, white = (wx && wx.white) || 0;
   if (!se && !white) return;
-  ctx.fillStyle = se === 1 ? 'rgba(214,196,96,.07)' : se === 2 ? 'rgba(190,118,36,.17)' : se === 3 ? 'rgba(232,238,244,.26)' : 'rgba(0,0,0,0)'; ctx.fillRect(x0, y0, w, h);
+  // The season is in the land itself now (provLand paints it so), and close to there is no wash of colour laid over the
+  // country for it: only what lies on the ground, leaves and frost, and the snow when there is snow. The chart of the
+  // whole province (step 14 and over) is not painted by the season, and still takes its colour here.
+  if (step >= 14) { ctx.fillStyle = se === 1 ? 'rgba(214,196,96,.07)' : se === 2 ? 'rgba(190,118,36,.17)' : se === 3 ? 'rgba(232,238,244,.26)' : 'rgba(0,0,0,0)'; ctx.fillRect(x0, y0, w, h); }
   if (white > 0) { ctx.fillStyle = 'rgba(244,248,252,' + (0.3 * white).toFixed(3) + ')'; ctx.fillRect(x0, y0, w, h); }
   if (se < 2) return;
   for (let y = Math.floor(y0 / step) * step; y < y0 + h; y += step) for (let x = Math.floor(x0 / step) * step; x < x0 + w; x += step) {
@@ -4506,6 +4558,7 @@ function provMovers(ctx, T, R, inView) {
   if (prov.dry && prov.moving && tr.length > 3 && wildTile(cart.x, cart.y) === T_ROAD) { const ux = cart.x - F.x, uy = cart.y - F.y, n = Math.hypot(ux, uy) || 1; provDust(R, off => ({ x: cart.x - ux / n * off, y: cart.y - uy / n * off }), 8, T, 1); }      // the column's own, behind its cart
 }
 function drawProvince(cv, T) {
+  provLandAhead();      // (the season may have turned: the land is painted again for it, behind this one)
   (prov.lit || (prov.lit = [])).length = 0;      // the lights of this frame: see provNight
   if (prov.big) return drawOverview(cv, T);
   const F = G.field, ctx = cv.getContext('2d'), S = PROV.S = cv.width / PROV.VW;      // a whole number, chosen for the screen (see fitScenes in main.js)
