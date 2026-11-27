@@ -1993,7 +1993,8 @@ const ARENA_AISLES = [70, 142, 278, 350];       // x of each flight of stairs up
 // A fight outside the walls has no stands and no wall: trees, rock, a palisade or old stones, and open ground.
 function renderWild(B) {
   const cv = document.createElement('canvas'); cv.width = 428; cv.height = 240;
-  const ctx = cv.getContext('2d'), k = B.wild, seed = B.wseed || (B.wseed = 1 + Math.floor(Math.random() * 900));      // no two fights on quite the same ground
+  const main = cv.getContext('2d'), k = B.wild, seed = B.wseed || (B.wseed = 1 + Math.floor(Math.random() * 900));      // no two fights on quite the same ground
+  let ctx = main;      // (what is being painted on: the picture, then a sheet for all that stands nearer than the hills, then the sky under cloud)
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
   const h = i => Math.abs(Math.sin((i + seed) * 127.1 + 311.7) * 43758.5453) % 1;
   const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
@@ -2009,8 +2010,18 @@ function renderWild(B) {
   blob(330 - (seed % 200), 18, 9, 9, '#fdf4d0'); blob(330 - (seed % 200), 18, 14, 14, 'rgba(253,244,208,.25)');
   for (let c = 0; c < 4; c++) { const cx = 40 + h(c + 40) * 350, cy = 8 + h(c + 50) * 22; blob(cx, cy, 20 + h(c) * 14, 3, '#eef5f8'); blob(cx + 8, cy - 3, 11, 3, '#f8fbfc'); blob(cx - 6, cy + 2, 14, 2, '#dfeaf0'); }
   // ---- two ranges of far hills, bluer and fainter the further off ----
-  for (let x = 0; x < 428; x += 2) { const t = 36 + Math.round(Math.sin(x * 0.019 + seed) * 8 + Math.sin(x * 0.047 + 2) * 4); R(x, t, 2, 46, '#8fa9a6'); if (h(x) > 0.82) R(x, t, 2, 1, '#a3bab6'); }
-  for (let x = 0; x < 428; x += 2) { const t = 52 + Math.round(Math.sin(x * 0.031 + 1 + seed) * 6 + Math.sin(x * 0.085) * 3); R(x, t, 2, 30, '#6c8b68'); if (h(x + 300) > 0.7) R(x, t - 2, 2, 2, '#5c7a58'); }
+  // They keep the year too: fresh in spring, bracken and turned woods in autumn, dead grass under a cold haze in
+  // winter. (Each range, and what catches the eye along its crest. renderWildSnow knows the hills by these colours.)
+  const HILL = [['#93b0a6', '#a8c0b6', '#72975c', '#5f864e'], ['#8fa9a6', '#a3bab6', '#6c8b68', '#5c7a58'], ['#a3a498', '#b6b6a8', '#94805a', '#7c6238'], ['#99a5ae', '#aeb8bf', '#7d8472', '#676c5e']][se];
+  B._hills = HILL.map(c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
+  const hills = ([far, farL, near, nearD]) => {
+    for (let x = 0; x < 428; x += 2) { const t = 36 + Math.round(Math.sin(x * 0.019 + seed) * 8 + Math.sin(x * 0.047 + 2) * 4); R(x, t, 2, 46, far); if (h(x) > 0.82) R(x, t, 2, 1, farL); }
+    for (let x = 0; x < 428; x += 2) { const t = 52 + Math.round(Math.sin(x * 0.031 + 1 + seed) * 6 + Math.sin(x * 0.085) * 3); R(x, t, 2, 30, near); if (h(x + 300) > 0.7) R(x, t - 2, 2, 2, nearD); }
+  };
+  hills(HILL);
+  // Everything nearer than the hills is painted on a sheet of its own, and laid over them when it is done: so that
+  // it can be laid over a second sky as well, the one there is under cloud (see the end of this).
+  const fg = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); ctx = fg.getContext('2d');
   // ---- the ground: broad lights and darks, then grain, then a place worn smooth in the middle ----
   R(0, 78, 428, 162, ground);
   for (let n = 0; n < 16; n++) blob(h(n + 10) * 428, 96 + h(n + 20) * 136, 26 + h(n + 30) * 34, 4 + h(n + 31) * 7, n % 2 ? 'rgba(255,250,210,.06)' : 'rgba(30,40,10,.07)');
@@ -2112,6 +2123,23 @@ function renderWild(B) {
   for (let n = 0; n < 26; n++) { const x = n * 17 + h(n + 1200) * 10; bush(x, 240 + h(n + 1210) * 3, shade(tc, 0.6), true); }
   for (let n = 0; n < 5; n++) R(0, 78 + n * 4, 428, 4, `rgba(20,30,10,${(0.3 * (1 - n / 5)).toFixed(3)})`);
   for (let n = 0; n < 4; n++) R(0, 224 + n * 4, 428, 4, `rgba(15,20,8,${(0.06 + n * 0.05).toFixed(3)})`);
+  main.drawImage(fg, 0, 0);
+  // ---- the same sky under cloud ----
+  // What is above the ground, painted a second time as it is when the weather has closed in: the blue gone out of
+  // the sky, a deck of cloud across it with only a pale place where the sun is, and the hills gone grey and faint
+  // behind the same trees. drawBattle lays it over the fair sky by how much cloud there is (yardWeather's over), so
+  // the sun goes in as the cloud comes on, and rain and snow fall out of a sky that could hold them.
+  if (typeof mixHex === 'function') {
+    const dull = Object.assign(document.createElement('canvas'), { width: 428, height: 78 }), grey = '#8d98a3', over = mixHex('#9cc0d8', grey, 0.8), low = mixHex(over, '#ffffff', 0.2);      // (low: the sky as it is down at the hills)
+    ctx = dull.getContext('2d');
+    for (let y = 0; y < 60; y += 3) R(0, y, 428, 3, shade(over, 0.9 + y / 190));
+    R(0, 60, 428, 18, low);
+    blob(330 - (seed % 200), 18, 24, 11, 'rgba(255,255,255,.09)'); blob(330 - (seed % 200), 18, 13, 6, 'rgba(255,255,255,.1)');      // where the sun is, behind it
+    for (let c = 0; c < 14; c++) { const cx = h(c + 1500) * 428, cy = 4 + h(c + 1510) * 42, w = 34 + h(c + 1520) * 40; blob(cx, cy, w, 4, '#98a1ab'); blob(cx + 10, cy - 3, w * 0.55, 3, '#b0b8c1'); blob(cx - 8, cy + 3, w * 0.7, 2, '#77828e'); }
+    hills([mixHex(HILL[0], low, 0.6), mixHex(HILL[0], low, 0.6), shade(mixHex(HILL[2], grey, 0.3), 0.93), shade(mixHex(HILL[3], grey, 0.3), 0.93)]);
+    ctx.drawImage(fg, 0, 0);
+    B._dull = dull;
+  }
   return cv;
 }
 
@@ -2279,7 +2307,7 @@ function renderWildSnow(B) {
   // the colour of the open ground: whatever colour there is most of across the foot of the picture
   const tally = new Map(); let base = [0, 0, 0], most = 0;
   for (let y = 200; y < H; y += 2) for (let x = 0; x < W; x += 3) { const i = (y * W + x) * 4, key = (D[i] >> 2) << 12 | (D[i + 1] >> 2) << 6 | (D[i + 2] >> 2), n = (tally.get(key) || 0) + 1; tally.set(key, n); if (n > most) { most = n; base = [D[i], D[i + 1], D[i + 2]]; } }
-  const HILLS = [[143, 169, 166], [163, 186, 182], [108, 139, 104], [92, 122, 88]];
+  const HILLS = B._hills || [[143, 169, 166], [163, 186, 182], [108, 139, 104], [92, 122, 88]];      // (the hills' colours this season: renderWild keeps them)
   const far = (i, c) => Math.abs(D[i] - c[0]) + Math.abs(D[i + 1] - c[1]) + Math.abs(D[i + 2] - c[2]);
   const hill = i => HILLS.some(c => far(i, c) < 8), ground = i => far(i, base) < 62;
   const sky = i => { const r = D[i], g = D[i + 1], b = D[i + 2]; return (b >= g && b > r + 6 && r + g + b > 400) || (r > 220 && g > 230 && b > 235) || (r > 240 && g > 228 && b > 190 && b < 232); };      // (the sky, a cloud, or the sun)
@@ -2474,6 +2502,7 @@ function drawBattle(ctx, B) {
   view(FINE);
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
+  if (B.wild && B._dull && typeof yardWeather === 'function' && typeof sceneClock === 'function') { const ov = Math.min(1, yardWeather(sceneClock()).over || 0); if (ov > 0.02) { ctx.globalAlpha = ov; ctx.drawImage(B._dull, 0, 0); ctx.globalAlpha = 1; } }      // out in the province, the sky as it is under cloud (see the end of renderWild)
   if (uu > 0 && !B.wild) { ctx.fillStyle = shade(B.theme.sand, 0.95); ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); }      // more sand below the sand, for the little of it that shows either side of the choices
   // snow lying, where snow would lie (renderArenaSnow, or out in the province renderWildSnow): under the crowd's banners, the blood and the men
   const lying = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, (yardWeather(sceneClock()).white || 0) * 1.5) : 0;
