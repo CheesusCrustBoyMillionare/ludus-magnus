@@ -2225,10 +2225,11 @@ function renderBackdrop(B) {
       }
     };
     rim(R);
-    // (By day what stands against the sky is kept on a strip of its own as well, with nothing behind it: the sky
-    // there is painted afresh every frame, as the hour and the weather have it, and this is laid back over it. See
-    // drawBattle.)
-    if (!dusk0) { const strip = Object.assign(document.createElement('canvas'), { width: 428, height: 10 }), sc = strip.getContext('2d'); rim((x, y, w, h, col) => { sc.fillStyle = col; sc.fillRect(x, y, w, h); }); B._rim = strip; }
+    // (What stands against the sky is kept on a strip of its own as well, with nothing behind it: by day the sky
+    // there is painted afresh every frame, as the hour and the weather have it, and this is laid back over it; and
+    // at a bout to the death the red of the evening is painted out under cloud, and this laid back the same way.
+    // See drawBattle.)
+    { const strip = Object.assign(document.createElement('canvas'), { width: 428, height: 10 }), sc = strip.getContext('2d'); rim((x, y, w, h, col) => { sc.fillStyle = col; sc.fillRect(x, y, w, h); }); B._rim = strip; }
     R(0, 10, 428, 3, stone ? th.wallTop : '#7a5a34'); R(0, 13, 428, 2, stone ? th.wallLine : '#4a3520'); R(0, 15, 428, 3, 'rgba(0,0,0,.28)');
   }
   // the rows: each seat lit along its top edge, in shade down its face
@@ -2612,6 +2613,13 @@ function drawBattle(ctx, B) {
     if (st > 0.05) for (let q = 0; q < 16; q++) { ctx.fillStyle = `rgba(240,240,255,${(st * (0.45 + 0.45 * wildHash(q, 3, 1671)) * (Math.sin(T * (1.1 + q % 3) + q * 2.4) > -0.8 ? 1 : 0.4)).toFixed(3)})`; ctx.fillRect(Math.floor(wildHash(q, 1, 1671) * 428), Math.floor(wildHash(q, 2, 1671) * 8), 1, 1); }
     ctx.drawImage(B._rim, 0, 0);
   }
+  // A bout to the death keeps its own light, but not its own weather: it rains or snows on it as on anything else
+  // that day (wxF: the weather, for every kind of fight), and under cloud the red goes out of its evening sky.
+  const wxF = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? yardWeather(sceneClock()) : null, duskOv = dusk && wxF ? Math.min(1, wxF.over || 0) : 0;
+  if (duskOv > 0.02 && B._rim) {
+    ctx.globalAlpha = duskOv * 0.9; for (let y = 0; y < 10; y += 2) { ctx.fillStyle = shade('#8f8790', 0.9 + y / 60); ctx.fillRect(0, y, 428, 2); } ctx.globalAlpha = 1;
+    ctx.drawImage(B._rim, 0, 0);
+  }
   if (B.wild) {
     const wx = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? yardWeather(sceneClock()) : null, ov = wx ? Math.min(1, wx.over || 0) : 0;
     // Out in the province the clouds go over: slowly, faster in a wind, each at a pace of its own, off one side of
@@ -2631,7 +2639,7 @@ function drawBattle(ctx, B) {
   // (The sheet is kept twice: as it fell, B._snow0, and as the men have left it, B._snow, which is the one that is
   // shown. Their feet mark it and wear it through, and falling snow fills it again: see the snow in show.js.)
   B.lying = lying;
-  B.wet = dusk || typeof yardWeather !== 'function' || typeof sceneClock !== 'function' ? 0 : (w => Math.min(1, Math.max(w.wet || 0, w.rain || 0)))(yardWeather(sceneClock()));      // (how wet the ground is, for what feet raise from it: fightDust. A bout to the death is fought dry, as it is drawn.)
+  B.wet = wxF ? Math.min(1, Math.max(wxF.wet || 0, wxF.rain || 0)) : 0;      // (how wet the ground is, for what feet raise from it: fightDust)
   if (lying > 0.03) { if (!B._snow) { B._snow0 = B.wild ? renderWildSnow(B) : renderArenaSnow(B); B._snow = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); B._snow.getContext('2d').drawImage(B._snow0, 0, 0); B._wear = new Float32Array(54 * 60); } ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
   // The wall's shade across the near sand, by day: further out the lower the sun is, faint under cloud, and after
@@ -2641,7 +2649,7 @@ function drawBattle(ctx, B) {
     for (let i = 0; i < 5; i++) { const y0 = Math.round(i * d / 5), y1 = Math.round((i + 1) * d / 5); ctx.fillStyle = `rgba(${col},${(a * (1 - i / 5)).toFixed(3)})`; ctx.fillRect(0, 86 + y0, 428, y1 - y0); }
   }
 
-  let shadow = dusk ? { len: 16, a: 0.3 } : { len: 5, a: 0.22 };
+  let shadow = dusk ? { len: Math.round(16 * (1 - duskOv * 0.85)), a: +(0.3 * (1 - duskOv * 0.5)).toFixed(3) } : { len: 5, a: 0.22 };      // (the long shadows of a low sun, unless cloud has it)
   // In the arena, by day, a shadow keeps the hour as the shadows in the yard do, by the same sky (yardSky): thrown
   // to the right through the morning and to the left once the sun has crossed, longer as it gets low; under cloud
   // only what is dark under a man's feet; and by night, when a bout is fought so late, the little the moon throws.
@@ -2698,13 +2706,20 @@ function drawBattle(ctx, B) {
   // ---- light: the colour of the hour, torches, darkened edges, the flash of a telling blow ----
   // by day the arena takes the weather and a little of the hour from the same sky as the yard; a dusk bout has its own light
   if (!dusk && typeof yardSky === 'function') {
-    const sky = B.wild && typeof provSky === 'function' && G && G.field ? provSky() : yardSky(sceneClock()), wx = yardWeather(sceneClock()), tint = sceneTint(sky, B.wild ? 0.6 : 0.3 + 0.35 * sky.night);      // a fight in the province is fought at the province's hour; and in the arena the dark comes down further than the colours of the day do, so that a bout fought after dark is fought by torchlight
+    const sky = B.wild && typeof provSky === 'function' && G && G.field ? provSky() : yardSky(sceneClock()), tint = sceneTint(sky, B.wild ? 0.6 : 0.3 + 0.35 * sky.night);      // a fight in the province is fought at the province's hour; and in the arena the dark comes down further than the colours of the day do, so that a bout fought after dark is fought by torchlight
     if (tint !== '#ffffff') { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, 428, 240); ctx.globalCompositeOperation = 'source-over'; }
+  }
+  if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = duskOv > 0.02 && typeof mixHex === 'function' ? mixHex('#f4b68c', '#b4acb4', duskOv * 0.8) : '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }      // (the red of the low sun, greyer the more cloud there is over it)
+  // The weather, on whatever kind of fight it is: the grey of cloud, the dark of wet ground, rain, the white of a
+  // snowy day and snow coming down; and in an autumn storm the sky lights, as it does over the yard and the town
+  // (sceneStorm, by the page's clock, so that a fight stopped for a choice is not left standing in the flash).
+  if (wxF && typeof sceneRain === 'function') {
+    const wx = wxF;
     if (wx.over > 0) { ctx.fillStyle = `rgba(40,45,60,${(0.1 * wx.over).toFixed(3)})`; ctx.fillRect(0, 0, 428, 240); }
     if (wx.wet > 0) { ctx.fillStyle = `rgba(70,45,20,${(0.14 * wx.wet).toFixed(3)})`; ctx.fillRect(0, 86, 428, 154); }
     sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * 0.16); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
+    if (typeof sceneStorm === 'function') sceneStorm(ctx, 428, 240, sceneClock(), wx);
   }
-  if (dusk) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = '#f4b68c'; ctx.fillRect(0, 0, 428, 240); ctx.fillStyle = 'rgba(70,60,110,.35)'; ctx.fillRect(0, 0, 428, 66); ctx.globalCompositeOperation = 'source-over'; }
   const lit = dusk ? 1 : hr ? clamp((hr.night - 0.45) / 0.4, 0, 1) : 0;      // the torches: lit for a bout to the death, and for any that is fought after dark; they come up as the light goes
   for (const x of B.wild ? [] : ARENA_TORCHES) {
     const fl = Math.sin(T * 13 + x) > 0 ? 1 : 0;

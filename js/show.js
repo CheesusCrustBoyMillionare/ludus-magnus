@@ -500,13 +500,13 @@ function showFront(ctx, B, T) {
     ctx.fillStyle = o.col; ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
   }
   // Motes drifting in the light. It is the sun that shows them: so not after dark, fewer to be seen as the sky clouds
-  // over, and none in rain or falling snow, which lay them. (A bout to the death has the low sun and the torches.)
+  // over, and none in rain or falling snow, which lay them. (A bout to the death always has its low sun, but for the weather.)
   let sun = 1;
-  if (B.light !== 'dusk' && typeof yardSky === 'function' && typeof yardWeather === 'function' && typeof sceneClock === 'function') {
-    const sky = B.wild && typeof provSky === 'function' && typeof G !== 'undefined' && G && G.field ? provSky() : yardSky(sceneClock()), wx = yardWeather(sceneClock());
-    sun = sky.sun && !(wx.rain > 0.05) && !(wx.snow > 0.05) ? clamp(1 - sky.night * 3, 0, 1) * clamp(1 - (wx.over || 0) * 1.3, 0, 1) : 0;
+  if (typeof yardSky === 'function' && typeof yardWeather === 'function' && typeof sceneClock === 'function') {
+    const dusk = B.light === 'dusk', sky = dusk ? null : B.wild && typeof provSky === 'function' && typeof G !== 'undefined' && G && G.field ? provSky() : yardSky(sceneClock()), wx = yardWeather(sceneClock());
+    sun = (dusk || sky.sun) && !(wx.rain > 0.05) && !(wx.snow > 0.05) ? (dusk ? 1 : clamp(1 - sky.night * 3, 0, 1)) * clamp(1 - (wx.over || 0) * 1.3, 0, 1) : 0;
   }
   if (!(sun > 0.04)) return;
-  ctx.fillStyle = B.light === 'dusk' ? 'rgba(255,220,170,.22)' : `rgba(255,246,214,${(0.3 * sun).toFixed(3)})`;
+  ctx.fillStyle = B.light === 'dusk' ? `rgba(255,220,170,${(0.22 * sun).toFixed(3)})` : `rgba(255,246,214,${(0.3 * sun).toFixed(3)})`;
   for (const m of S.motes) ctx.fillRect(Math.round(m.x), Math.round(m.y + Math.sin(T * 0.9 + m.ph) * 4), 1, 1);
 }
