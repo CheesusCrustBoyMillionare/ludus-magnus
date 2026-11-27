@@ -400,8 +400,11 @@ function showBack(ctx, B, T) {
     if (q >= 1) R(x - 4, y - 1, 9, 2, 'rgba(0,0,0,.2)');
     R(x - 3, y - 6, 7, 6, p.col); R(x - 3, y - 6, 7, 1, shade(p.col, 1.4)); R(x - 3, y - 6, 1, 6, shade(p.col, 0.68)); R(x + 1, y - 3, 2, 2, '#1c1310'); if (p.crest) R(x - 2, y - 8, 4, 2, p.crest);
   }
-  // heat: by day the foot of the wall and the far sand swim a little
-  if (!B.wild && B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
+  // heat: by day the foot of the wall and the far sand swim a little. Not after dark, nor under cloud, nor in winter,
+  // nor while snow lies (the rows are bare sand, and would show through it).
+  let hot = true;
+  if (typeof yardSky === 'function' && typeof yardWeather === 'function' && typeof sceneClock === 'function') { const sky = yardSky(sceneClock()), wx = yardWeather(sceneClock()); hot = !!sky.sun && sky.night < 0.15 && !(wx.over > 0.5) && !(wx.white > 0.02) && !(typeof sceneSeason === 'function' && sceneSeason() === 3); }
+  if (hot && !B.wild && B.light !== 'dusk' && B.shake <= 0.2 && (!B.cam || B.cam.z === 1)) {
     // The rows are taken from the painted backdrop, not from the picture as it stands: drawing a canvas onto itself
     // makes the browser copy the whole of it first, every time, and at twenty rows a frame that was most of the cost
     // of a frame whenever the view was drawn back (the entrance, the verdict, and a fixed view throughout).

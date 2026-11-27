@@ -3172,6 +3172,42 @@ function coatOf(base, a, b) {
   const n = parseInt(base.slice(1), 16), f = 0.8 + la * 0.065, w = (wb - 2) * 7, ch = v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0');
   return (_coats[k] = '#' + ch((n >> 16) * f + w) + ch(((n >> 8) & 255) * f) + ch((n & 255) * f - w));
 }
+// How far a herd of each kind wanders from its home, and how briskly.
+function herdRoam(K) { return [K === 'cattle' ? 12 : K === 'deer' ? 22 : K === 'horses' ? 36 : K === 'pigs' ? 14 : K === 'geese' ? 13 : K === 'cranes' ? 8 : 28, K === 'cattle' ? 0.8 : K === 'goats' ? 2.4 : K === 'deer' ? 1.6 : K === 'horses' ? 2 : K === 'pigs' ? 1.2 : K === 'geese' ? 1.6 : K === 'cranes' ? 0.5 : 2.4]; }
+// What the herds leave in lying snow: each beast's own track, where it has been this last quarter of a minute, by the
+// same clock that says where it is now (prov.herdT: see drawHerds, whose reckoning of where a beast stands this is).
+// A dot at each half second of that, to one side and the other as its feet fall, fainter the older it is; so where it
+// has gone on the dots are strung out, and where it has stood to graze the snow is trodden dark. It is painted on the
+// ground with the other tracks (provRuts), under everything that moves. (Not the cranes, who stand in the marsh. And
+// when the deer start away from the column their track is let go, for they are not where their clock has them.)
+function herdTracks(ctx, R, inView) {
+  const deep = (prov.white || 0) > 0.2 ? Math.min(1, prov.white * 1.6) * 0.75 : 0, Th = prov.herdT, F = G.field; if (!deep || Th === undefined) return;
+  const DT = 0.5, N = 30, n0 = Math.floor(Th / DT);
+  for (const H of (prov.herds || [])) {
+    const K = H.kind; if (K === 'cranes' || !inView(H.x, H.y, 60) || !wildSeen(H.x, H.y)) continue;
+    const hv = n => wildHash(H.seed, n, 670), [roam, pace] = herdRoam(K), w1 = (0.035 + hv(1) * 0.02) * pace, w2 = (0.061 + hv(2) * 0.03) * pace, p1 = hv(3) * 9, p2 = hv(4) * 9, spread = K === 'cattle' ? 12 : 9, heavy = K === 'cattle' || K === 'horses';
+    const hx = th => H.x + roam * (Math.sin(th * w1 + p1) * 0.65 + Math.sin(th * w2 + p2) * 0.35), hy = th => H.y + roam * 0.7 * (Math.cos(th * w1 * 0.9 + p2) * 0.65 + Math.cos(th * w2 * 1.1 + p1) * 0.35);
+    let bolt = 0; if (K === 'deer' && F) { const d = Math.hypot(F.x - hx(Th), F.y - hy(Th)); if (d < 70) bolt = (70 - d) / 70; }
+    const fade = deep * (1 - bolt * 4) * (K === 'geese' ? 0.6 : 1); if (!(fade > 0)) continue;
+    for (let i = 0; i < H.n; i++) {
+      const b1 = hv(10 + i), b2 = hv(30 + i), a1 = 0.22 + hv(50 + i) * 0.16, a2 = 0.19 + b1 * 0.14;
+      let wx = 0, wy = 0;
+      for (let j = N + 1; j >= 1; j--) {      // (the oldest first, so that each is known to have come from the one before)
+        const n = n0 - j, th = n * DT, tx = hx(th) + (b1 - 0.5) * 2 * spread + Math.sin(th * a1 + b1 * 20) * 5, ty = hy(th) + (b2 - 0.5) * 2 * spread * 0.7 + Math.cos(th * a2 + b2 * 20) * 3.5;
+        if (j <= N) {
+          const dx = tx - wx, dy = ty - wy, d = Math.hypot(dx, dy), side = n & 1 ? 1 : -1, ox = d > 0.3 ? Math.round(-dy / d * side) : 0, oy = d > 0.3 ? Math.round(dx / d * side) : 0, k = wildTile(tx, ty);
+          ctx.globalAlpha = Math.round((1 - j / (N + 1)) * fade * 16) / 16;
+          if (ctx.globalAlpha && k !== T_WATER && k !== T_BRIDGE && wildSeen(tx, ty)) {
+            const col = k === T_ROAD ? '#3e2e20' : '#46587a';
+            R(Math.round(tx) + ox, Math.round(ty) + 1 + oy, 1, 1, col); if (heavy) R(Math.round(tx) - ox, Math.round(ty) + 1 - oy, 1, 1, col);
+          }
+        }
+        wx = tx; wy = ty;
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
 function drawHerds(ctx, T, R, inView) {
   const F = G.field;
   // After dark they lie down where they are. A herd wanders by a clock of its own, which stops while it is abed and goes
@@ -3181,7 +3217,7 @@ function drawHerds(ctx, T, R, inView) {
   const Th = prov.herdT;
   for (const H of (prov.herds || [])) {
     if (!inView(H.x, H.y, 60) || !wildSeen(H.x, H.y)) continue;
-    const hv = n => wildHash(H.seed, n, 670), K = H.kind, roam = K === 'cattle' ? 12 : K === 'deer' ? 22 : K === 'horses' ? 36 : K === 'pigs' ? 14 : K === 'geese' ? 13 : K === 'cranes' ? 8 : 28, pace = K === 'cattle' ? 0.8 : K === 'goats' ? 2.4 : K === 'deer' ? 1.6 : K === 'horses' ? 2 : K === 'pigs' ? 1.2 : K === 'geese' ? 1.6 : K === 'cranes' ? 0.5 : 2.4;
+    const hv = n => wildHash(H.seed, n, 670), K = H.kind, [roam, pace] = herdRoam(K);
     const w1 = (0.035 + hv(1) * 0.02) * pace, w2 = (0.061 + hv(2) * 0.03) * pace, p1 = hv(3) * 9, p2 = hv(4) * 9;
     let cx = H.x + roam * (Math.sin(Th * w1 + p1) * 0.65 + Math.sin(Th * w2 + p2) * 0.35), cy = H.y + roam * 0.7 * (Math.cos(Th * w1 * 0.9 + p2) * 0.65 + Math.cos(Th * w2 * 1.1 + p1) * 0.35);
     const vx = abed ? 0 : roam * (Math.cos(Th * w1 + p1) * 0.65 * w1 + Math.cos(Th * w2 + p2) * 0.35 * w2);      // which way the herd as a whole is drifting
@@ -3206,6 +3242,7 @@ function drawHerds(ctx, T, R, inView) {
       else beasts.push({ x: Math.round(x), y: Math.round(y), right, graze: graze || (abed && !moving), step, moving, ph, end, b1, b2, b3, i, down: abed && !moving });      // (down: lying, its head on the ground)
     }
     beasts.sort((p, q) => p.y - q.y);
+    let bk = 0;      // (the beast being drawn, for its breath: see endOn, and each kind below)
     // Its legs, side on (hind and fore where they stand at rest, the top of them, how long): in four moments, the hind
     // foot lifted and set forward, the fore foot following, each drawn back under the beast as it goes over it. The
     // larger beasts show the pair on the far side too (far: their colour), half a stride behind.
@@ -3225,14 +3262,16 @@ function drawHerds(ctx, T, R, inView) {
       if (lg > 1 || ph !== 0) R(x0, ft, 1, lg - (ph === 0 && lg > 1 ? 1 : 0), o.leg); if (lg > 1 || ph !== 2) R(x0 + w - 1, ft, 1, lg - (ph === 2 && lg > 1 ? 1 : 0), o.leg);
       R(x0, top, w, h, c); if (w > 2) R(x0 + w - 1, top, 1, h, shade(c, 0.76));
       if (up) { R(hx0, hy0, fw, top - hy0, o.poll || c); if (o.rump) R(x0 + 1, top + 1, w - 2, 2, o.rump); if (o.tail) R(x0 + ((w - 1) >> 1), top + 1, 1, o.tailLen || Math.max(1, h - 1), o.tail); }
-      else { R(hx0, hy0, fw, Math.max(fh, top - hy0 + 1), o.face || c); if (o.nose) R(hx0, hy0 + fh - 1, fw, 1, o.nose); }
+      else { R(hx0, hy0, fw, Math.max(fh, top - hy0 + 1), o.face || c); if (o.nose) R(hx0, hy0 + fh - 1, fw, 1, o.nose); beastBreath(R, hx0 + fw, hy0 + fh - 1, 0, bk); }      // (and its breath, in the cold, to one side of its face)
       if (o.horn) { R(hx0 - 1, hy0 - 1, 1, 1, o.horn); R(hx0 + fw, hy0 - 1, 1, 1, o.horn); }
     };
     for (const B of beasts) {
       // A beast lying down is the same beast set lower, by the length of its legs, and cut off at the ground. (A horse sleeps on its feet, and so does a crane.)
       const low = B.down ? (K === 'cattle' || K === 'goats' ? 2 : K === 'deer' ? 3 : K === 'horses' || K === 'cranes' ? 0 : 1) : 0;
       const { x, right, graze, step, moving, ph, end } = B, d = right ? 1 : -1, y = B.y + low, up = end < 0;
-      provAt(x, B.y, 6);
+      provAt(x, B.y, 6); bk = H.seed % 97 + B.i * 31;
+      // (Each of them breathes in the cold, as the beasts of the roads do: beastBreath, from its muzzle, wherever its
+      // head is, up or down at the grass. Not the birds.)
       if (low) { ctx.save(); ctx.beginPath(); ctx.rect(x - 14, B.y - 30, 28, 31); ctx.clip(); }
       if (K === 'sheep') {
         const black = B.b3 > 0.88, lamb = B.b3 < 0.16, wool = black ? '#3a322c' : B.b1 > 0.5 ? '#f1ead8' : '#e6dcc4', w = lamb ? 3 : 5, hh = lamb ? 2 : 3, lying = !moving && B.b2 > 0.82, dark = black ? '#1c1614' : '#2a1c14';
@@ -3241,6 +3280,7 @@ function drawHerds(ctx, T, R, inView) {
           R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - hh, w, hh, wool); R(x - (w >> 1) + 1, y - hh - 1, w - 2, 1, wool);
           R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - hh + (graze ? 2 : 0), 2, 2, dark);
           if (!lying) { if (lamb) { R(x - 1, y, 1, 1, '#2a1c14'); R(x + 1 - step, y, 1, 1, '#2a1c14'); } else legs(x - 2 * d, x + 2 * d, y, 1, '#2a1c14', d, ph); }
+          beastBreath(R, x + d * ((w >> 1) + 3), y - hh + (graze ? 2 : 0) + 1, d, bk);
         }
       } else if (K === 'cattle') {
         const c = B.b1 > 0.6 ? '#8a5a32' : B.b1 > 0.3 ? '#e8e2d2' : '#3a2a22', patch = c === '#e8e2d2' ? '#3a2a22' : '#e8e2d2';
@@ -3251,6 +3291,7 @@ function drawHerds(ctx, T, R, inView) {
           R(x - 4, y - 5, 8, 4, c); R(x - 2 + (B.b2 > 0.5 ? 2 : 0), y - 5, 2, 2, patch); R(x - 3, y - 2, 2, 1, patch);
           R(right ? x + 4 : x - 6, y - 5 + hy, 2, 3, c); R(right ? x + 4 : x - 6, y - 6 + hy, 1, 1, '#e8e2d2'); R(right ? x + 5 : x - 5, y - 6 + hy, 1, 1, '#e8e2d2');
           R(right ? x - 5 : x + 4, y - 4, 1, 3, shade(c, 0.8));
+          beastBreath(R, right ? x + 6 : x - 7, y - 3 + hy, d, bk);
         }
       } else if (K === 'goats') {
         const c = B.b1 > 0.5 ? '#c9c2ae' : B.b1 > 0.25 ? '#8a7a66' : '#e8e2d2', hop = moving && Math.sin(T * 6 + B.i) > 0.6 ? 1 : 0;
@@ -3258,6 +3299,7 @@ function drawHerds(ctx, T, R, inView) {
         else {
           R(x - 2, y + 1, 5, 1, 'rgba(0,0,0,.2)'); R(x - 2, y - 3 - hop, 4, 2, c); R(right ? x + 2 : x - 3, y - 4 - hop + (graze ? 1 : 0), 2, 2, c); R(right ? x + 2 : x - 2, y - 5 - hop + (graze ? 1 : 0), 1, 1, '#5a4a3a'); R(right ? x + 3 : x - 4, y - 3 - hop + (graze ? 1 : 0), 1, 1, c);
           legs(d > 0 ? x - 2 : x + 1, d > 0 ? x + 1 : x - 2, y - 1 - hop, 2, '#3a2a22', d, ph);
+          beastBreath(R, right ? x + 4 : x - 5, y - 3 - hop + (graze ? 1 : 0), d, bk);
         }
       } else if (K === 'horses') {
         // five coats, and no two horses of a coat quite the same: each a little lighter or darker than the next, and a little redder or duller
@@ -3268,6 +3310,7 @@ function drawHerds(ctx, T, R, inView) {
           R(x - hw, y - lg - bh - trot, w, bh, c); if (B.b2 > 0.7 && base !== '#c9c2ae') R(x - 1, y - lg - bh - trot, 2, 2, '#e8e2d2');
           if (graze) { R(hx, y - lg - bh + 1, 2, bh, c); R(right ? hx + 1 : hx - 1, y - lg, 2, 2, c); } else { R(hx, y - lg - bh - 3 - trot, 2, 4, c); R(right ? hx + 1 : hx - 2, y - lg - bh - 3 - trot, 3, 2, c); R(right ? hx - 1 : hx + 2, y - lg - bh - 2 - trot, 1, 3, dk); }
           R(right ? x - hw - 1 : x + hw, y - lg - bh + 1 - trot, 1, 3, dk);
+          if (graze) beastBreath(R, right ? hx + 3 : hx - 2, y - lg + 1, d, bk); else beastBreath(R, right ? hx + 4 : hx - 3, y - lg - bh - 2 - trot, d, bk);
         }
       } else if (K === 'pigs') {
         const c = B.b1 > 0.6 ? '#e0a8a0' : B.b1 > 0.3 ? '#5a4a44' : '#c8907c', piglet = B.b3 < 0.25, w = piglet ? 3 : 5;
@@ -3276,6 +3319,7 @@ function drawHerds(ctx, T, R, inView) {
           R(x - (w >> 1), y + 1, w + 1, 1, 'rgba(0,0,0,.2)'); R(x - (w >> 1), y - 3, w, 3, c); if (B.b2 > 0.6 && !piglet) R(x - 1, y - 3, 2, 2, c === '#5a4a44' ? '#e0a8a0' : '#5a4a44');
           R(right ? x + (w >> 1) + 1 : x - (w >> 1) - 2, y - 3 + (graze ? 1 : 0), 2, 2, c); R(right ? x + (w >> 1) + 3 : x - (w >> 1) - 3, y - 2 + (graze ? 1 : 0), 1, 1, shade(c, 0.8)); R(right ? x - (w >> 1) - 1 : x + (w >> 1) + 1, y - 3, 1, 1, c);
           if (piglet) { R(x - 1, y, 1, 1, '#3a2a22'); R(x + 1 - step, y, 1, 1, '#3a2a22'); } else legs(x - 2 * d, x + 2 * d, y, 1, '#3a2a22', d, ph);
+          beastBreath(R, x + d * ((w >> 1) + 4), y - 2 + (graze ? 1 : 0), d, bk);
         }
       } else if (K === 'geese') {
         const c = B.b1 > 0.3 ? '#f4f4f0' : '#a8a498', headUp = !graze, wad = moving && Math.sin(T * 10 + B.i) > 0 ? 1 : 0;
@@ -3300,6 +3344,7 @@ function drawHerds(ctx, T, R, inView) {
           R(right ? x + 3 : x - 4, y - (headUp ? 8 : 4) - leap, 1, headUp ? 3 : 2, c); R(right ? x + 3 : x - 5, y - (headUp ? 9 : 3) - leap, 2, 2, c);
           if (stag && headUp) { R(right ? x + 3 : x - 5, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 5 : x - 3, y - 12 - leap, 1, 3, '#d8c9a2'); R(right ? x + 2 : x - 6, y - 11 - leap, 1, 1, '#d8c9a2'); R(right ? x + 6 : x - 2, y - 11 - leap, 1, 1, '#d8c9a2'); }
           legs(d > 0 ? x - 2 : x + 1, d > 0 ? x + 1 : x - 2, y - 2 - leap, 3, '#5a3f26', d, ph);
+          beastBreath(R, right ? x + 5 : x - 6, y - (headUp ? 9 : 3) - leap + 1, d, bk);
         }
       }
       if (low) ctx.restore();
@@ -5543,6 +5588,7 @@ function drawProvince(cv, T) {
   }
   provTracks(ctx, R, inView);
   provRuts(ctx, T, R, inView);
+  herdTracks(ctx, R, inView);
   // The wind going over the open ground. It comes across in fronts (provWind), and where a front is passing the grass
   // shows it: blades here and there turned to the light, each for as long as the gust is on it, so that the eye follows
   // the front over the meadow. Standing corn shows it far more, and all of it: a pale line where the ears are bent over
