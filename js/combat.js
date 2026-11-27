@@ -851,13 +851,14 @@ function spriteRects(o) {
   const arm = plated ? shade(metalOf(look.armsT), 0.92) : manica ? '#cfc4a6' : skin, armD = plated ? shade(metalOf(look.armsT), 0.62) : manica ? '#a2977a' : skinD;
   const seed = g.id * 7919 % 97;
 
-  // shadow: a pool under the feet, drawn out along the ground when the light is low
+  // shadow: a pool under the feet, drawn out along the ground when the light is low (to the right; or, where the
+  // light comes from the right, sh.dir less than nothing, to the left)
   const sh = o.shadow || { len: 0, a: 0.2 };
   if (sh.a > 0) {
-    const sc = `rgba(0,0,0,${sh.a})`;
-    sprPut(X - 9, Y - 2, 18 + sh.len, 3, sc, 0); sprPut(X - 6, Y + 1, 12 + sh.len, 1, sc, 0);
+    const sc = `rgba(0,0,0,${sh.a})`, lf = sh.dir < 0 ? sh.len : 0;
+    sprPut(X - 9 - lf, Y - 2, 18 + sh.len, 3, sc, 0); sprPut(X - 6 - lf, Y + 1, 12 + sh.len, 1, sc, 0);
     sprPut(X - 5, Y - 1, 10, 2, `rgba(0,0,0,${(sh.a * 0.9).toFixed(3)})`, 0);      // darkest right under his feet
-    if (sh.len) { sprPut(X - 5, Y - 3, 12 + sh.len, 1, sc, 0); sprPut(X + 9 + sh.len, Y - 2, 3, 2, sc, 0); }
+    if (sh.len) { sprPut(sh.dir < 0 ? X - 7 - sh.len : X - 5, Y - 3, 12 + sh.len, 1, sc, 0); sprPut(sh.dir < 0 ? X - 12 - sh.len : X + 9 + sh.len, Y - 2, 3, 2, sc, 0); }
   }
 
   // ---- lying on the sand ----
@@ -1112,7 +1113,10 @@ function beastRects(o) {
   const belly = { boar: shade(col, 0.85), wolf: '#c9ccd2', lion: '#e3c486', bear: shade(col, 0.82) }[kind];
   const eye = { boar: '#c23b2e', wolf: '#e8c84a', lion: '#e8a83a', bear: '#1c1310' }[kind];
   const seed = o.g.id * 7919 % 97;
-  sprPut(X - hb - 2, Y - 2, a.bw + 8, 3, 'rgba(0,0,0,.2)', 0); sprPut(X - hb + 1, Y - 1, a.bw + 2, 2, 'rgba(0,0,0,.18)', 0);
+  // its shadow: a pool under it; or, out in the province, where the sun is somewhere (o.shadow.cast), thrown from it as a man's is
+  { const sh = o.shadow && o.shadow.cast ? o.shadow : null;
+    if (!sh) { sprPut(X - hb - 2, Y - 2, a.bw + 8, 3, 'rgba(0,0,0,.2)', 0); sprPut(X - hb + 1, Y - 1, a.bw + 2, 2, 'rgba(0,0,0,.18)', 0); }
+    else { const sc = `rgba(0,0,0,${(sh.a * 0.9).toFixed(3)})`, lf = sh.dir < 0 ? sh.len : 0; sprPut(X - hb - 2 - lf, Y - 2, a.bw + 4 + sh.len, 3, sc, 0); sprPut(X - hb + 1, Y - 1, a.bw + 2, 2, `rgba(0,0,0,${(sh.a * 0.8).toFixed(3)})`, 0); if (sh.len > 3) sprPut(sh.dir < 0 ? X - hb - 4 - sh.len : X + hb + 2 + sh.len, Y - 2, 2, 2, sc, 0); } }
 
   if (o.down && !o.falling) {                    // on its side, legs out, done
     P(-hb + 1, -a.bh + 1, a.bw - 2, 1, colL); P(-hb, -a.bh + 2, a.bw, a.bh - 3, col); P(-hb + 1, -1, a.bw - 2, 1, colDD); P(-hb, -3, a.bw, 2, colD);
@@ -2013,6 +2017,7 @@ function renderWild(B) {
   const crest = x => 36 + Math.round(Math.sin(x * 0.019 + seed) * 8 + Math.sin(x * 0.047 + 2) * 4);      // how high the further hills stand, at x (see them, below)
   const sunX = hour && hour.sun ? Math.round(128 + (hour.sun[0] - 40) / 510 * 172) : 0;      // (it keeps to the middle of the sky, between the two lists of names that lie over the corners of the picture; and at the first and the last of the day it stands a little more than half clear of the hills, wherever along them that is)
   const sun = !hour ? [330 - (seed % 200), 18, '#fdf4d0', 0] : hour.sun ? [sunX, Math.round(10 + (hour.sun[1] - 12) / 45 * (crest(sunX) - 12)), mixHex(hour.sunCol, '#ffffff', 0.3), clamp((hour.sun[1] - 12) / 58, 0, 1)] : null;
+  B._sun = sun;      // (kept: the men's shadows are thrown from it. See drawBattle.)
   for (let y = 0; y < 60; y += 3) R(0, y, 428, 3, shade('#9cc0d8', 0.9 + y / 190));
   if (sun) {
     const [sx, sy, sc, low] = sun, n = parseInt(sc.slice(1), 16), glow = a => `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a.toFixed(3)})`;
@@ -2075,7 +2080,7 @@ function renderWild(B) {
   if (k === 'forest') {
     for (let n = 0; n < 22; n++) tree(n * 20 + h(n + 200) * 12, 76 + h(n + 210) * 4, 0.7, true);                      // the wood behind, dark and close
     for (let n = 0; n < 15; n++) tree(8 + n * 30 + h(n) * 12, 82 + h(n + 3) * 8, 1, false);
-    if (se !== 3) shafts = () => { for (let n = 0; n < 5; n++) { const x = 30 + n * 90 + h(n + 77) * 40; ctx.fillStyle = 'rgba(255,248,200,.07)'; for (let q = 0; q < 70; q++) ctx.fillRect(Math.round(x + q * 0.5), 14 + q, 12, 1); } };      // light coming down through the leaves (laid on last, and only under a fair sky: see the end of this)
+    if (se !== 3) shafts = () => { for (let n = 0; n < 5; n++) { const x = 30 + n * 90 + h(n + 77) * 40, k = clamp((x + 6 - sun[0]) / 150, -0.8, 0.8); ctx.fillStyle = 'rgba(255,248,200,.07)'; for (let q = 0; q < 70; q++) ctx.fillRect(Math.round(x + q * k), 14 + q, 12, 1); } };      // light coming down through the leaves, away from the sun on either side of it (laid on last, and only under a fair sky: see the end of this)
     for (let n = 0; n < 24; n++) bush(h(n + 60) * 428, 86 + h(n + 70) * 7, n % 3 ? '#3f6a30' : '#4a7a36');
     const lx = 60 + h(1) * 260; R(lx, 100, 44, 6, '#5a4026'); R(lx, 100, 44, 2, '#74552f'); R(lx - 2, 100, 3, 6, '#8a6a3a'); R(lx - 1, 102, 1, 2, '#5a4026'); R(lx + 12, 97, 2, 4, '#5a4026'); for (let q = 0; q < 4; q++) R(lx + 6 + q * 9, 104, 4, 2, '#4f7a3a');      // a fallen trunk, mossed over
     for (let n = 0; n < (se === 2 ? 420 : 160); n++) R(h(n + 400) * 426, 92 + h(n + 410) * 146, 2, 1, (se === 2 ? ['#c9822e', '#a8562a', '#d9a23a'] : ['#8a6a3a', '#a8762e', '#6a5a2a'])[n % 3]);          // last year's leaves; and in autumn this year's, coming down
@@ -2535,7 +2540,14 @@ function drawBattle(ctx, B) {
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
 
   const dusk = B.light === 'dusk';
-  const shadow = dusk ? { len: 16, a: 0.3 } : { len: 5, a: 0.22 };
+  let shadow = dusk ? { len: 16, a: 0.3 } : { len: 5, a: 0.22 };
+  // Out in the province a shadow is thrown from the sun, wherever in the sky the hour has put it (B._sun: see
+  // renderWild): away to the right while it is on the left and to the left once it has crossed, long when it is low
+  // and short at noon; and under cloud there is hardly one to throw, only what is dark under a man's feet.
+  if (B.wild && B._sun !== undefined) {
+    const ov = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, yardWeather(sceneClock()).over || 0) : 0, low = B._sun ? B._sun[3] : 0;
+    shadow = { len: B._sun ? Math.round((2 + low * 18) * (1 - ov * 0.85)) : 0, a: +((B._sun ? 0.22 + low * 0.08 : 0.16) * (1 - ov * 0.5)).toFixed(3), dir: B._sun && B._sun[0] > 214 ? -1 : 1, cast: true };
+  }
   const flat = f => f.down && f.fallT <= 0;
   drawVfx(ctx, B, true);
   const sorted = B.fighters.slice().sort((a, b) => (flat(a) === flat(b) ? a.y - b.y : flat(a) ? -1 : 1));
