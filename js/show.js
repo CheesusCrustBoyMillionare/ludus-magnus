@@ -9,7 +9,7 @@ const SHOW_PETALS = ['#e06a8a', '#f2ecd8', '#e8b545', '#d94a3a', '#f0c0d0'];
 const SHOW_SCRAPS = ['#6f9a3a', '#8ab04a', '#c9a763', '#7a5a2a'];
 
 function showInit(B) {
-  const S = B.show = { t: B.clock, exc: B.exc, thrown: [], litter: [], puffs: [], motes: [], bored: 0, nextThrow: 0, steps: {}, fell: {} };
+  const S = B.show = { t: B.clock, exc: B.exc, thrown: [], litter: [], puffs: [], motes: [], bored: 0, nextThrow: 0, steps: {}, fell: {}, at: {}, fill: 0 };
   // Each of them has a side: the red's people sit mostly under the red banner and the blue's under the blue, with some who
   // have come only for the show. One in five has brought a cloth in his side's colour, and each side has its flags.
   B.crowd.forEach((p, i) => {
@@ -33,6 +33,57 @@ function showThrow(B, tx, ty, cols, from) {
   if (!p) return;
   p.stand = Math.max(p.stand, 0.7);
   S.thrown.push({ x0: p.x + 2, y0: p.y - 9, x1: clamp(tx, 6, 420), y1: clamp(ty, 92, 232), t: 0, dur: rand(0.7, 1.15), col: pick(cols), arc: rand(26, 44) });
+}
+
+// ---- snow under their feet ----
+// Where snow lies on the ground of a fight, it keeps what was done on it. The sheet of it that is shown (B._snow:
+// see drawBattle) is marked as they go: a print to every stride, blue as a hollow in snow is, the heel of it darker;
+// and where many feet have been the snow is worn through to whatever is under it (B._wear: how worn, a figure to
+// every eight pixels by four). A mark falls only where there is snow to take it, so on ground already trodden bare
+// there is nothing to see. A man who is driven back ploughs a furrow with his heels, and one who falls leaves the
+// shape of himself. While snow is falling it all fills again, slowly (showStep).
+const SNOW_PRINT = '#93a4c2', SNOW_HEEL = '#5f7298';
+function snowWear(B, x, y, by) { const W = B._wear, i = (clamp(y | 0, 0, 239) >> 2) * 54 + (clamp(x | 0, 0, 427) >> 3); return W[i] = Math.min(1, W[i] + by); }
+// One foot set down at x, y by someone going the way of ux, uy: side is which foot, 1 or -1. A man's is four pixels
+// by two, dark along the edge the low sun does not reach, so that it is not taken for one of the specks of bare
+// ground in the sheet; a beast's is a pad.
+function snowPrint(B, x, y, ux, uy, side, beast) {
+  const c = B._snow.getContext('2d'), flat = Math.abs(ux) >= Math.abs(uy);
+  const w = beast ? 2 : flat ? 4 : 3, h = beast ? 1 : flat ? 2 : 3, px = Math.round(x - uy * side * 3) - (w >> 1), py = Math.round(y + ux * side * 2) - (flat ? 1 : 2);
+  const worn = snowWear(B, px + 1, py, beast ? 0.03 : 0.05);
+  c.globalCompositeOperation = 'source-atop';
+  c.fillStyle = SNOW_PRINT; c.fillRect(px, py, w, h);
+  c.fillStyle = SNOW_HEEL; c.fillRect(px, py, w, 1);
+  c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000';
+  if (worn > 0.55) c.fillRect(px, py, w, h); else if (!beast && Math.random() < worn * 1.4) c.fillRect(px + 1, py + h - 1, 2, 1);
+  c.globalCompositeOperation = 'source-over';
+}
+// Where a man went down: the length of him pressed into it, and bare in the middle.
+function snowHollow(B, x, y, d) {
+  const c = B._snow.getContext('2d'); x = Math.round(x) + d; y = Math.round(y) - 1;
+  c.globalCompositeOperation = 'source-atop'; c.fillStyle = SNOW_PRINT;
+  for (let r = -4; r <= 4; r++) { const hw = Math.round(25 * Math.sqrt(1 - r * r / 16.5)); c.fillRect(x - hw, y + r, hw * 2, 1); }
+  c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000';
+  for (let r = -2; r <= 2; r++) { const hw = Math.round(21 * Math.sqrt(1 - r * r / 7)) - (Math.random() < 0.5 ? 1 : 0); c.fillRect(x - hw, y + r, hw * 2, 1); }
+  c.globalCompositeOperation = 'source-over';
+  for (let q = -16; q <= 16; q += 8) snowWear(B, x + q, y, 0.5);
+}
+// Where one was driven back on his heels (a scuff: see fxScuff in combat.js): a furrow, bare along the middle of it.
+function snowDrag(B, s) {
+  const c = B._snow.getContext('2d'), len = Math.round(s.len * 2), x = Math.round(s.x * 2), y = Math.round(s.y * 2), x0 = s.dir > 0 ? x - len : x;
+  c.globalCompositeOperation = 'source-atop'; c.fillStyle = SNOW_PRINT; c.fillRect(x0, y - 1, len, 3); c.fillStyle = SNOW_HEEL; c.fillRect(x0 + 1, y + 1, Math.max(0, len - 2), 1);
+  c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; c.fillRect(x0 + 1, y, Math.max(0, len - 2), 1);
+  c.globalCompositeOperation = 'source-over';
+}
+// Each of them, as far as he has come since his last print. He is followed where he is drawn, which in the middle of
+// an ability is not yet where the rules have put him (poseOf), and while he is off the ground he leaves nothing.
+function snowTread(B, S, f, i) {
+  const P = poseOf(f), x = f.x * 2 + (P ? P.ox : 0), y = f.y * 2 + (P ? P.oy : 0), a = S.at[i] || (S.at[i] = { x, y, side: 1 });
+  if (out(f) || (P && P.lift > 2)) { a.x = x; a.y = y; return; }
+  const dx = x - a.x, dy = y - a.y, d = Math.hypot(dx, dy), stride = f.g.beast ? 4 : 6; if (d < stride) return;
+  const n = Math.floor(d / stride); if (n > 30) { a.x = x; a.y = y; return; }
+  for (let q = 1; q <= n; q++) snowPrint(B, a.x + dx / d * stride * q, a.y + dy / d * stride * q, dx / d, dy / d, a.side = -a.side, !!f.g.beast);
+  a.x += dx / d * stride * n; a.y += dy / d * stride * n;
 }
 
 // Which fallen man is being judged right now, and how far the judgment has come (0 to 1).
@@ -125,11 +176,26 @@ function showStep(B, T) {
   S.thrown = S.thrown.filter(o => !o.dead);
   if (S.litter.length > 160) S.litter.splice(0, S.litter.length - 160);
   // dust: kicked up by moving feet, thrown up where a man falls
+  // (and in snow: their prints, the furrows of their heels, and all of it filling again while more comes down)
+  const snowy = (B.lying || 0) > 0.03 && !!B._snow && !!B._wear;
+  if (snowy) {
+    for (const c of B.scuffs || []) if (c.sv === undefined) { c.sv = fightSnow(B, c.x * 2, c.y * 2); if (!c.wide) snowDrag(B, c); }
+    const wx = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? yardWeather(sceneClock()) : null;
+    S.fill += dt * (wx ? wx.snow || 0 : 0);
+    if (S.fill > 3 && B._snow0) {      // (a tenth of the way back to the sheet as it fell: a tenth of what is there taken off, and a tenth of that one laid on, which leaves whatever is unmarked as it was, the thin places as thin)
+      S.fill = 0; const c = B._snow.getContext('2d'); c.globalAlpha = 0.1;
+      c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; c.fillRect(0, 0, 428, 240);
+      c.globalCompositeOperation = 'lighter'; c.drawImage(B._snow0, 0, 0);
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+      for (let q = 0; q < B._wear.length; q++) B._wear[q] *= 0.9;
+    }
+  }
   B.fighters.forEach((f, i) => {
-    if (out(f)) { if (f.down && !S.fell[i]) { S.fell[i] = 1; for (let k = 0; k < 9; k++) S.puffs.push({ x: f.x * 2 + rand(-12, 12), y: f.y * 2 + rand(-2, 3), vx: rand(-9, 9), life: rand(0.6, 1.1), max: 1.1, r: rint(2, 4) }); } return; }
+    if (snowy) snowTread(B, S, f, i);
+    if (out(f)) { if (f.down && !S.fell[i]) { S.fell[i] = 1; const sn = fightSnow(B, f.x * 2, f.y * 2); if (snowy) snowHollow(B, f.x * 2, f.y * 2, f.facing || 1); for (let k = 0; k < 9; k++) S.puffs.push({ x: f.x * 2 + rand(-12, 12), y: f.y * 2 + rand(-2, 3), vx: rand(-9, 9), life: rand(0.6, 1.1), max: 1.1, r: rint(2, 4), sn }); } return; }
     if (!f.moving && f.state !== 'windup') return;
     S.steps[i] = (S.steps[i] || 0) + dt;
-    if (S.steps[i] > 0.24) { S.steps[i] = 0; S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2 }); }
+    if (S.steps[i] > 0.24) { S.steps[i] = 0; S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2, sn: fightSnow(B, f.x * 2, f.y * 2) }); }
   });
   for (const p of S.puffs) { p.life -= dt; p.x += p.vx * dt; }
   S.puffs = S.puffs.filter(p => p.life > 0);
@@ -368,6 +434,7 @@ function showBack(ctx, B, T) {
   }
   // blood: bright where it has just fallen, then darkening and spreading as the sand drinks it
   for (const c of B.scuffs || []) {              // the sand as it has been used: heels dragged through it, a man fallen on it
+    if (c.sv > 0.45) continue;      // (in snow it is the snow that keeps it: snowDrag, snowHollow)
     const age = T - c.t, k = Math.min(1, age / 0.25), len = Math.round(c.len * 2 * k), x = Math.round(c.x * 2), y = Math.round(c.y * 2), x0 = c.dir > 0 ? x - len : x;
     ctx.fillStyle = 'rgba(96,66,30,.2)'; ctx.fillRect(x0, y - 1, len, 1); ctx.fillRect(x0 + 2, y + 1, Math.max(0, len - 4), 1);
     ctx.fillStyle = 'rgba(255,238,196,.16)'; ctx.fillRect(x0 + 1, y, Math.max(0, len - 2), 1);
@@ -375,22 +442,25 @@ function showBack(ctx, B, T) {
   }
   for (const s of B.stains) {
     const age = T - (s.t || 0), x = Math.round(s.x * 2), y = Math.round(s.y * 2), w = s.w * 2;
+    // On snow it does not go brown, as it does where sand drinks it: it stays red, and what soaks out round it is pink.
+    if (s.sn === undefined) s.sn = fightSnow(B, x, y) > 0.4 ? 1 : 0;
+    const soak = s.sn ? '214,84,80' : '120,52,28';
     if (s.pool) {                                 // a pool: it spreads as the sand takes it, bright in the middle while it is new, with a darker rim
       const grow = 1 - Math.pow(1 - Math.min(1, age / 3.5), 2), rx = Math.max(1.5, s.pool * 2 * (0.3 + 0.7 * grow)), ry = Math.max(1, rx * 0.36);
-      const body = age < 1.5 ? '#b3261c' : age < 6 ? '#8e1b14' : age < 16 ? '#76241a' : '#633024', rim = age < 6 ? '#6e1510' : '#55281e';
+      const body = s.sn ? (age < 1.5 ? '#c22a1e' : '#a8221a') : age < 1.5 ? '#b3261c' : age < 6 ? '#8e1b14' : age < 16 ? '#76241a' : '#633024', rim = s.sn ? '#801912' : age < 6 ? '#6e1510' : '#55281e';
       for (let yy = -Math.ceil(ry); yy <= Math.ceil(ry); yy++) {
         const q = 1 - (yy * yy) / (ry * ry + 0.5); if (q <= 0) continue;
         const hw = Math.round(rx * Math.sqrt(q) + Math.sin(s.seed + yy * 1.7) * Math.min(1.5, rx * 0.2));
         if (hw < 1) continue;
-        if (age > 2.5) { ctx.fillStyle = `rgba(120,52,28,${Math.min(0.22, (age - 2.5) * 0.03).toFixed(3)})`; ctx.fillRect(x - hw - 2, y + yy, hw * 2 + 4, 1); }
+        if (age > 2.5) { ctx.fillStyle = `rgba(${soak},${Math.min(s.sn ? 0.34 : 0.22, (age - 2.5) * 0.03).toFixed(3)})`; ctx.fillRect(x - hw - 2, y + yy, hw * 2 + 4, 1); }
         ctx.fillStyle = rim; ctx.fillRect(x - hw, y + yy, hw * 2, 1);
         if (hw > 1) { ctx.fillStyle = body; ctx.fillRect(x - hw + 1, y + yy, hw * 2 - 2, 1); }
       }
       if (age < 5 && rx > 3) { ctx.fillStyle = age < 1.5 ? '#e8584a' : '#b3261c'; ctx.fillRect(x - Math.round(rx * 0.45), y - 1, Math.max(1, Math.round(rx * 0.4)), 1); }      // the wet of it catching the light
       continue;
     }
-    if (age > 2.5) { ctx.fillStyle = `rgba(120,52,28,${Math.min(0.2, (age - 2.5) * 0.03).toFixed(3)})`; ctx.fillRect(x - 1, y, w + 2, 2); ctx.fillRect(x, y + 2, w, 1); }
-    ctx.fillStyle = age < 1.2 ? '#c22a1e' : age < 5 ? '#8e1b14' : age < 14 ? '#76241a' : '#633024';
+    if (age > 2.5) { ctx.fillStyle = `rgba(${soak},${Math.min(s.sn ? 0.32 : 0.2, (age - 2.5) * 0.03).toFixed(3)})`; ctx.fillRect(x - 1, y, w + 2, 2); ctx.fillRect(x, y + 2, w, 1); }
+    ctx.fillStyle = age < 1.2 ? '#c22a1e' : s.sn ? '#a8221a' : age < 5 ? '#8e1b14' : age < 14 ? '#76241a' : '#633024';
     ctx.fillRect(x, y, w, s.tall ? 3 : 2);
     if (age < 1.2) { ctx.fillStyle = '#e8584a'; ctx.fillRect(x, y, 1, 1); }
   }
@@ -421,7 +491,8 @@ function showFront(ctx, B, T) {
   const S = B.show; if (!S) return;
   for (const p of S.puffs) {
     const k = p.life / p.max, r = p.r + Math.round((1 - k) * 3);
-    ctx.fillStyle = `rgba(234,210,160,${(0.42 * k).toFixed(3)})`;
+    const s = p.sn || 0;      // (sand; or, by how much snow there was under the foot that raised it, snow)
+    ctx.fillStyle = `rgba(${Math.round(234 + 16 * s)},${Math.round(210 + 42 * s)},${Math.round(160 + 95 * s)},${((0.42 + 0.25 * s) * k).toFixed(3)})`;
     ctx.fillRect(Math.round(p.x) - r, Math.round(p.y - (1 - k) * 7) - r, r * 2, r + 1);
   }
   for (const o of S.thrown) {

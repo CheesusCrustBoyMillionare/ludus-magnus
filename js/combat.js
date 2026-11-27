@@ -182,7 +182,8 @@ function fxScuff(B, x, y, dir, len, wide) {
   S.push({ x, y: y + rand(-0.6, 0.6), dir, len, wide: wide || 0, t: B.clock });
 }
 function fxDust(B, x, y, n) {
-  for (let i = 0; i < n; i++) B.parts.push({ x: x + rand(-4, 4), y: y + rand(-1, 1), h: 1, vx: rand(-18, 18), vh: rand(8, 28), col: chance(0.5) ? '#c9a763' : '#ead2a0', spark: true });
+  const snow = fightSnow(B, x * 2, y * 2) > 0.45, c0 = snow ? '#ffffff' : '#c9a763', c1 = snow ? '#d3deec' : '#ead2a0';      // (where snow lies it is snow that his feet throw up)
+  for (let i = 0; i < n; i++) B.parts.push({ x: x + rand(-4, 4), y: y + rand(-1, 1), h: 1, vx: rand(-18, 18), vh: rand(8, 28), col: chance(0.5) ? c0 : c1, spark: true });
 }
 // A line of the telling of the fight. The last few are shown over the sand for a while; all of them are kept (B.log),
 // with when they happened and what kind of thing they are, to be read back during the fight or after it.
@@ -1998,6 +1999,7 @@ const ARENA_AISLES = [70, 142, 278, 350];       // x of each flight of stairs up
 function renderWild(B) {
   const cv = document.createElement('canvas'); cv.width = 428; cv.height = 240;
   const main = cv.getContext('2d'), k = B.wild, seed = B.wseed || (B.wseed = 1 + Math.floor(Math.random() * 900));      // no two fights on quite the same ground
+  B._slabs = [];
   let ctx = main;      // (what is being painted on: the picture, then a sheet for all that stands nearer than the hills, then the sky under cloud)
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
   const h = i => Math.abs(Math.sin((i + seed) * 127.1 + 311.7) * 43758.5453) % 1;
@@ -2144,7 +2146,8 @@ function renderWild(B) {
     R(170, 22, 100, 8, '#c9c3ae'); R(170, 22, 100, 2, '#e4dfcd'); R(170, 28, 100, 2, '#a8a290'); for (let q = 0; q < 9; q++) R(176 + q * 11, 24, 6, 3, '#b5af9b');      // what is left of the lintel
     for (const [x, y, w] of [[286, 92, 40], [70, 100, 26], [334, 108, 22]]) { R(x, y - 8, w, 8, '#c9c3ae'); R(x, y - 8, w, 2, '#e4dfcd'); R(x, y - 1, w, 1, '#a8a290'); for (let q = 4; q < w; q += 8) R(x + q, y - 7, 1, 6, '#b5af9b'); R(x - 1, y, w + 3, 1, 'rgba(0,0,0,.2)'); }      // drums of fallen columns
     for (let gy = 96; gy < 236; gy += 20) for (let gx = (gy / 20 % 2) * 22 - 10; gx < 428; gx += 44) {           // the old paving, with grass coming through
-      if (h(gx * 7 + gy) > 0.42) { R(gx + 2, gy + 2, 40, 16, 'rgba(210,204,186,.20)'); R(gx + 2, gy + 2, 40, 1, 'rgba(240,236,220,.25)'); R(gx + 2, gy + 17, 40, 1, 'rgba(60,60,40,.2)'); }
+      if (h(gx * 7 + gy) > 0.42) { B._slabs.push([Math.round(gx + 2), gy + 2]);      // (kept: snow lies on a slab as it does on the ground beside it. renderWildSnow asks.)
+        R(gx + 2, gy + 2, 40, 16, 'rgba(210,204,186,.20)'); R(gx + 2, gy + 2, 40, 1, 'rgba(240,236,220,.25)'); R(gx + 2, gy + 17, 40, 1, 'rgba(60,60,40,.2)'); }
     }
     for (let n = 0; n < 10; n++) bush(h(n + 60) * 428, 88 + h(n + 70) * 6, '#57863a');
   }
@@ -2301,10 +2304,24 @@ function renderBackdrop(B) {
   return cv;
 }
 
+// How much of the ground snow covers where a fight is fought, 0 to 1, at a place in the picture, before anyone has
+// set foot on it: all but whole, with a little more of the ground showing in the middle, where it was raked or
+// walked over beforehand. Both sheets of lying snow are laid by it. (It was once painted trodden thin in the middle
+// from the start; now it is the men who tread it thin, where they in fact fight: see the snow in show.js.)
+function snowLie(x, y) { const dx = (x - 214) / 158, dy = (y - 166) / 60, r = dx * dx + dy * dy; return r < 0.5 ? 0.9 : r < 1 ? 0.9 + (r - 0.5) / 0.5 * 0.04 : 0.94; }
+// And how much snow a man has under his feet there now: none unless snow is lying (B.lying: drawBattle keeps it),
+// and less wherever feet have worn it away since the fight began (B._wear, kept in show.js, a figure to every eight
+// pixels by four). What his feet throw up, and what his blood falls on, are by this.
+function fightSnow(B, x, y) {
+  const k = B.lying || 0; if (!(k > 0.03)) return 0;
+  const W = B._wear, w = W ? W[(clamp(y | 0, 0, 239) >> 2) * 54 + (clamp(x | 0, 0, 427) >> 3)] : 0;
+  return clamp(snowLie(x, y) - w, 0, 1) * Math.min(1, k * 1.3);
+}
+
 // Snow lying in the arena (a sheet of its own, laid over the backdrop by how much of it there is: see drawBattle). On
 // the seats and the steps of the bank, where nobody is sitting; along the rim, the awning, the roof of the box and
-// the top of the wall; and over the sand, drifted against the wall, blue in the wall's shade, and trodden thin in the
-// middle where the fighting is. It is laid under the banners, the blood and the men, which are drawn after it.
+// the top of the wall; and over the sand, drifted against the wall, blue in the wall's shade. (It is the men who tread
+// it thin, where they fight: see the snow in show.js.) It is laid under the banners, the blood and the men, which are drawn after it.
 function renderArenaSnow(B) {
   const th = B.theme, cv = document.createElement('canvas'); cv.width = 428; cv.height = 240;
   const ctx = cv.getContext('2d'), stone = !th.planks, hv = (x, y) => wildHash(x, y, 1660);
@@ -2334,7 +2351,7 @@ function renderArenaSnow(B) {
   for (let y = 86; y < 240; y++) {
     const sh = Math.max(0, Math.min(1, (y - 86) / 20)), c = 'rgb(' + Math.round(204 + 41 * sh) + ',' + Math.round(215 + 33 * sh) + ',' + Math.round(232 + 20 * sh) + ')';      // (blue in the shade of the wall, which lies across the near sand)
     for (let x = 0; x < 428; x += 2) {
-      const dx = (x - 214) / 158, dy = (y - 166) / 60, r = dx * dx + dy * dy, lie = y < 89 ? 1 : r < 0.5 ? 0.16 : r < 1 ? 0.16 + (r - 0.5) / 0.5 * 0.74 : 0.9;
+      const lie = y < 89 ? 1 : snowLie(x, y);
       if (wildHash(x >> 1, y, 1661) < lie) S(x, y, 2, 1, wildHash(x >> 2, y >> 1, 1662) > 0.9 ? '#dbe4f0' : c);
     }
   }
@@ -2345,7 +2362,7 @@ function renderArenaSnow(B) {
 // of country (renderWild), which knows nothing of snow, so the picture itself is looked at, once: the far hills go
 // white; whatever stands there (a tree, the cliff, a palisade, old stones, a rock on the ground) takes snow along
 // its top, wherever it has the sky, the hills or the open ground over it; and the ground is covered, blue under
-// whatever throws its shade across it, and trodden thin in the middle where the fighting is.
+// whatever throws its shade across it. (It is the men who tread it thin, where they fight: see the snow in show.js.)
 function renderWildSnow(B) {
   const W = 428, H = 240, GY = 78, bg = B._bg, look = Object.assign(document.createElement('canvas'), { width: W, height: H }), lc = look.getContext('2d', { willReadFrequently: true });
   lc.drawImage(bg, 0, 0); const D = lc.getImageData(0, 0, W, H).data;
@@ -2361,7 +2378,9 @@ function renderWildSnow(B) {
   const deepAt = y => y >= GY && y < GY + 20 ? 1 - Math.floor((y - GY) / 4) / 5 : 0;
   const bases = []; for (let y = 0; y < H; y++) { const a = 0.3 * deepAt(y); bases.push(a ? [base[0] * (1 - a) + 20 * a, base[1] * (1 - a) + 30 * a, base[2] * (1 - a) + 10 * a] : base); }
   const baseAt = y => bases[Math.max(0, Math.min(H - 1, y))];
-  const hill = i => HILLS.some(c => far(i, c) < 8), ground = (i, y) => far(i, baseAt(y)) < 62;
+  // (Old paving is ground too, though it is paler than the ground: all of a slab but the light along its upper edge.)
+  const slab = new Uint8Array(W * H); for (const [sx, sy] of B._slabs || []) for (let y = sy; y < sy + 16 && y < H; y++) for (let x = Math.max(0, sx); x < sx + 40 && x < W; x++) slab[y * W + x] = 1;
+  const hill = i => HILLS.some(c => far(i, c) < 8), ground = (i, y) => far(i, baseAt(y)) < (slab[i >> 2] ? 125 : 62);
   // (The sky, a cloud, or the sun: wherever nothing nearer than the hills was painted. The sun is any colour from
   // white to red by the hour, and lights the sky about it, so it is not to be known by its colour.)
   let N = null; if (B._near) { lc.clearRect(0, 0, W, H); lc.drawImage(B._near, 0, 0); N = lc.getImageData(0, 0, W, H).data; }
@@ -2373,7 +2392,7 @@ function renderWildSnow(B) {
     if (y < GY + 6 && hill(i)) { put(i, 244, 248, 252, 140); continue; }
     if (y < GY ? sky(i) : false) continue;
     if (y >= GY && ground(i, y)) {
-      const dx = (x - 214) / 158, dy = (y - 166) / 60, r = dx * dx + dy * dy, lie = y < GY + 3 ? 1 : r < 0.5 ? 0.16 : r < 1 ? 0.16 + (r - 0.5) / 0.5 * 0.74 : 0.9;
+      const lie = y < GY + 3 ? 1 : snowLie(x, y);
       if (wildHash(x >> 1, y, 1681) < lie) {
         const b = baseAt(y), dark = far(i, b) > 30 && D[i] + D[i + 1] + D[i + 2] < b[0] + b[1] + b[2], k = deepAt(y);
         if (dark || wildHash(x >> 2, y >> 1, 1682) > 0.9) put(i, 214, 224, 238, 232); else put(i, Math.round(245 - 31 * k), Math.round(248 - 24 * k), Math.round(252 - 14 * k), 232);      // (and the snow keeps that shade: bluer toward the hills)
@@ -2402,7 +2421,7 @@ function drawVfx(ctx, B, under) {
       for (let i = 0; i < n; i++) { const an = i / n * 6.283; R(v.x * 2 + Math.cos(an) * r * 2 - 1, v.y * 2 + Math.sin(an) * r * 0.9 - 1, v.w || 3, v.w || 3, v.col); }
       if (v.fill) { ctx.globalAlpha = a * 0.24; for (let yy = -r * 0.9; yy <= r * 0.9; yy += 2) { const hw = r * 2 * Math.sqrt(Math.max(0, 1 - (yy * yy) / (r * r * 0.81))); R(v.x * 2 - hw, v.y * 2 + yy, hw * 2, 2, v.col); } }
     } else if (v.k === 'trail') {              // where he was a moment ago, and where he is
-      for (let i = 0; i < 7; i++) { const q = i / 6; ctx.globalAlpha = a * q * 0.5; R((v.x + (v.x2 - v.x) * q) * 2 - 5, (v.y + (v.y2 - v.y) * q) * 2 - 34, 10, 30, v.col); R((v.x + (v.x2 - v.x) * q) * 2 - 8, (v.y + (v.y2 - v.y) * q) * 2 - 2, 16, 2, '#ead2a0'); }
+      for (let i = 0; i < 7; i++) { const q = i / 6; ctx.globalAlpha = a * q * 0.5; R((v.x + (v.x2 - v.x) * q) * 2 - 5, (v.y + (v.y2 - v.y) * q) * 2 - 34, 10, 30, v.col); R((v.x + (v.x2 - v.x) * q) * 2 - 8, (v.y + (v.y2 - v.y) * q) * 2 - 2, 16, 2, fightSnow(B, v.x2 * 2, v.y2 * 2) > 0.45 ? '#f4f8fd' : '#ead2a0'); }
     } else if (v.k === 'arc') {                // the sweep of a blade: a crescent that opens and fades
       const rad = 12 + v.size * 9, th = v.size > 1.4 ? 4 : 3, from = -1.25, span = 2.5 * Math.min(1, k * 2.2 + 0.25);
       ctx.globalAlpha = a;
@@ -2425,7 +2444,7 @@ function drawVfx(ctx, B, under) {
       const len = Math.min(34, (v.len || 16) * 1.5) * Math.min(1, k * 4 + 0.3), x0 = v.x * 2 + v.dir * 9; ctx.globalAlpha = a * 0.9;
       R(v.dir > 0 ? x0 : x0 - len, v.y * 2 - 25, len, 1, '#efe8d2'); R(v.dir > 0 ? x0 + len * 0.4 : x0 - len, v.y * 2 - 24, len * 0.6, 1, '#ffffff'); R(v.dir > 0 ? x0 + len - 2 : x0 - len, v.y * 2 - 26, 3, 3, '#ffffff');
     } else if (v.k === 'puff') {               // dust thrown up and hanging: a man has gone down in it, or been driven through it
-      const n = v.n || 5; for (let i = 0; i < n; i++) { const an = i / n * 6.283 + (v.seed || 0), d = (v.r || 9) * (0.35 + 0.65 * (1 - (1 - k) * (1 - k))), sz = Math.max(2, Math.round((5 - (i % 3)) * (1 - k * 0.5))); ctx.globalAlpha = a * 0.5; R(v.x * 2 + Math.cos(an) * d * 2 - sz / 2, v.y * 2 - 1 + Math.sin(an) * d * 0.55 - k * (5 + (i % 3) * 3) - sz / 2, sz, sz, i % 2 ? '#ead2a0' : '#d6bb84'); }
+      const n = v.n || 5, snow = fightSnow(B, v.x * 2, v.y * 2) > 0.45; for (let i = 0; i < n; i++) { const an = i / n * 6.283 + (v.seed || 0), d = (v.r || 9) * (0.35 + 0.65 * (1 - (1 - k) * (1 - k))), sz = Math.max(2, Math.round((5 - (i % 3)) * (1 - k * 0.5))); ctx.globalAlpha = a * 0.5; R(v.x * 2 + Math.cos(an) * d * 2 - sz / 2, v.y * 2 - 1 + Math.sin(an) * d * 0.55 - k * (5 + (i % 3) * 3) - sz / 2, sz, sz, snow ? (i % 2 ? '#ffffff' : '#d3deec') : i % 2 ? '#ead2a0' : '#d6bb84'); }
     } else if (v.k === 'motes' && v.f && !out(v.f)) {      // sparks rising round him
       for (let i = 0; i < 9; i++) { const up = (k * 46 + i * 11) % 44; ctx.globalAlpha = a * (1 - up / 50); R(v.f.x * 2 + Math.sin(i * 2.4 + k * 3) * 11, v.f.y * 2 - 4 - up, 2, 2, v.col); }
     } else if (v.k === 'flash') {              // the sand lights for an instant under a great blow
@@ -2590,7 +2609,10 @@ function drawBattle(ctx, B) {
   if (uu > 0 && !B.wild) { ctx.fillStyle = shade(B.theme.sand, 0.95); ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); }      // more sand below the sand, for the little of it that shows either side of the choices
   // snow lying, where snow would lie (renderArenaSnow, or out in the province renderWildSnow): under the crowd's banners, the blood and the men
   const lying = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, (yardWeather(sceneClock()).white || 0) * 1.5) : 0;
-  if (lying > 0.03) { if (!B._snow) B._snow = B.wild ? renderWildSnow(B) : renderArenaSnow(B); ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
+  // (The sheet is kept twice: as it fell, B._snow0, and as the men have left it, B._snow, which is the one that is
+  // shown. Their feet mark it and wear it through, and falling snow fills it again: see the snow in show.js.)
+  B.lying = lying;
+  if (lying > 0.03) { if (!B._snow) { B._snow0 = B.wild ? renderWildSnow(B) : renderArenaSnow(B); B._snow = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); B._snow.getContext('2d').drawImage(B._snow0, 0, 0); B._wear = new Float32Array(54 * 60); } ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
   // The wall's shade across the near sand, by day: further out the lower the sun is, faint under cloud, and after
   // dark only the little there is from the moon. It lies on whatever is on the sand there, and on snow it is blue.
