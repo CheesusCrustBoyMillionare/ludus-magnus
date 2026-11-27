@@ -171,8 +171,10 @@ let sceneCold = false;      // winter, and out of doors: whoever is drawn in the
 // Breath in the cold, for the people of the yard and of the places, who are drawn twice the size of those in the town
 // (whose breath is vilBreath, in village.js). From a mouth at x, y, going the way he faces (d): a small cloud that
 // grows as it goes, white with a grey underside, and is gone; quicker from a man at work than from one standing.
-function sceneBreath(ctx, x, y, d, seed, moving) {
-  const u = performance.now() / 1000 * (moving ? 0.6 : 0.38) + seed * 0.0731, p = (u - Math.floor(u)) / 0.5; if (p > 1) return;
+// (moving may be a figure instead, how many breaths he takes to the second; and at, the time by some clock other
+// than the page's: a fight keeps its own, which stops when the fight is stopped.)
+function sceneBreath(ctx, x, y, d, seed, moving, at) {
+  const u = (at === undefined ? performance.now() / 1000 : at) * (typeof moving === 'number' ? moving : moving ? 0.6 : 0.38) + seed * 0.0731, p = (u - Math.floor(u)) / 0.5; if (p > 1) return;
   const w = p < 0.25 ? 2 : p < 0.6 ? 4 : 5, hh = p < 0.25 ? 2 : 3, bx = Math.round(d > 0 ? x + p * 9 : x - p * 9 - w + 1), by = Math.round(y - p * 9) - hh + 1, was = ctx.globalAlpha;
   ctx.globalAlpha = was * 0.7 * (1 - p * p); ctx.fillStyle = '#7d90aa'; ctx.fillRect(bx, by + 1, w, hh);
   ctx.globalAlpha = was * 0.9 * (1 - p * p); ctx.fillStyle = '#ffffff'; ctx.fillRect(bx, by, w, hh);
@@ -888,7 +890,7 @@ function drawYard(cv, T) {
       const sp = Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o);
       if (guestNear(x, y) && !sp.moving && !sp.down && !sp.falling && !sp.windup && !sp.atkAnim) sp.facing = yardGuest.x > x ? 1 : -1;      // a man with nothing in his hands turns to his master when he comes by
       drawSprite(ctx, sp);
-      if (sceneCold && !sp.down && !sp.falling && !g.beast) sceneBreath(ctx, x + sp.facing * 5, y - 40, sp.facing, g.id * 37 + 11, !!sp.moving || !!sp.atkAnim);      // and the men at their training
+      if (sceneCold && !sp.down && !sp.falling && !g.beast) sceneBreath(ctx, x + sp.facing * 5, y - 30, sp.facing, g.id * 37 + 11, !!sp.moving || !!sp.atkAnim);      // and the men at their training
       if (g.id === ui.sel) { R(x - 2, y - 52, 5, 2, '#e8b545'); R(x - 1, y - 50, 3, 1, '#e8b545'); R(x, y - 49, 1, 1, '#e8b545'); }
       // a name is skipped when it would sit on top of one already drawn; the selected fighter always gets his
       const half = g.name.length * 1.9 + 2, clash = names.some(n => Math.abs(n.x - x) < n.half + half && Math.abs(n.y - y) < 8);

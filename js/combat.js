@@ -2651,7 +2651,17 @@ function drawBattle(ctx, B) {
       noHelm: f.noHelm, hurt: f.hp < f.maxHp * 0.3 ? 3 : f.hp < f.maxHp * 0.55 ? 2 : f.hp < f.maxHp * 0.8 ? 1 : 0,
       hamstrung: f.hamstrung, armWound: f.armWound, shieldDmg: f.shieldHits >= 9 ? 2 : f.shieldHits >= 4 ? 1 : 0,
   });
-  for (const f of sorted) drawFighter(ctx, f, spr(f));
+  // In winter whoever is on his feet breathes a cloud, as the men in the yard do (sceneBreath, in yard.js), by the
+  // fight's own clock: harder when he is at work, and hardest when he is badly hurt. A beast breathes from its muzzle.
+  const cold = typeof sceneSeason === 'function' && typeof sceneBreath === 'function' && sceneSeason() === 3;
+  for (const f of sorted) {
+    const o = spr(f); drawFighter(ctx, f, o);
+    if (!cold || f.down || f.fallT > 0) continue;
+    const P = poseOf(f), x = o.x + (P ? P.ox : 0), y = o.y + (P ? P.oy - P.lift : 0), d = o.facing * (P ? P.flip : 1), a = f.g.beast ? BEAST_ART[f.g.cls] : null;
+    const rate = o.hurt >= 2 ? 0.85 : f.moving || f.atkAnim > 0 || o.windup ? 0.6 : 0.38;
+    if (a) sceneBreath(ctx, x + d * ((a.bw >> 1) + a.hw + 1), y - a.lh - a.bh + a.hy + a.hh - 2, d, f.g.id * 37 + 11, rate, T);
+    else sceneBreath(ctx, x + d * 5, y - (f.yielded ? 22 : 30), d, f.g.id * 37 + 11, rate, T);      // (his mouth: thirty pixels up, or on his knees twenty-two)
+  }
   drawVfx(ctx, B, false);
   drawAuras(ctx, B, T);
   if (picking) {                              // the fight has stopped for him: the sand dims, and he and his man stand out
