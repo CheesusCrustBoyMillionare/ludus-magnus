@@ -19,11 +19,41 @@ function showInit(B) {
     p.fan = p.side >= 0 && i % 5 === 0 ? p.side : -1;
   });
   S.joy = [0, 0]; S.logN = 0; S.shouts = []; S.hot = 0; S.wave = null; S.wasIntro = B.intro > 0; S.said = {};
+  S.lamps = B.crowd.filter((p, i) => i % (B.crowdWx && (B.crowdWx.rain || B.crowdWx.snow) ? 30 : 15) === 6);      // those who have brought a lamp for the dark: fewer where the weather would put it out
   S.flags = [0, 1].flatMap(side => B.crowd.filter(p => p.side === side && p.y >= 31 && p.y <= 49 && (side ? p.x > 250 : p.x < 178)).filter((p, i) => i % 23 === 7).slice(0, 3).map(p => ({ p, side })));
   // and there are men working the stairs with trays: wine, sausage, cushions
   S.sellers = B.crowd.length > 60 ? ARENA_AISLES.map((a, i) => ({ x: a + 3, y: 30 + i * 9, dir: i % 2 ? 1 : -1, wait: i * 1.3, col: ['#c9a763', '#8a6a4a', '#b8452e', '#6f8fb5'][i] })).filter((_, i) => i !== 1 || B.crowd.length > 200) : [];
   for (let i = 0; i < 26; i++) S.motes.push({ x: rand(0, 428), y: rand(92, 236), sp: rand(5, 14), ph: rand(0, 6.28) });
   return S;
+}
+
+// ---- the crowd and the weather ----
+// They come dressed for the day, and on a bad one some of them do not come. It is settled once, as the fight is
+// first drawn (drawBattle), before the stands are painted with them in their seats: so nobody changes his clothes
+// when the weather turns in the middle of a bout. In rain or snow, where there is no awning over the seats, about
+// a third stay at home; of those who come, half are in a cloak when it is wet and three in four when it is cold,
+// and most of those have it over their heads while anything is coming down. Nobody wears a straw hat against a sun
+// that is not there. After dark some bring a lamp (showInit; they are lit in drawBattle, with the torches).
+// (This is the one place the show changes what the battle holds: who is in B.crowd, which only the show uses.)
+const SHOW_CLOAKS = ['#6b5a48', '#5a5f66', '#7a6a52', '#4f4a44', '#6a4a3a', '#59604e'];
+function showDress(B) {
+  B.dressed = true;
+  if (B.wild || typeof yardWeather !== 'function' || typeof sceneClock !== 'function') return;
+  const wx = yardWeather(sceneClock()), sky = typeof yardSky === 'function' ? yardSky(sceneClock()) : null, open = !B.theme.awning;
+  const falling = open && (wx.rain > 0.1 || wx.snow > 0.1), rain = wx.rain > 0.1 || wx.wet > 0.3, snow = wx.snow > 0.1 || wx.white > 0.15;
+  const cold = snow || (typeof sceneSeason === 'function' && sceneSeason() === 3), dark = B.light !== 'dusk' && !!sky && sky.night > 0.5;
+  B.crowdWx = { rain: rain && open, snow: snow && open, cold, dark };
+  if (!rain && !cold && !dark) return;
+  const away = Math.max(open && rain ? 0.35 : 0, open && snow ? 0.3 : 0, cold ? 0.12 : 0);
+  if (away > 0) B.crowd = B.crowd.filter(() => Math.random() >= away);
+  const cloaked = cold ? 0.75 : rain ? 0.5 : 0.2, hooded = falling ? 0.7 : cold ? 0.3 : 0.15;
+  for (const p of B.crowd) {
+    p.hat = false;
+    if (Math.random() >= cloaked) continue;
+    const c = shade(pick(SHOW_CLOAKS), 1 - (64 - p.y) / 42 * 0.3);      // (dimmer in the rows further up, as their tunics are: see createBattle)
+    p.col = c; p.colD = shade(c, 0.7); p.cloak = true;
+    if (Math.random() < hooded) { p.veil = true; p.long = false; }
+  }
 }
 
 // Something leaves a spectator's hand and lands on the sand, where it stays.

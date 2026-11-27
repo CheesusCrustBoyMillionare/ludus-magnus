@@ -2597,6 +2597,7 @@ function drawBattle(ctx, B) {
 
   // ---- sprite-pixel layer: backdrop, crowd, blood, fighters ----
   view(FINE);
+  if (!B.dressed && typeof showDress === 'function') showDress(B);      // the crowd, for the weather of the day: before it is painted into its seats (show.js)
   if (!B._bg) B._bg = renderBackdrop(B);
   ctx.drawImage(B._bg, 0, 0);
   const dusk = B.light === 'dusk';
@@ -2731,6 +2732,17 @@ function drawBattle(ctx, B) {
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = '#e2702a'; ctx.fillRect(x - 1, 63 - fl, 4, 6 + fl); ctx.fillStyle = '#f5c04a'; ctx.fillRect(x, 64 - fl, 2, 4); ctx.fillStyle = '#fff0b0'; ctx.fillRect(x, 66, 1, 2);
     } else { ctx.fillStyle = '#2a1c14'; ctx.fillRect(x - 1, 66, 4, 3); }
+  }
+  // And up in the stands, after dark, the lamps that some of them have brought (B.show.lamps): a point of flame
+  // held up beside a face, and the little it lights; it goes up with him when he is on his feet.
+  if (lit > 0 && !B.wild && B.show && B.show.lamps) {
+    for (const p of B.show.lamps) {
+      const lx = p.x + 5, ly = p.y - 9 - (p.stand > 0 ? 3 : 0), k = (0.8 + Math.sin(T * 8 + p.ph * 3) * 0.2) * lit * (dusk ? 0.7 : 1);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) { const r = 7 - i * 2; ctx.fillStyle = `rgba(255,160,70,${(0.1 * k).toFixed(3)})`; ctx.fillRect(lx - r, ly - r + 1, r * 2 + 1, r * 2 - 1); }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(245,192,74,${Math.min(1, k * 1.2).toFixed(3)})`; ctx.fillRect(lx, ly - (Math.sin(T * 11 + p.ph) > 0 ? 1 : 0), 1, 2); ctx.fillStyle = `rgba(255,240,176,${Math.min(1, k * 1.2).toFixed(3)})`; ctx.fillRect(lx, ly, 1, 1);
+    }
   }
   for (let i = 0; i < 4; i++) {       // the edges fall away into shade
     ctx.fillStyle = `rgba(20,10,4,${(0.05 * (dusk ? 1.6 : 1)).toFixed(3)})`;
