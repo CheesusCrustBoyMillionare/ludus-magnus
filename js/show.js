@@ -192,10 +192,10 @@ function showStep(B, T) {
   }
   B.fighters.forEach((f, i) => {
     if (snowy) snowTread(B, S, f, i);
-    if (out(f)) { if (f.down && !S.fell[i]) { S.fell[i] = 1; const sn = fightSnow(B, f.x * 2, f.y * 2); if (snowy) snowHollow(B, f.x * 2, f.y * 2, f.facing || 1); for (let k = 0; k < 9; k++) S.puffs.push({ x: f.x * 2 + rand(-12, 12), y: f.y * 2 + rand(-2, 3), vx: rand(-9, 9), life: rand(0.6, 1.1), max: 1.1, r: rint(2, 4), sn }); } return; }
+    if (out(f)) { if (f.down && !S.fell[i]) { S.fell[i] = 1; const d = fightDust(B, f.x * 2, f.y * 2); if (snowy) snowHollow(B, f.x * 2, f.y * 2, f.facing || 1); for (let k = 0; k < 9; k++) S.puffs.push({ x: f.x * 2 + rand(-12, 12), y: f.y * 2 + rand(-2, 3), vx: rand(-9, 9), life: rand(0.6, 1.1), max: 1.1, r: rint(2, 4), d }); } return; }
     if (!f.moving && f.state !== 'windup') return;
     S.steps[i] = (S.steps[i] || 0) + dt;
-    if (S.steps[i] > 0.24) { S.steps[i] = 0; S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2, sn: fightSnow(B, f.x * 2, f.y * 2) }); }
+    if (S.steps[i] > 0.24) { S.steps[i] = 0; S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2, d: fightDust(B, f.x * 2, f.y * 2) }); }
   });
   for (const p of S.puffs) { p.life -= dt; p.x += p.vx * dt; }
   S.puffs = S.puffs.filter(p => p.life > 0);
@@ -491,14 +491,22 @@ function showFront(ctx, B, T) {
   const S = B.show; if (!S) return;
   for (const p of S.puffs) {
     const k = p.life / p.max, r = p.r + Math.round((1 - k) * 3);
-    const s = p.sn || 0;      // (sand; or, by how much snow there was under the foot that raised it, snow)
-    ctx.fillStyle = `rgba(${Math.round(234 + 16 * s)},${Math.round(210 + 42 * s)},${Math.round(160 + 95 * s)},${((0.42 + 0.25 * s) * k).toFixed(3)})`;
+    const D = p.d || DUST_SAND;      // (of whatever was under the foot that raised it: see fightDust, in combat.js)
+    ctx.fillStyle = `rgba(${D.soft},${(0.42 * D.a * k).toFixed(3)})`;
     ctx.fillRect(Math.round(p.x) - r, Math.round(p.y - (1 - k) * 7) - r, r * 2, r + 1);
   }
   for (const o of S.thrown) {
     const x = o.x0 + (o.x1 - o.x0) * o.t, y = o.y0 + (o.y1 - o.y0) * o.t - Math.sin(o.t * Math.PI) * o.arc;
     ctx.fillStyle = o.col; ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
   }
-  ctx.fillStyle = B.light === 'dusk' ? 'rgba(255,220,170,.22)' : 'rgba(255,246,214,.3)';
+  // Motes drifting in the light. It is the sun that shows them: so not after dark, fewer to be seen as the sky clouds
+  // over, and none in rain or falling snow, which lay them. (A bout to the death has the low sun and the torches.)
+  let sun = 1;
+  if (B.light !== 'dusk' && typeof yardSky === 'function' && typeof yardWeather === 'function' && typeof sceneClock === 'function') {
+    const sky = B.wild && typeof provSky === 'function' && typeof G !== 'undefined' && G && G.field ? provSky() : yardSky(sceneClock()), wx = yardWeather(sceneClock());
+    sun = sky.sun && !(wx.rain > 0.05) && !(wx.snow > 0.05) ? clamp(1 - sky.night * 3, 0, 1) * clamp(1 - (wx.over || 0) * 1.3, 0, 1) : 0;
+  }
+  if (!(sun > 0.04)) return;
+  ctx.fillStyle = B.light === 'dusk' ? 'rgba(255,220,170,.22)' : `rgba(255,246,214,${(0.3 * sun).toFixed(3)})`;
   for (const m of S.motes) ctx.fillRect(Math.round(m.x), Math.round(m.y + Math.sin(T * 0.9 + m.ph) * 4), 1, 1);
 }

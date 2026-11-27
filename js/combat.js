@@ -181,9 +181,27 @@ function fxScuff(B, x, y, dir, len, wide) {
   if (S.length >= 140) S.shift();
   S.push({ x, y: y + rand(-0.6, 0.6), dir, len, wide: wide || 0, t: B.clock });
 }
+// What rises from under a man's feet is what he is standing on. On the sand of an arena, dust, and plenty of it. Where
+// snow lies, snow. Where it is raining or the ground is wet from rain, no dust at all: drops of water, and mud. And out
+// in the province, a little of the ground itself in its own colour (B._ground: renderWild keeps it), hardly any from
+// grass and more from rock or the beaten earth of a camp. (c0, c1: the two colours of what is thrown; mid, lite: of
+// what hangs, and its lightest; soft: the cloud at a foot, as r,g,b; amt: how much of it there is, 0 to 1; a: how
+// thick the cloud. x, y are in sprite pixels.)
+const DUST_SAND = { c0: '#c9a763', c1: '#ead2a0', mid: '#d6bb84', lite: '#ead2a0', soft: '234,210,160', amt: 1, a: 1 };
+const DUST_SNOW = { c0: '#ffffff', c1: '#d3deec', mid: '#d3deec', lite: '#f4f8fd', soft: '250,252,255', amt: 1, a: 1.6 };
+const DUST_WET = { c0: '#d6e4f2', c1: '#7d6238', mid: '#a9b8c8', lite: '#d6e4f2', soft: '196,210,224', amt: 0.6, a: 0.4 };
+const WILD_DUST = { forest: ['#6f8a45', 0.3], ruin: ['#7f8a55', 0.45], rock: ['#8f8a78', 0.85], camp: ['#8a7650', 0.85] };
+function fightDust(B, x, y) {
+  if (fightSnow(B, x, y) > 0.45) return DUST_SNOW;
+  if ((B.wet || 0) > 0.3) return DUST_WET;
+  if (!B.wild || typeof mixHex !== 'function') return DUST_SAND;
+  const W = WILD_DUST[B.wild] || WILD_DUST.forest, g = B._ground || W[0];
+  if (!B._dust || B._dust.g !== g) { const s = mixHex(g, '#e6dcc0', 0.5); B._dust = { g, c0: mixHex(g, '#e6dcc0', 0.25), c1: mixHex(g, '#e6dcc0', 0.55), mid: mixHex(g, '#e6dcc0', 0.4), lite: mixHex(g, '#e6dcc0', 0.6), soft: [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)).join(','), amt: W[1], a: W[1] }; }
+  return B._dust;
+}
 function fxDust(B, x, y, n) {
-  const snow = fightSnow(B, x * 2, y * 2) > 0.45, c0 = snow ? '#ffffff' : '#c9a763', c1 = snow ? '#d3deec' : '#ead2a0';      // (where snow lies it is snow that his feet throw up)
-  for (let i = 0; i < n; i++) B.parts.push({ x: x + rand(-4, 4), y: y + rand(-1, 1), h: 1, vx: rand(-18, 18), vh: rand(8, 28), col: chance(0.5) ? c0 : c1, spark: true });
+  const D = fightDust(B, x * 2, y * 2);
+  for (let i = 0; i < n; i++) { if (D.amt < 1 && Math.random() > D.amt) continue; B.parts.push({ x: x + rand(-4, 4), y: y + rand(-1, 1), h: 1, vx: rand(-18, 18), vh: rand(8, 28), col: chance(0.5) ? D.c0 : D.c1, spark: true }); }
 }
 // A line of the telling of the fight. The last few are shown over the sand for a while; all of them are kept (B.log),
 // with when they happened and what kind of thing they are, to be read back during the fight or after it.
@@ -2010,6 +2028,7 @@ function renderWild(B) {
   const se = typeof sceneSeason === 'function' ? sceneSeason() : 0;
   const ground = ({ forest: ['#6f8a45', '#788a44', '#857a46', '#77805c'], rock: ['#8f8a78', '#908a76', '#8f8674', '#8c8a80'], camp: ['#8a7650', '#8e7a50', '#8a704c', '#857a62'], ruin: ['#7f8a55', '#888a52', '#8a7e50', '#7c8262'] }[k] || ['#6f8a45', '#788a44', '#857a46', '#77805c'])[se];
   const gD = shade(ground, 0.84), gL = shade(ground, 1.14);
+  B._ground = ground;      // (kept: what a man's feet raise from it is of its colour. fightDust asks.)
 
   // ---- sky: paler toward the horizon, the sun, a few clouds ----
   // The sun is where the hour has it, by the same sky the fight takes its light from (see drawBattle): coming up
@@ -2421,7 +2440,7 @@ function drawVfx(ctx, B, under) {
       for (let i = 0; i < n; i++) { const an = i / n * 6.283; R(v.x * 2 + Math.cos(an) * r * 2 - 1, v.y * 2 + Math.sin(an) * r * 0.9 - 1, v.w || 3, v.w || 3, v.col); }
       if (v.fill) { ctx.globalAlpha = a * 0.24; for (let yy = -r * 0.9; yy <= r * 0.9; yy += 2) { const hw = r * 2 * Math.sqrt(Math.max(0, 1 - (yy * yy) / (r * r * 0.81))); R(v.x * 2 - hw, v.y * 2 + yy, hw * 2, 2, v.col); } }
     } else if (v.k === 'trail') {              // where he was a moment ago, and where he is
-      for (let i = 0; i < 7; i++) { const q = i / 6; ctx.globalAlpha = a * q * 0.5; R((v.x + (v.x2 - v.x) * q) * 2 - 5, (v.y + (v.y2 - v.y) * q) * 2 - 34, 10, 30, v.col); R((v.x + (v.x2 - v.x) * q) * 2 - 8, (v.y + (v.y2 - v.y) * q) * 2 - 2, 16, 2, fightSnow(B, v.x2 * 2, v.y2 * 2) > 0.45 ? '#f4f8fd' : '#ead2a0'); }
+      for (let i = 0; i < 7; i++) { const q = i / 6; ctx.globalAlpha = a * q * 0.5; R((v.x + (v.x2 - v.x) * q) * 2 - 5, (v.y + (v.y2 - v.y) * q) * 2 - 34, 10, 30, v.col); R((v.x + (v.x2 - v.x) * q) * 2 - 8, (v.y + (v.y2 - v.y) * q) * 2 - 2, 16, 2, fightDust(B, v.x2 * 2, v.y2 * 2).lite); }
     } else if (v.k === 'arc') {                // the sweep of a blade: a crescent that opens and fades
       const rad = 12 + v.size * 9, th = v.size > 1.4 ? 4 : 3, from = -1.25, span = 2.5 * Math.min(1, k * 2.2 + 0.25);
       ctx.globalAlpha = a;
@@ -2444,7 +2463,7 @@ function drawVfx(ctx, B, under) {
       const len = Math.min(34, (v.len || 16) * 1.5) * Math.min(1, k * 4 + 0.3), x0 = v.x * 2 + v.dir * 9; ctx.globalAlpha = a * 0.9;
       R(v.dir > 0 ? x0 : x0 - len, v.y * 2 - 25, len, 1, '#efe8d2'); R(v.dir > 0 ? x0 + len * 0.4 : x0 - len, v.y * 2 - 24, len * 0.6, 1, '#ffffff'); R(v.dir > 0 ? x0 + len - 2 : x0 - len, v.y * 2 - 26, 3, 3, '#ffffff');
     } else if (v.k === 'puff') {               // dust thrown up and hanging: a man has gone down in it, or been driven through it
-      const n = v.n || 5, snow = fightSnow(B, v.x * 2, v.y * 2) > 0.45; for (let i = 0; i < n; i++) { const an = i / n * 6.283 + (v.seed || 0), d = (v.r || 9) * (0.35 + 0.65 * (1 - (1 - k) * (1 - k))), sz = Math.max(2, Math.round((5 - (i % 3)) * (1 - k * 0.5))); ctx.globalAlpha = a * 0.5; R(v.x * 2 + Math.cos(an) * d * 2 - sz / 2, v.y * 2 - 1 + Math.sin(an) * d * 0.55 - k * (5 + (i % 3) * 3) - sz / 2, sz, sz, snow ? (i % 2 ? '#ffffff' : '#d3deec') : i % 2 ? '#ead2a0' : '#d6bb84'); }
+      const n = v.n || 5, D = fightDust(B, v.x * 2, v.y * 2), thick = clamp(D.a, 0.4, 1); for (let i = 0; i < n; i++) { const an = i / n * 6.283 + (v.seed || 0), d = (v.r || 9) * (0.35 + 0.65 * (1 - (1 - k) * (1 - k))), sz = Math.max(2, Math.round((5 - (i % 3)) * (1 - k * 0.5))); ctx.globalAlpha = a * 0.5 * thick; R(v.x * 2 + Math.cos(an) * d * 2 - sz / 2, v.y * 2 - 1 + Math.sin(an) * d * 0.55 - k * (5 + (i % 3) * 3) - sz / 2, sz, sz, i % 2 ? D.lite : D.mid); }
     } else if (v.k === 'motes' && v.f && !out(v.f)) {      // sparks rising round him
       for (let i = 0; i < 9; i++) { const up = (k * 46 + i * 11) % 44; ctx.globalAlpha = a * (1 - up / 50); R(v.f.x * 2 + Math.sin(i * 2.4 + k * 3) * 11, v.f.y * 2 - 4 - up, 2, 2, v.col); }
     } else if (v.k === 'flash') {              // the sand lights for an instant under a great blow
@@ -2488,8 +2507,8 @@ function drawVfx(ctx, B, under) {
     } else if (v.k === 'flame' && v.f && !out(v.f)) {      // fury: fire coming up round his feet
       for (let i = 0; i < 8; i++) { const up = (k * 54 + i * 9) % 28, px = v.f.x * 2 - 14 + i * 4; ctx.globalAlpha = Math.min(1, a * 1.6) * (1 - up / 32); R(px, v.f.y * 2 - 3 - up, 4, 6, i % 2 ? '#ff6a2a' : '#f5a02a'); R(px + 1, v.f.y * 2 - 6 - up, 2, 4, '#ffe27a'); }
     } else if (v.k === 'cracks') {             // a blow that takes in everyone near: the sand splits outward from it
-      const len = (v.r || 20) * 2 * Math.min(1, k * 2.6); ctx.globalAlpha = a * 0.85;
-      for (let i = 0; i < 7; i++) { const an = i * 0.9 + 0.3; for (let q = 4; q < len; q += 3) R(v.x * 2 + Math.cos(an) * q + Math.sin(q * 1.3 + i) * 1.5, v.y * 2 + Math.sin(an) * q * 0.45, 2, 1, '#4a3320'); R(v.x * 2 + Math.cos(an) * len - 2, v.y * 2 + Math.sin(an) * len * 0.45 - k * 9, 4, 3, '#e2cf9c'); }
+      const len = (v.r || 20) * 2 * Math.min(1, k * 2.6), D = fightDust(B, v.x * 2, v.y * 2), chip = D === DUST_SAND ? '#e2cf9c' : D.lite; ctx.globalAlpha = a * 0.85;
+      for (let i = 0; i < 7; i++) { const an = i * 0.9 + 0.3; for (let q = 4; q < len; q += 3) R(v.x * 2 + Math.cos(an) * q + Math.sin(q * 1.3 + i) * 1.5, v.y * 2 + Math.sin(an) * q * 0.45, 2, 1, '#4a3320'); R(v.x * 2 + Math.cos(an) * len - 2, v.y * 2 + Math.sin(an) * len * 0.45 - k * 9, 4, 3, chip); }
     } else if (v.k === 'speed') {              // a rush: lines of speed along the way he came
       for (let i = 0; i < 6; i++) { const q = (k * 1.5 + i * 0.17) % 1, px = v.x + (v.x2 - v.x) * q, py = v.y + (v.y2 - v.y) * q; ctx.globalAlpha = a * 0.8; R(px * 2 - 9, py * 2 - 8 - i * 6, 18, 1, '#fff0c0'); }
     }
@@ -2612,6 +2631,7 @@ function drawBattle(ctx, B) {
   // (The sheet is kept twice: as it fell, B._snow0, and as the men have left it, B._snow, which is the one that is
   // shown. Their feet mark it and wear it through, and falling snow fills it again: see the snow in show.js.)
   B.lying = lying;
+  B.wet = dusk || typeof yardWeather !== 'function' || typeof sceneClock !== 'function' ? 0 : (w => Math.min(1, Math.max(w.wet || 0, w.rain || 0)))(yardWeather(sceneClock()));      // (how wet the ground is, for what feet raise from it: fightDust. A bout to the death is fought dry, as it is drawn.)
   if (lying > 0.03) { if (!B._snow) { B._snow0 = B.wild ? renderWildSnow(B) : renderArenaSnow(B); B._snow = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); B._snow.getContext('2d').drawImage(B._snow0, 0, 0); B._wear = new Float32Array(54 * 60); } ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
   // The wall's shade across the near sand, by day: further out the lower the sun is, faint under cloud, and after
