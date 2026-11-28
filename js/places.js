@@ -69,6 +69,7 @@ function drawPlace(cv, T, tab) {
   }
   // everything under the sky goes on its own layer, so the light of the hour stains the place and not the sky
   ctx = placeLayer.getContext('2d');
+  if (Object.prototype.hasOwnProperty.call(ctx, 'fillRect')) delete ctx.fillRect;      // (the watch kept on it while a place is drawn, below: never left on, whatever went wrong last time)
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
 
@@ -77,16 +78,44 @@ function drawPlace(cv, T, tab) {
   // Whoever is standing about on the ground of the place (not walking by, not at work, not a statue up on its plinth)
   // turns to the master of the house when he comes near.
   const host = typeof vil !== 'undefined' && vil.inside === tab && !vil.leaving && sceneGuests[tab] && sceneGuests[tab].x !== undefined ? sceneGuests[tab] : null;
+  // The light on whoever is in the place, as on the people of the yard (yardPerson, and sprLight in combat.js). Out
+  // of doors by day it is the sun, an edge of it down the side it is on, and it is laid on him as he is drawn. After
+  // dark out of doors, and at any hour under a roof, it is the lamps and the hearth, and outside the moon as well:
+  // that is laid on when the picture is done and the dark of the hour is over it (below, with the lamps), since a
+  // place does not say where its lamps are until it has drawn its people, and the dark would take the colour out of
+  // it. But much in a place is painted over the people in it: a table before a clerk, a man before another. So while
+  // that light is wanted, whatever is painted is watched (the layer's fillRect, for as long as the place is being
+  // drawn): each of them keeps the part of himself that something solid has since been painted over (lit: m), and no
+  // light is laid there.
+  const litOver = Math.min(1, wx.over || 0), litLow = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, canLight = typeof sprLight === 'function';
+  const sunL = canLight && !scene.indoor && sky.sun ? (() => { const a = (0.22 + 0.4 * litLow) * (1 - litOver * 0.85), c = [1, 3, 5].map(i => parseInt(mixHex(sky.sunCol, '#ffffff', 0.45).slice(i, i + 2), 16)).join(','), top = 0.24 * (1 - litLow) * (1 - litOver * 0.7); return sceneSun > 0 ? { la: a, lc: c, ra: 0, rc: c, ta: top, tc: c } : { la: 0, lc: c, ra: a, rc: c, ta: top, tc: c }; })() : null;
+  const lit = [], LW = 28, LH = 50, watch = canLight && (scene.indoor || sky.night > 0.2);
+  const seen = (x, y, d, o) => { if (watch) lit.push({ x, y, d, o, bx: x - 14, by: y - 48, m: new Uint8Array(LW * LH) }); };
+  const layerCtx = ctx, fill0 = layerCtx.fillRect;
+  if (watch) layerCtx.fillRect = function (x, y, w, h) {
+    fill0.call(this, x, y, w, h);
+    let solid = -1;
+    for (let i = 0; i < lit.length; i++) {
+      const p = lit[i], x0 = Math.max(0, Math.floor(x) - p.bx), x1 = Math.min(LW, Math.ceil(x + w) - p.bx), y0 = Math.max(0, Math.floor(y) - p.by), y1 = Math.min(LH, Math.ceil(y + h) - p.by);
+      if (x1 <= x0 || y1 <= y0) continue;
+      if (solid < 0) solid = this.globalAlpha > 0.9 && typeof this.fillStyle === 'string' && this.fillStyle[0] === '#' ? 1 : 0;      // (a shadow or a wash laid over him hides nothing)
+      if (!solid) return;
+      for (let yy = y0; yy < y1; yy++) p.m.fill(1, yy * LW + x0, yy * LW + x1);
+    }
+  };
   const folk = [], person = (x, y, d, o) => {
     if (host && y >= 140 && !o.moving && o.swing === undefined && o.sweep === undefined && Math.abs(host.x - x) < 46 && Math.abs(host.x - x) > 3 && Math.abs(host.y - y) < 30) { d = host.x > x ? 1 : -1; if (o.face) { o = Object.assign({}, o); delete o.face; } }
-    folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); };
+    if (sunL) o = Object.assign({ light: sunL }, o);
+    folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); seen(x, y, d, o); };
   const SE = sceneSeason();
   // Somebody walking by along y: where a table, a fountain or a cart stands in his way he bears round the front of it.
   const inWay = typeof guestRects === 'function' ? guestRects(tab) : [];
   const walkY = (x, y) => { let out = y; for (const r of inWay) { if (y < r[1] || y >= r[3]) continue; const dx = x < r[0] - 6 ? r[0] - 6 - x : x > r[2] + 6 ? x - r[2] - 6 : 0; if (dx < 26) { const k = 1 - dx / 26, e = k * k * (3 - 2 * k); out = Math.max(out, Math.round(y + (Math.min(186, r[3] + 1) - y) * e)); } } return out; };
   const E = {
     T, R, sky, wx, night: sky.night, games: isGamesDay(), folk,
-    P0: (x, y, d, o) => yardPerson(ctx, Math.round(x), Math.round(y), d, o),      // one who is not written down: the master himself
+    P0: (x, y, d, o) => { if (sunL) o = Object.assign({ light: sunL }, o); yardPerson(ctx, Math.round(x), Math.round(y), d, o); seen(Math.round(x), Math.round(y), d, o); },      // one who is not written down: the master himself
+    // one of them drawn again, over whoever has come to stand behind him: nothing is in front of him now
+    again: (x, y, d, o) => { yardPerson(ctx, x, y, d, o); const p = lit.find(q => q.o === o && q.x === x && q.y === y); if (p) p.m.fill(0); },
     ctx: () => ctx,
     // a person on the street, feet at x, y; d is 1 facing right, -1 left
     P: (x, y, d, o) => person(Math.round(x), Math.round(y), d, Object.assign({ tunic: '#8a4a3a' }, o)),
@@ -179,6 +208,7 @@ function drawPlace(cv, T, tab) {
   }
 
   if (guestFront) guest.draw();
+  if (watch) delete layerCtx.fillRect;      // (nothing more is painted over anybody)
 
   // the light of the hour: full out of doors, a little of it under a roof
   const tint = scene.indoor ? mixHex('#ffffff', sky.tint, 0.35) : sky.tint;
@@ -198,6 +228,28 @@ function drawPlace(cv, T, tab) {
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
     ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la); if (!scene.indoor) sceneMoths(ctx, T, lx, ly - 6, la);
     if (scene.indoor) for (let q = 0; q < 4; q++) { const an = T * (0.25 + q * 0.07) + lx + q * 1.7, mx = lx + Math.cos(an) * (8 + q * 5), my = ly - 6 + Math.sin(an * 1.3) * (6 + q * 3); ctx.fillStyle = `rgba(255,236,190,${(0.25 + 0.2 * Math.sin(T * 1.1 + q + lx)).toFixed(3)})`; ctx.fillRect(Math.round(mx), Math.round(my), 1, 1); }      // dust turning in the lamplight
+  }
+  // And that light on the people: from each lamp and from the hearth, warm, on the side of him it is on and by how
+  // near he is to it, the hearth's never quite steady; and out of doors a little from the moon, cold.
+  if (lit.length) {
+    const FIRE = '255,168,84', MOON = '150,172,240', moonA = !scene.indoor && sky.moon ? 0.34 * sky.night * (1 - litOver) : 0;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of lit) {
+      let a1 = 0, c1 = FIRE, a2 = 0, c2 = FIRE, ta = 0, tc = FIRE;      // (on his left, on his right, from above)
+      if (moonA > 0) { if (sceneSun > 0) { a1 = moonA; c1 = MOON; } else { a2 = moonA; c2 = MOON; } ta = moonA * 0.35; tc = MOON; }
+      // (up: how much of the way up the picture between him and it counts as distance. A lamp hangs over the room, or
+      // on a wall over the street, and lights whoever is under it, his head and shoulders most; a hearth is down on the floor.)
+      const flame = (fx, fy, reach, k, up) => {
+        const dx = fx - p.x, a = Math.min(0.6, 0.8 * k * clamp(1 - Math.hypot(dx, (fy - p.y) * up) / reach, 0, 1)); if (a < 0.04) return;
+        if (dx < 0) { if (a > a1) { a1 = a; c1 = FIRE; } } else if (a > a2) { a2 = a; c2 = FIRE; }
+        const top = a * (fy < p.y - 60 ? 0.8 : 0.5); if (top > ta) { ta = top; tc = FIRE; }
+      };
+      if (la > 0) for (const [lx, ly] of lamps) flame(lx, ly, 115, la, 0.6);
+      for (const [fx, fy2, fr] of fires) flame(fx, fy2, 60 + fr * 1.2, 0.82 + 0.18 * Math.sin(T * 9 + fx) * Math.sin(T * 5.3 + 1), 1.1);
+      if (a1 < 0.04 && a2 < 0.04 && ta < 0.04) continue;
+      yardPerson(ctx, p.x, p.y, p.d, Object.assign({}, p.o, { lightOnly: true, light: { la: a1, lc: c1, ra: a2, rc: c2, ta, tc, mask: { x: p.bx, y: p.by, w: LW, h: LH, m: p.m } } }));
+    }
+    ctx.globalCompositeOperation = 'source-over';
   }
   if (scene.indoor) {
     const fy = scene.floor || 142, day = (1 - sky.night) * (1 - wx.over * 0.6);
@@ -343,7 +395,7 @@ function placeGuest(E, tab) {
     const far = Math.max(reach + 2, Math.min(n - 16, reach + 30)); for (let q = reach + 1; q <= far; q++) R(Math.round(sx + ax / n * q), Math.round(sy + ay / n * q), 1, 1, q > far - 2 ? '#e8b545' : '#7a5a2a');
   }
   // whoever stands nearer than he does, and across him, is drawn again over him
-  for (const [px, py, pd, po] of E.folk) if (py > Y && py - Y < 40 && Math.abs(px - X) < 20) E.P0(px, py, pd, po);
+  for (const [px, py, pd, po] of E.folk) if (py > Y && py - Y < 40 && Math.abs(px - X) < 20) E.again(px, py, pd, po);
   } };
 }
 const PLACE_SCENES = {
@@ -682,7 +734,7 @@ const PLACE_SCENES = {
     // tables, with men of the other houses drinking at them
     G.houses.slice(0, 3).forEach((H, i) => {
       const x = 230 + i * 92, c = houseDef(H.id).col, lift = Math.sin(T * 1.3 + i * 2) > 0.7 ? 2 : 0;
-      E.P(x - 14, 160, 1, { tunic: c, hair: '#2a1c14', skin: TOWN_SKINS[i % 4] }); E.P(x + 16, 160, -1, { tunic: shade(c, 0.8), hair: '#6a4a2a', skin: TOWN_SKINS[(i + 1) % 4] });
+      E.P(x - 14, 160, 1, { tunic: c, hair: '#2a1c14', skin: TOWN_SKINS[i % 4] }); E.P(x + 16, 160, -1, { tunic: mixHex(c, '#000000', 0.2), hair: '#6a4a2a', skin: TOWN_SKINS[(i + 1) % 4] });
       R(x - 22, 146, 46, 4, '#8a6a3a'); R(x - 22, 146, 46, 1, '#a8834a'); R(x - 18, 150, 3, 16, '#5e4426'); R(x + 17, 150, 3, 16, '#5e4426');
       R(x - 9, 142 - lift, 4, 4, '#c9c2ae'); R(x + 6, 142, 4, 4, '#c9c2ae'); R(x - 1, 144, 2, 2, '#f1ead8');
     });

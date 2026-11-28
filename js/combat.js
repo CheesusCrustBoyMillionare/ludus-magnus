@@ -858,11 +858,15 @@ function sprLight(ctx, L) {
   g.fill(0, 0, w * h);
   for (let i = 0; i < n; i++) if (I[i]) { const ax = Math.max(0, Math.round(X[i]) - x0), bx = Math.min(w, Math.round(X[i] + W[i]) - x0), by = Math.min(h, Math.round(Y[i] + H[i]) - y0); if (bx > ax) for (let y = Math.max(0, Math.round(Y[i]) - y0); y < by; y++) g.fill(1, y * w + ax, y * w + bx); }
   // dx: which way the light comes from, across (-1 from the left, 1 from the right) or 0 from above; deep: how far in from the edge (0, or 1 for the pixel behind it)
+  // (L.mask, where whoever draws him has kept what has since been painted over him: x, y, w, h, and m, which is 1
+  // wherever he is hidden. No light is laid there. A place in the town keeps one for each of its people: places.js.)
+  const K = L.mask || null;
   const edge = (col, a, dx, deep) => {
     if (!(a > 0.03)) return;
     ctx.fillStyle = `rgba(${col},${Math.min(1, a).toFixed(3)})`;
     for (let y = 0; y < h; y++) for (let x = 0, r = y * w; x < w; x++) {
       if (!g[r + x]) continue;
+      if (K) { const mx = x0 + x - K.x, my = y0 + y - K.y; if (mx >= 0 && mx < K.w && my >= 0 && my < K.h && K.m[my * K.w + mx]) continue; }
       let out;
       if (dx) { const e = x + dx * (deep + 1), m = x + dx; out = (e < 0 || e >= w || !g[r + e]) && (!deep || (m >= 0 && m < w && g[r + m])); }
       else out = (y - deep - 1 < 0 || !g[r - (deep + 1) * w + x]) && (!deep || g[r - w + x]);
