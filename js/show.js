@@ -344,9 +344,14 @@ function showStep(B, T) {
     if (S.steps[i] > 0.24) { S.steps[i] = 0; const pl = poolAt(B, f.x * 2, f.y * 2); if (pl && S.rings.length < 40) S.rings.push({ p: pl, x: f.x * 2 - f.facing * 2, y: f.y * 2, t: T });      // (a ring in the water he is going through: showWet)
       S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2, d: fightDust(B, f.x * 2, f.y * 2) }); }
   });
-  for (const p of S.puffs) { p.life -= dt; p.x += p.vx * dt; }
+  // The wind has whatever is light (showWind): the dust from their feet goes down it, and the motes in the light;
+  // and it is kept how far it has carried what is on the air (S.blown) and the clouds' shadows over the ground (S.shade).
+  const day = B.air ? B.air.gust || 0 : 0;
+  for (const p of S.puffs) { p.life -= dt; p.x += (p.vx + 48 * showWind(B, p.x, p.y, T) * (0.4 + 0.6 * day)) * dt; }
   S.puffs = S.puffs.filter(p => p.life > 0);
-  for (const m of S.motes) { m.x += m.sp * dt; if (m.x > 430) { m.x = -2; m.y = rand(92, 236); } }
+  for (const m of S.motes) { m.x += m.sp * (1 + 7 * showWind(B, m.x, m.y, T)) * dt; if (m.x > 430) { m.x = -2; m.y = rand(92, 236); } }
+  S.blown = (S.blown || 0) + dt * (5 + 70 * showWind(B, 214, 60, T));
+  S.shade = (S.shade === undefined ? rand(0, 900) : S.shade) + dt * (5 + 20 * day);
 }
 
 // ---- the editor of the games ----
@@ -460,11 +465,100 @@ function showEditor(ctx, B, T) {
   }
 }
 
-function showBanner(ctx, x, c, cD, T, gust) {
+// ---- the wind, and the air over a fight ----
+// The wind over a fight is the day's (the gust of yardWeather: drawBattle sets down what the air is doing, B.air),
+// and it blows as it does over the province (provWind): from the left, in fronts that cross the ground one after
+// another, a gust and then a lull. On a still day there is a breath of it now and then; on a windy one hardly a
+// lull. showWind is how hard it is blowing at a place just now, 0 to 1. Whatever hangs or flies asks it: the banners
+// on the wall, the pennants on the rim, the flags in the stands, the torches, a camp's smoke and its banner, and
+// whatever is on the air out in the country; and the dust from the men's feet and the motes in the light go down
+// it (showStep).
+function showWind(B, x, y, T) {
+  const g = B.air ? B.air.gust || 0 : 0, w = typeof provWind === 'function' ? provWind(x, y, T, g) : 0.5 + 0.5 * Math.sin(T * 0.45 - x * 0.016);
+  return Math.min(1, g * 0.5 + w * (0.4 + 0.6 * g));
+}
+// Whether a place in the picture is open ground. In an arena all of the sand is; out in the province the picture
+// is looked at, once (as it is for the pools: wetPools), and a stone, a log or a tree's foot is not.
+function showOpen(B, x, y) {
+  if (!B.wild) return true;
+  const S = B.show;
+  if (S.open === undefined) {
+    S.open = null;
+    if (B._bg && B._ground) try {
+      const D = B._bg.getContext('2d').getImageData(0, 0, 428, 240).data, g = [1, 3, 5].map(i => parseInt(B._ground.slice(i, i + 2), 16)), M = new Uint8Array(107 * 240);
+      for (let yy = 0; yy < 240; yy++) for (let q = 0; q < 107; q++) { const i = (yy * 428 + q * 4) * 4; M[yy * 107 + q] = Math.abs(D[i] - g[0]) + Math.abs(D[i + 1] - g[1]) + Math.abs(D[i + 2] - g[2]) < 72 ? 1 : 0; }
+      S.open = M;
+    } catch (e) { S.open = null; }
+  }
+  if (!S.open) return true;
+  x = Math.round(x); y = Math.round(y);
+  return x >= 0 && x < 428 && y >= 0 && y < 240 && S.open[y * 107 + (x >> 2)] === 1;
+}
+// What a wind takes off the ground: sand in an arena, the dust of whatever ground a fight in the country is fought
+// on, and where snow lies the snow (fightDust says which). Low streaks of it running before each gust, where the
+// gust is and for as long as it is there, and a few light things going over and over with them: straw in an arena,
+// leaves in a wood. Only on a windy day, and nothing off wet ground. It is on the ground, under the men.
+function showBlown(ctx, B, T) {
+  const g = B.air ? B.air.gust || 0 : 0, dry = clamp(1 - (B.wet || 0) / 0.3, 0, 1); if (!(g > 0.05) || !(dry > 0)) return;
+  const gy = B.wild ? 98 : 88;
+  for (let i = 0; i < 40; i++) {
+    const run = i * 83 + T * (150 + (i % 4) * 24), w = 12 + (i % 4) * 5, x = Math.floor(run % 520) - 40, y = gy + 5 + Math.floor(wildHash(i, Math.floor(run / 520), 2203) * (230 - gy));
+    const blow = showWind(B, x, y, T); if (blow < 0.5) continue;
+    if (poolAt(B, x + (w >> 1), y) || !showOpen(B, x, y) || !showOpen(B, x + (w >> 1), y) || !showOpen(B, x + w, y)) continue;
+    const D = fightDust(B, x + (w >> 1), y); if (D === DUST_WET) continue;
+    const a = Math.min(0.7, 0.62 * g * (blow - 0.5) * 2 * Math.max(0.6, D.a) * dry); if (a < 0.03) continue;
+    const c = D.soft.split(',').map(v => Math.round(+v + (255 - v) * 0.45)).join(',');      // (what is in the air is paler than what lies: the light is in it)
+    ctx.fillStyle = `rgba(${c},${a.toFixed(3)})`; ctx.fillRect(x, y, w, 1);
+    ctx.fillStyle = `rgba(${c},${(a * 0.55).toFixed(3)})`; ctx.fillRect(x - 5, y, 5, 1); if (i % 2 === 0) ctx.fillRect(x + 3, y - 1, w >> 1, 1);
+  }
+  const bits = B.wild === 'forest' ? ['#a8762e', '#6f9a4a', '#c9a23a'] : B.wild ? ['#b8a878', '#8a7a52'] : ['#e0cc88', '#8a6a3a'];
+  if ((B.lying || 0) < 0.4) for (let i = 0; i < 5; i++) {
+    const run = i * 211 + T * (96 + i * 13), x = Math.floor(run % 500) - 30, y0 = gy + 12 + Math.floor(wildHash(i, Math.floor(run / 500), 2207) * (214 - gy));
+    const blow = showWind(B, x, y0, T); if (blow < 0.45 || !showOpen(B, x, y0)) continue;
+    ctx.fillStyle = bits[i % bits.length]; ctx.globalAlpha = Math.min(1, g * 1.4);
+    ctx.fillRect(x, Math.round(y0 - Math.abs(Math.sin(T * 5 + i * 1.7)) * (3 + blow * 6)), 2, 1);
+    ctx.globalAlpha = 1;
+  }
+}
+// The shadows of the clouds going over the ground, by day: slowly, and faster in a wind (S.shade: how far they have
+// come, kept in showStep), three of them, each at its own pace. A little darker as the sky fills, and gone when it
+// has closed over altogether, when there is no sun to throw one; none after dark.
+function showShade(ctx, B) {
+  const A = B.air, S = B.show; if (!A || !A.sun || !S) return;
+  const a = (0.07 + 0.06 * A.over) * (1 - A.night / 0.6) * clamp((0.95 - A.over) * 5, 0, 1); if (!(a > 0.008)) return;
+  const gy = B.wild ? 98 : 88, far = S.shade || 0;
+  ctx.fillStyle = `rgba(20,24,44,${a.toFixed(3)})`;
+  for (let i = 0; i < 3; i++) {
+    const rx = 84 + i * 30, ry = 10 + i * 6, cx = ((far * (1 + i * 0.3) + i * 330) % (880 + i * 140)) - rx - 40, cy = gy + 22 + i * 44;
+    for (let dy = -ry; dy < ry; dy += 2) {
+      const y = cy + dy; if (y < gy || y >= 240) continue;
+      const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry)) + Math.sin(dy * 0.8 + i * 2.1) * 7); if (w < 2) continue;
+      ctx.fillRect(Math.round(cx - w + dy * 1.5), y, w * 2, 2);
+    }
+  }
+}
+// Early in the day, mist lying along the far ground, moving a little and going as the sun gets up; a wind takes it
+// off, and rain lays it. It is in front of whoever stands in it.
+function showMist(ctx, B, T) {
+  const A = B.air; if (!A || !(A.early > 0) || A.rain > 0.2) return;
+  const a = A.early * 0.13 * (1 - A.gust) * (1 - A.over * 0.3); if (!(a > 0.008)) return;
+  const gy = B.wild ? 98 : 88;
+  ctx.fillStyle = `rgba(236,236,228,${a.toFixed(3)})`;
+  for (let i = 0; i < 6; i++) {
+    const w = 120 + (i % 3) * 40, x = Math.round(((T * (2 + i * 0.8) + i * 170) % (520 + w)) - w - 20), y = gy - 5 + i * 11;
+    for (let r = 0; r < 8; r++) {      // (a long bank of it, thin at either end and never square)
+      const hw = Math.round((w / 2) * Math.sqrt(1 - Math.pow((r - 3.5) / 4.4, 2)) - wildHash(i, r, 2211) * 14);
+      ctx.fillRect(x + (w >> 1) - hw + Math.round((wildHash(i, r, 2212) - 0.5) * 12), y + r, hw * 2, 1);
+    }
+  }
+}
+
+function showBanner(ctx, x, c, cD, T, blow) {
   const R = (bx, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(bx, y, w, h); };
   R(x - 1, 68, 14, 2, '#3a2a1c');
   for (let j = 0; j < 13; j++) {
-    const off = Math.round(Math.sin(T * 2.6 + j * 0.55 + x * 0.3) * (j / 12) * gust), y = 70 + j;
+    // (it sways as cloth does that hangs, and a gust has the foot of it out downwind, and shaking)
+    const off = Math.round((Math.sin(T * 2.6 + j * 0.55 + x * 0.3) * (0.5 + blow * 1.6) + Math.sin(T * 7.3 + j * 0.9 + x) * blow * 1.1 + blow * blow * 5) * (j / 12)), y = 70 + j;
     if (j < 10) { R(x + off, y, 12, 1, c); R(x + off, y, 2, 1, cD); if (j >= 2 && j < 7) R(x + 5 + off, y, 2, 1, 'rgba(255,255,255,.35)'); }
     else { R(x + off, y, 4, 1, c); R(x + 8 + off, y, 4, 1, c); }
   }
@@ -473,9 +567,9 @@ function showBanner(ctx, x, c, cD, T, gust) {
 // Behind the fighters: the crowd, the editor, cloth in the wind, what lies on the sand, the shimmer of heat.
 // What moves in the country behind a fight outside the walls: birds over the hills, things on the air, and at a camp
 // the fire, its smoke, and the outlaws' banner.
-function showWild(ctx, B, T, gust) {
+function showWild(ctx, B, T) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-  const k = B.wild, seed = B.wseed || 1;
+  const k = B.wild, seed = B.wseed || 1, S = B.show, day = B.air ? B.air.gust || 0 : 0;
   for (let i = 0; i < 4; i++) {                 // birds
     const bx = ((i * 139 + seed + T * (9 + i * 3)) % 500) - 36, by = 10 + (i * 11 + seed) % 26 + Math.sin(T * 0.8 + i) * 3, f = Math.sin(T * 8 + i * 2) > 0 ? 1 : 0;
     R(bx - 3, by - f, 3, 1, '#2a2a33'); R(bx + 1, by - f, 3, 1, '#2a2a33'); R(bx, by + 1 - f, 1, 1, '#2a2a33');
@@ -486,8 +580,9 @@ function showWild(ctx, B, T, gust) {
   }
   // things on the air: leaves in a wood, dust on the rock, ash at a camp, seed-down among the stones
   const col = k === 'forest' ? ['#a8762e', '#6f9a4a', '#c9a23a'] : k === 'rock' ? ['#c9c2ae', '#a39c88'] : k === 'camp' ? ['#d8d4cc', '#8a8478'] : ['#f4f0e0', '#e8e0c8'];
-  for (let i = 0; i < (k === 'forest' ? 14 : 9); i++) {
-    const p = (T * (0.05 + (i % 4) * 0.012) + i * 0.173 + seed * 0.01) % 1, x = ((i * 97 + seed * 3 + T * 6 * gust) % 460) - 16 + Math.sin(T * 1.3 + i) * 5;
+  // (they go across as far as the wind has taken them, S.blown: showStep; and a wind brings more leaves down)
+  for (let i = 0; i < (k === 'forest' ? 14 + Math.round(day * 10) : 9); i++) {
+    const p = (T * (0.05 + (i % 4) * 0.012) + i * 0.173 + seed * 0.01) % 1, x = ((i * 97 + seed * 3 + ((S && S.blown) || 0)) % 460) - 16 + Math.sin(T * 1.3 + i) * 5;
     const y = k === 'camp' ? 96 - p * 80 : 20 + p * 210;
     ctx.globalAlpha = Math.min(1, Math.sin(p * Math.PI) * 1.6) * 0.8;
     R(x, y, k === 'forest' ? 2 : 1, 1, col[i % col.length]); if (k === 'forest' && Math.sin(T * 6 + i) > 0) R(x + 1, y + 1, 1, 1, col[i % col.length]);
@@ -498,10 +593,12 @@ function showWild(ctx, B, T, gust) {
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 6; i++) { const r = 34 - i * 5; ctx.fillStyle = `rgba(255,150,60,${(0.04 * k2).toFixed(3)})`; ctx.fillRect(214 - r, 94 - Math.round(r * 0.5), r * 2, r); }
     ctx.globalCompositeOperation = 'source-over';
-    R(209, 85 - fl, 10, 9 + fl, '#e2702a'); R(211, 83 - fl * 2, 6, 9, '#f08a3a'); R(212, 86 - fl, 4, 6, '#f5c04a'); R(213, 88, 2, 4, '#fff0b0');
-    for (let i = 0; i < 4; i++) { const q = (T * 0.3 + i / 4) % 1; ctx.globalAlpha = 0.45 * (1 - q); R(212 + Math.sin(q * 5 + i) * 4 + q * 12 * gust, 80 - q * 46, 4 + Math.round(q * 5), 3 + Math.round(q * 3), '#cfcac0'); }
+    // (the fire leans from a gust, its smoke goes flat before one, and their banner hangs when there is none)
+    const bl = showWind(B, 214, 84, T), ln = bl > 0.7 ? 2 : bl > 0.35 ? 1 : 0, bb = showWind(B, 158, 34, T), droop = 1 - Math.min(1, bb * 4);
+    R(209, 85 - fl, 10, 9 + fl, '#e2702a'); R(211 + ln, 83 - fl * 2, 6, 4, '#f08a3a'); R(211, 87 - fl * 2, 6, 5, '#f08a3a'); R(212, 86 - fl, 4, 6, '#f5c04a'); R(213, 88, 2, 4, '#fff0b0');
+    for (let i = 0; i < 4; i++) { const q = (T * 0.3 + i / 4) % 1; ctx.globalAlpha = 0.45 * (1 - q); R(212 + Math.sin(q * 5 + i) * 4 + q * (8 + 46 * bl), 80 - q * (46 - 16 * bl), 4 + Math.round(q * 5), 3 + Math.round(q * 3), '#cfcac0'); }
     ctx.globalAlpha = 1;
-    for (let i = 0; i < 12; i++) { const dy = Math.round(Math.sin(T * 6 - i * 0.8) * 1.4 * (i / 11) * gust * 0.6); R(152 + i, 31 + dy, 1, i > 8 ? 6 : 8, i % 5 < 3 ? '#8a2a20' : '#6a1f18'); }      // their banner
+    for (let i = 0; i < 12; i++) { const dy = Math.round((Math.sin(T * 6 - i * 0.8) * (0.4 + bb * 1.5) + Math.sin(T * 11 - i * 1.3) * bb * 0.6) * (i / 11) + droop * i * i / 26); R(152 + i, 31 + dy, 1, i > 8 ? 6 : 8, i % 5 < 3 ? '#8a2a20' : '#6a1f18'); }      // their banner
   }
 }
 
@@ -544,7 +641,8 @@ function showBack(ctx, B, T) {
     const p = fl.p, joy = S.joy[fl.side], up = joy > 0.2, c = B.col[fl.side], cD = B.colD[fl.side];
     const sway = up ? Math.round(Math.sin(T * 3 + p.ph) * 2) : 0, top = p.y - (up ? 26 : 19);
     for (let i = 0; i < (up ? 17 : 10); i++) R(p.x + 4 + Math.round(sway * (1 - i / 17)), top + i, 1, 1, '#3a2a1c');
-    if (up) for (let i = 0; i < 9; i++) { const dy = Math.round(Math.sin(T * 7 - i * 0.8 + p.ph) * 1.2 * (i / 8)); R(p.x + 5 + sway + i, top + dy, 1, 6, i % 4 === 3 ? cD : c); if (i === 2 || i === 5) R(p.x + 5 + sway + i, top + 2 + dy, 1, 2, 'rgba(255,255,255,.4)'); }
+    const fw = up ? 0.8 + showWind(B, p.x, p.y, T) * 1.1 : 0;
+    if (up) for (let i = 0; i < 9; i++) { const dy = Math.round(Math.sin(T * 7 - i * 0.8 + p.ph) * fw * (i / 8)); R(p.x + 5 + sway + i, top + dy, 1, 6, i % 4 === 3 ? cD : c); if (i === 2 || i === 5) R(p.x + 5 + sway + i, top + 2 + dy, 1, 2, 'rgba(255,255,255,.4)'); }
     else { R(p.x + 5, top, 2, 7, c); R(p.x + 5, top, 1, 7, cD); }
   }
   // the men with trays, on the stairs
@@ -568,15 +666,16 @@ function showBack(ctx, B, T) {
     }
     ctx.globalAlpha = 1;
   }
-  const gust = 1 + (0.5 + 0.5 * Math.sin(T * 0.45)) * 1.4;
-  if (B.wild) showWild(ctx, B, T, gust);
+  if (B.wild) showWild(ctx, B, T);
   if (!B.wild) {                      // the editor, the banners and the pennants belong to an arena
   showEditor(ctx, B, T);
-  showBanner(ctx, 48, B.col[0], B.colD[0], T, gust); showBanner(ctx, 368, B.col[1], B.colD[1], T + 2, gust);
-  if (th.banners) for (const x of [108, 150, 266, 308]) showBanner(ctx, x, '#d9a441', '#a87a26', T + x, gust);
-  if (!th.awning && th.crowd >= 0.7) for (const x of [44, 132, 292, 380]) {          // pennants along the rim
+  // (each of them by the wind where it hangs: so a gust is seen to cross the arena, one banner after the next)
+  showBanner(ctx, 48, B.col[0], B.colD[0], T, showWind(B, 48, 76, T)); showBanner(ctx, 368, B.col[1], B.colD[1], T + 2, showWind(B, 368, 76, T));
+  if (th.banners) for (const x of [108, 150, 266, 308]) showBanner(ctx, x, '#d9a441', '#a87a26', T + x, showWind(B, x, 76, T));
+  if (!th.awning && th.crowd >= 0.7) for (const x of [44, 132, 292, 380]) {          // pennants along the rim: out and snapping in a gust, and hanging down the pole when the air is still
     R(x, 3, 1, 19, '#3a2a1c');
-    for (let i = 0; i < 9; i++) { const dy = Math.round(Math.sin(T * 6 - i * 0.9 + x) * 1.3 * (i / 8) * gust * 0.6); R(x + 1 + i, 4 + dy, 1, i > 5 ? 3 : 4, i % 4 < 2 ? '#d9a441' : '#b8452e'); }
+    const bl = showWind(B, x, 6, T), droop = 1 - Math.min(1, bl * 4);
+    for (let i = 0; i < 9; i++) { const dy = Math.round((Math.sin(T * 6 - i * 0.9 + x) * (0.4 + bl * 1.4) + Math.sin(T * 11 - i * 1.4 + x) * bl * 0.6) * (i / 8) + droop * i * i / 14); R(x + 1 + i, 4 + dy, 1, i > 5 ? 3 : 4, i % 4 < 2 ? '#d9a441' : '#b8452e'); }
   }
   }
   // blood: bright where it has just fallen, then darkening and spreading as the sand drinks it
@@ -632,6 +731,8 @@ function showBack(ctx, B, T) {
       if (Math.abs(a) > 0.62) ctx.drawImage(bg, 0, y, 428, 1, a > 0 ? 1 : -1, y, 428, 1);
     }
   }
+  showBlown(ctx, B, T);       // what the wind takes off the ground
+  showShade(ctx, B);          // and the shadows of the clouds going over it
 }
 
 // In front of the fighters: what is in the air.
@@ -647,6 +748,7 @@ function showFront(ctx, B, T) {
     const x = o.x0 + (o.x1 - o.x0) * o.t, y = o.y0 + (o.y1 - o.y0) * o.t - Math.sin(o.t * Math.PI) * o.arc;
     ctx.fillStyle = o.col; ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
   }
+  showMist(ctx, B, T);
   // Motes drifting in the light. It is the sun that shows them: so not after dark, fewer to be seen as the sky clouds
   // over, and none in rain or falling snow, which lay them. (A bout to the death always has its low sun, but for the weather.)
   let sun = 1;

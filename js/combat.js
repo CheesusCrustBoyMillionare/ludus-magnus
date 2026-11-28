@@ -2680,8 +2680,13 @@ function drawBattle(ctx, B) {
   if (lying > 0.03) { if (!B._snow) { B._snow0 = B.wild ? renderWildSnow(B) : renderArenaSnow(B); B._snow = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); B._snow.getContext('2d').drawImage(B._snow0, 0, 0); B._wear = new Float32Array(54 * 60); } ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
   // Wet ground, where it is raining or has rained (showWet, in show.js): pools that hold the sky, which is the
   // colour the hour and the cloud make it over this fight, and after dark the torches lying long on the wet.
+  // And what the air over it is doing, for whatever the wind moves and whatever goes over the ground (the wind and
+  // the air, in show.js): the day's wind and cloud, how dark it is, whether there is a sun to throw a cloud's
+  // shadow, and how early in the day it is, from 1 at sunrise to nothing by the middle of the morning.
+  const pv = B.wild && typeof provSky === 'function' && typeof G !== 'undefined' && G && G.field ? provSky() : null;
+  { const s = dusk ? null : hr || pv; B.air = { gust: wxF ? wxF.gust || 0 : 0, over: wxF ? Math.min(1, wxF.over || 0) : 0, rain: wxF ? wxF.rain || 0 : 0, night: s ? s.night : 0, sun: dusk || !!(s && s.sun), early: s && s.sun ? clamp((200 - s.sun[0]) / 160, 0, 1) : 0 }; }
   if (wxF && (wxF.wet > 0 || wxF.rain > 0) && typeof showWet === 'function' && typeof mixHex === 'function') {
-    const pv = B.wild && typeof provSky === 'function' && typeof G !== 'undefined' && G && G.field ? provSky() : null, over = Math.min(1, wxF.over || 0);
+    const over = Math.min(1, wxF.over || 0);
     const up = dusk ? ['#e59a66', 0] : hr ? [hr.bands[1], hr.night] : pv ? [pv.bands[1], pv.night] : ['#a9cfdc', 0];
     showWet(ctx, B, T, wxF, { sky: mixHex(up[0], mixHex('#8d98a3', '#1a2030', up[1]), over * 0.8), night: up[1], lit, lying });
   }
@@ -2797,7 +2802,8 @@ function drawBattle(ctx, B) {
       for (let i = 0; i < 7; i++) { const r = 34 - i * 4; ctx.fillStyle = `rgba(255,150,60,${(0.035 * k).toFixed(3)})`; ctx.fillRect(x + 1 - r, 66 - r * 0.7, r * 2, r * 1.4); }
       for (let i = 0; i < 7; i++) { const w = 62 - i * 8, h = 26 - i * 3; ctx.fillStyle = `rgba(255,170,80,${(0.028 * k).toFixed(3)})`; ctx.fillRect(x + 1 - w / 2, 87 + i, w, h); }
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = '#e2702a'; ctx.fillRect(x - 1, 63 - fl, 4, 6 + fl); ctx.fillStyle = '#f5c04a'; ctx.fillRect(x, 64 - fl, 2, 4); ctx.fillStyle = '#fff0b0'; ctx.fillRect(x, 66, 1, 2);
+      const ln = typeof showWind === 'function' && showWind(B, x, 66, T) > 0.5 ? 1 : 0;      // (a gust has the top of the flame over)
+      ctx.fillStyle = '#e2702a'; ctx.fillRect(x - 1 + ln, 63 - fl, 4, 3); ctx.fillRect(x - 1, 66 - fl, 4, 3 + fl); ctx.fillStyle = '#f5c04a'; ctx.fillRect(x + ln, 64 - fl, 2, 2); ctx.fillRect(x, 66 - fl, 2, 2); ctx.fillStyle = '#fff0b0'; ctx.fillRect(x, 66, 1, 2);
     } else { ctx.fillStyle = '#2a1c14'; ctx.fillRect(x - 1, 66, 4, 3); }
   }
   // And up in the stands, after dark, the lamps that some of them have brought (B.show.lamps): a point of flame
