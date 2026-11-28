@@ -230,28 +230,6 @@ function drawPlace(cv, T, tab) {
     ctx.globalCompositeOperation = 'source-over'; sceneGlow(ctx, lx, ly - 4, 30, '255,170,80', 0.4 * la); if (!scene.indoor) sceneMoths(ctx, T, lx, ly - 6, la);
     if (scene.indoor) for (let q = 0; q < 4; q++) { const an = T * (0.25 + q * 0.07) + lx + q * 1.7, mx = lx + Math.cos(an) * (8 + q * 5), my = ly - 6 + Math.sin(an * 1.3) * (6 + q * 3); ctx.fillStyle = `rgba(255,236,190,${(0.25 + 0.2 * Math.sin(T * 1.1 + q + lx)).toFixed(3)})`; ctx.fillRect(Math.round(mx), Math.round(my), 1, 1); }      // dust turning in the lamplight
   }
-  // And that light on the people: from each lamp and from the hearth, warm, on the side of him it is on and by how
-  // near he is to it, the hearth's never quite steady; and out of doors a little from the moon, cold.
-  if (lit.length) {
-    const FIRE = '255,168,84', MOON = '150,172,240', moonA = !scene.indoor && sky.moon ? 0.34 * sky.night * (1 - litOver) : 0;
-    ctx.globalCompositeOperation = 'lighter';
-    for (const p of lit) {
-      let a1 = 0, c1 = FIRE, a2 = 0, c2 = FIRE, ta = 0, tc = FIRE;      // (on his left, on his right, from above)
-      if (moonA > 0) { if (sceneSun > 0) { a1 = moonA; c1 = MOON; } else { a2 = moonA; c2 = MOON; } ta = moonA * 0.35; tc = MOON; }
-      // (up: how much of the way up the picture between him and it counts as distance. A lamp hangs over the room, or
-      // on a wall over the street, and lights whoever is under it, his head and shoulders most; a hearth is down on the floor.)
-      const flame = (fx, fy, reach, k, up) => {
-        const dx = fx - p.x, a = Math.min(0.6, 0.8 * k * clamp(1 - Math.hypot(dx, (fy - p.y) * up) / reach, 0, 1)); if (a < 0.04) return;
-        if (dx < 0) { if (a > a1) { a1 = a; c1 = FIRE; } } else if (a > a2) { a2 = a; c2 = FIRE; }
-        const top = a * (fy < p.y - 60 ? 0.8 : 0.5); if (top > ta) { ta = top; tc = FIRE; }
-      };
-      if (la > 0) for (const [lx, ly] of lamps) flame(lx, ly, 115, la, 0.6);
-      for (const [fx, fy2, fr] of fires) flame(fx, fy2, 60 + fr * 1.2, 0.82 + 0.18 * Math.sin(T * 9 + fx) * Math.sin(T * 5.3 + 1), 1.1);
-      if (a1 < 0.04 && a2 < 0.04 && ta < 0.04) continue;
-      yardPerson(ctx, p.x, p.y, p.d, Object.assign({}, p.o, { lightOnly: true, light: { la: a1, lc: c1, ra: a2, rc: c2, ta, tc, mask: { x: p.bx, y: p.by, w: LW, h: LH, m: p.m } } }));
-    }
-    ctx.globalCompositeOperation = 'source-over';
-  }
   if (scene.indoor) {
     const fy = scene.floor || 142, day = (1 - sky.night) * (1 - wx.over * 0.6);
     const cg = ctx.createLinearGradient(0, 0, 0, 74); cg.addColorStop(0, 'rgba(10,6,4,.4)'); cg.addColorStop(1, 'rgba(10,6,4,0)'); ctx.fillStyle = cg; ctx.fillRect(0, 0, 590, 74);      // the roof timbers lost in the dark
@@ -265,6 +243,40 @@ function drawPlace(cv, T, tab) {
       ctx.globalCompositeOperation = 'source-over';
       if (day > 0.15) for (let q = 0; q < 9; q++) { const u = (q * 0.37 + 0.1) % 1, v = (T * (0.02 + (q % 3) * 0.008) + q * 0.19) % 1, ax = pts[0][0] + (pts[1][0] - pts[0][0]) * u, ay = pts[0][1] + (pts[1][1] - pts[0][1]) * u, bx = pts[3][0] + (pts[2][0] - pts[3][0]) * u, by = pts[3][1] + (pts[2][1] - pts[3][1]) * u; ctx.fillStyle = `rgba(255,248,220,${(0.5 * day * Math.sin(v * Math.PI)).toFixed(3)})`; ctx.fillRect(Math.round(ax + (bx - ax) * v + Math.sin(T + q) * 2), Math.round(ay + (by - ay) * v), 1, 1); }      // dust, seen only where the light is
     }
+  }
+  // And that light on the people: from each lamp and from the hearth, warm, on the side of him it is on and by how
+  // near he is to it, the hearth's never quite steady; and out of doors a little from the moon, cold.
+  // (It is laid on after the dark of the roof and the corners of a room, and after the daylight that comes in: it is light, and it is on them.)
+  if (lit.length) {
+    const FIRE = '255,168,84', MOON = '150,172,240', moonA = !scene.indoor && sky.moon ? 0.34 * sky.night * (1 - litOver) : 0;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of lit) {
+      let a1 = 0, c1 = FIRE, a2 = 0, c2 = FIRE, ta = 0, tc = FIRE;      // (on his left, on his right, from above)
+      if (moonA > 0) { if (sceneSun > 0) { a1 = moonA; c1 = MOON; } else { a2 = moonA; c2 = MOON; } ta = moonA * 0.35; tc = MOON; }
+      // (up: how much of the way up the picture between him and it counts as distance. A lamp hangs over the room, or
+      // on a wall over the street, and lights whoever is under it, his head and shoulders most; a hearth is down on the floor.)
+      const flame = (fx, fy, reach, k, up) => {
+        const dx = fx - p.x, a = Math.min(0.6, 0.8 * k * clamp(1 - Math.hypot(dx, (fy - p.y) * up) / reach, 0, 1)); if (a < 0.04) return;
+        if (dx < 0) { if (a > a1) { a1 = a; c1 = FIRE; } } else if (a > a2) { a2 = a; c2 = FIRE; }
+        const top = a * (fy < p.y - 60 ? 0.8 : 0.5); if (top > ta) { ta = top; tc = FIRE; }
+      };
+      // Daylight coming in at a door or a window (a shaft: its four corners, the opening first and then where it
+      // falls on the floor) is on whoever stands in it: on the side of him the opening is on, and on his head and
+      // shoulders; by night it is the moon that comes in, and cold. He is in it if his feet or his chest are.
+      for (const pts of shafts) {
+        const inside = (x, y) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+        if (!inside(p.x, p.y - 1) && !inside(p.x, p.y - 20)) continue;
+        const day = (1 - sky.night) * (1 - litOver * 0.6), a = day > 0.15 ? 0.45 * day : 0.24 * sky.night * (1 - litOver), col = day > 0.15 ? '255,240,200' : MOON; if (a < 0.04) continue;
+        const from = (pts[0][0] + pts[1][0]) / 2 - (pts[2][0] + pts[3][0]) / 2;      // (which side of where it falls the opening is on)
+        if (from > 8) { if (a > a2) { a2 = a; c2 = col; } } else if (from < -8) { if (a > a1) { a1 = a; c1 = col; } }
+        if (a * 0.6 > ta) { ta = a * 0.6; tc = col; }
+      }
+      if (la > 0) for (const [lx, ly] of lamps) flame(lx, ly, 115, la, 0.6);
+      for (const [fx, fy2, fr] of fires) flame(fx, fy2, 60 + fr * 1.2, 0.82 + 0.18 * Math.sin(T * 9 + fx) * Math.sin(T * 5.3 + 1), 1.1);
+      if (a1 < 0.04 && a2 < 0.04 && ta < 0.04) continue;
+      yardPerson(ctx, p.x, p.y, p.d, Object.assign({}, p.o, { lightOnly: true, light: { la: a1, lc: c1, ra: a2, rc: c2, ta, tc, mask: { x: p.bx, y: p.by, w: LW, h: LH, m: p.m } } }));
+    }
+    ctx.globalCompositeOperation = 'source-over';
   }
   if (!scene.indoor) { if (wx.wet > 0) R(0, 120, 590, 70, `rgba(60,45,30,${(0.16 * wx.wet).toFixed(3)})`); sceneWhite(ctx, 590, 122, 68, wx.white * 0.2); sceneRain(ctx, 590, 190, T, wx.rain); sceneSnow(ctx, 590, 190, T, wx.snow); sceneStorm(ctx, 590, 190, T, wx); sceneAir(ctx, T, sky, wx, 128, true); sceneWet(ctx, T, sky, wx, 128, lamps, [], true); }
   if (!scene.indoor && tab !== 'arena' && E.games) sceneBunting(ctx, T, 40, 550, 44, wx);
