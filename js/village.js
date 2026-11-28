@@ -260,8 +260,14 @@ function vilChild(ctx, X, Y, face, walk, tunic) {
 // A step is four moments, not two: a foot forward and the other lifted behind it, the feet passing under him (and he
 // rises a little as they do), then the other foot forward, and the feet passing again. Seen from the side his legs
 // part and close; from in front or behind they lift by turns. Standing, he is still, but he blinks (given the time, t).
+// o.light: the light on him, as on a man in a fight (sprLight, in combat.js): an edge of it down the side it comes
+// from. What he is made of is set down as he is drawn, so that it can be found where he ends. o.lightOnly: nothing
+// of him but that light, for whoever lays it on after the rest of the picture (the town after dark: drawVillage).
 function vilPerson(ctx, X, Y, o) {
-  const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); };
+  const rec = !!o.light && typeof sprPut === 'function' && typeof sprLight === 'function', only = rec && !!o.lightOnly;
+  if (rec) _spr.n = 0;
+  const put = (x, y, w, h, c) => { const px = Math.round(X + x), py = Math.round(Y + y); if (rec) sprPut(px, py, w, h, c, 1); if (only) return; ctx.fillStyle = c; ctx.fillRect(px, py, w, h); };
+  const R = (x, y, w, h, c) => { if (c[3] === 'a' && c[0] === 'r') { if (!only) { ctx.fillStyle = c; ctx.fillRect(Math.round(X + x), Math.round(Y + y), w, h); } return; } put(x, y, w, h, c); };      // (his shadow is no part of him)
   const f = o.face, skin = o.skin || '#d9a57c', hair = o.hair || '#3a2a1c', t = o.tunic, tD = shade(t, 0.72), side = f === 'left' || f === 'right', d = f === 'left' ? -1 : 1;
   const ph = o.moving ? Math.floor((((o.walk % 6.2832) + 6.2832) % 6.2832) / 1.5708) & 3 : -1, up = ph === 1 || ph === 3 ? 1 : 0;      // which moment of the step; and whether he is risen
   const B = (x, y, w, h, c) => R(x, y - up, w, h, c);                                                    // whatever of him is above the legs
@@ -283,7 +289,8 @@ function vilPerson(ctx, X, Y, o) {
     B(-3, -16, 7, 2, o.hood); B(-3, -14, 1, 3, o.hood); B(3, -14, 1, 3, o.hood); B(-3, -10, 7, 1, o.hood);
     if (f === 'up') B(-2, -14, 5, 4, o.hood); else if (f === 'left') B(1, -14, 2, 3, o.hood); else if (f === 'right') B(-2, -14, 2, 3, o.hood);
   }
-  if (vil.cold) vilBreath(ctx, X, Y, o);      // (in the town, in winter: see drawVillage. Out in the province it is asked for by whoever draws him there: provBreath)
+  if (rec) sprLight(ctx, o.light);
+  if (vil.cold && !only) vilBreath(ctx, X, Y, o);      // (in the town, in winter: see drawVillage. Out in the province it is asked for by whoever draws him there: provBreath)
 }
 // Breath, in the cold. In winter whoever is out of doors breathes a little cloud: it comes from his mouth, goes up
 // and forward and is gone, and comes again; quicker from a man walking than from one standing. Not seen from behind
@@ -792,10 +799,16 @@ function drawVillage(cv, T) {
 
   // people, the nearer drawn over the farther. By night most of the town is indoors.
   const abroad = dark ? 2 : TOWN_FOLK[townSize()];      // how many of the townsfolk are in the streets: more in a greater town, and hardly any by night
+  // The light on them, as on the people of the yard and of the places (vilPerson, and sprLight in combat.js): by
+  // day an edge of sun on the side it is on, never strong, since they are small; and after dark, laid on when the
+  // dark has come down over the map (below, with the lamps), the moon and whatever burns near them.
+  const litOver = Math.min(1, wx.over || 0), litLow = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0;
+  const sunL = sky.sun && typeof sprLight === 'function' && typeof mixHex === 'function' ? (() => { const a = Math.min(0.3, (0.18 + 0.3 * litLow) * (1 - litOver * 0.85)), c = [1, 3, 5].map(i => parseInt(mixHex(sky.sunCol, '#ffffff', 0.45).slice(i, i + 2), 16)).join(','), top = 0.2 * (1 - litLow) * (1 - litOver * 0.7); return sky.sun[0] > 295 ? { la: 0, lc: c, ra: a, rc: c, ta: top, tc: c } : { la: a, lc: c, ra: 0, rc: c, ta: top, tc: c }; })() : null;
+  const drawn = [], person = (x, y, o) => { if (sunL) o = Object.assign({ light: sunL }, o); vilPerson(ctx, x, y, o); drawn.push({ x, y, o }); };
   // Whoever is standing about, and not walking, turns to the lanista when he comes near.
   const toHim = (x, y) => !vil.inside && !vil.enter && Math.hypot(vil.x - x, vil.y - y) < 24 && Math.hypot(vil.x - x, vil.y - y) > 3 ? faceOf(vil.x - x, vil.y - y, 'down') : null;
-  const folk = vil.npcs.slice(0, abroad).map(n => ({ y: n.y, draw: () => { const f = n.path ? null : toHim(n.x, n.y); vilPerson(ctx, n.x, n.y, f ? Object.assign({}, n, { face: f }) : n); } }));
-  const still = (x, y, o) => folk.push({ y, draw: () => { const f = o && o.moving ? null : toHim(x, y); vilPerson(ctx, x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o, f ? { face: f } : null)); } });
+  const folk = vil.npcs.slice(0, abroad).map(n => ({ y: n.y, draw: () => { const f = n.path ? null : toHim(n.x, n.y); person(n.x, n.y, f ? Object.assign({}, n, { face: f }) : n); } }));
+  const still = (x, y, o) => folk.push({ y, draw: () => { const f = o && o.moving ? null : toHim(x, y); person(x, y, Object.assign({ face: 'down', walk: 0, moving: false }, o, f ? { face: f } : null)); } });
   const notes = [];                    // marks over the heads of people who are waiting for you: [x, y, colour]
   const talks = [];                    // two with something to say to each other: [one, the other, a name for the pair]
   if (!dark && !(G.festival && G.festival.day === G.day)) {      // a carter and his mule, coming along the upper street to the gate, every so often (he keeps off it while a procession has it)
@@ -813,8 +826,8 @@ function drawVillage(cv, T) {
   }
   // two men on the gate, with spears
   // whoever has come to the fountain with something to ask of the school: they stand and wait, with a gold mark over them
-  if (typeof fountainFolk === 'function') fountainFolk().forEach(({ q, owed }, i) => { const Gv = GIVERS[q.giver.kind], gx = [276, 316, 296][i], gy = [138, 140, 146][i]; folk.push({ y: gy, draw: () => { vilPerson(ctx, gx, gy, { face: i === 1 ? 'left' : 'right', walk: 0, moving: false, tunic: Gv.tunic, hair: Gv.hair, skin: Gv.skin }); if (owed) { R(gx + (i === 1 ? -6 : 4), gy - 12, 3, 4, '#8a6a3a'); R(gx + (i === 1 ? -6 : 4), gy - 12, 3, 1, '#e8b545'); } } }); notes.push([gx, gy - 22, owed ? '#7fb85a' : '#e8b545']); });      // green over one who has come to pay, gold over one who has come to ask
-  for (const gy of [72, 106]) folk.push({ y: gy, draw: () => { vilPerson(ctx, 568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
+  if (typeof fountainFolk === 'function') fountainFolk().forEach(({ q, owed }, i) => { const Gv = GIVERS[q.giver.kind], gx = [276, 316, 296][i], gy = [138, 140, 146][i]; folk.push({ y: gy, draw: () => { person(gx, gy, { face: i === 1 ? 'left' : 'right', walk: 0, moving: false, tunic: Gv.tunic, hair: Gv.hair, skin: Gv.skin }); if (owed) { R(gx + (i === 1 ? -6 : 4), gy - 12, 3, 4, '#8a6a3a'); R(gx + (i === 1 ? -6 : 4), gy - 12, 3, 1, '#e8b545'); } } }); notes.push([gx, gy - 22, owed ? '#7fb85a' : '#e8b545']); });      // green over one who has come to pay, gold over one who has come to ask
+  for (const gy of [72, 106]) folk.push({ y: gy, draw: () => { person(568, gy, { face: 'left', walk: 0, moving: false, tunic: '#a02d22', hair: '#b4bec8', skin: '#d9a57c' }); R(563, gy - 20, 1, 20, '#5a4326'); R(562, gy - 22, 3, 3, '#c9d1d9'); } });
   if (!dark) {
     const m = placeOf('market'), tp = placeOf('patrons');
     [[16, '#b93a2e'], [49, '#2f6db8'], [82, '#c9a21e']].forEach(([ox, c], i) => still(m.x + ox, m.y + 30 + (Math.sin(T * 1.5 + i * 2) > 0.6 ? -1 : 0), { tunic: c, hair: '#2a1c14', skin: i % 2 ? '#c9966c' : '#d9a57c' }));      // the stallholders
@@ -865,12 +878,12 @@ function drawVillage(cv, T) {
       if (vil.march !== G.day) { vil.march = G.day; vil.marchT = T; }
       const t = T - vil.marchT, x0 = lu.dx, x1 = a.dx - 46, dur = (x1 - x0) / 30;
       men.forEach((g, i) => { const tx = x1 - i * 7, ty = a.dy + 3 + (i % 2) * 3, s = clamp((t - i * 0.4) / dur, 0, 1), px = x0 + (tx - x0) * s, py = lu.dy + 3 + (ty - lu.dy - 3) * s, going = s < 1;
-        if (s > 0) folk.push({ y: py, draw: () => vilPerson(ctx, px, py, { face: going ? 'right' : 'up', moving: going, walk: T * 9 + i * 2, tunic: '#c23b2e', hair: g.look.hair, skin: g.look.skin }) }); });
+        if (s > 0) folk.push({ y: py, draw: () => person(px, py, { face: going ? 'right' : 'up', moving: going, walk: T * 9 + i * 2, tunic: '#c23b2e', hair: g.look.hair, skin: g.look.skin }) }); });
     }
     // a festival: its procession goes along the upper street to the arena, over and over, all day
     if (G.festival && G.festival.day === G.day) {
       const kind = (G.festival.shown || G.festival.type) === 'funeral' ? 'funeral' : (G.festival.shown || G.festival.type) === 'triumph' ? 'triumph' : 'rite', hx = ((T * 15) % 780) - 100, hy = 82;
-      const one = (off, o, extra) => { const px = hx - off, py = hy + (off % 3); if (px < 6 || px > 566) return; folk.push({ y: py, draw: () => { vilPerson(ctx, px, py, Object.assign({ face: 'right', moving: true, walk: T * 8 + off }, o)); if (extra) extra(px, py); } }); };
+      const one = (off, o, extra) => { const px = hx - off, py = hy + (off % 3); if (px < 6 || px > 566) return; folk.push({ y: py, draw: () => { person(px, py, Object.assign({ face: 'right', moving: true, walk: T * 8 + off }, o)); if (extra) extra(px, py); } }); };
       if (kind === 'funeral') {
         one(0, { tunic: '#2a2a30', hair: '#2a1c14' }, (px, py) => { R(px + 4, py - 17, 1, 9, '#3a2a1c'); R(px + 3, py - 19 - (Math.sin(T * 11) > 0 ? 1 : 0), 3, 3, '#e2702a'); });                  // a torch before the dead, by day
         one(12, { tunic: '#3a3a44', hair: '#6a4a2a' }); one(24, { tunic: '#3a3a44', hair: '#2a1c14' }, (px, py) => { R(px - 3, py - 13, 18, 2, '#5e4426'); R(px - 1, py - 16, 14, 3, '#e8e2d2'); R(px + 10, py - 17, 3, 2, '#d9a57c'); });      // the bier, on two men's shoulders
@@ -904,7 +917,7 @@ function drawVillage(cv, T) {
     const look = { face: vil.face, walk: vil.walk, moving: vil.moving, tunic: '#f1ead8', stripe: '#7a2a8a', hair: '#4a3320', laurel: true };
     if (vil.idleT > 4 && !vil.path) look.face = ['left', 'down', 'right', 'down'][Math.floor((vil.idleT - 4) / 2.4) % 4];      // left standing, he looks up and down the street
     const k = vil.enter ? clamp(vil.enter.t / DOOR_IN, 0, 1) : vil.outT > 0 ? vil.outT / DOOR_OUT : 0;      // how far into the doorway he is
-    if (k <= 0) { vilPerson(ctx, vil.x, vil.y, look); return; }
+    if (k <= 0) { person(vil.x, vil.y, look); return; }
     // going in: up off the step into the doorway, growing small as he goes (a little smaller than the door), and gone
     const p = placeOf(vil.enter ? vil.enter.key : vil.outKey), dx = p.dx, dy = p.y + p.h, s = 1 - (p.kind === 'arena' ? 0.3 : 0.42) * k, x = vil.x + (dx - vil.x) * k, y = vil.y + (dy - vil.y) * k;
     ctx.save(); ctx.globalAlpha = k > 0.82 ? Math.max(0, (1 - k) / 0.18) : 1; ctx.translate(Math.round(x), Math.round(y)); ctx.scale(s, s);
@@ -1022,12 +1035,36 @@ function drawVillage(cv, T) {
       for (const wx2 of pl.kind === 'forum' ? [pl.dx] : [pl.x + 9, pl.x + pl.w - 12]) { R(wx2, wy, 3, 4, '#ffd98a'); R(wx2, wy, 3, 1, '#fff0c0'); }
       ctx.globalAlpha = 1; glow(pl.dx, pl.y + pl.h + 1, 16); ctx.globalAlpha = la;
     }
-    for (const [lx, ly] of [[256, 84], [343, 84], [256, 150], [343, 150], [570, 58], [570, 90]]) {       // torches at the corners of the square, and on the gate
+    const torches = [[256, 84], [343, 84], [256, 150], [343, 150], [570, 58], [570, 90]];
+    for (const [lx, ly] of torches) {       // torches at the corners of the square, and on the gate
       R(lx, ly - 7, 1, 8, '#3a2a1c'); R(lx - 1, ly - 10 - fl, 3, 4 + fl, '#e2702a'); R(lx, ly - 9 - fl, 1, 2, '#f5c04a');
       ctx.globalAlpha = 1; glow(lx, ly - 2, 15); ctx.globalAlpha = la;
     }
     R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 13 - fl, 2, 3 + fl, '#e2702a'); R(vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 10, 1, 4, '#3a2a1c');     // he carries a brand
     ctx.globalAlpha = 1; glow(vil.x, vil.y - 6, 13);
+    // And an edge of that light on whoever is still abroad: cold from the moon, warm from an open door, a torch, or
+    // the brand the master carries, on the side of him it is on and by how near he is. Whoever stands in front of
+    // one of them is in front of the light on him as well.
+    if (drawn.length && typeof sprLight === 'function') {
+      const FIRE = '255,168,84', MOON = '150,172,240', moonA = sky.moon ? 0.26 * night * (1 - litOver) : 0, moonLeft = sky.moon && sky.moon[0] < 295;
+      const fires = torches.map(([lx, ly]) => [lx, ly - 6, 30]).concat(PLACES.filter(p => p.kind !== 'arena' && p.kind !== 'market').map(p => [p.dx, p.y + p.h + 1, 24]), vil.inside ? [] : [[vil.x + (vil.face === 'left' ? -5 : 5), vil.y - 8, 15]]);
+      ctx.globalCompositeOperation = 'lighter';
+      for (const p of drawn) {
+        let a1 = 0, c1 = FIRE, a2 = 0, c2 = FIRE, ta = 0, tc = FIRE;      // (on his left, on his right, from above)
+        if (moonA > 0) { if (moonLeft) { a1 = moonA; c1 = MOON; } else { a2 = moonA; c2 = MOON; } ta = moonA * 0.4; tc = MOON; }
+        for (const [fx, fy, reach] of fires) {
+          const dx = fx - p.x, a = Math.min(0.3, 0.6 * la * clamp(1 - Math.hypot(dx, fy - (p.y - 7)) / reach, 0, 1)); if (a < 0.04) continue;      // (never much: he stands in the glow of it already, and would burn white)
+          if (dx < 0) { if (a > a1) { a1 = a; c1 = FIRE; } } else if (a > a2) { a2 = a; c2 = FIRE; }
+          if (a * 0.5 > ta) { ta = a * 0.5; tc = FIRE; }
+        }
+        if (a1 < 0.04 && a2 < 0.04 && ta < 0.04) continue;
+        const before = drawn.filter(q => q !== p && q.y > p.y && q.y - p.y < 17 && Math.abs(q.x - p.x) < 9);
+        if (before.length) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 590, 190); for (const q of before) ctx.rect(Math.round(q.x) - 4, Math.round(q.y) - 17, 9, 17); ctx.clip('evenodd'); }
+        vilPerson(ctx, p.x, p.y, Object.assign({}, p.o, { lightOnly: true, light: { la: a1, lc: c1, ra: a2, rc: c2, ta, tc } }));
+        if (before.length) ctx.restore();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
   if (wx.white > 0) { ctx.fillStyle = `rgba(244,248,252,${((vil.snow ? 0.06 : 0.3) * wx.white).toFixed(3)})`; ctx.fillRect(0, 0, 590, 190); }      // the white of a snowy day over everything (and all the snow there is, where the map has not been painted for winter)
   sceneSnow(ctx, 590, 190, T, wx.snow, 110); sceneStorm(ctx, 590, 190, T, wx);
