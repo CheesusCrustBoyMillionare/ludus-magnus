@@ -831,6 +831,7 @@ function drawSprite(ctx, o) {
   S.n = 0;
   if (beast) beastRects(o); else spriteRects(o);
   const n = S.n, X = S.x, Y = S.y, W = S.w, H = S.h, C = S.c, I = S.ink;
+  if (o.lightOnly) { if (o.light) sprLight(ctx, o.light); return; }      // (nothing of him but the light on him: for whoever lays it on after the dark has come down over the picture, as the yard does)
   if (!o.plain && !(beast && o.solid)) {
     ctx.fillStyle = SPRITE_INK;
     for (let e = 0; e < 4; e++) { const dx = SPRITE_EDGE[e][0], dy = SPRITE_EDGE[e][1]; for (let i = 0; i < n; i++) if (I[i]) ctx.fillRect(X[i] + dx, Y[i] + dy, W[i], H[i]); }

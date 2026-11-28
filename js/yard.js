@@ -884,12 +884,33 @@ function drawYard(cv, T) {
         label(522, GY + 22, k === 'temple' ? 'from the Temple' : k === 'guild' ? 'from the Guild' : 'from the Magistrate'); } }
   }
   yardSel = null;
+  // The light on the men at their training, as it is on men in a fight (sprLight, in combat.js). By day an edge of
+  // sun down the side it is on, low and strong toward either end of the day, more from overhead at noon, and hardly
+  // any under cloud; and their shadows are thrown away from it, to the left once the sun has crossed, as everyone
+  // else's in the yard are, and short under cloud. After dark a little from the moon, cold, and from whatever is
+  // burning near them, warm: the brazier, the torches at the gate, the lamp at the shrine. What comes after dark is
+  // laid on when the dark has come down over the picture (manGlow, below), or the dark would take it.
+  const manOver = Math.min(1, wx.over || 0), manLow = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, rgbOf = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)).join(',');
+  const manShadow = { len: sky.sun ? Math.round(sky.shadow.len * (1 - manOver * 0.85)) : 2, a: sky.sun ? sky.shadow.a : +(sky.shadow.a * 0.8).toFixed(3), dir: sceneSun };
+  const manSun = sky.sun ? (() => { const a = (0.22 + 0.4 * manLow) * (1 - manOver * 0.85), c = rgbOf(mixHex(sky.sunCol, '#ffffff', 0.45)), top = 0.24 * (1 - manLow) * (1 - manOver * 0.7); return sceneSun > 0 ? { la: a, lc: c, ra: 0, rc: c, ta: top, tc: c } : { la: 0, lc: c, ra: a, rc: c, ta: top, tc: c }; })() : null;
+  const men = [];      // each of them as he was drawn, for the light that is laid on him after dark
+  const manGlow = sp => {
+    const n = sky.night, FIRE = '255,168,84', MOON = '150,172,240';
+    let la = 0, lc = FIRE, ra = 0, rc = FIRE, ta = 0, tc = FIRE;
+    if (sky.moon) { const a = 0.34 * n * (1 - manOver); if (sceneSun > 0) { la = a; lc = MOON; } else { ra = a; rc = MOON; } ta = 0.12 * n * (1 - manOver); tc = MOON; }
+    for (const [fx, fy, r] of fires) {      // a flame: by how near he is to it, on the side of him it is on
+      const dx = fx - sp.x, a = 0.9 * n * clamp(1 - Math.hypot(dx, (fy - sp.y) * 1.3) / (60 + r * 3.5), 0, 1); if (a < 0.04) continue;
+      if (dx < 0) { if (a > la) { la = a; lc = FIRE; } } else if (a > ra) { ra = a; rc = FIRE; }
+      if (a * 0.5 > ta) { ta = a * 0.5; tc = FIRE; }
+    }
+    return la < 0.04 && ra < 0.04 && ta < 0.04 ? null : { la, lc, ra, rc, ta, tc };
+  };
   const place = (g, x, y, o) => {
     if (typeof ui !== 'undefined' && g.id === ui.sel) yardSel = { id: g.id, x, y };      // where the man being read stands, for his master to walk over to
     things.push({ y, draw: () => {
-      const sp = Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: sky.shadow }, o);
+      const sp = Object.assign({ x, y, facing: 1, g, team: 0, moving: false, walk: 0, clock: T + g.id, atkAnim: 0, flash: 0, down: false, snare: 0, shadow: manShadow, light: manSun }, o);
       if (guestNear(x, y) && !sp.moving && !sp.down && !sp.falling && !sp.windup && !sp.atkAnim) sp.facing = yardGuest.x > x ? 1 : -1;      // a man with nothing in his hands turns to his master when he comes by
-      drawSprite(ctx, sp);
+      drawSprite(ctx, sp); men.push(sp);
       if (sceneCold && !sp.down && !sp.falling && !g.beast) sceneBreath(ctx, x + sp.facing * 5, y - 30, sp.facing, g.id * 37 + 11, !!sp.moving || !!sp.atkAnim);      // and the men at their training
       if (g.id === ui.sel) { R(x - 2, y - 52, 5, 2, '#e8b545'); R(x - 1, y - 50, 3, 1, '#e8b545'); R(x, y - 49, 1, 1, '#e8b545'); }
       // a name is skipped when it would sit on top of one already drawn; the selected fighter always gets his
@@ -1091,6 +1112,18 @@ function drawYard(cv, T) {
       const k = (0.85 + Math.sin(T * 8 + fx) * 0.15) * n;
       sceneGlow(ctx, fx, fy, r * 1.25, '255,150,60', 0.42 * k); scenePool(ctx, fx, GY + 8, r * 1.9, '255,165,80', 0.26 * k);
     }
+    // and the edge of moon or of fire on the men at their training (manGlow). Whoever stands in front of one of them
+    // is in front of the light on him as well: it is kept off where they are.
+    ctx.globalCompositeOperation = 'lighter';
+    for (const sp of men) {
+      const L = manGlow(sp); if (!L) continue;
+      const front = q => q !== sp && q.y > sp.y && q.y - sp.y < 40 && Math.abs(q.x - sp.x) < 30;
+      const before = men.filter(front).concat(folk.filter(front), typeof vil !== 'undefined' && vil.inside === 'ludus' && front(yardGuest) ? [yardGuest] : []);
+      if (before.length) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 590, YARD.H); for (const q of before) ctx.rect(Math.round(q.x) - 11, Math.round(q.y) - 44, 22, 44); ctx.clip('evenodd'); }
+      drawSprite(ctx, Object.assign({}, sp, { light: L, lightOnly: true }));
+      if (before.length) ctx.restore();
+    }
+    ctx.globalCompositeOperation = 'source-over';
   }
   for (const [fx, fy] of fires) sceneSparks(ctx, T, fx, fy - 4);
   sceneWet(ctx, T, sky, wx, GY, lights.map(l => [l[0] + 3, l[1] + 3]).concat(fires.map(f => [f[0], f[1]])), casts.map(([bx, bw, bh]) => [bx - 3, bw + 6, GY - bh]), false);
