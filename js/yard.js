@@ -52,17 +52,24 @@ function yardWeather(T) {
   return { kind: k, rain: k === 'rain' ? amt : 0, snow: 0, white: prev === 'rain' && sceneSeason() === 3 ? wet : 0, gust: k === 'wind' ? amt : 0, over: amt * ({ cloud: 0.75, rain: 1, wind: 0.3 }[k] || 0), wet: sceneSeason() === 3 ? 0 : wet };
 }
 
+// o.light: the light on him, as it is on a fighter (sprLight, in combat.js): an edge of sun, of moon or of fire down
+// the side it comes from. He is set down as a list of what he is made of while he is drawn, so that it can be found
+// where he ends. o.lightOnly: nothing of him but that light, for whoever lays it on after the rest of the picture.
 function yardPerson(ctx, X, Y, d, o) {
-  const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(d > 0 ? X + x : X - x - w, Y + y, w, h); };
+  const rec = !!o.light && typeof sprPut === 'function' && typeof sprLight === 'function', only = rec && !!o.lightOnly;
+  if (rec) _spr.n = 0;
+  const P = (x, y, w, h, c) => { const px = d > 0 ? X + x : X - x - w; if (rec) sprPut(px, Y + y, w, h, c, 1); if (only) return; ctx.fillStyle = c; ctx.fillRect(px, Y + y, w, h); };
   const skin = o.skin || '#d9a57c', skinD = shade(skin, 0.76), tunicD = shade(o.tunic, 0.72), wood = '#7a5a2a';
-  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); { const ext = 14 + Math.round(sceneLow * 16); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(sceneSun > 0 ? X - 4 : X + 4 - ext, Y - 1, ext, 2); }
+  if (!only) { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); { const ext = 14 + Math.round(sceneLow * 16); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(sceneSun > 0 ? X - 4 : X + 4 - ext, Y - 1, ext, 2); } }
   const st = o.moving ? (Math.sin(o.walk) > 0 ? 1 : -1) : 0;      // stride
   // the body rises a little in the middle of each stride; standing, it lifts now and then with a breath
-  const ub = o.moving ? (Math.abs(Math.sin(o.walk)) < 0.4 ? 1 : 0) : (Math.sin(performance.now() / 1000 * 1.4 + X * 0.37) > 0.9 ? 1 : 0), U = (x, y, w, h, c) => P(x, y - ub, w, h, c);
+  // (kept, o._ub, so that the light laid on him afterwards is laid on him as he was drawn)
+  const ub = only && o._ub !== undefined ? o._ub : o.moving ? (Math.abs(Math.sin(o.walk)) < 0.4 ? 1 : 0) : (Math.sin(performance.now() / 1000 * 1.4 + X * 0.37) > 0.9 ? 1 : 0), U = (x, y, w, h, c) => P(x, y - ub, w, h, c);
+  o._ub = ub;
   const tc = o.tunic || '#8a4a3a', hsh = (tc.charCodeAt(1) * 7 + tc.charCodeAt(3) * 13 + tc.charCodeAt(5) * 29 + (o.hair || '#3a2a1c').charCodeAt(2) * 5 + (o.skin || '#d9a57c').charCodeAt(4) * 3) % 420, plain = !o.item && !o.apron && !o.staff;
   P(-3 - st, -12, 3, 12 - (st > 0 ? 1 : 0), skinD); P(st, -12, 3, 12 - (st < 0 ? 1 : 0), skin);
   P(-3 - st, -2 - (st > 0 ? 1 : 0), 4, 2, '#6b4526'); P(st, -2 - (st < 0 ? 1 : 0), 5, 2, '#6b4526'); P(-3 - st, -5, 3, 1, '#6b4526'); P(st, -5, 3, 1, '#6b4526');      // sandals, laced up the ankle
-  if (o.moving && Math.abs(Math.sin(o.walk)) > 0.86) { ctx.fillStyle = 'rgba(214,190,140,.5)'; ctx.fillRect(d > 0 ? X - 9 : X + 7, Y - 2, 2, 1); ctx.fillRect(d > 0 ? X - 11 : X + 10, Y - 3, 1, 1); }      // the dust a foot kicks up
+  if (!only && o.moving && Math.abs(Math.sin(o.walk)) > 0.86) { ctx.fillStyle = 'rgba(214,190,140,.5)'; ctx.fillRect(d > 0 ? X - 9 : X + 7, Y - 2, 2, 1); ctx.fillRect(d > 0 ? X - 11 : X + 10, Y - 3, 1, 1); }      // the dust a foot kicks up
   U(-4, -27, 8, 17, o.tunic); U(-4, -27, 2, 17, tunicD); U(-4, -18, 8, 1, '#6b4526');
   if (o.apron) { U(-1, -26, 5, 15, o.apron); U(-1, -26, 1, 15, shade(o.apron, 0.8)); }
   U(-1, -28, 3, 1, skinD);
@@ -95,7 +102,8 @@ function yardPerson(ctx, X, Y, d, o) {
     if (hsh % 3 === 0) U(-4, -12, 8, 1, shade(o.tunic, 1.3));
     if (hsh % 6 === 3) { U(-5, -27, 3, 13, shade(o.tunic, 0.58)); U(-5, -27, 9, 2, shade(o.tunic, 0.58)); }
   }
-  if (sceneCold) sceneBreath(ctx, X + d * 4, Y - 30 - ub, d, hsh, !!o.moving);      // in winter, out of doors, he breathes a cloud
+  if (rec) sprLight(ctx, o.light);
+  if (sceneCold && !only) sceneBreath(ctx, X + d * 4, Y - 30 - ub, d, hsh, !!o.moving);      // in winter, out of doors, he breathes a cloud
 }
 
 // The yard turns through a day every four minutes: a long day, a short dusk, night, and dawn.
@@ -880,7 +888,7 @@ function drawYard(cv, T) {
     // someone sent by a patron waits inside the gate when you are asked for by name, or asked a favour
     { const asked = (G.contracts || []).find(c => c.asked), req = G.request && !G.request.done ? G.request : null, k = asked ? asked.patron : req ? req.patron : null;
       if (k && sky.night < 0.7) { const c = k === 'temple' ? '#f1ead8' : k === 'guild' ? '#c9a21e' : '#7a2a8a';
-        things.push({ y: GY + 13, draw: () => yardPerson(ctx, 522, GY + 13, -1, { tunic: c, hair: '#2a1c14', item: 'scroll' }) });
+        things.push({ y: GY + 13, draw: () => person(522, GY + 13, -1, { tunic: c, hair: '#2a1c14', item: 'scroll' }) });
         label(522, GY + 22, k === 'temple' ? 'from the Temple' : k === 'guild' ? 'from the Guild' : 'from the Magistrate'); } }
   }
   yardSel = null;
@@ -894,12 +902,15 @@ function drawYard(cv, T) {
   const manShadow = { len: sky.sun ? Math.round(sky.shadow.len * (1 - manOver * 0.85)) : 2, a: sky.sun ? sky.shadow.a : +(sky.shadow.a * 0.8).toFixed(3), dir: sceneSun };
   const manSun = sky.sun ? (() => { const a = (0.22 + 0.4 * manLow) * (1 - manOver * 0.85), c = rgbOf(mixHex(sky.sunCol, '#ffffff', 0.45)), top = 0.24 * (1 - manLow) * (1 - manOver * 0.7); return sceneSun > 0 ? { la: a, lc: c, ra: 0, rc: c, ta: top, tc: c } : { la: 0, lc: c, ra: a, rc: c, ta: top, tc: c }; })() : null;
   const men = [];      // each of them as he was drawn, for the light that is laid on him after dark
+  // Everyone else in the yard is lit the same: the staff at their work, the master, whoever a patron has sent, the
+  // men on the scaffolding (person: yardPerson, with the day's light on him, and kept for the light after dark).
+  const people = [], person = (X, Y, d, o) => { const q = Object.assign({ light: manSun }, o); yardPerson(ctx, X, Y, d, q); people.push({ x: X, y: Y, d, o: q }); };
   const manGlow = sp => {
     const n = sky.night, FIRE = '255,168,84', MOON = '150,172,240';
     let la = 0, lc = FIRE, ra = 0, rc = FIRE, ta = 0, tc = FIRE;
     if (sky.moon) { const a = 0.34 * n * (1 - manOver); if (sceneSun > 0) { la = a; lc = MOON; } else { ra = a; rc = MOON; } ta = 0.12 * n * (1 - manOver); tc = MOON; }
     for (const [fx, fy, r] of fires) {      // a flame: by how near he is to it, on the side of him it is on
-      const dx = fx - sp.x, a = 0.9 * n * clamp(1 - Math.hypot(dx, (fy - sp.y) * 1.3) / (60 + r * 3.5), 0, 1); if (a < 0.04) continue;
+      const dx = fx - sp.x, a = Math.min(0.6, 0.8 * n * clamp(1 - Math.hypot(dx, (fy - sp.y) * 1.3) / (60 + r * 3.5), 0, 1)); if (a < 0.04) continue;      // (no more than so much, however near: it is laid on as light, and a man a step from the brazier would burn white)
       if (dx < 0) { if (a > la) { la = a; lc = FIRE; } } else if (a > ra) { ra = a; rc = FIRE; }
       if (a * 0.5 > ta) { ta = a * 0.5; tc = FIRE; }
     }
@@ -955,7 +966,7 @@ function drawYard(cv, T) {
     const s = route[a.n];
     if (s.gone && !a.moving) return a;                 // out of the gate on an errand
     folk.push(a);
-    things.push({ y: a.y, draw: () => yardPerson(ctx, Math.round(a.x), Math.round(a.y), a.moving ? a.face : guestNear(a.x, a.y) ? (yardGuest.x > a.x ? 1 : -1) : (s.face || a.face),
+    things.push({ y: a.y, draw: () => person(Math.round(a.x), Math.round(a.y), a.moving ? a.face : guestNear(a.x, a.y) ? (yardGuest.x > a.x ? 1 : -1) : (s.face || a.face),
       Object.assign({ moving: a.moving, walk: a.walk, item: s.item }, look, s.pose ? s.pose(a) : null)) });
     return a;
   };
@@ -1069,7 +1080,7 @@ function drawYard(cv, T) {
     if (goal && moving) things.push({ y: goal.y - 0.5, draw: () => { ctx.globalAlpha = 0.45 + 0.35 * Math.sin(T * 6); R(goal.x - 4, goal.y - 1, 9, 2, '#f5d584'); R(goal.x - 2, goal.y - 2, 5, 4, '#f5d584'); ctx.globalAlpha = 1; } });      // where he has been sent, marked on the sand
     const X = Math.round(Gs.x), Y = Math.round(Gs.y), d = Gs.d * (!moving && !who && !lv && guestGlance(T) ? -1 : 1);      // with nothing to do he looks about him now and then
     things.push({ y: Y, draw: () => {
-      yardPerson(ctx, X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
+      person(X, Y, d, { tunic: '#f1ead8', hair: '#4a3320', moving, walk: Gs.walk, item: 'lanista' });
       R(d > 0 ? X : X - 1, Y - 27, 2, 16, '#7a2a8a'); R(X - 3, Y - 37, 6, 1, '#6f8f48'); R(d > 0 ? X + 2 : X - 3, Y - 36, 1, 1, '#6f8f48'); R(d > 0 ? X - 3 : X + 2, Y - 37, 1, 1, '#e8b545');
       if (!moving && who) { const sx = X + d * 3, sy = Y - 26, ax = who.x - d * 6 - sx, ay = who.y - 30 - sy, n = Math.hypot(ax, ay) || 1; for (let q = 0; q <= 9; q += 2) R(Math.round(sx + ax / n * q) - (d > 0 ? 0 : 1), Math.round(sy + ay / n * q), 2, 2, q > 6 ? '#e3b48f' : '#d9a57c'); }      // a hand out towards him
     } });
@@ -1079,12 +1090,12 @@ function drawYard(cv, T) {
     const boxes = yardHits.filter(h => h.fac), of = h => h.fac === 'stables' ? ['stables', 'eagle'] : [h.fac];
     for (const h of boxes) {
       const x = Math.round(h.x0), y = Math.round(h.y0), w = Math.round(h.x1 - h.x0), hh = GY - y;
-      if (worksOn(of(h))) things.push({ y: GY + 0.6, draw: () => sceneScaffold(ctx, T, x, y, w, hh, { big: 2, person: (px, py, d, o) => yardPerson(ctx, px, py, d, o) }) });
+      if (worksOn(of(h))) things.push({ y: GY + 0.6, draw: () => sceneScaffold(ctx, T, x, y, w, hh, { big: 2, person: (px, py, d, o) => person(px, py, d, o) }) });
       const dp = dustOn(of(h)); if (dp >= 0) things.push({ y: GY + 0.7, draw: () => sceneDust(ctx, dp, x, y, w, hh) });
     }
     if (worksOn(['ground'])) things.push({ y: GY + 20, draw: () => {      // the training ground: timber stacked on the sand, and a man setting a new post
       for (let q = 0; q < 4; q++) { R(276 + q * 2, GY + 17 - q * 2, 26 - q * 4, 2, q % 2 ? '#8a6a3a' : '#a8834a'); }
-      R(318, GY + 2, 3, 18, '#7a5a2a'); R(318, GY + 2, 1, 18, '#a8834a'); yardPerson(ctx, 330, GY + 20, -1, { tunic: '#c9b48a', hair: '#2a1c14', item: 'hammer', swing: (T * 1.6) % 1 }); } });
+      R(318, GY + 2, 3, 18, '#7a5a2a'); R(318, GY + 2, 1, 18, '#a8834a'); person(330, GY + 20, -1, { tunic: '#c9b48a', hair: '#2a1c14', item: 'hammer', swing: (T * 1.6) % 1 }); } });
     { const dp = dustOn(['ground']); if (dp >= 0) things.push({ y: GY + 20.1, draw: () => sceneDust(ctx, dp, 270, GY - 4, 70, 24) }); }
   }
   things.sort((a, b) => a.y - b.y).forEach(o => o.draw());
@@ -1112,15 +1123,16 @@ function drawYard(cv, T) {
       const k = (0.85 + Math.sin(T * 8 + fx) * 0.15) * n;
       sceneGlow(ctx, fx, fy, r * 1.25, '255,150,60', 0.42 * k); scenePool(ctx, fx, GY + 8, r * 1.9, '255,165,80', 0.26 * k);
     }
-    // and the edge of moon or of fire on the men at their training (manGlow). Whoever stands in front of one of them
-    // is in front of the light on him as well: it is kept off where they are.
+    // and the edge of moon or of fire on everyone in the yard, the men at their training and the rest (manGlow).
+    // Whoever stands in front of one of them is in front of the light on him as well: it is kept off where they are.
+    const all = men.map(sp => ({ x: sp.x, y: sp.y, glow: L => drawSprite(ctx, Object.assign({}, sp, { light: L, lightOnly: true })) }))
+      .concat(people.map(p => ({ x: p.x, y: p.y, glow: L => yardPerson(ctx, p.x, p.y, p.d, Object.assign({}, p.o, { light: L, lightOnly: true })) })));
     ctx.globalCompositeOperation = 'lighter';
-    for (const sp of men) {
-      const L = manGlow(sp); if (!L) continue;
-      const front = q => q !== sp && q.y > sp.y && q.y - sp.y < 40 && Math.abs(q.x - sp.x) < 30;
-      const before = men.filter(front).concat(folk.filter(front), typeof vil !== 'undefined' && vil.inside === 'ludus' && front(yardGuest) ? [yardGuest] : []);
+    for (const m of all) {
+      const L = manGlow(m); if (!L) continue;
+      const before = all.filter(q => q !== m && q.y > m.y && q.y - m.y < 40 && Math.abs(q.x - m.x) < 30);
       if (before.length) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 590, YARD.H); for (const q of before) ctx.rect(Math.round(q.x) - 11, Math.round(q.y) - 44, 22, 44); ctx.clip('evenodd'); }
-      drawSprite(ctx, Object.assign({}, sp, { light: L, lightOnly: true }));
+      m.glow(L);
       if (before.length) ctx.restore();
     }
     ctx.globalCompositeOperation = 'source-over';
