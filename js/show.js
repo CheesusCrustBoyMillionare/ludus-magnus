@@ -9,7 +9,7 @@ const SHOW_PETALS = ['#e06a8a', '#f2ecd8', '#e8b545', '#d94a3a', '#f0c0d0'];
 const SHOW_SCRAPS = ['#6f9a3a', '#8ab04a', '#c9a763', '#7a5a2a'];
 
 function showInit(B) {
-  const S = B.show = { t: B.clock, exc: B.exc, thrown: [], litter: [], puffs: [], motes: [], bored: 0, nextThrow: 0, steps: {}, fell: {}, at: {}, fill: 0 };
+  const S = B.show = { t: B.clock, exc: B.exc, thrown: [], litter: [], puffs: [], motes: [], bored: 0, nextThrow: 0, steps: {}, fell: {}, at: {}, fill: 0, rings: [] };
   // Each of them has a side: the red's people sit mostly under the red banner and the blue's under the blue, with some who
   // have come only for the show. One in five has brought a cloth in his side's colour, and each side has its flags.
   B.crowd.forEach((p, i) => {
@@ -114,6 +114,122 @@ function snowTread(B, S, f, i) {
   const n = Math.floor(d / stride); if (n > 30) { a.x = x; a.y = y; return; }
   for (let q = 1; q <= n; q++) snowPrint(B, a.x + dx / d * stride * q, a.y + dy / d * stride * q, dx / d, dy / d, a.side = -a.side, !!f.g.beast);
   a.x += dx / d * stride * n; a.y += dy / d * stride * n;
+}
+
+// ---- wet ground ----
+// Where it is raining on a fight, or has been, the ground is wet as the yard is in rain (sceneWet, in yard.js), by
+// how wet the day has made it. Water stands in the low places: a few pools, laid out once for the fight (wetPools),
+// small when the rain has just come on and at their widest when it has rained a while; each holds the colour of the
+// sky over it, with a pale place where it is brightest and a dark edge of soaked ground. While rain falls a pool is
+// ringed where drops strike it and the open ground jumps with them; a man who goes through one leaves a ring behind
+// each step (S.rings: showStep). The ground has a sheen. After dark every torch on the wall lies drawn out long
+// across the wet under it, and a pool in its way has the fire in it; a camp's fire the same, at any hour
+// (showWetFire). Where snow lies there is none of it. All but the fire is drawn under the blood and the men.
+// (A pool: x, y its middle, w how wide at its widest, s what shapes its edge; and rx, ry, what it measures now.)
+function wetPools(B, S) {
+  const pools = [], seed = B.wild ? B.wseed || 1 : 1 + Math.floor(Math.random() * 900);
+  // Out in the province a pool lies only on open ground: the picture is looked at, as it is for snow (renderWildSnow),
+  // and a place is passed over if a stone, a log or a fallen drum is in it.
+  let D = null, g = null;
+  if (B.wild && B._bg && B._ground) { try { D = B._bg.getContext('2d').getImageData(0, 0, 428, 240).data; g = [1, 3, 5].map(i => parseInt(B._ground.slice(i, i + 2), 16)); } catch (e) { D = null; } }
+  const open = (x, y, rx, ry) => {
+    if (!D) return true;
+    let n = 0, ok = 0;
+    for (let yy = y - ry - 1; yy <= y + ry + 1; yy++) for (let xx = x - rx - 2; xx <= x + rx + 2; xx += 2) { const i = (yy * 428 + xx) * 4; n++; if (Math.abs(D[i] - g[0]) + Math.abs(D[i + 1] - g[1]) + Math.abs(D[i + 2] - g[2]) < 72) ok++; }
+    return ok >= n * 0.9;
+  };
+  for (let q = 0; q < 60 && pools.length < (B.wild ? 8 : 9); q++) {
+    const w = 18 + Math.round(wildHash(q, 3, seed) * 30), rx = w >> 1, ry = 2 + Math.round(w / 14), x = Math.round(26 + rx + wildHash(q, 1, seed) * (376 - w)), y = Math.round(106 + wildHash(q, 2, seed) * 112);
+    if (B.wild === 'camp' && Math.abs(x - 214) < rx + 16 && y < 112) continue;      // (the fire)
+    if (pools.some(p => Math.abs(p.x - x) < (p.w + w) / 2 + 10 && Math.abs(p.y - y) < 12) || !open(x, y, rx, ry)) continue;
+    pools.push({ x, y, w, s: wildHash(q, 4, seed) * 6.28, rx: 0, ry: 0 });
+  }
+  return S.pools = pools;
+}
+// Half of how wide a pool is, so many rows above or below its middle: nothing, where the row is clear of it.
+function poolHalf(p, yy) { const q = 1 - (yy * yy) / (p.ry * p.ry + 0.5); return q <= 0 || p.rx < 3 ? 0 : Math.max(0, Math.round(p.rx * Math.sqrt(q) + Math.sin(p.s + yy * 1.7) * Math.min(2, p.rx * 0.16))); }
+// The pool that is under a place in the picture, if one is.
+function poolAt(B, x, y) {
+  const S = B.show; if (!S || !S.pools || !((B.wet || 0) > 0) || (B.lying || 0) > 0.4) return null;
+  for (const p of S.pools) { const yy = Math.round(y) - p.y; if (Math.abs(yy) <= p.ry && Math.abs(x - p.x) < poolHalf(p, yy)) return p; }
+  return null;
+}
+// o.sky: the colour of the sky over the fight; o.night: how dark it is, 0 to 1; o.lit: how far the torches are
+// alight; o.lying: how much snow lies.
+function showWet(ctx, B, T, wx, o) {
+  const S = B.show || showInit(B), rain = wx.rain || 0, wet = Math.min(1, Math.max(wx.wet || 0, rain * 0.6)), dry = clamp(1 - (o.lying || 0) * 2.5, 0, 1);
+  S.wetF = null;
+  if (!(wet > 0.02) || !(dry > 0) || typeof mixHex !== 'function') { if (S.rings) S.rings.length = 0; return; }
+  const gy = B.wild ? 98 : 88, night = o.night || 0, lit = B.wild ? 0 : o.lit || 0, pools = S.pools || wetPools(B, S);
+  const ground = B.wild ? B._ground || '#6f8a45' : B.theme.sand;
+  const sky = mixHex(o.sky, '#9aa4b4', night * 0.6);      // (after dark the whole picture is darkened once it is drawn, the water with it: so it is not painted as dark as the sky it holds)
+  const body = mixHex(mixHex(ground, '#33261a', 0.5), sky, 0.5), far = mixHex(body, '#2a2420', 0.3), pale = mixHex(sky, '#ffffff', 0.4 * (1 - night * 0.6));
+  // the sheen of it
+  ctx.fillStyle = `rgba(${night > 0.5 ? '120,140,200' : '236,240,246'},${(0.07 * wet * dry).toFixed(3)})`;
+  for (let i = 0; i < 18; i++) ctx.fillRect((i * 149 + 20) % 396, gy + 8 + (i * 31) % (230 - gy), 18 + (i % 4) * 10, 1);
+  // (the fires there are to lie on it: each torch, if they are lit, or a camp's fire. Kept for showWetFire.)
+  S.wetF = { k: wet * dry, fires: lit > 0 ? ARENA_TORCHES.map(x => [x + 1, 88, lit]) : B.wild === 'camp' ? [[214, 100, 0.35 + 0.65 * night]] : [] };
+  // the pools
+  ctx.globalAlpha = dry;
+  pools.forEach((p, i) => {
+    const w = Math.round(p.w * (0.4 + 0.6 * wet)); p.rx = w >> 1; p.ry = w < 7 ? 0 : Math.max(1, Math.round((2 + Math.round(p.w / 14)) * (0.5 + 0.5 * wet)));
+    if (w < 7) { p.rx = 0; return; }
+    for (let yy = -p.ry; yy <= p.ry; yy++) {
+      const hw = poolHalf(p, yy); if (hw < 1) continue;
+      ctx.fillStyle = 'rgba(58,38,18,.34)'; ctx.fillRect(p.x - hw - 1, p.y + yy, hw * 2 + 2, 1);
+      ctx.fillStyle = yy < 0 && yy <= -p.ry + (p.ry > 3 ? 1 : 0) ? far : body; ctx.fillRect(p.x - hw, p.y + yy, hw * 2, 1);      // (its far edge darker: what it shows there stands lower in the sky)
+    }
+    { const yy = p.ry > 2 ? 1 : 0, hw = poolHalf(p, yy); if (hw > 3) { ctx.fillStyle = pale; ctx.fillRect(p.x - Math.round(hw * 0.7), p.y + yy, Math.round(hw * 0.9), 1); if (p.ry > 2) ctx.fillRect(p.x - Math.round(hw * 0.3), p.y + yy - 1, Math.round(hw * 0.5), 1); } }
+    // rings where drops strike it
+    if (rain > 0.05) for (let j = 0; j < (p.w > 32 ? 2 : 1); j++) {
+      const ph = T * 1.5 + i * 0.37 + j * 0.53, cyc = Math.floor(ph), rp = ph - cyc; if (wildHash(cyc, i * 4 + j, 791) > rain * 1.6 + 0.25) continue;
+      ring(p, p.x + Math.round((wildHash(cyc, i * 4 + j, 792) - 0.5) * p.rx * 1.2), p.y + Math.round((wildHash(cyc, i * 4 + j, 793) - 0.5) * p.ry), 1 + rp * 5, 0.7 * (1 - rp));
+    }
+  });
+  // (one ring in a pool: so far across, and no further than the water goes)
+  function ring(p, cx, cy, r, a) {
+    if (!(a > 0.02)) return;
+    ctx.fillStyle = `rgba(236,244,252,${a.toFixed(3)})`;
+    const row = (yy, x0, x1) => { const hw = poolHalf(p, cy + yy - p.y); x0 = Math.max(x0, p.x - hw); x1 = Math.min(x1, p.x + hw); if (x1 > x0) ctx.fillRect(x0, cy + yy, x1 - x0, 1); };
+    const R = Math.round(r);
+    if (R < 3) { row(0, cx - R, cx + R); return; }
+    row(-1, cx - R + 1, cx + R - 1); row(1, cx - R + 1, cx + R - 1); row(0, cx - R, cx - R + 1); row(0, cx + R - 1, cx + R);
+  }
+  // and where the men have gone through one
+  if (S.rings) { S.rings = S.rings.filter(r => T - r.t < 0.7 && T >= r.t); for (const r of S.rings) { const k = (T - r.t) / 0.7; if (r.p.rx > 0) ring(r.p, Math.round(r.x), Math.round(r.y), 2 + k * (r.big ? 12 : 6), 0.8 * (1 - k)); } }
+  ctx.globalAlpha = 1;
+  // rain striking the open ground: a drop jumps, and is gone
+  if (rain > 0) {
+    const tick = Math.floor(T * 10), late = T * 10 - tick > 0.5;
+    ctx.fillStyle = `rgba(225,238,250,${(0.6 * dry).toFixed(3)})`;
+    for (let i = 0, n = Math.round(44 * rain); i < n; i++) {
+      const k = tick + i * 17, sx = 2 + (k * 73) % 422, sy = gy + 2 + (k * 29) % (236 - gy);
+      if (late) { ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 3, sy, 1, 1); } else { ctx.fillRect(sx, sy, 3, 1); ctx.fillRect(sx + 1, sy - 1, 1, 1); }
+    }
+  }
+}
+// Fire on the wet. It is light, so it is laid on with the torches' own light, after the dark of the hour has come
+// down over the picture (drawBattle), and not under the men with the rest: but it lies on the ground, so none of it
+// is drawn where a man stands in front of it. Under each fire a long broken streak, never still; and in any pool
+// that lies near one, the fire itself, down the middle of the water.
+function showWetFire(ctx, B, T) {
+  const S = B.show, F = S && S.wetF; if (!F || !F.fires.length || !(F.k > 0.02)) return;
+  const hid = (x, y) => B.fighters.some(f => { const fx = f.x * 2, fy = f.y * 2; return f.down && f.fallT <= 0 ? Math.abs(x - fx) < 15 && y > fy - 7 && y <= fy + 1 : Math.abs(x - fx) < 8 && y > fy - 32 && y <= fy; });
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [fx, fy, k] of F.fires) {
+    for (let q = 0; q < 11; q++) {
+      const x = fx - 2 + Math.round(Math.sin(T * 2.2 + q * 1.3 + fx) * 1.5), y = fy + q * 3; if (hid(x + 2, y + 1)) continue;
+      ctx.fillStyle = `rgba(255,150,56,${(0.34 * F.k * k * (1 - q / 12)).toFixed(3)})`; ctx.fillRect(x, y, 4 - (q > 6 ? 1 : 0), 2);
+    }
+    for (const p of S.pools || []) {
+      const near = k * F.k * clamp(1 - (p.y - fy) / 150, 0, 1); if (near < 0.06 || !(p.rx > 0)) continue;      // (it is in a pool only where the pool lies between the fire and you)
+      for (let yy = -p.ry; yy <= p.ry; yy++) {
+        const hw = poolHalf(p, yy), x = fx - 1 + Math.round(Math.sin(T * 2.2 + yy * 1.3 + fx) * 1.2); if (x < p.x - hw || x + 2 > p.x + hw || hid(x + 1, p.y + yy)) continue;
+        ctx.fillStyle = `rgba(255,170,80,${Math.min(0.8, 0.9 * near).toFixed(3)})`; ctx.fillRect(x, p.y + yy, 2, 1);
+      }
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 // Which fallen man is being judged right now, and how far the judgment has come (0 to 1).
@@ -222,10 +338,11 @@ function showStep(B, T) {
   }
   B.fighters.forEach((f, i) => {
     if (snowy) snowTread(B, S, f, i);
-    if (out(f)) { if (f.down && !S.fell[i]) { S.fell[i] = 1; const d = fightDust(B, f.x * 2, f.y * 2); if (snowy) snowHollow(B, f.x * 2, f.y * 2, f.facing || 1); for (let k = 0; k < 9; k++) S.puffs.push({ x: f.x * 2 + rand(-12, 12), y: f.y * 2 + rand(-2, 3), vx: rand(-9, 9), life: rand(0.6, 1.1), max: 1.1, r: rint(2, 4), d }); } return; }
+    if (out(f)) { if (f.down && !S.fell[i]) { S.fell[i] = 1; const d = fightDust(B, f.x * 2, f.y * 2), pl = poolAt(B, f.x * 2, f.y * 2); if (pl) S.rings.push({ p: pl, x: f.x * 2, y: f.y * 2, t: T, big: true }); if (snowy) snowHollow(B, f.x * 2, f.y * 2, f.facing || 1); for (let k = 0; k < 9; k++) S.puffs.push({ x: f.x * 2 + rand(-12, 12), y: f.y * 2 + rand(-2, 3), vx: rand(-9, 9), life: rand(0.6, 1.1), max: 1.1, r: rint(2, 4), d }); } return; }
     if (!f.moving && f.state !== 'windup') return;
     S.steps[i] = (S.steps[i] || 0) + dt;
-    if (S.steps[i] > 0.24) { S.steps[i] = 0; S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2, d: fightDust(B, f.x * 2, f.y * 2) }); }
+    if (S.steps[i] > 0.24) { S.steps[i] = 0; const pl = poolAt(B, f.x * 2, f.y * 2); if (pl && S.rings.length < 40) S.rings.push({ p: pl, x: f.x * 2 - f.facing * 2, y: f.y * 2, t: T });      // (a ring in the water he is going through: showWet)
+      S.puffs.push({ x: f.x * 2 - f.facing * 3 + rand(-2, 2), y: f.y * 2 + rand(-1, 1), vx: -f.facing * rand(2, 7), life: 0.55, max: 0.55, r: 2, d: fightDust(B, f.x * 2, f.y * 2) }); }
   });
   for (const p of S.puffs) { p.life -= dt; p.x += p.vx * dt; }
   S.puffs = S.puffs.filter(p => p.life > 0);
@@ -465,6 +582,7 @@ function showBack(ctx, B, T) {
   // blood: bright where it has just fallen, then darkening and spreading as the sand drinks it
   for (const c of B.scuffs || []) {              // the sand as it has been used: heels dragged through it, a man fallen on it
     if (c.sv > 0.45) continue;      // (in snow it is the snow that keeps it: snowDrag, snowHollow)
+    if (poolAt(B, c.x * 2, c.y * 2)) continue;      // (and standing water keeps nothing)
     const age = T - c.t, k = Math.min(1, age / 0.25), len = Math.round(c.len * 2 * k), x = Math.round(c.x * 2), y = Math.round(c.y * 2), x0 = c.dir > 0 ? x - len : x;
     ctx.fillStyle = 'rgba(96,66,30,.2)'; ctx.fillRect(x0, y - 1, len, 1); ctx.fillRect(x0 + 2, y + 1, Math.max(0, len - 4), 1);
     ctx.fillStyle = 'rgba(255,238,196,.16)'; ctx.fillRect(x0 + 1, y, Math.max(0, len - 2), 1);

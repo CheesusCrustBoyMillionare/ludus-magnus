@@ -2678,6 +2678,13 @@ function drawBattle(ctx, B) {
   B.lying = lying;
   B.wet = wxF ? Math.min(1, Math.max(wxF.wet || 0, wxF.rain || 0)) : 0;      // (how wet the ground is, for what feet raise from it: fightDust)
   if (lying > 0.03) { if (!B._snow) { B._snow0 = B.wild ? renderWildSnow(B) : renderArenaSnow(B); B._snow = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); B._snow.getContext('2d').drawImage(B._snow0, 0, 0); B._wear = new Float32Array(54 * 60); } ctx.globalAlpha = lying; ctx.drawImage(B._snow, 0, 0); if (uu > 0 && !B.wild) { ctx.fillStyle = '#eef3f9'; ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); } ctx.globalAlpha = 1; }
+  // Wet ground, where it is raining or has rained (showWet, in show.js): pools that hold the sky, which is the
+  // colour the hour and the cloud make it over this fight, and after dark the torches lying long on the wet.
+  if (wxF && (wxF.wet > 0 || wxF.rain > 0) && typeof showWet === 'function' && typeof mixHex === 'function') {
+    const pv = B.wild && typeof provSky === 'function' && typeof G !== 'undefined' && G && G.field ? provSky() : null, over = Math.min(1, wxF.over || 0);
+    const up = dusk ? ['#e59a66', 0] : hr ? [hr.bands[1], hr.night] : pv ? [pv.bands[1], pv.night] : ['#a9cfdc', 0];
+    showWet(ctx, B, T, wxF, { sky: mixHex(up[0], mixHex('#8d98a3', '#1a2030', up[1]), over * 0.8), night: up[1], lit, lying });
+  }
   showBack(ctx, B, T);        // the crowd, the editor, banners, blood and litter on the sand, heat haze (show.js)
   // The wall's shade across the near sand, by day: further out the lower the sun is, faint under cloud, and after
   // dark only the little there is from the moon. It lies on whatever is on the sand there, and on snow it is blue.
@@ -2781,6 +2788,7 @@ function drawBattle(ctx, B) {
     sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * 0.16); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
     if (typeof sceneStorm === 'function') sceneStorm(ctx, 428, 240, sceneClock(), wx);
   }
+  if (typeof showWetFire === 'function') showWetFire(ctx, B, T);      // the torches, or a camp's fire, lying on wet ground (show.js)
   for (const x of B.wild ? [] : ARENA_TORCHES) {      // the torches (lit: how far they are alight)
     const fl = Math.sin(T * 13 + x) > 0 ? 1 : 0;
     if (lit > 0) {                    // lit: a flame, a halo, and a pool of light on the sand below
