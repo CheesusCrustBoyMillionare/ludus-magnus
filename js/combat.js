@@ -118,9 +118,10 @@ function createBattle(teamA, teamB, opts) {
       if (B.wild || Math.random() >= B.theme.crowd) continue;
       if (B.theme.box ? x > 164 && x < 258 && y > 20 : x > 184 && x < 240 && y > 31) continue;      // the editor's box
       if (ARENA_AISLES.some(a => x + 5 > a && x < a + 10)) continue;                                   // nobody sits on the stairs
-      const far = 1 - (64 - y) / 42 * 0.3, col = shade(pick(cols), far), skin = shade(pick(ORIGINS).skin, far);      // the rows further up are further off, and dimmer
+      const far = 1 - (64 - y) / 42 * 0.3, col0 = pick(cols), skin0 = pick(ORIGINS).skin, col = shade(col0, far), skin = shade(skin0, far);      // the rows further up are further off, and dimmer
       const look = Math.random();
-      B.crowd.push({ x: x + rint(-1, 1), y, col, colD: shade(col, 0.7), skin, skinD: shade(skin, 0.78), hair: shade(pick(hairs), far), ph: rand(0, 6.28), sp: rand(3, 9), arms: chance(0.5),
+      // (the shaded side of each is worked out from the colour he began as: a shade of a shade comes out black)
+      B.crowd.push({ x: x + rint(-1, 1), y, col, colD: shade(col0, far * 0.7), skin, skinD: shade(skin0, far * 0.78), hair: shade(pick(hairs), far), ph: rand(0, 6.28), sp: rand(3, 9), arms: chance(0.5),
         hat: look < 0.12, veil: look >= 0.12 && look < 0.26, long: look >= 0.26 && look < 0.45, small: look > 0.93 });
     }
   }
@@ -2358,7 +2359,8 @@ function renderBackdrop(B) {
   // the wall's shade falls across the near sand, further when the sun is low. (Painted here only for a bout to the
   // death, whose light does not change, or where there is no sky to ask. By day it is laid on every frame, as long
   // and as dark as the hour and the cloud make it: see drawBattle.)
-  if (dusk0 || typeof yardSky !== 'function') { const bands = dusk0 ? 9 : 5; for (let i = 0; i < bands; i++) R(0, 86 + i * 4, 428, 4, `rgba(50,28,8,${(0.34 * (1 - i / bands)).toFixed(3)})`); }
+  // (The wall's shade is laid on as the fight is drawn, by the hour and the cloud: drawBattle. Painted in here only where there is no sky to go by.)
+  if (typeof yardSky !== 'function') { const bands = dusk0 ? 9 : 5; for (let i = 0; i < bands; i++) R(0, 86 + i * 4, 428, 4, `rgba(50,28,8,${(0.34 * (1 - i / bands)).toFixed(3)})`); }
   // torch brackets along the wall; the flames are drawn live
   for (const x of ARENA_TORCHES) { R(x, 70, 2, 9, '#3a2a1c'); R(x - 2, 69, 6, 2, '#5a4334'); }
   return cv;
@@ -2701,6 +2703,12 @@ function drawBattle(ctx, B) {
   if (hr) {
     const d = 20 + hrLow * 12, a = (hr.sun ? 0.34 : 0.13) * (1 - hrOv * 0.75) * (1 - lying * 0.45), col = lying > 0.5 ? '36,52,92' : '50,28,8';
     for (let i = 0; i < 5; i++) { const y0 = Math.round(i * d / 5), y1 = Math.round((i + 1) * d / 5); ctx.fillStyle = `rgba(${col},${(a * (1 - i / 5)).toFixed(3)})`; ctx.fillRect(0, 86 + y0, 428, y1 - y0); }
+  }
+  // A bout to the death has the long shade of its low sun, well out over the sand: and that too is faint under
+  // cloud, lies on whatever is on the sand, and is blue on snow.
+  else if (dusk && typeof yardSky === 'function') {
+    const a = 0.34 * (1 - duskOv * 0.75) * (1 - lying * 0.45), col = lying > 0.5 ? '36,52,92' : '50,28,8';
+    for (let i = 0; i < 9; i++) { ctx.fillStyle = `rgba(${col},${(a * (1 - i / 9)).toFixed(3)})`; ctx.fillRect(0, 86 + i * 4, 428, 4); }
   }
 
   let shadow = dusk ? { len: Math.round(16 * (1 - duskOv * 0.85)), a: +(0.3 * (1 - duskOv * 0.5)).toFixed(3) } : { len: 5, a: 0.22 };      // (the long shadows of a low sun, unless cloud has it)

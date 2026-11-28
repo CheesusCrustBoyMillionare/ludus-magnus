@@ -5299,11 +5299,19 @@ function provRuts(ctx, T, R, inView) {
     const C = tradeAt(k, T), o = RUT_ROW[k] ? { row: RUT_ROW[k], gauge: k === 'fish' ? 2 : 3 } : { many: true, drag: k !== 'logs' ? 0 : C.leg === 1 || C.leg === 2 ? -1 : C.leg === 3 ? 1 : 0 };
     rutTrail(ctx, R, inView, deep, C, C.leg === 1 ? C.d : C.leg === 3 ? TW[k].total - C.d : 1e9, TW[k].total, TRADE_RUN[k][0], o);
   }
+  // And the flock, on its own way between the fold and the hill (drawTrade keeps how far it has got, prov.flock):
+  // the feet of the sheep, the man and the dog, trodden wider than a file of men leaves. The shepherd goes in front,
+  // so it begins behind him; while they graze it is the way they came up, and at night the way they came home.
+  // (It is reckoned from the dog, who comes last: all of it under the flock is fresh, and it fades behind him.)
+  if (TW.flock && prov.flock) {
+    const F = TW.flock, st = prov.flock, sgn = st.sgn || 1, last = st.d - sgn * 54, at = wayAt(F, last);
+    rutTrail(ctx, R, inView, deep, { x: at.x, y: at.y, moving: Math.abs(dayOut() * F.total - st.d) > 0.5, along: off => wayAt(F, last + sgn * off) }, Math.max(0, (sgn > 0 ? st.d : F.total - st.d) - 54), F.total, FLOCK_PACE, { many: true, wide: true, ahead: 63 });
+  }
   ctx.globalAlpha = 1;
 }
 // One of them, and what he leaves. C: where his road has him (shuttleAt, millCartAt). since: how far he has come since
 // he last stood. total: how long his road is. sp: his pace. o: what he is. o.row, the row a wheeled thing goes in
-// (RUT_ROW), with o.gauge, how far each wheel is from the middle of it; or o.many, more feet than one man's; and
+// (RUT_ROW), with o.gauge, how far each wheel is from the middle of it; or o.many, more feet than one man's (o.wide: a flock's, and o.ahead, how far in front of C the first of it walks); and
 // o.drag, a log on a chain, behind him (less than nothing) or left where he came by with it (more).
 function rutTrail(ctx, R, inView, deep, C, since, total, sp, o) {
   if (!inView(C.x, C.y, RUT_REACH + 16)) return;
@@ -5325,6 +5333,7 @@ function rutTrail(ctx, R, inView, deep, C, since, total, sp, o) {
     }
     else if (many) {
       R(x + px * 2 * side, y + py * 2 * side, 1, 1, col); if (step % 3 === 0) R(x - px * 2 * side, y - py * 2 * side, 1, 1, col);
+      if (o.wide) { R(x - px * 4 * side, y - py * 4 * side, 1, 1, col); if (step % 2 === 0) R(x + px * 5 * side, y + py * 5 * side, 1, 1, col); }      // (a flock: as wide as the sheep go)
       if (o.drag && (o.drag < 0 ? off <= -24 : off > 0)) for (const half of [0, 0.5]) R(x - dx * half, y - dy * half, 1, 1, col);      // the furrow of the log
     }
     else if (step % 2 === 0) R(x + px * ((step >> 1) & 1 ? 1 : -1), y + py * ((step >> 1) & 1 ? 1 : -1), 1, 1, col);
@@ -5332,6 +5341,7 @@ function rutTrail(ctx, R, inView, deep, C, since, total, sp, o) {
   for (let off = 2, far = Math.min(RUT_REACH, since, total); off <= far; off += 2) mark(-off, 1 - off / RUT_REACH);
   if (old > 0) for (let was = Math.ceil(since / 2) * 2 + 2; was < RUT_REACH; was += 2) mark(was - since, (1 - was / RUT_REACH) * old);
   if (wheels && cartAt > 0) for (let on = 0; on <= cartAt; on += 2) mark(on, 1);      // (a cart that is pushed: its ruts run on under the man to where its wheel is)
+  if (o.ahead) for (let on = 0; on <= o.ahead; on += 2) mark(on, 1);      // (a flock, reckoned from whoever comes last in it: trodden all the way up to whoever leads)
 }
 // Snow on what is not part of the painted land: the town, and the places you have found. Each is drawn afresh every
 // frame, so the snow painted into the winter's land (snowLie) cannot lie on it. Instead its picture is drawn once on

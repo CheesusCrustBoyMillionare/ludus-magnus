@@ -50,8 +50,8 @@ function showDress(B) {
   for (const p of B.crowd) {
     p.hat = false;
     if (Math.random() >= cloaked) continue;
-    const c = shade(pick(SHOW_CLOAKS), 1 - (64 - p.y) / 42 * 0.3);      // (dimmer in the rows further up, as their tunics are: see createBattle)
-    p.col = c; p.colD = shade(c, 0.7); p.cloak = true;
+    const c0 = pick(SHOW_CLOAKS), far = 1 - (64 - p.y) / 42 * 0.3, c = shade(c0, far);      // (dimmer in the rows further up, as their tunics are: see createBattle)
+    p.col = c; p.colD = shade(c0, far * 0.7); p.cloak = true;
     if (Math.random() < hooded) { p.veil = true; p.long = false; }
   }
 }
