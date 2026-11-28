@@ -2768,6 +2768,34 @@ function drawBattle(ctx, B) {
   // In winter whoever is on his feet breathes a cloud, as the men in the yard do (sceneBreath, in yard.js), by the
   // fight's own clock: harder when he is at work, and hardest when he is badly hurt. A beast breathes from its muzzle.
   const cold = typeof sceneSeason === 'function' && typeof sceneBreath === 'function' && sceneSeason() === 3;
+  // Where water is standing (showWet, in show.js), whoever is on his feet beside a pool is in it: himself turned
+  // over from where his feet are, as much of him as the pool is wide and long enough to hold, faint, and never
+  // quite still (the odd rows of the water and the even are a dot apart, by turns). It lies on the water, under
+  // the men themselves. Nobody is in a pool that is not below his feet in the picture, nor a man who is down.
+  if (B.show && B.show.wetF && B.show.pools && typeof poolHalf === 'function') {
+    const k = B.show.wetF.k, none = { len: 0, a: 0 };
+    for (const p of B.show.pools) {
+      if (!(p.rx > 0)) continue;
+      for (const f of sorted) {
+        if (flat(f) || f.fallT > 0) continue;
+        const P = poseOf(f), fx = f.x * 2 + (P ? P.ox : 0), gy = Math.round(f.y * 2 + (P ? P.oy : 0));      // (where he is, and the ground under him: a man in the air is as far below it in the water as he is above it)
+        if (Math.abs(fx - p.x) > p.rx + 12 || p.y + p.ry <= gy || p.y - p.ry > gy + 40) continue;
+        const o = Object.assign(spr(f), { x: fx, y: gy - (P ? P.lift : 0), facing: f.facing * (P ? P.flip : 1), shadow: none, light: null, flash: 0, plain: true });
+        for (let half = 0; half < 2; half++) {
+          let rows = 0;
+          ctx.save(); ctx.beginPath();
+          for (let yy = -p.ry; yy <= p.ry; yy++) { const y = p.y + yy; if (y <= gy || ((y + half) & 1)) continue; const hw = poolHalf(p, yy); if (hw > 0) { ctx.rect(p.x - hw, y, hw * 2, 1); rows++; } }
+          if (rows) {
+            ctx.clip(); ctx.globalAlpha = 0.42 * k;
+            const wob = Math.sin(T * 2.6 + p.s + half * 3.1) > 0 ? 1 : 0;
+            ctx.translate(half ? wob : -wob, 2 * gy); ctx.scale(1, -1);
+            drawSprite(ctx, o);
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
   for (const f of sorted) {
     const o = spr(f); drawFighter(ctx, f, o);
     if (!cold || f.down || f.fallT > 0) continue;
