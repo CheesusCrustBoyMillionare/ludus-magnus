@@ -2060,9 +2060,12 @@ function renderWild(B) {
   const main = cv.getContext('2d'), k = B.wild, seed = B.wseed || (B.wseed = 1 + Math.floor(Math.random() * 900));      // no two fights on quite the same ground
   B._slabs = [];
   let ctx = main;      // (what is being painted on: the picture, then a sheet for all that stands nearer than the hills, then the sky under cloud)
-  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+  // (vg, leafy: whatever is leaf, the heads of the trees, the bushes, the cypresses, is painted a second time on a
+  // sheet of its own while leafy is set, so that it can be found again and moved in the wind: see the end of this.)
+  let vg = null, leafy = false;
+  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); if (leafy && vg) { vg.fillStyle = col; vg.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); } };
   const h = i => Math.abs(Math.sin((i + seed) * 127.1 + 311.7) * 43758.5453) % 1;
-  const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
+  const blob = (cx, cy, rx, ry, col) => { ctx.fillStyle = col; if (leafy && vg) vg.fillStyle = col; for (let yy = -ry; yy <= ry; yy++) { const hw = Math.round(rx * Math.sqrt(1 - (yy * yy) / (ry * ry))); ctx.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); if (leafy && vg) vg.fillRect(Math.round(cx - hw), Math.round(cy + yy), hw * 2, 1); } };
   // The ground a fight is fought on keeps the year, as the province round it does (se: 0 spring, 1 summer, 2 autumn,
   // 3 winter): the grass fresher or drier or gone to straw, the trees lighter in spring and some of them in blossom,
   // turned in autumn, and bare in winter but for the firs in the wood behind.
@@ -2116,12 +2119,14 @@ function renderWild(B) {
   // it can be laid over a second sky as well, the one there is under cloud (see the end of this).
   const fg = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); ctx = fg.getContext('2d');
   let shafts = null;      // (the sun coming down through a wood, if this is one)
+  const veg = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }); vg = veg.getContext('2d', { willReadFrequently: true });
+  B._tufts = [];
   // ---- the ground: broad lights and darks, then grain, then a place worn smooth in the middle ----
   R(0, 78, 428, 162, ground);
   for (let n = 0; n < 16; n++) blob(h(n + 10) * 428, 96 + h(n + 20) * 136, 26 + h(n + 30) * 34, 4 + h(n + 31) * 7, n % 2 ? 'rgba(255,250,210,.06)' : 'rgba(30,40,10,.07)');
   blob(214, 164, 150, 46, 'rgba(240,225,180,.07)'); blob(214, 164, 96, 28, 'rgba(240,225,180,.06)');
   for (let n = 0; n < 620; n++) R(h(n) * 426, 84 + h(n + 900) * 154, 1 + Math.round(h(n + 5) * 2), 1, n % 2 ? gD : gL);
-  const tuft = (x, y, c) => { R(x, y - 3, 1, 3, c); R(x + 1, y - 2, 1, 2, shade(c, 1.2)); R(x + 2, y - 4, 1, 4, c); R(x - 1, y - 1, 1, 1, c); };
+  const tuft = (x, y, c) => { B._tufts.push([Math.round(x), Math.round(y)]); R(x, y - 3, 1, 3, c); R(x + 1, y - 2, 1, 2, shade(c, 1.2)); R(x + 2, y - 4, 1, 4, c); R(x - 1, y - 1, 1, 1, c); };
   const stone = (x, y, w, c) => { R(x, y - 3, w, 3, c); R(x + 1, y - 4, w - 2, 1, c); R(x + 1, y - 4, w - 3, 1, shade(c, 1.25)); R(x, y - 1, w, 1, shade(c, 0.7)); R(x - 1, y, w + 3, 1, 'rgba(0,0,0,.2)'); };
   const MASSES = [[0, -30, 15, 0], [-9, -22, 11, 1], [9, -24, 12, 2], [-2, -34, 9, 3]];      // where a tree's leaf is, about its trunk: four masses of it
   const tree = (x, y, sc, dark) => {
@@ -2143,15 +2148,17 @@ function renderWild(B) {
       }
       return;
     }
+    leafy = true;
     for (const [ox, oy, r, ci] of MASSES) blob(x + ox * sc, y + oy * sc, r * sc, r * sc, pal[ci]);
     if (!dark) { blob(x - 5 * sc, y - 37 * sc, 5 * sc, 3 * sc, tips[0]); blob(x + 6 * sc, y - 31 * sc, 4 * sc, 2 * sc, tips[1]); }
     if (se === 0 && !dark && tv > 0.55) for (let q = 0; q < 9; q++) R(x + (h(q * 3 + Math.round(x)) - 0.5) * 26 * sc, y - (20 + h(q * 5 + Math.round(x) + 9) * 20) * sc, 1, 1, q % 2 ? '#f8e0e8' : '#ffffff');      // in blossom
+    leafy = false;
   };
   // (frame: one of the dark growth along the near edge, which stays dark whatever the season)
   const bush = (x, y, c, frame) => {
     if (se === 2) c = frame ? '#4c4222' : h(Math.round(x) + 77) > 0.5 ? '#8a7436' : '#6f7a34';
     if (se === 3) { const tw = frame ? '#33291c' : '#5a4e3a'; blob(x, y - 2, 6, 3, frame ? '#3a3024' : '#665a44'); for (let q = 0; q < 6; q++) R(x - 6 + q * 2.4, y - 5 - (q % 3), 1, 4 + (q % 2), tw); return; }      // in winter a bush is its twigs
-    blob(x, y - 3, 7, 4, c); blob(x - 4, y - 1, 5, 3, shade(c, 0.86)); blob(x + 2, y - 5, 4, 2, shade(c, 1.2));
+    leafy = true; blob(x, y - 3, 7, 4, c); blob(x - 4, y - 1, 5, 3, shade(c, 0.86)); blob(x + 2, y - 5, 4, 2, shade(c, 1.2)); leafy = false;
   };
 
   if (k === 'forest') {
@@ -2195,7 +2202,7 @@ function renderWild(B) {
     for (let n = 0; n < 240; n++) R(h(n + 800) * 426, 90 + h(n + 810) * 148, 3, 1, n % 2 ? '#7a6644' : '#9a865e');
     for (let q = 0; q < 2; q++) { ctx.fillStyle = 'rgba(60,40,20,.12)'; for (let x = 0; x < 428; x += 2) ctx.fillRect(x, 150 + q * 12 + Math.round(Math.sin(x * 0.02) * 5), 2, 2); }      // cart ruts
   } else {
-    for (let n = 0; n < 9; n++) { const x = 16 + n * 50 + h(n) * 14; R(x - 1, 34, 3, 46, '#3a2a1c'); for (let q = 0; q < 44; q++) R(x - Math.round(5 * Math.sin(q / 44 * Math.PI) + 1), 34 + q - 12, Math.round(10 * Math.sin(q / 44 * Math.PI)) + 3, 1, q % 3 ? '#2f4a2e' : '#3a5a36'); }      // cypresses behind
+    for (let n = 0; n < 9; n++) { const x = 16 + n * 50 + h(n) * 14; R(x - 1, 34, 3, 46, '#3a2a1c'); leafy = true; for (let q = 0; q < 44; q++) R(x - Math.round(5 * Math.sin(q / 44 * Math.PI) + 1), 34 + q - 12, Math.round(10 * Math.sin(q / 44 * Math.PI)) + 3, 1, q % 3 ? '#2f4a2e' : '#3a5a36'); leafy = false; }      // cypresses behind
     const column = (x, hh, broken) => {
       R(x, 86 - hh, 12, hh, '#c9c3ae'); R(x, 86 - hh, 3, hh, '#a8a290'); R(x + 9, 86 - hh, 2, hh, '#e4dfcd'); for (let q = 2; q < 10; q += 2) R(x + q, 86 - hh + 3, 1, hh - 6, '#b5af9b');
       R(x - 2, 83, 16, 3, '#b5af9b'); R(x - 3, 85, 18, 2, '#a8a290');
@@ -2218,6 +2225,29 @@ function renderWild(B) {
   for (let n = 0; n < 26; n++) { const x = n * 17 + h(n + 1200) * 10; bush(x, 240 + h(n + 1210) * 3, shade(tc, 0.6), true); }
   for (let n = 0; n < 5; n++) R(0, 78 + n * 4, 428, 4, `rgba(20,30,10,${(0.3 * (1 - n / 5)).toFixed(3)})`);
   for (let n = 0; n < 4; n++) R(0, 224 + n * 4, 428, 4, `rgba(15,20,8,${(0.06 + n * 0.05).toFixed(3)})`);
+  // ---- what the wind moves (showSway, in show.js, moves it) ----
+  // All that is leaf was painted on its own sheet as well. Of that, what can still be seen in the finished picture
+  // (nothing standing in front of it) is kept twice more: as it is a dot downwind of where it stands, and two dots;
+  // and only where a leaf may go, which is over open sky or the hills or other leaf, never across a trunk, a wall or
+  // a stone. While a gust is on a part of the picture the further of these is laid over that part, and the leaves
+  // there are out downwind; when it has passed they are back. And a few of the leaves themselves, to turn to the
+  // light (B._leaves: where, and the colour of each a little lightened).
+  B._sway = null; B._leaves = [];
+  try {
+    vg.globalCompositeOperation = 'source-atop';      // (the dark laid along the far edge of the ground and the near edge of the picture, just above: on the sheet as on the picture)
+    for (let n = 0; n < 5; n++) { vg.fillStyle = 'rgba(20,30,10,' + (0.3 * (1 - n / 5)).toFixed(3) + ')'; vg.fillRect(0, 78 + n * 4, 428, 4); }
+    for (let n = 0; n < 4; n++) { vg.fillStyle = 'rgba(15,20,8,' + (0.06 + n * 0.05).toFixed(3) + ')'; vg.fillRect(0, 224 + n * 4, 428, 4); }
+    vg.globalCompositeOperation = 'source-over';
+    const F = ctx.getImageData(0, 0, 428, 240).data, V = vg.getImageData(0, 0, 428, 240).data, N = 428 * 240, vis = new Uint8Array(N), free = new Uint8Array(N);
+    let any = 0;
+    for (let i = 0; i < N; i++) { const a = i * 4, leaf = V[a + 3] > 250 && F[a + 3] > 250 && Math.abs(F[a] - V[a]) + Math.abs(F[a + 1] - V[a + 1]) + Math.abs(F[a + 2] - V[a + 2]) < 8; vis[i] = leaf ? 1 : 0; free[i] = leaf || F[a + 3] < 10 ? 1 : 0; any += vis[i]; }
+    if (any > 40) {
+      B._sway = [1, 2].map(d => { const cv2 = Object.assign(document.createElement('canvas'), { width: 428, height: 240 }), c2 = cv2.getContext('2d'), img = c2.createImageData(428, 240), D = img.data;
+        for (let y = 0; y < 240; y++) for (let x = d; x < 428; x++) { const t = y * 428 + x, sp = t - d; if (!vis[sp] || !free[t]) continue; const a = sp * 4, b = t * 4; if (vis[t] && Math.abs(V[a] - F[b]) + Math.abs(V[a + 1] - F[b + 1]) + Math.abs(V[a + 2] - F[b + 2]) < 8) continue; D[b] = V[a]; D[b + 1] = V[a + 1]; D[b + 2] = V[a + 2]; D[b + 3] = 255; }
+        c2.putImageData(img, 0, 0); return cv2; });
+      for (let q = 0; q < 400 && B._leaves.length < 70; q++) { const x = Math.floor(h(q + 2000) * 428), y = Math.floor(h(q + 2010) * 96), a = (y * 428 + x) * 4; if (vis[y * 428 + x]) B._leaves.push([x, y, [0, 1, 2].map(c3 => Math.round(V[a + c3] + (255 - V[a + c3]) * 0.3)).join(',')]); }
+    }
+  } catch (e) { B._sway = null; B._leaves = []; }
   main.drawImage(fg, 0, 0); B._near = fg;      // (kept: where it is clear above the ground, there is sky or the hills. renderWildSnow asks.)
   if (shafts && sun) { ctx = main; shafts(); }
   // The hills and all that stands in front of them, as far down as the ground, a second time with nothing behind:
@@ -2676,6 +2706,7 @@ function drawBattle(ctx, B) {
       ctx.drawImage(B._land, 0, 0);
     }
     if (B._dull && ov > 0.02) { ctx.globalAlpha = ov; ctx.drawImage(B._dull, 0, 0); ctx.globalAlpha = 1; }      // and the sky as it is under cloud (see the end of renderWild)
+    if (typeof showSway === 'function') showSway(ctx, B, T);      // and the trees, the bushes and the grass in the wind (show.js)
   }
   if (uu > 0 && !B.wild) { ctx.fillStyle = shade(B.theme.sand, 0.95); ctx.fillRect(0, 240, 428, Math.ceil(uu / (FINE * cz)) + 2); }      // more sand below the sand, for the little of it that shows either side of the choices
   // snow lying, where snow would lie (renderArenaSnow, or out in the province renderWildSnow): under the crowd's banners, the blood and the men

@@ -553,6 +553,30 @@ function showMist(ctx, B, T) {
   }
 }
 
+// The country a fight is fought in, in the wind. Its picture is painted once (renderWild, in combat.js), and that
+// keeps what is leaf in it as it is a dot and two dots downwind (B._sway). The picture is taken in strips, and a
+// strip a gust is on has its leaves out downwind: the heads of the trees further than the bushes under them, and
+// never held there, but coming back and going again while it blows. Here and there a leaf turns to the light
+// (B._leaves), and the grass a gust is on shows the pale of its blades (B._tufts), unless snow lies on it.
+function showSway(ctx, B, T) {
+  const sw = B._sway;
+  if (sw) for (let x0 = 0; x0 < 428; x0 += 16) {
+    const w = showWind(B, x0 + 8, 60, T), lv = w > 0.7 ? 2 : w > 0.3 ? 1 : 0; if (!lv) continue;
+    const over = Math.sin(T * 9 + x0 * 0.7) > -0.2;
+    if (lv === 2) { ctx.drawImage(sw[over ? 1 : 0], x0, 0, 16, 62, x0, 0, 16, 62); ctx.drawImage(sw[0], x0, 62, 16, 178, x0, 62, 16, 178); }
+    else if (over) ctx.drawImage(sw[0], x0, 0, 16, 240, x0, 0, 16, 240);
+  }
+  const lf = B._leaves || [], tick = Math.floor(T * 6);
+  for (let i = 0; i < lf.length; i++) {
+    const [x, y, c] = lf[i], w = showWind(B, x, y, T); if (w < 0.3 || wildHash(tick, i, 2301) > 0.25 + w * 0.5) continue;
+    ctx.fillStyle = `rgba(${c},.85)`; ctx.fillRect(x + (w > 0.7 ? 1 : 0), y, 1, 1);
+  }
+  if ((B.lying || 0) < 0.3) {
+    ctx.fillStyle = 'rgba(240,246,204,.5)';
+    for (const [x, y] of B._tufts || []) { const w = showWind(B, x, y, T); if (w < 0.4) continue; ctx.fillRect(x + 1, y - 4, 1, 1); ctx.fillRect(x + 3, y - 5 + (w > 0.75 ? 1 : 0), 1, 2); if (w > 0.75) ctx.fillRect(x - 1, y - 2, 1, 1); }
+  }
+}
+
 function showBanner(ctx, x, c, cD, T, blow) {
   const R = (bx, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(bx, y, w, h); };
   R(x - 1, 68, 14, 2, '#3a2a1c');
