@@ -60,7 +60,11 @@ function yardPerson(ctx, X, Y, d, o) {
   if (rec) _spr.n = 0;
   const P = (x, y, w, h, c) => { const px = d > 0 ? X + x : X - x - w; if (rec) sprPut(px, Y + y, w, h, c, 1); if (only) return; ctx.fillStyle = c; ctx.fillRect(px, Y + y, w, h); };
   const skin = o.skin || '#d9a57c', skinD = shade(skin, 0.76), tunicD = shade(o.tunic, 0.72), wood = '#7a5a2a';
-  if (!only) { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); { const ext = 14 + Math.round(sceneLow * 16); ctx.fillStyle = 'rgba(0,0,0,.11)'; ctx.fillRect(sceneSun > 0 ? X - 4 : X + 4 - ext, Y - 1, ext, 2); } }
+  // His shadow: what is dark under his feet, and the rest of it thrown along the ground. Out of doors by the sun,
+  // or the moon: away from it, longer the lower it stands, and hardly any under cloud (sceneSun, sceneLow, sceneDim:
+  // the scene that is drawing sets them). Where there is no sky, whoever draws him says (o.cast: which way, dir; how
+  // far, ext, of which the first eleven are under him; how dark, a): a place of the town does, under a roof.
+  if (!only) { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(X - 7, Y - 2, 14, 3); { const c = o.cast, ext = c ? c.ext : Math.round(11 + (3 + sceneLow * 16) * sceneDim), dir = c ? c.dir : sceneSun; if (ext > 0) { ctx.fillStyle = c ? 'rgba(0,0,0,' + c.a + ')' : 'rgba(0,0,0,' + (0.11 * (0.5 + 0.5 * sceneDim)).toFixed(3) + ')'; ctx.fillRect(dir > 0 ? X - 4 : X + 4 - ext, Y - 1, ext, 2); } } }
   const st = o.moving ? (Math.sin(o.walk) > 0 ? 1 : -1) : 0;      // stride
   // the body rises a little in the middle of each stride; standing, it lifts now and then with a breath
   // (kept, o._ub, so that the light laid on him afterwards is laid on him as he was drawn)
@@ -191,6 +195,7 @@ function sceneBreath(ctx, x, y, d, seed, moving, at) {
   ctx.globalAlpha = was;
 }
 let sceneSun = 1;      // which way shadows fall: 1 to the right (the light is in the east, on the left), -1 to the left
+let sceneDim = 1;      // how much of a shadow the sky allows: all of it under a clear sun, little under cloud, and less by the moon
 let sceneLow = 0;      // how low the sun stands, 0 at noon to 1 at the horizon: the scene that is drawing sets it, and shadows lengthen by it
 
 // The sky down to the horizon at y = H: graded from the zenith to the horizon in narrow strips with their edges
@@ -232,6 +237,7 @@ function sceneSkyDraw(ctx, T, sky, wx, H) {
   const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
   const low = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, night = sky.night;
   sceneLow = sky.sun ? low : 0.35; sceneSun = (sky.sun || sky.moon || [0])[0] < 295 ? 1 : -1;
+  sceneDim = (sky.sun ? 1 : 0.5) * (1 - Math.min(1, wx.over || 0) * 0.85);
   { const S = scenePx(ctx), key = S ? sky.bands.join() + '|' + H + '|' + S : '';
     if (S && key === skyKept.next && key !== skyKept.key) { const [cv, c] = sceneKeep(590, Math.floor(19 * H / 20) + Math.ceil(H / 20) + 1, S); skyBands(c, sky.bands, H); skyKept.cv = cv; skyKept.key = key; }
     skyKept.next = key;

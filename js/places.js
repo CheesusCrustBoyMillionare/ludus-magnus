@@ -5,6 +5,7 @@
 // and its 590 by 190 grid, under the yard's sky and weather, and shows the state of the game as well as the place.
 
 let placeLayer = null, placeMask = null;
+const placeLit = {};      // each place's lamps, hearths and shafts of daylight, as it last said they were (drawPlace)
 const RAR_COL = ['#8a8a8a', '#c2b79d', '#7fb85a', '#5aa0e0', '#b77be8', '#e8b545', '#f0705e'];
 const PLACE_TIPS = {
   market: 'The slave market. The men on the block are for sale today. The pen holds any man the dealer is keeping for you, and a man on a gold platform is the prize lot, sold by auction.',
@@ -90,6 +91,22 @@ function drawPlace(cv, T, tab) {
   // light is laid there.
   const litOver = Math.min(1, wx.over || 0), litLow = sky.sun ? clamp((sky.shadow.len - 2) / 12, 0, 1) : 0, canLight = typeof sprLight === 'function';
   const sunL = canLight && !scene.indoor && sky.sun ? (() => { const a = (0.22 + 0.4 * litLow) * (1 - litOver * 0.85), c = [1, 3, 5].map(i => parseInt(mixHex(sky.sunCol, '#ffffff', 0.45).slice(i, i + 2), 16)).join(','), top = 0.24 * (1 - litLow) * (1 - litOver * 0.7); return sceneSun > 0 ? { la: a, lc: c, ra: 0, rc: c, ta: top, tc: c } : { la: 0, lc: c, ra: a, rc: c, ta: top, tc: c }; })() : null;
+  const la = scene.indoor ? Math.max(0.55, sky.night) : Math.min(1, Math.max(0, (sky.night - 0.2) * 2));      // how far the lamps are alight: when it grows dark, and always under a roof
+  const inShaft = (pts, x, y) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+  // Under a roof there is no sun to throw a shadow: a man's shadow there is thrown by whatever lights him most, away
+  // from it. Long from the hearth or the forge, which is down on the floor; short from a lamp overhead, and longer
+  // the further to one side of it he stands; and from the daylight at a door or a window while he stands in it.
+  // With nothing near to light him he has only what is dark under his feet. (A place says where its lights are as
+  // it is drawn, after its people: so they are known from the last time it was drawn, placeLit.)
+  const castOf = (x, y) => {
+    const L = placeLit[tab], none = { dir: 1, ext: 0, a: 0 }; if (!L) return none;
+    let best = 0, dir = 1, low = 0;
+    const day = (1 - sky.night) * (1 - litOver * 0.6);
+    for (const pts of L.shafts) if (inShaft(pts, x, y - 1) || inShaft(pts, x, y - 20)) { const a = day > 0.15 ? 0.45 * day : 0.24 * sky.night * (1 - litOver); if (a > best) { best = a; dir = (pts[0][0] + pts[1][0]) / 2 > (pts[2][0] + pts[3][0]) / 2 ? -1 : 1; low = 0.7; } }
+    for (const [lx, ly] of L.lamps) { const a = Math.min(0.6, 0.8 * la * clamp(1 - Math.hypot(lx - x, (ly - y) * 0.6) / 115, 0, 1)); if (a > best) { best = a; dir = lx < x ? 1 : -1; low = clamp(Math.abs(lx - x) / 70, 0, 1) * 0.5; } }
+    for (const [fx, fy, fr] of L.fires) { const a = Math.min(0.6, 0.8 * clamp(1 - Math.hypot(fx - x, (fy - y) * 1.1) / (60 + fr * 1.2), 0, 1)); if (a > best) { best = a; dir = fx < x ? 1 : -1; low = 1; } }
+    return best < 0.04 ? none : { dir, ext: Math.round(11 + (3 + 20 * low) * Math.min(1, best / 0.35)), a: +(0.07 + 0.12 * best).toFixed(3) };
+  };
   const lit = [], LW = 28, LH = 50, watch = canLight && (scene.indoor || sky.night > 0.2);
   const seen = (x, y, d, o) => { if (watch) lit.push({ x, y, d, o, bx: x - 14, by: y - 48, m: new Uint8Array(LW * LH) }); };
   const layerCtx = ctx, fill0 = layerCtx.fillRect;
@@ -107,6 +124,7 @@ function drawPlace(cv, T, tab) {
   const folk = [], person = (x, y, d, o) => {
     if (host && y >= 140 && !o.moving && o.swing === undefined && o.sweep === undefined && Math.abs(host.x - x) < 46 && Math.abs(host.x - x) > 3 && Math.abs(host.y - y) < 30) { d = host.x > x ? 1 : -1; if (o.face) { o = Object.assign({}, o); delete o.face; } }
     if (sunL) o = Object.assign({ light: sunL }, o);
+    if (scene.indoor) o = Object.assign({}, o, { cast: castOf(x, y) });
     folk.push([x, y, d, o]); yardPerson(ctx, x, y, d, o); seen(x, y, d, o); };
   const SE = sceneSeason();
   // Somebody walking by along y: where a table, a fountain or a cart stands in his way he bears round the front of it.
@@ -114,7 +132,7 @@ function drawPlace(cv, T, tab) {
   const walkY = (x, y) => { let out = y; for (const r of inWay) { if (y < r[1] || y >= r[3]) continue; const dx = x < r[0] - 6 ? r[0] - 6 - x : x > r[2] + 6 ? x - r[2] - 6 : 0; if (dx < 26) { const k = 1 - dx / 26, e = k * k * (3 - 2 * k); out = Math.max(out, Math.round(y + (Math.min(186, r[3] + 1) - y) * e)); } } return out; };
   const E = {
     T, R, sky, wx, night: sky.night, games: isGamesDay(), folk,
-    P0: (x, y, d, o) => { if (sunL) o = Object.assign({ light: sunL }, o); yardPerson(ctx, Math.round(x), Math.round(y), d, o); seen(Math.round(x), Math.round(y), d, o); },      // one who is not written down: the master himself
+    P0: (x, y, d, o) => { if (sunL) o = Object.assign({ light: sunL }, o); if (scene.indoor) o = Object.assign({}, o, { cast: castOf(Math.round(x), Math.round(y)) }); yardPerson(ctx, Math.round(x), Math.round(y), d, o); seen(Math.round(x), Math.round(y), d, o); },      // one who is not written down: the master himself
     // one of them drawn again, over whoever has come to stand behind him: nothing is in front of him now
     again: (x, y, d, o) => { yardPerson(ctx, x, y, d, o); const p = lit.find(q => q.o === o && q.x === x && q.y === y); if (p) p.m.fill(0); },
     ctx: () => ctx,
@@ -223,7 +241,6 @@ function drawPlace(cv, T, tab) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(placeLayer, 0, 0);
   ctx.setTransform(S, 0, 0, S, 0, 0);
   // lamps and torches: lit when it grows dark, and always under a roof
-  const la = scene.indoor ? Math.max(0.55, sky.night) : Math.min(1, Math.max(0, (sky.night - 0.2) * 2));
   if (la > 0) for (const [lx, ly] of lamps) {
     ctx.globalAlpha = la; E.flame(lx, ly, 5);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
@@ -264,8 +281,7 @@ function drawPlace(cv, T, tab) {
       // falls on the floor) is on whoever stands in it: on the side of him the opening is on, and on his head and
       // shoulders; by night it is the moon that comes in, and cold. He is in it if his feet or his chest are.
       for (const pts of shafts) {
-        const inside = (x, y) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
-        if (!inside(p.x, p.y - 1) && !inside(p.x, p.y - 20)) continue;
+        if (!inShaft(pts, p.x, p.y - 1) && !inShaft(pts, p.x, p.y - 20)) continue;
         const day = (1 - sky.night) * (1 - litOver * 0.6), a = day > 0.15 ? 0.45 * day : 0.24 * sky.night * (1 - litOver), col = day > 0.15 ? '255,240,200' : MOON; if (a < 0.04) continue;
         const from = (pts[0][0] + pts[1][0]) / 2 - (pts[2][0] + pts[3][0]) / 2;      // (which side of where it falls the opening is on)
         if (from > 8) { if (a > a2) { a2 = a; c2 = col; } } else if (from < -8) { if (a > a1) { a1 = a; c1 = col; } }
@@ -283,6 +299,7 @@ function drawPlace(cv, T, tab) {
   if (!scene.indoor) sceneGrade(ctx, sky, wx);
   late.forEach(f => f());
   sceneVignette(ctx, 590, 190, scene.indoor ? 0.42 : 0.3);
+  placeLit[tab] = { lamps, fires, shafts };      // (where its lights are, for the shadows of its people the next time it is drawn: castOf)
 }
 
 // A row of townsfolk in assorted tunics, for wherever a crowd is wanted.
