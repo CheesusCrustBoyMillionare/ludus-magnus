@@ -69,7 +69,7 @@ function yardPerson(ctx, X, Y, d, o) {
   const tc = o.tunic || '#8a4a3a', hsh = (tc.charCodeAt(1) * 7 + tc.charCodeAt(3) * 13 + tc.charCodeAt(5) * 29 + (o.hair || '#3a2a1c').charCodeAt(2) * 5 + (o.skin || '#d9a57c').charCodeAt(4) * 3) % 420, plain = !o.item && !o.apron && !o.staff;
   P(-3 - st, -12, 3, 12 - (st > 0 ? 1 : 0), skinD); P(st, -12, 3, 12 - (st < 0 ? 1 : 0), skin);
   P(-3 - st, -2 - (st > 0 ? 1 : 0), 4, 2, '#6b4526'); P(st, -2 - (st < 0 ? 1 : 0), 5, 2, '#6b4526'); P(-3 - st, -5, 3, 1, '#6b4526'); P(st, -5, 3, 1, '#6b4526');      // sandals, laced up the ankle
-  if (!only && o.moving && Math.abs(Math.sin(o.walk)) > 0.86) { ctx.fillStyle = 'rgba(214,190,140,.5)'; ctx.fillRect(d > 0 ? X - 9 : X + 7, Y - 2, 2, 1); ctx.fillRect(d > 0 ? X - 11 : X + 10, Y - 3, 1, 1); }      // the dust a foot kicks up
+  if (!only && o.moving && Math.abs(Math.sin(o.walk)) > 0.86) { ctx.fillStyle = sceneFoot === 2 ? 'rgba(250,252,255,.75)' : sceneFoot === 1 ? 'rgba(196,214,232,.5)' : 'rgba(214,190,140,.5)'; ctx.fillRect(d > 0 ? X - 9 : X + 7, Y - 2, 2, 1); ctx.fillRect(d > 0 ? X - 11 : X + 10, Y - 3, 1, 1); }      // the dust a foot kicks up
   U(-4, -27, 8, 17, o.tunic); U(-4, -27, 2, 17, tunicD); U(-4, -18, 8, 1, '#6b4526');
   if (o.apron) { U(-1, -26, 5, 15, o.apron); U(-1, -26, 1, 15, shade(o.apron, 0.8)); }
   U(-1, -28, 3, 1, skinD);
@@ -176,6 +176,8 @@ function sceneRain(ctx, w, h, T, amt, n) {
 
 // ---------- the sky, the far country, the light and the air, shared by every scene that has them ----------
 let sceneCold = false;      // winter, and out of doors: whoever is drawn in the scene that is drawing breathes a cloud (sceneBreath). The scene sets it.
+let sceneFoot = 0;         // what a foot raises from the ground of the scene that is drawing: 0 dust, 1 water where it is wet, 2 snow where snow lies (yardPerson). The scene sets it.
+const footOf = (wx, snowK) => snowK > 0.3 ? 2 : (wx.wet || 0) > 0.3 || (wx.rain || 0) > 0.05 ? 1 : 0;
 // Breath in the cold, for the people of the yard and of the places, who are drawn twice the size of those in the town
 // (whose breath is vilBreath, in village.js). From a mouth at x, y, going the way he faces (d): a small cloud that
 // grows as it goes, white with a grey underside, and is gone; quicker from a man at work than from one standing.
@@ -526,6 +528,7 @@ function drawYard(cv, T) {
   // Snow lying (wx.white: how much of it, 0 to 1). It lies on whatever has a top to hold it: snowOn lays it along one,
   // so many lines deep and whole (solid), and then ragged below that, deeper in some places than others (ragged).
   const snowK = Math.min(1, (wx.white || 0) * 1.5);
+  sceneFoot = footOf(wx, snowK);      // (and what their feet raise as they walk)
   const snowOn = (x, y, w, solid, ragged) => {
     if (!(snowK > 0.03)) return;
     const was = ctx.globalAlpha; ctx.globalAlpha = was * snowK; x = Math.round(x); y = Math.round(y); w = Math.round(w);

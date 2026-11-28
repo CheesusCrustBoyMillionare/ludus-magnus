@@ -56,6 +56,7 @@ function drawPlace(cv, T, tab) {
   const sky = yardSky(T), wx = yardWeather(T), late = [], lamps = [], fires = [], shafts = [];
   sceneCold = !scene.indoor && sceneSeason() === 3;      // (winter, and out of doors: whoever is in the picture breathes a cloud: see sceneBreath, in yard.js)
   const snowK = scene.indoor ? 0 : Math.min(1, (wx.white || 0) * 1.5);      // snow lying out of doors: on the ground (see paving, below), on the hills, and on the top of whatever stands there (placeSnowCaps)
+  sceneFoot = scene.indoor ? 0 : footOf(wx, snowK);      // (what a foot raises there as he walks: dust under a roof whatever the day, and out of doors water or snow when that is what lies)
   if (wx.over > 0) {
     const grey = mixHex('#8d98a3', '#1a2030', sky.night);
     sky.bands = sky.bands.map(c => mixHex(c, grey, wx.over * 0.8));

@@ -763,7 +763,10 @@ function drawVillage(cv, T) {
     for (let i = 1; i < vil.path.length; i += 2) R(vil.path[i].x - 1, vil.path[i].y - 1, 2, 2, 'rgba(245,213,132,.8)');
     const e = vil.path[vil.path.length - 1]; ctx.globalAlpha = 0.5 + 0.4 * Math.sin(T * 6); R(e.x - 4, e.y - 1, 9, 2, '#f5d584'); ctx.globalAlpha = 1;
   }
-  for (const q of vil.puffs) { ctx.globalAlpha = 0.5 * (1 - q.t / 0.5); R(q.x - 1, q.y - 1 - q.t * 6, 3, 2, '#e2cf9c'); }
+  // What his feet raise is of the ground as the day has left it: dust off a dry street, and it goes down the wind;
+  // a little water where it is raining or has rained, low and soon gone; and snow where snow lies.
+  { const snowy = snowK > 0.3, wetK = snowy ? 0 : Math.min(1, Math.max(wx.wet || 0, (wx.rain || 0) > 0.05 ? 1 : 0) / 0.3), col = snowy ? '#f6f9fd' : wetK >= 1 ? '#c4d6e8' : '#e2cf9c', a = snowy ? 0.75 : wetK >= 1 ? 0.45 : 0.5 * (1 - wetK * 0.6);
+    for (const q of vil.puffs) { const k = q.t / 0.5; ctx.globalAlpha = a * (1 - k); if (wetK >= 1) { R(q.x - 2 - k * 2, q.y - 1, 1, 1, col); R(q.x + 1 + k * 2, q.y - 1, 1, 1, col); R(q.x - 1, q.y - 1 - (k < 0.4 ? 1 : 0), 2, 1, col); } else R(q.x - 1 + (snowy ? 0 : q.t * (wx.gust || 0) * 22), q.y - 1 - q.t * (snowy ? 4 : 6), 3, 2, col); } }
   ctx.globalAlpha = 1;
 
   // the east gate: barred until the school has fought its first games
