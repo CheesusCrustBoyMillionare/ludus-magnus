@@ -803,7 +803,7 @@ function drawFighter(ctx, f, o) {
   const x = o.x + P.ox, y = o.y + P.oy, none = { len: 0, a: 0 };
   for (let i = P.ghosts; i >= 1; i--) {            // where he was a moment ago
     ctx.globalAlpha = 0.2 - i * 0.045;
-    drawSprite(ctx, Object.assign({}, o, { x: x + P.gx * i * 7, y: y + P.gy * i * 7 - P.lift, shadow: none, flash: 0 }));
+    drawSprite(ctx, Object.assign({}, o, { x: x + P.gx * i * 7, y: y + P.gy * i * 7 - P.lift, shadow: none, flash: 0, light: null }));
   }
   ctx.globalAlpha = 1;
   if (P.lift > 1) {                                // his shadow stays on the sand, and shrinks as he rises
@@ -838,6 +838,41 @@ function drawSprite(ctx, o) {
   if (o.solid) { ctx.fillStyle = o.solid; for (let i = 0; i < n; i++) if (I[i]) ctx.fillRect(X[i], Y[i], W[i], H[i]); return; }
   let last = null;
   for (let i = 0; i < n; i++) { if (C[i] !== last) ctx.fillStyle = last = C[i]; ctx.fillRect(X[i], Y[i], W[i], H[i]); }
+  if (o.light && !(o.flash > HIT_WHITE)) sprLight(ctx, o.light);
+}
+// The light on a figure. He is painted in his own colours whatever the hour; what tells where the light is, is his
+// edge: bright along the side the sun or a flame is on, a little along the top of him when the light is overhead,
+// and darkened down the side that is turned from it. The list of rectangles he was drawn from (_spr) is laid on a
+// small grid to find where he ends, so the light falls on his outline and on nothing inside it; where there is air
+// between an arm and his body, or between his legs, it comes through and lights the far limb as well.
+// L: la, lc: how strong the light on his left is, 0 to 1, and its colour as r,g,b; ra, rc: on his right; ta, tc:
+// from above. Whoever draws him works it out (in a fight, drawBattle); with no L he is drawn as he always was.
+const _lg = new Uint8Array(128 * 96);
+function sprLight(ctx, L) {
+  const S = _spr, n = S.n, X = S.x, Y = S.y, W = S.w, H = S.h, I = S.ink, g = _lg;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (let i = 0; i < n; i++) if (I[i]) { if (X[i] < x0) x0 = X[i]; if (Y[i] < y0) y0 = Y[i]; if (X[i] + W[i] > x1) x1 = X[i] + W[i]; if (Y[i] + H[i] > y1) y1 = Y[i] + H[i]; }
+  x0 = Math.floor(x0); y0 = Math.floor(y0); const w = Math.ceil(x1) - x0, h = Math.ceil(y1) - y0;
+  if (!(w > 0 && h > 0) || w > 128 || h > 96) return;
+  g.fill(0, 0, w * h);
+  for (let i = 0; i < n; i++) if (I[i]) { const ax = Math.max(0, Math.round(X[i]) - x0), bx = Math.min(w, Math.round(X[i] + W[i]) - x0), by = Math.min(h, Math.round(Y[i] + H[i]) - y0); if (bx > ax) for (let y = Math.max(0, Math.round(Y[i]) - y0); y < by; y++) g.fill(1, y * w + ax, y * w + bx); }
+  // dx: which way the light comes from, across (-1 from the left, 1 from the right) or 0 from above; deep: how far in from the edge (0, or 1 for the pixel behind it)
+  const edge = (col, a, dx, deep) => {
+    if (!(a > 0.03)) return;
+    ctx.fillStyle = `rgba(${col},${Math.min(1, a).toFixed(3)})`;
+    for (let y = 0; y < h; y++) for (let x = 0, r = y * w; x < w; x++) {
+      if (!g[r + x]) continue;
+      let out;
+      if (dx) { const e = x + dx * (deep + 1), m = x + dx; out = (e < 0 || e >= w || !g[r + e]) && (!deep || (m >= 0 && m < w && g[r + m])); }
+      else out = (y - deep - 1 < 0 || !g[r - (deep + 1) * w + x]) && (!deep || g[r - w + x]);
+      if (out) ctx.fillRect(x0 + x, y0 + y, 1, 1);
+    }
+  };
+  const la = L.la || 0, ra = L.ra || 0, DARK = '14,8,22';
+  edge(L.lc, la, -1, 0); if (la > 0.3) edge(L.lc, la * 0.4, -1, 1);
+  edge(L.rc, ra, 1, 0); if (ra > 0.3) edge(L.rc, ra * 0.4, 1, 1);
+  if (la < 0.06 && ra > 0.12) edge(DARK, ra * 0.5, -1, 0); else if (ra < 0.06 && la > 0.12) edge(DARK, la * 0.5, 1, 0);      // the side turned from it
+  edge(L.tc, L.ta || 0, 0, 0);
 }
 function spriteRects(o) {
   // o: {x,y,facing,g,team,col,colD,moving,walk,clock,atkAnim,windup,windP,recoil,bash,guard,flash,down,falling,yielded,snare,cheer,shadow,solid}
@@ -2607,6 +2642,7 @@ function drawBattle(ctx, B) {
   // light of its own, nor out in the province, which has its own sky.)
   const hr = !dusk && !B.wild && typeof yardSky === 'function' && typeof sceneClock === 'function' ? yardSky(sceneClock()) : null;
   const hrOv = hr && typeof yardWeather === 'function' ? Math.min(1, yardWeather(sceneClock()).over || 0) : 0, hrLow = hr && hr.sun ? clamp((hr.sun[1] - 12) / 58, 0, 1) : 0;
+  const lit = dusk ? 1 : hr ? clamp((hr.night - 0.45) / 0.4, 0, 1) : 0;      // the torches: lit for a bout to the death, and for any that is fought after dark; they come up as the light goes
   if (hr && B._rim) {      // the sky over the rim: blue, or red at either end of the day, or grey, or dark with a few stars
     const grey = mixHex('#8d98a3', '#1a2030', hr.night);
     for (let y = 0; y < 10; y += 2) { ctx.fillStyle = mixHex(mixHex(hr.bands[0], hr.bands[1], y / 8), grey, hrOv * 0.8); ctx.fillRect(0, y, 428, 2); }
@@ -2666,6 +2702,30 @@ function drawBattle(ctx, B) {
     const ov = typeof yardWeather === 'function' && typeof sceneClock === 'function' ? Math.min(1, yardWeather(sceneClock()).over || 0) : 0, low = B._sun ? B._sun[3] : 0;
     shadow = { len: B._sun ? Math.round((2 + low * 18) * (1 - ov * 0.85)) : 0, a: +((B._sun ? 0.22 + low * 0.08 : 0.16) * (1 - ov * 0.5)).toFixed(3), dir: B._sun && B._sun[0] > 214 ? -1 : 1, cast: true };
   }
+  // The light on the men (sprLight). From the sun, on the side their shadows are thrown away from: low and strong
+  // toward either end of the day and in the red of a bout to the death, more from overhead at noon, and hardly any
+  // under cloud. After dark a little from the moon, cold; and from each torch on the wall, warm, on whoever is near
+  // enough, so that a man between two has an edge of fire down either side. A camp out in the province has its fire.
+  const rgbOf = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)).join(','), FIRE = '255,168,84';
+  let sunL = null;
+  if (typeof mixHex === 'function') {
+    const from = -(shadow.dir || 1);
+    if (dusk) sunL = { dir: -1, a: 0.65 * (1 - duskOv * 0.85), col: '255,196,120', top: 0.08 };
+    else if (hr) sunL = hr.sun ? { dir: from, a: (0.22 + 0.4 * hrLow) * (1 - hrOv * 0.85), col: rgbOf(mixHex(hr.sunCol, '#ffffff', 0.45)), top: 0.24 * (1 - hrLow) * (1 - hrOv * 0.7) } : { dir: from, a: 0.24 * (1 - hrOv), col: '186,204,255', top: 0.08 * (1 - hrOv) };
+    else if (B.wild && B._sun) { const ov = wxF ? Math.min(1, wxF.over || 0) : 0, low = B._sun[3]; sunL = { dir: from, a: (0.22 + 0.4 * low) * (1 - ov * 0.85), col: rgbOf(mixHex(B._sun[2], '#ffffff', 0.3)), top: 0.24 * (1 - low) * (1 - ov * 0.7) }; }
+  }
+  const lightOn = f => {
+    let la = 0, lc = FIRE, ra = 0, rc = FIRE, ta = 0, tc = FIRE;
+    if (sunL) { if (sunL.dir < 0) { la = sunL.a; lc = sunL.col; } else { ra = sunL.a; rc = sunL.col; } ta = sunL.top; tc = sunL.col; }
+    const fire = (fx, fy, reach, k) => {      // a flame at fx, fy: by how near he is to it, on the side of him it is on
+      const dx = fx - f.x * 2, a = k * clamp(1 - Math.hypot(dx, (fy - f.y * 2) * 1.3) / reach, 0, 1); if (a < 0.04) return;
+      if (dx < 0) { if (a > la) { la = a; lc = FIRE; } } else if (a > ra) { ra = a; rc = FIRE; }
+      if (a * 0.5 > ta) { ta = a * 0.5; tc = FIRE; }
+    };
+    if (lit > 0 && !B.wild) for (const tx of ARENA_TORCHES) fire(tx + 1, 70, 190, lit);
+    if (B.wild === 'camp') fire(214, 90, 120, 0.5);
+    return la < 0.04 && ra < 0.04 && ta < 0.04 ? null : { la, lc, ra, rc, ta, tc };
+  };
   const flat = f => f.down && f.fallT <= 0;
   drawVfx(ctx, B, true);
   const sorted = B.fighters.slice().sort((a, b) => (flat(a) === flat(b) ? a.y - b.y : flat(a) ? -1 : 1));
@@ -2673,7 +2733,7 @@ function drawBattle(ctx, B) {
       x: f.x * 2, y: f.y * 2, facing: f.facing, g: f.g, team: f.team, col: B.col[f.team], colD: B.colD[f.team],
       moving: f.moving, walk: f.walk, clock: T + f.walk, atkAnim: f.atkAnim,
       windup: f.state === 'windup', windP: f.t0 ? clamp(1 - f.t / f.t0, 0, 1) : 1,
-      recoil: clamp(Math.abs(f.kx) / 40, 0, 1), shadow,
+      recoil: clamp(Math.abs(f.kx) / 40, 0, 1), shadow, light: lightOn(f),
       bash: f.state === 'windup' && f.move === 'bash', guard: f.guard,
       flash: f.flash, down: f.down, falling: f.fallT > 0, yielded: f.yielded, snare: f.snare, slash: f.slash,
       cheer: (B.over && !out(f) && f.team === B.winner && B.slowmo <= 0) || f.flourish > 0 ? T + f.walk : 0,
@@ -2721,8 +2781,7 @@ function drawBattle(ctx, B) {
     sceneRain(ctx, 428, 240, T, wx.rain, 90); if (typeof sceneSnow === 'function') { sceneWhite(ctx, 428, 86, 154, wx.white * 0.16); sceneSnow(ctx, 428, 240, T, wx.snow, 110); }
     if (typeof sceneStorm === 'function') sceneStorm(ctx, 428, 240, sceneClock(), wx);
   }
-  const lit = dusk ? 1 : hr ? clamp((hr.night - 0.45) / 0.4, 0, 1) : 0;      // the torches: lit for a bout to the death, and for any that is fought after dark; they come up as the light goes
-  for (const x of B.wild ? [] : ARENA_TORCHES) {
+  for (const x of B.wild ? [] : ARENA_TORCHES) {      // the torches (lit: how far they are alight)
     const fl = Math.sin(T * 13 + x) > 0 ? 1 : 0;
     if (lit > 0) {                    // lit: a flame, a halo, and a pool of light on the sand below
       ctx.globalCompositeOperation = 'lighter';
